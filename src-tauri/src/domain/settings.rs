@@ -95,6 +95,15 @@ pub struct GeneralSettings {
     /// older settings.json files upgrade cleanly.
     #[serde(default)]
     pub releases_email: Option<String>,
+    /// Hex string (e.g. `"#22D3EE"`) backing the `Accent::Custom` variant.
+    /// The frontend's theme applier reads this when `accent == Custom` and
+    /// sets `--accent` / `--accent-2` / `--accent-3` from it. Stored
+    /// regardless of current tier so a Free user who ever had Pro gets
+    /// their colour back when they re-activate. Validated loosely — we
+    /// accept any 7-char `#RRGGBB` string and fall back to cyan at render
+    /// time if it's missing or malformed.
+    #[serde(default)]
+    pub custom_accent_hex: Option<String>,
 }
 
 fn default_bar_outline() -> bool {
@@ -169,6 +178,7 @@ impl Default for GeneralSettings {
             bar_visibility: BarVisibility::Always,
             bar_outline: true,
             releases_email: None,
+            custom_accent_hex: None,
         }
     }
 }
@@ -192,6 +202,14 @@ pub enum Accent {
     Rose,
     Cyan,
     Lime,
+    /// User-picked hex accent. Read from `GeneralSettings.custom_accent_hex`
+    /// at render time. Pro-only — the backend strips the variant back to the
+    /// default Teal for Free tier in `update_settings` (see `commands/
+    /// settings.rs`), same shape as the existing `retain_audio` strip. This
+    /// variant is deliberately not a tuple variant holding the hex itself:
+    /// keeping the colour on `GeneralSettings` means the user's last pick
+    /// sticks around even if they flip back to a preset and return later.
+    Custom,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

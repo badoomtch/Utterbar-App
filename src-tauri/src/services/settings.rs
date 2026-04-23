@@ -1,4 +1,15 @@
 //! JSON-backed settings store with atomic writes and in-memory cache.
+//!
+//! Storage location: `%APPDATA%\Utterbar\config\settings.json` (derived from
+//! `util::paths::app_data_dir()` on Windows). This **must** stay outside the
+//! install directory so user preferences survive an NSIS upgrade — the
+//! installer wipes `C:\Program Files\Utterbar` but leaves `%APPDATA%` alone,
+//! which is exactly what we want. If you ever refactor the path choice, keep
+//! it rooted at `%APPDATA%`; do NOT use `resolve_path(.., AppLocalData)` or
+//! anything under the install dir, and do NOT cache to a temp folder that
+//! gets GC'd on boot. Licence is separately safe — see `services/licence/
+//! cache.rs`, which uses the Windows Credential Manager (DPAPI), a
+//! process-independent store.
 
 use std::path::{Path, PathBuf};
 

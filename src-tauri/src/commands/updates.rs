@@ -104,11 +104,22 @@ pub async fn subscribe_to_release_updates(email: String) -> CmdResult<String> {
 
     let status = resp.status();
     if status.is_success() {
-        // 200 or 201 — both envelopes are `{ ok, message }`.
-        let body: SubscribeOkResponse = resp.json().await.map_err(|e| OrliqError::Licence {
-            code: "internal".into(),
-            message: format!("server returned invalid JSON: {e}"),
-        })?;
+        // 200 or 201 — both envelopes are `{ ok, message }`. If the body
+        // isn't JSON (e.g., Laravel returned the HTML maintenance page with
+        // a stray 200, or Cloudflare interstitialled us with a challenge),
+        // surface human copy rather than a reqwest stack trace — the latter
+        // reads like a bug in the app when it's really a server/transport
+        // hiccup the user can solve by retrying. We still route through the
+        // same "internal" code so developer telemetry (if we ever add it)
+        // can tell real invalid-JSON from intended error envelopes.
+        let bytes = resp.bytes().await.unwrap_or_default();
+        let body: SubscribeOkResponse =
+            serde_json::from_slice(&bytes).map_err(|_| OrliqError::Licence {
+                code: "internal".into(),
+                message: "The server responded but we couldn't read the reply. \
+                          Try again in a moment."
+                    .into(),
+            })?;
         return Ok(body.message);
     }
 

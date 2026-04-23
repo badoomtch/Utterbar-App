@@ -261,6 +261,53 @@ fn reset_to_primary_top_centre(w: &tauri::WebviewWindow) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Toggle click-passthrough for the floating bar window. When `passthrough` is true,
+/// the OS routes cursor events through the transparent parts of the floating window
+/// to whatever's underneath — so the user can click icons / focus other apps through
+/// the 500-ish pixels of empty space either side of the collapsed pill.
+///
+/// The frontend drives this from a cheap cursor-position poll (see `get_cursor_pos`
+/// below): as the cursor leaves the pill's bounding rect, we flip passthrough on;
+/// as it re-enters, we flip it off so the pill itself is clickable again.
+///
+/// Without this the floating window (520 × 64 px) acted as a dead zone across the
+/// entire top-centre of the desktop — users reported clicks on taskbar items or
+/// background windows that sat under the bar simply not registering.
+#[tauri::command]
+pub async fn set_floating_passthrough(handle: AppHandle, passthrough: bool) -> CmdResult<()> {
+    if let Some(w) = handle.get_webview_window("floating") {
+        w.set_ignore_cursor_events(passthrough)
+            .map_err(|e| OrliqError::Internal {
+                message: e.to_string(),
+            })?;
+    }
+    Ok(())
+}
+
+/// Return the current cursor position in physical screen coordinates. The floating
+/// bar polls this at ~30 Hz to decide whether its window should be passing clicks
+/// through (cursor outside the pill rect) or accepting them (cursor inside).
+///
+/// The Windows `GetCursorPos` result is already in physical pixels, which matches
+/// Tauri's `outer_position()` — no DPI fiddling required at the call site.
+/// Non-Windows builds return (0, 0) so the JS caller degrades to "never
+/// passthrough", which is strictly safer than "always passthrough".
+#[tauri::command]
+pub async fn get_cursor_pos() -> CmdResult<(i32, i32)> {
+    #[cfg(windows)]
+    {
+        use windows::Win32::Foundation::POINT;
+        use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+        let mut p = POINT::default();
+        unsafe {
+            if GetCursorPos(&mut p).is_ok() {
+                return Ok((p.x, p.y));
+            }
+        }
+    }
+    Ok((0, 0))
+}
+
 /// Atomically finish onboarding: mark the settings flag, hide the onboarding window,
 /// and show the floating bar. Doing this in Rust guarantees an ordering the frontend
 /// can't break across window contexts.

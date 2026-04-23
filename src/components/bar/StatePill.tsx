@@ -31,10 +31,13 @@ export function StatePill({ phase }: { phase: DictationPhase }) {
         exit={{ opacity: 0, y: -4, scale: 0.96 }}
         transition={springs.pop}
         className={cn(
-          // Geist Mono, 9.5px, +0.1em tracking keeps the rhythm tight next
-          // to the numeric timer that shares the pill.
+          // Geist Mono. Bumped from 9.5px to 11px — the old size read as
+          // decorative ornament; 'Ready' was barely legible on the floating
+          // bar's gradient, which defeated the whole point of surfacing the
+          // idle state. 11px + 0.08em tracking keeps the chip compact while
+          // actually being readable at a glance.
           'inline-flex cursor-default select-none items-center gap-1.5 rounded-full px-2 py-0.5',
-          'font-mono text-[9.5px] font-medium uppercase tracking-[0.1em]',
+          'font-mono text-[11px] font-medium uppercase tracking-[0.08em]',
           toneClass(tone),
         )}
       >
@@ -64,22 +67,25 @@ function describe(phase: DictationPhase) {
   }
 }
 
-// Tone classes — direct-var Tailwind tokens, no more hsl() soup. The pill
-// chrome lives on bg-bg-2 so the label feels recessed into the bar rather
-// than floating on top of it.
+// Tone classes. StatePill only appears inside the floating bar, so every
+// tone mixes its accent colour with the pill-local surface (`--pill-surface`)
+// rather than the app-shell `--bg-2`. That was the 'Ready' bug on Paper: a
+// dark-grey chip on a cream pill looked like a paste error. Mixing against
+// `--pill-surface` flips correctly per theme (dark tile on dark pill, warm
+// tile on Paper's light pill) and keeps the chip recessed into the bar
+// instead of floating on top.
 function toneClass(tone: 'muted' | 'accent' | 'success' | 'error') {
   switch (tone) {
     case 'accent':
-      // Accent tone uses a cyan-tinted surface via color-mix so it reads as
-      // "lit" without burning a full bg-accent block (that would spike the
-      // cyan-count budget for the whole viewport).
-      return 'bg-[color-mix(in_oklab,var(--accent)_14%,var(--bg-2))] text-accent';
+      return 'bg-[color-mix(in_oklab,var(--accent)_16%,var(--pill-surface))] text-accent';
     case 'success':
-      return 'bg-[color-mix(in_oklab,var(--moss)_14%,var(--bg-2))] text-moss';
+      return 'bg-[color-mix(in_oklab,var(--moss)_16%,var(--pill-surface))] text-moss';
     case 'error':
-      return 'bg-[color-mix(in_oklab,var(--rose)_14%,var(--bg-2))] text-rose';
+      return 'bg-[color-mix(in_oklab,var(--rose)_16%,var(--pill-surface))] text-rose';
     default:
-      return 'bg-bg-2 text-muted';
+      // Muted 'Ready' uses the pill-local surface + muted ink tokens so it
+      // reads cleanly on both dark and Paper pills without hand-tuning.
+      return 'bg-[var(--pill-surface)] text-[var(--pill-fg-muted)]';
   }
 }
 
@@ -92,6 +98,9 @@ function dotClass(tone: 'muted' | 'accent' | 'success' | 'error') {
     case 'error':
       return 'bg-rose';
     default:
-      return 'bg-fg-dim/70';
+      // Matches the muted-text colour of the surrounding chip so the dot
+      // doesn't out-contrast the label on Paper (where `fg-dim` is the
+      // app-shell token, not the pill-local one).
+      return 'bg-[var(--pill-fg-muted)]';
   }
 }

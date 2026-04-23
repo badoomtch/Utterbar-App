@@ -50,4 +50,4 @@ reduce_transparency: boolean, notifications_enabled: boolean, bar_size: BarSize,
  * and one-click unsubscribe lives on the server too. Serde-defaulted so
  * older settings.json files upgrade cleanly.
  */
-releases_email: string | null, };
+releases_email: string | null, custom_accent_hex: string | null, };

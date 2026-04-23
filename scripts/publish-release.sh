@@ -36,7 +36,10 @@ ENV_FILE="$HOME/.utterbar-deploy/.env"
 if [[ ! -f "$ENV_FILE" ]]; then echo "missing $ENV_FILE — see RELEASE.md" >&2; exit 1; fi
 set -a; source "$ENV_FILE"; set +a
 
-KEY="releases/$VERSION/Utterbar-Setup.exe"
+# File name carries the version too (not just the path segment) so a user who
+# drags the downloaded installer anywhere still knows what version it is.
+# Rule: every release asset includes the version in the filename.
+KEY="releases/$VERSION/Utterbar-Setup-$VERSION.exe"
 NOTES=$(cat "$NOTES_PATH")
 
 echo "→ computing SHA-256…"

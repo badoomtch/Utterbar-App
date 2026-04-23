@@ -3,6 +3,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
+import { Toggle } from '@/components/common/Toggle';
 import { invoke } from '@/lib/ipc';
 import { useSettings } from '@/state/settings';
 
@@ -271,20 +272,11 @@ export function AdvancedSettings() {
             label="Include recordings in export"
             description="Audio files from history. Usually the bulk of the archive — leave off when you just want to move preferences."
           >
-            <button
-              role="switch"
-              aria-checked={includeRecordings}
-              onClick={() => setIncludeRecordings((v) => !v)}
-              className={`relative h-[22px] w-[40px] rounded-full transition-colors ${
-                includeRecordings ? 'bg-accent' : 'bg-bg-2'
-              }`}
-            >
-              <span
-                className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white transition-transform ${
-                  includeRecordings ? 'translate-x-[20px]' : 'translate-x-[2px]'
-                }`}
-              />
-            </button>
+            <Toggle
+              checked={includeRecordings}
+              onChange={setIncludeRecordings}
+              label="Include recordings in export"
+            />
           </Row>
           <Row
             label="Export data"

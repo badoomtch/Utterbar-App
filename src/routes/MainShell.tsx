@@ -131,7 +131,7 @@ export function MainShell() {
           <UtterbarWordmark size={24} />
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 pb-4">
           <NavGroup label="Workspace" items={NAV_PRIMARY} />
           <NavGroup label="Settings" items={NAV_SETTINGS} />
         </nav>
@@ -144,7 +144,7 @@ export function MainShell() {
         </div>
       </aside>
 
-      <main ref={mainRef} className="flex-1 overflow-y-auto bg-bg-0">
+      <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto bg-bg-0">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />

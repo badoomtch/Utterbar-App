@@ -1,8 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
+  Check,
   CircleStop,
-  History as HistoryIcon,
+  Copy as CopyIcon,
   Settings as SettingsIcon,
   SquarePlay,
   X,
@@ -20,6 +21,10 @@ import { useSettings } from '@/state/settings';
 
 export function FloatingBar() {
   const phase = useDictation((s) => s.phase);
+  // Last dictation text kept in the zustand store — populated from the
+  // `dictation:result` event in AppBootstrap. Null until the user dictates
+  // once in the current session; we disable the Copy tile in that case.
+  const lastText = useDictation((s) => s.lastText);
   // Meter readings are no longer consumed at this layer — the prototype v2
   // wave bars are CSS-keyframe driven (see `.ub-bar-wave__bar` in globals),
   // which gives a steadier "I'm listening" cue than amplitude-bound bars
@@ -150,6 +155,93 @@ export function FloatingBar() {
     };
   }, []);
 
+  // Click-passthrough poll. The floating window is 520 × 64 px but the pill
+  // inside it is only ~210 px collapsed / ~500 px expanded, so the transparent
+  // margins either side were a dead click zone over the desktop — users reported
+  // icons + background-window clicks that sat under those margins simply not
+  // registering. Fix: toggle `setIgnoreCursorEvents` based on whether the cursor
+  // is physically over the pill's on-screen bounding rect.
+  //
+  // The poll runs at ~30 Hz; the per-tick cost is a single cheap IPC invoke
+  // (`get_cursor_pos` → GetCursorPos on Windows) plus a rect-containment check.
+  // When dragging, we force passthrough off no matter what — lose this and
+  // `startDragging()` refuses the hand-off mid-gesture.
+  //
+  // Dragging + activePhase are read via refs so a phase change mid-session
+  // doesn't tear the poll down and re-register it (which would flash
+  // passthrough off briefly and cause a visible click flicker).
+  const draggingRef = useRef(dragging);
+  const activePhaseRef = useRef(activePhase);
+  useEffect(() => {
+    draggingRef.current = dragging;
+  }, [dragging]);
+  useEffect(() => {
+    activePhaseRef.current = activePhase;
+  }, [activePhase]);
+  useEffect(() => {
+    let cancelled = false;
+    let lastPassthrough: boolean | null = null;
+    let timer: number | undefined;
+
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const el = pillRef.current;
+        const win = getCurrentWindow();
+        if (!el) {
+          timer = window.setTimeout(tick, 120);
+          return;
+        }
+        // Pill's screen-space rect = window origin + DOM-relative rect.
+        // outer_position and GetCursorPos are both in physical px so they compose.
+        const [pos, scale, cursor] = await Promise.all([
+          win.outerPosition(),
+          win.scaleFactor(),
+          invoke<[number, number]>('get_cursor_pos'),
+        ]);
+        const r = el.getBoundingClientRect();
+        const left = pos.x + Math.round(r.left * scale);
+        const top = pos.y + Math.round(r.top * scale);
+        const right = pos.x + Math.round(r.right * scale);
+        const bottom = pos.y + Math.round(r.bottom * scale);
+        // Small padding so a pixel-perfect edge click still lands on the pill.
+        const PAD = 2;
+        const [cx, cy] = cursor;
+        const over =
+          cx >= left - PAD && cx <= right + PAD && cy >= top - PAD && cy <= bottom + PAD;
+        // Dragging always forces events through so `startDragging()` and the
+        // framer drag-lift logic keep their input stream. Active capture
+        // phases also keep the bar live so the Stop / Cancel tiles are
+        // always one click away.
+        const wantPassthrough = !(over || draggingRef.current || activePhaseRef.current);
+        if (wantPassthrough !== lastPassthrough) {
+          lastPassthrough = wantPassthrough;
+          await invoke('set_floating_passthrough', { passthrough: wantPassthrough }).catch(
+            () => undefined,
+          );
+        }
+      } catch {
+        // Any error in the poll shouldn't brick the bar — worst case the
+        // passthrough stays at its last value for a tick.
+      }
+      if (!cancelled) timer = window.setTimeout(tick, 33);
+    };
+    // Start with passthrough ON so clicks route through the transparent margins
+    // from the moment the window mounts; the poll will flip it off as soon as
+    // the cursor enters the pill.
+    void invoke('set_floating_passthrough', { passthrough: true }).catch(() => undefined);
+    lastPassthrough = true;
+    timer = window.setTimeout(tick, 33);
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      // Leave passthrough OFF on unmount — we never want to hand over a
+      // click-through window to a different React tree without its consent.
+      void invoke('set_floating_passthrough', { passthrough: false }).catch(() => undefined);
+    };
+  }, []);
+
   // Mount-time clamp. Windows can restore the floating window at a saved
   // position that's no longer on-screen — classic triggers:
   //   • monitor unplugged since last session
@@ -198,11 +290,32 @@ export function FloatingBar() {
     }
   };
   const onCancel = () => void invoke('cancel_recording');
-  // Land on the explicit route the user asked for. `show_main` alone would
-  // surface whatever was open last, which made the History button feel
-  // broken — you'd click it and end up on Dashboard.
-  const onHistory = () => void invoke('show_main_at', { path: '/history' });
   const onSettings = () => void invoke('show_main_at', { path: '/settings/general' });
+
+  // "Copy last" — puts the most recently dictated text back on the clipboard
+  // so the user can paste it again anywhere. Replaces the old History button:
+  // the fast-path someone actually wants from the bar isn't "open the app on
+  // a table of past dictations", it's "put the thing I just said back on my
+  // clipboard". Flashes a check glyph for 1.2 s on success.
+  const [copied, setCopied] = useState(false);
+  const copyFlashRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    return () => {
+      if (copyFlashRef.current !== undefined) window.clearTimeout(copyFlashRef.current);
+    };
+  }, []);
+  const onCopyLast = async () => {
+    if (!lastText) return;
+    try {
+      await navigator.clipboard.writeText(lastText);
+      setCopied(true);
+      if (copyFlashRef.current !== undefined) window.clearTimeout(copyFlashRef.current);
+      copyFlashRef.current = window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Clipboard write can fail if the webview has no focus permission;
+      // silent is fine — nothing to recover here.
+    }
+  };
 
   // Size preference from settings: compact shrinks padding + internal gaps, standard is
   // the default roomier layout.
@@ -387,27 +500,33 @@ export function FloatingBar() {
               : '0 2px 8px rgba(0,0,0,0.24)',
         }}
         className={cn(
-          // 52px tall pill per prototype. rounded-full + 2px solid border
-          // whose colour is driven inline. We intentionally drop any
-          // `ring` stack — the look is a single clean border.
-          'mt-0.5 flex h-[52px] items-center overflow-hidden rounded-full border-2',
+          // Height scales with size preference. Standard is 52px (prototype
+          // default). Compact drops to 44px — a real ~15% size step that the
+          // user feels as "noticeably smaller", not just a padding tweak.
+          // Everything below (mini-mark, wordmark, buttons, min-widths) has
+          // a matching compact scale so the pill keeps its proportions.
+          'mt-0.5 flex items-center overflow-hidden rounded-full border-2',
+          isCompact ? 'h-[44px]' : 'h-[52px]',
           // Padding switches to symmetric + `justify-center` while
           // collapsed so the logo + wordmark sit dead-centre inside the
           // pill. Expanded state goes back to the asymmetric padding the
           // action cluster needs (pl small, pr larger for the button row).
+          // Collapsed compact is the smallest visual state — its padding is
+          // tightened from px-3 to px-2 so the wordmark doesn't float in a
+          // sea of gradient. Standard keeps its roomier px-4 for weight.
           expanded
             ? isCompact
-              ? 'pl-2 pr-1.5 gap-2'
+              ? 'pl-1.5 pr-1 gap-1.5'
               : 'pl-3 pr-2 gap-3'
             : isCompact
-              ? 'justify-center px-3 gap-2'
+              ? 'justify-center px-2 gap-1.5'
               : 'justify-center px-4 gap-3',
           expanded
             ? isCompact
-              ? 'min-w-[400px]'
+              ? 'min-w-[360px]'
               : 'min-w-[500px]'
             : isCompact
-              ? 'min-w-[180px]'
+              ? 'min-w-[156px]'
               : 'min-w-[210px]',
         )}
       >
@@ -422,7 +541,7 @@ export function FloatingBar() {
         <div className="flex shrink-0 items-center gap-2">
           <UtterbarMiniMark
             active={phase.kind === 'listening'}
-            size={isCompact ? 20 : 24}
+            size={isCompact ? 18 : 24}
             // Soft drop-shadow + accent halo so the bars lift off the pill
             // gradient — same feel the old inline mark had, minus the pill
             // body that was causing the "mini pill inside a pill" read.
@@ -431,7 +550,7 @@ export function FloatingBar() {
           <span
             className={cn(
               'cursor-default select-none font-semibold tracking-[-0.01em] whitespace-nowrap',
-              isCompact ? 'text-[17px]' : 'text-[19px]',
+              isCompact ? 'text-[15px]' : 'text-[19px]',
             )}
             style={{ color: 'var(--pill-fg)' }}
           >
@@ -496,11 +615,19 @@ export function FloatingBar() {
                       label="Stop"
                       icon={CircleStop}
                       tone="rose"
+                      compact={isCompact}
                     />
-                    <BarButton onClick={onCancel} label="Cancel" icon={X} />
+                    <BarButton onClick={onCancel} label="Cancel" icon={X} compact={isCompact} />
                     <Divider />
-                    <BarButton onClick={onHistory} label="History" icon={HistoryIcon} />
-                    <BarButton onClick={onSettings} label="Settings" icon={SettingsIcon} />
+                    <BarButton
+                      onClick={onCopyLast}
+                      label={copied ? 'Copied' : 'Copy last message'}
+                      icon={copied ? Check : CopyIcon}
+                      compact={isCompact}
+                      tone={copied ? 'accent' : 'default'}
+                      disabled={!lastText}
+                    />
+                    <BarButton onClick={onSettings} label="Settings" icon={SettingsIcon} compact={isCompact} />
                   </div>
                 </>
               ) : (
@@ -518,10 +645,18 @@ export function FloatingBar() {
                       label="Record"
                       icon={SquarePlay}
                       tone="accent"
+                      compact={isCompact}
                     />
                     <Divider />
-                    <BarButton onClick={onHistory} label="History" icon={HistoryIcon} />
-                    <BarButton onClick={onSettings} label="Settings" icon={SettingsIcon} />
+                    <BarButton
+                      onClick={onCopyLast}
+                      label={copied ? 'Copied' : 'Copy last message'}
+                      icon={copied ? Check : CopyIcon}
+                      compact={isCompact}
+                      tone={copied ? 'accent' : 'default'}
+                      disabled={!lastText}
+                    />
+                    <BarButton onClick={onSettings} label="Settings" icon={SettingsIcon} compact={isCompact} />
                   </div>
                 </>
               )}
@@ -553,11 +688,15 @@ function BarButton({
   label,
   icon: Icon,
   tone = 'default',
+  compact = false,
+  disabled = false,
 }: {
   onClick: () => void;
   label: string;
   icon: LucideIcon;
   tone?: 'default' | 'accent' | 'rose';
+  compact?: boolean;
+  disabled?: boolean;
 }) {
   const toneStyle: React.CSSProperties =
     tone === 'accent'
@@ -585,22 +724,35 @@ function BarButton({
       onClick={onClick}
       aria-label={label}
       title={label}
+      disabled={disabled}
       style={toneStyle}
       className={cn(
         // no-drag opts out of the drag handler so clicking a button never
         // starts a window move.
-        'no-drag group/btn flex h-[34px] w-[34px] items-center justify-center rounded-[10px]',
+        'no-drag group/btn flex items-center justify-center rounded-[10px]',
+        // Compact bar uses 28×28 tiles with a tighter corner radius so the
+        // action cluster doesn't crowd out the mini-mark + wordmark inside
+        // the shorter (44px) pill. Standard stays at the prototype's 34×34.
+        compact ? 'h-[28px] w-[28px] rounded-[8px]' : 'h-[34px] w-[34px]',
         // Spring-ish hover/active. The overshoot cubic-bezier
         // (0.34, 1.56, 0.64, 1) gives the hover a tiny "pop" and the active
         // shrink a satisfying bottom-out without going full Framer.
         'transition-[transform,box-shadow,background,color] duration-150',
         '[transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)]',
-        'hover:scale-[1.08] active:scale-[0.86]',
-        tone === 'default' && 'hover:bg-[var(--pill-surface-hi)] hover:text-[var(--pill-ink-on-hi)]',
-        (tone === 'accent' || tone === 'rose') && 'hover:brightness-110',
+        !disabled && 'hover:scale-[1.08] active:scale-[0.86]',
+        !disabled &&
+          tone === 'default' && 'hover:bg-[var(--pill-surface-hi)] hover:text-[var(--pill-ink-on-hi)]',
+        !disabled && (tone === 'accent' || tone === 'rose') && 'hover:brightness-110',
+        // Disabled = no previous dictation yet. Dim the tile, block hover
+        // effects, and show the not-allowed cursor so the user knows why
+        // the click is doing nothing.
+        disabled && 'cursor-not-allowed opacity-40',
       )}
     >
-      <Icon className="h-[18px] w-[18px]" strokeWidth={2.25} />
+      <Icon
+        className={compact ? 'h-[15px] w-[15px]' : 'h-[18px] w-[18px]'}
+        strokeWidth={2.25}
+      />
     </button>
   );
 }

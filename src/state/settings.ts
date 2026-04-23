@@ -48,8 +48,39 @@ export function applyThemeClasses(s: Settings) {
     'accent-rose',
     'accent-cyan',
     'accent-lime',
+    'accent-custom',
   );
   root.classList.add(`accent-${s.general.accent}`);
+
+  // Custom accent (Pro). When `accent === 'custom'` we source the hex from
+  // `general.custom_accent_hex` and set the CSS vars inline. We derive
+  // `--accent-2` and `--accent-3` by tint/shade math so surfaces that use
+  // the gradient (wordmark, pill glow, CTA buttons) still have depth
+  // instead of reading as a single flat colour. Any non-`#RRGGBB` input
+  // falls back to cyan so a corrupted settings.json can't brick the theme.
+  if (s.general.accent === 'custom') {
+    const hex =
+      typeof s.general.custom_accent_hex === 'string'
+        ? s.general.custom_accent_hex
+        : '';
+    const valid = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#22D3EE';
+    root.style.setProperty('--accent', valid);
+    root.style.setProperty('--accent-2', tintHex(valid, 0.35));
+    root.style.setProperty('--accent-3', shadeHex(valid, 0.3));
+    root.style.setProperty(
+      '--gradient-wordmark',
+      `linear-gradient(90deg, ${tintHex(valid, 0.25)} 0%, ${shadeHex(valid, 0.2)} 100%)`,
+    );
+  } else {
+    // Clear the inline overrides when switching back to a preset so the
+    // class-based cascade wins again. Without this, the last custom hex
+    // would persist on top of e.g. `.accent-violet` and wash out the
+    // preset colour.
+    root.style.removeProperty('--accent');
+    root.style.removeProperty('--accent-2');
+    root.style.removeProperty('--accent-3');
+    root.style.removeProperty('--gradient-wordmark');
+  }
   if (s.general.theme === 'paper') root.classList.remove('dark');
   else root.classList.add('dark');
 
@@ -109,3 +140,53 @@ void listen<Settings>(EVT.settingsChanged, (e) => {
   useSettings.setState({ data: e.payload });
   applyThemeClasses(e.payload);
 });
+
+// ----- Custom-accent colour math ---------------------------------------------
+//
+// The six preset accents each ship a hand-tuned `--accent` / `--accent-2` /
+// `--accent-3` triple in tokens.css. A user-picked custom colour gives us
+// one value — so we derive the other two by tinting (mix toward white) and
+// shading (mix toward black). That's not as nice as a designer picking the
+// stops, but it gives every custom pick a passable gradient instead of
+// painting the whole accent family in one flat colour (which reads as
+// "broken"). If we ever want to get fancy, swap this for a proper LCH
+// rotation — oklab's tonal shifts would be noticeably better for reds /
+// yellows where sRGB linear mixes muddy fast.
+
+function clampByte(n: number): number {
+  return Math.max(0, Math.min(255, Math.round(n)));
+}
+
+function parseHex(hex: string): [number, number, number] | null {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+function toHex(r: number, g: number, b: number): string {
+  const h = (n: number) => clampByte(n).toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`.toUpperCase();
+}
+
+/** Mix `hex` toward white by `ratio` (0..1). `ratio=0` returns the input. */
+function tintHex(hex: string, ratio: number): string {
+  const rgb = parseHex(hex);
+  if (!rgb) return hex;
+  const t = Math.max(0, Math.min(1, ratio));
+  return toHex(
+    rgb[0] + (255 - rgb[0]) * t,
+    rgb[1] + (255 - rgb[1]) * t,
+    rgb[2] + (255 - rgb[2]) * t,
+  );
+}
+
+/** Mix `hex` toward black by `ratio` (0..1). `ratio=0` returns the input. */
+function shadeHex(hex: string, ratio: number): string {
+  const rgb = parseHex(hex);
+  if (!rgb) return hex;
+  const t = Math.max(0, Math.min(1, ratio));
+  return toHex(rgb[0] * (1 - t), rgb[1] * (1 - t), rgb[2] * (1 - t));
+}

@@ -1,17 +1,33 @@
-import { useEffect, useState } from 'react';
-import { Mail } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Mail, Palette, Sparkles } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
 import { Input } from '@/components/common/Input';
+import { Button } from '@/components/common/Button';
+import { UpgradeModal } from '@/components/upgrade/UpgradeModal';
+import type { UpdateInfo } from '@/generated/UpdateInfo';
 import { useSettings } from '@/state/settings';
+import { useLicence, isPro } from '@/state/licence';
 import { cn } from '@/lib/cn';
 import { invoke } from '@/lib/ipc';
 import { previewProfile, SOUND_PROFILES, type SoundProfileId } from '@/design/sounds';
 
 const ACCENTS = ['teal', 'amber', 'violet', 'rose', 'cyan', 'lime'] as const;
 const THEMES = ['obsidian', 'graphite', 'paper'] as const;
+
+/**
+ * Loose email syntax check for the release-updates signup — catches obvious
+ * typos like "jay@" or "jay.com" before the IPC/network round-trip. The
+ * server is the authority on what it accepts; this is just a "can we skip
+ * the round-trip and save the user 300ms of latency" shortcut.
+ */
+function isPlausibleEmail(s: string): boolean {
+  // local@domain.tld  — local allows the common punctuation, domain requires
+  // at least one dot and a non-empty TLD. Deliberately not RFC 5322 strict.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
 
 /**
  * General settings.
@@ -24,12 +40,53 @@ const THEMES = ['obsidian', 'graphite', 'paper'] as const;
 export function GeneralSettings() {
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
+  const licenceStatus = useLicence((x) => x.status);
+  const pro = isPro(licenceStatus);
+  const [showAccentUpgrade, setShowAccentUpgrade] = useState(false);
+  // Manual "Check for updates" state. We keep the last check's outcome inline
+  // on the row so the user sees an immediate answer — either "You're up to
+  // date" or "0.6.1 is available, install from the toast" — without hunting
+  // for a toast that might not reappear if it was already dismissed this
+  // session. `status` is purely cosmetic; the toast is still the install UX.
+  const [updateCheck, setUpdateCheck] = useState<
+    | { state: 'idle' }
+    | { state: 'checking' }
+    | { state: 'current'; version: string }
+    | { state: 'available'; from: string; to: string }
+    | { state: 'error' }
+  >({ state: 'idle' });
+  // Hidden <input type="color"> — clicking the Custom swatch chip opens the
+  // OS colour picker through this ref, so we don't have to build a palette
+  // UI ourselves and the user gets their native picker with recent colours,
+  // hex input, and eyedropper (where Win32 supports it).
+  const colorPickerRef = useRef<HTMLInputElement>(null);
   if (!s) return null;
 
   const update = (key: string, value: unknown) =>
     patch({ general: { ...s.general, [key]: value } });
 
+  const checkForUpdatesNow = async () => {
+    setUpdateCheck({ state: 'checking' });
+    try {
+      const u = await invoke<UpdateInfo>('check_update');
+      if (u.available) {
+        setUpdateCheck({ state: 'available', from: u.current, to: u.available });
+      } else {
+        setUpdateCheck({ state: 'current', version: u.current });
+      }
+    } catch {
+      // The backend folds transport errors into "no update" already, so this
+      // only fires for genuinely impossible things (IPC bridge down, etc.).
+      // Surface a generic "couldn't check" rather than an exception stack.
+      setUpdateCheck({ state: 'error' });
+    }
+  };
+
   const g = s.general as Record<string, unknown>;
+  const customHex =
+    typeof g.custom_accent_hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(g.custom_accent_hex)
+      ? g.custom_accent_hex
+      : '#22D3EE';
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -86,7 +143,7 @@ export function GeneralSettings() {
             label="Accent"
             description="The colour used for the recording button, the pill glyph, highlights, and the floating bar's waveform."
           >
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               {ACCENTS.map((a) => (
                 <button
                   key={a}
@@ -104,9 +161,82 @@ export function GeneralSettings() {
                   aria-label={a}
                 />
               ))}
+              {/* Custom accent (Pro). For Free users, clicking this swatch
+                  opens the upgrade modal instead of the colour picker — same
+                  click-to-learn pattern used on the Modes page. Pro users
+                  get the native OS colour picker via a hidden input[type=
+                  color]. The swatch itself always previews the user's last
+                  pick (or cyan if they've never picked), giving a hint at
+                  what Pro unlocks without showing a dead grey tile. */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!pro) {
+                    setShowAccentUpgrade(true);
+                    return;
+                  }
+                  colorPickerRef.current?.click();
+                }}
+                title={
+                  pro
+                    ? 'Pick any colour (Pro)'
+                    : 'Custom accent is a Pro feature'
+                }
+                aria-label="Custom accent colour"
+                className={cn(
+                  'relative flex h-6 w-6 items-center justify-center rounded-full transition-shadow duration-180',
+                  s.general.accent === 'custom'
+                    ? 'ring-2 ring-fg-hi ring-offset-2 ring-offset-bg-1'
+                    : 'opacity-80 hover:opacity-100',
+                )}
+                style={{ background: pro ? customHex : 'var(--bg-2)' }}
+              >
+                {pro ? (
+                  <Palette className="h-3 w-3 text-white mix-blend-difference" />
+                ) : (
+                  <Sparkles className="h-3 w-3 text-accent" />
+                )}
+              </button>
+              {pro && (
+                <input
+                  ref={colorPickerRef}
+                  type="color"
+                  // Hidden but focusable — we drive the click from the
+                  // swatch above. `aria-hidden` because the swatch is the
+                  // accessible affordance.
+                  aria-hidden
+                  tabIndex={-1}
+                  className="pointer-events-none absolute h-0 w-0 opacity-0"
+                  value={customHex}
+                  onChange={(e) => {
+                    // Patch both fields in one go so the backend sees a
+                    // coherent "custom + hex" update. A two-step patch
+                    // (accent=custom, then hex) briefly flashes the last-
+                    // known hex before the new one lands.
+                    void patch({
+                      general: {
+                        ...s.general,
+                        accent: 'custom',
+                        custom_accent_hex: e.target.value.toUpperCase(),
+                      },
+                    });
+                  }}
+                />
+              )}
             </div>
           </Row>
         </Card>
+        <UpgradeModal
+          open={showAccentUpgrade}
+          onClose={() => setShowAccentUpgrade(false)}
+          feature="Custom accent colours"
+          description="Pick any colour for the accent family — the recording button, the floating bar's waveform, the pill glyph, and every highlight. The six presets are free; bring-your-own is part of Pro."
+          bullets={[
+            'Pick any hex colour from the native Windows colour picker',
+            'Auto-derived tint and shade so gradients still have depth',
+            'All six preset accents stay free for everyone',
+          ]}
+        />
 
         <Card title="Feedback">
           <Row
@@ -165,6 +295,28 @@ export function GeneralSettings() {
               onChange={(v) => void update('check_updates_automatically', v)}
             />
           </Row>
+          <Row
+            label="Check now"
+            description={
+              updateCheck.state === 'available'
+                ? `${updateCheck.from} → ${updateCheck.to} — see the toast to install.`
+                : updateCheck.state === 'current'
+                  ? `You're up to date (${updateCheck.version}).`
+                  : updateCheck.state === 'error'
+                    ? "Couldn't reach the update server. Check your connection and try again."
+                    : 'Asks the update server right now, independent of the launch check.'
+            }
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              noLed
+              onClick={() => void checkForUpdatesNow()}
+              disabled={updateCheck.state === 'checking'}
+            >
+              {updateCheck.state === 'checking' ? 'Checking…' : 'Check now'}
+            </Button>
+          </Row>
         </Card>
 
         <ReleaseEmailCard
@@ -219,6 +371,20 @@ function ReleaseEmailCard({
       setStatus({ tone: 'err', text: 'Enter your email to subscribe.' });
       return;
     }
+    // Client-side sanity check before the IPC round-trip. The server is the
+    // authority on what it accepts (it does its own RFC-ish validation), but
+    // bouncing obvious typos here — "jay@" or "jay.com" — gives immediate
+    // feedback and spares a network hop for the common fat-finger case. The
+    // regex is deliberately loose: local@domain with a dot in the domain.
+    // Stricter patterns reject valid edge cases (plus-addressing, tagged
+    // subdomains, IDNs) that the server is happy to accept.
+    if (!isPlausibleEmail(trimmed)) {
+      setStatus({
+        tone: 'err',
+        text: "That doesn't look like an email address — check for typos.",
+      });
+      return;
+    }
     setBusy(true);
     setStatus(null);
     try {
@@ -229,10 +395,25 @@ function ReleaseEmailCard({
       onSubscribe(trimmed);
       setStatus({ tone: 'ok', text: msg });
     } catch (e) {
+      // Two shapes can land here:
+      //   1. An OrliqError envelope from the Rust command with a
+      //      `message` field already phrased for humans (handled by the
+      //      backend's non-JSON fallbacks).
+      //   2. A raw Error / string from an unexpected invoke failure
+      //      (missing command, serialisation glitch) — these have
+      //      developer-speak messages that would confuse a user.
+      // We only trust `.message` when a `code` is also present (the
+      // OrliqError signature); everything else collapses to the generic
+      // "couldn't reach the server" copy so a stringified JS error never
+      // leaks into the settings surface.
       const env = e as { kind?: string; code?: string; message?: string };
+      const looksLikeOrliqError =
+        typeof env?.code === 'string' && typeof env?.message === 'string';
       setStatus({
         tone: 'err',
-        text: env?.message ?? 'Could not reach the server. Try again in a moment.',
+        text: looksLikeOrliqError
+          ? env.message!
+          : "Couldn't reach the server. Check your connection and try again.",
       });
     } finally {
       setBusy(false);

@@ -94,6 +94,8 @@ fn main() {
             commands::window::set_floating_position,
             commands::window::clamp_floating_position,
             commands::window::reset_floating_position,
+            commands::window::set_floating_passthrough,
+            commands::window::get_cursor_pos,
             commands::window::finish_onboarding,
             // settings
             commands::settings::get_settings,
@@ -155,11 +157,15 @@ fn main() {
             // analytics
             commands::analytics::get_stats_summary,
             commands::analytics::get_stats_series,
-            // updater (no-op stubs until signing is wired)
+            // updater — see `commands/updater.rs` module docstring for the
+            // server-endpoint contract and why we rolled our own rather than
+            // adopting `tauri-plugin-updater`.
             commands::updater::check_update,
             commands::updater::install_update,
             // release-email subscription
             commands::updates::subscribe_to_release_updates,
+            // pricing lookup (for the in-app upgrade modal)
+            commands::pricing::get_pro_price,
             // diagnostics
             commands::diagnostics::get_diagnostics,
             commands::diagnostics::probe_gpu,

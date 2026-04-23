@@ -169,7 +169,11 @@ export function HistoryRoute() {
   }, [entries]);
 
   return (
-    <div className="mx-auto flex h-full max-w-[1560px] flex-col px-10 pb-10 pt-8">
+    // Outer padding steps down on narrower widths so the page doesn't feel
+    // like it's been force-fed 40 px of empty gutter when the user has pulled
+    // the window in to pair it with a video/editor. The max-w cap above
+    // prevents it from sprawling at ultrawide.
+    <div className="mx-auto flex h-full max-w-[1560px] flex-col px-6 pb-8 pt-6 md:px-8 md:pb-10 md:pt-8 lg:px-10">
       <PageHeader
         title="History"
         subtitle="Every dictation, stored locally. Reprocess, export, or wipe at any time."
@@ -191,18 +195,29 @@ export function HistoryRoute() {
         </span>
       </div>
 
-      <div className="mt-6 grid flex-1 gap-6 overflow-hidden lg:grid-cols-[minmax(0,1fr)_540px]">
+      {/* `min-h-0` is the Tailwind-flavoured fix for the flex-1 + overflow
+          footgun: without it, the grid's min-content height would fight
+          `overflow-hidden` and spill children out of the viewport. */}
+      <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-hidden lg:grid-cols-[minmax(0,1fr)_540px]">
         {/* List — scrollable, bg-1, day-grouped. Rows have more vertical
             breathing room (py-4) and bigger transcript type (14 px) to make
             the page read as content rather than a log. */}
         <div className="overflow-y-auto rounded-card bg-bg-1">
           {entries.length === 0 && (
+            // Empty state differentiates "no results for this search" from
+            // "nothing recorded yet" — otherwise a user searching for a term
+            // that doesn't exist sees the welcome copy and thinks their
+            // history has been wiped. Copy stays short either way; the full
+            // "how to dictate" story lives in onboarding.
             <div className="flex h-full flex-col items-center justify-center gap-2 p-12 text-center">
               <FileText className="h-8 w-8 text-fg-dim opacity-60" />
-              <div className="text-[14px] text-fg">No dictations yet</div>
+              <div className="text-[14px] text-fg">
+                {search ? 'No matches' : 'No dictations yet'}
+              </div>
               <div className="max-w-xs text-[12px] text-muted">
-                Press your hotkey to start dictating — transcripts will appear here,
-                stored only on this device.
+                {search
+                  ? 'No transcripts match your search. Try a shorter query or clear the filter.'
+                  : 'Press your hotkey (Ctrl+Space by default) to start dictating — transcripts will appear here, stored only on this device.'}
               </div>
             </div>
           )}
@@ -311,8 +326,17 @@ export function HistoryRoute() {
         </div>
 
         {/* Detail pane — wider (540 px) with generous padding so Raw /
-            Processed blocks don't wrap every line. */}
-        <aside className="overflow-y-auto rounded-card bg-bg-1 p-7">
+            Processed blocks don't wrap every line. On narrow widths (below lg)
+            we stack the grid, and the empty "Nothing selected" placeholder
+            below the list would waste a whole viewport — so we hide the aside
+            entirely when there's nothing to show. Once the user picks an entry
+            it reappears and the list scrolls alongside it. */}
+        <aside
+          className={cn(
+            'overflow-y-auto rounded-card bg-bg-1 p-7',
+            !selected && 'hidden lg:block',
+          )}
+        >
           {selected ? (
             <>
               <div className="flex items-start justify-between gap-3">

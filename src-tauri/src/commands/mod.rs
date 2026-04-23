@@ -8,6 +8,7 @@ pub mod history;
 pub mod licence;
 pub mod models;
 pub mod modes;
+pub mod pricing;
 pub mod settings;
 pub mod shortcuts;
 pub mod updater;

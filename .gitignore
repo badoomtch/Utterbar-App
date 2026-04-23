@@ -34,3 +34,7 @@ models/
 # Test / coverage
 coverage/
 .nyc_output/
+
+# Remotion bundle: transient render logs (rendered assets under out/ ARE tracked)
+marketing/remotion/render-*.txt
+marketing/remotion/render-*.log

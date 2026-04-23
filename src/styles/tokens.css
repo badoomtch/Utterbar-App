@@ -117,6 +117,17 @@
   --pill-surface-hi:  rgba(255, 255, 255, 0.12);
   --pill-ink-on-hi:   #ffffff;
 
+  /* Mark-specific: the 2px outer ring around the pill body and the
+   * "power indicator" hole-punch on the left. On dark themes both stay
+   * white (the mark's signature contrast move). Paper overrides them
+   * to dark ink below so the logo remains legible on a cream page —
+   * previously both were hardcoded #ffffff in UtterbarLogoMark, which
+   * made the mark disappear on Paper (white ring + white dot on the
+   * white pill's top half reading as a flat white blob).
+   */
+  --mark-ring: #ffffff;
+  --mark-hole: #ffffff;
+
   /* ============ Semantic (app-only; site is monochrome + cyan) ============ */
   --amber:    #F59E0B;   /* warnings */
   --rose:     #F43F5E;   /* destructive, error LED */
@@ -272,6 +283,13 @@
   --pill-surface:     rgba(12, 16, 24, 0.05);
   --pill-surface-hi:  rgba(12, 16, 24, 0.10);
   --pill-ink-on-hi:   #0C1018;
+
+  /* Flip the mark ring + hole to dark ink so the logo actually registers
+   * on the white pill + cream page. Ring goes near-black (matches
+   * --pill-ink-on-hi); hole-punch mirrors it so the "power indicator"
+   * stays visible as a small dark dot rather than vanishing. */
+  --mark-ring: #0C1018;
+  --mark-hole: #0C1018;
 }
 
 /*

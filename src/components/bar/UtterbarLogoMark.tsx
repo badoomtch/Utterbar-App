@@ -74,7 +74,10 @@ export function UtterbarLogoMark({
         </linearGradient>
       </defs>
 
-      {/* Pill body + crisp white border */}
+      {/* Pill body + crisp outer ring. The ring is white on dark themes
+          (Obsidian/Graphite) where it's the mark's signature contrast
+          moment, and flips to dark ink on Paper via --mark-ring so a
+          white pill on a cream page stays legible. */}
       <rect
         x="0"
         y="0"
@@ -82,12 +85,13 @@ export function UtterbarLogoMark({
         height="60"
         rx="30"
         fill="url(#ub-mark-pill)"
-        stroke="#ffffff"
+        stroke="var(--mark-ring)"
         strokeWidth="2"
       />
 
-      {/* White hole-punch on the left */}
-      <circle cx="20" cy="30" r="8" fill="#ffffff" />
+      {/* Hole-punch "power indicator" — same theme-driven flip via
+          --mark-hole so it doesn't disappear into the pill top on Paper. */}
+      <circle cx="20" cy="30" r="8" fill="var(--mark-hole)" />
 
       {/* Internal waveform with central speech-bubble tail (points down-right) */}
       <motion.g

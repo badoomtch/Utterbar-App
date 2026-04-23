@@ -39,12 +39,34 @@ pub async fn update_settings(
 }
 
 /// Remove Pro-gated keys from a settings patch so a Free user can still
-/// update everything else. Today only `privacy.retain_audio` is gated; add
-/// to this list as more Pro-only toggles land.
+/// update everything else. Today we strip:
+///   • `privacy.retain_audio` — Pro-only audio keep-on-disk.
+///   • `general.accent == "custom"` + `general.custom_accent_hex` — the
+///     UI Pro-gates the Custom accent chip, but the backend strips the
+///     patch too so a crafted IPC call can't bypass the frontend guard.
+///     We rewrite the variant to `teal` (the default) so the patched
+///     accent field still deserializes cleanly rather than erroring out
+///     of the whole update.
 fn strip_pro_only_keys(mut patch: serde_json::Value) -> serde_json::Value {
     if let Some(obj) = patch.as_object_mut() {
         if let Some(privacy) = obj.get_mut("privacy").and_then(|v| v.as_object_mut()) {
             privacy.remove("retain_audio");
+        }
+        if let Some(general) = obj.get_mut("general").and_then(|v| v.as_object_mut()) {
+            // Drop a custom-accent attempt entirely — rewrite accent to teal
+            // if the patch tried to set "custom", and remove the hex field
+            // regardless so Free users can't stockpile a colour server-side.
+            let tried_custom = matches!(
+                general.get("accent").and_then(|v| v.as_str()),
+                Some("custom")
+            );
+            if tried_custom {
+                general.insert(
+                    "accent".into(),
+                    serde_json::Value::String("teal".into()),
+                );
+            }
+            general.remove("custom_accent_hex");
         }
     }
     patch

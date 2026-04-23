@@ -22,6 +22,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   const loadSettings = useSettings((s) => s.load);
   const setPhase = useDictation((s) => s.setPhase);
   const setMeter = useDictation((s) => s.setMeter);
+  const setLastText = useDictation((s) => s.setLastText);
   const loadLicence = useLicence((s) => s.load);
   const reduceMotion = useSettings((s) => s.data?.general.reduce_motion ?? false);
 
@@ -72,6 +73,13 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
     const unlisteners: Array<Promise<() => void>> = [
       listen<DictationPhase>(EVT.dictationPhase, (e) => setPhase(e.payload)),
       listen<MeterFrame>(EVT.dictationMeter, (e) => setMeter(e.payload)),
+      // Keep `lastText` in sync with the most recent successful dictation.
+      // Powers the floating bar's "Copy last message" button — the button
+      // only needs a store read, no SQLite round-trip.
+      listen<{ processed_text?: string; raw_text?: string }>(EVT.dictationResult, (e) => {
+        const txt = e.payload.processed_text || e.payload.raw_text || '';
+        if (txt) setLastText(txt);
+      }),
       listen<ShortcutId>(EVT.shortcutTriggered, async (e) => {
         const id = typeof e.payload === 'string' ? e.payload : undefined;
         switch (id) {
@@ -111,7 +119,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
     return () => {
       for (const p of unlisteners) void p.then((u) => u()).catch(() => undefined);
     };
-  }, [setPhase, setMeter]);
+  }, [setPhase, setMeter, setLastText]);
 
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'never'}>{children}</MotionConfig>
