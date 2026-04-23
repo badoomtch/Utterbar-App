@@ -61,10 +61,7 @@ fn strip_pro_only_keys(mut patch: serde_json::Value) -> serde_json::Value {
                 Some("custom")
             );
             if tried_custom {
-                general.insert(
-                    "accent".into(),
-                    serde_json::Value::String("teal".into()),
-                );
+                general.insert("accent".into(), serde_json::Value::String("teal".into()));
             }
             general.remove("custom_accent_hex");
         }

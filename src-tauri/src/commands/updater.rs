@@ -130,9 +130,12 @@ pub async fn check_update() -> CmdResult<UpdateInfo> {
         Err(_) => return Ok(no_update()),
     };
 
-    let base = std::env::var("UTTERBAR_LICENCE_BASE_URL")
-        .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
-    let url = format!("{}/api/updater/check?current={}&channel=stable", base, current);
+    let base =
+        std::env::var("UTTERBAR_LICENCE_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
+    let url = format!(
+        "{}/api/updater/check?current={}&channel=stable",
+        base, current
+    );
 
     let resp = match client.get(&url).send().await {
         Ok(r) if r.status().is_success() => r,
@@ -171,15 +174,14 @@ pub async fn check_update() -> CmdResult<UpdateInfo> {
 #[tauri::command]
 pub async fn install_update(handle: AppHandle) -> CmdResult<()> {
     let info = check_update().await?;
-    let (version, download_url, sha256) =
-        match (info.available, info.download_url, info.sha256) {
-            (Some(v), Some(url), Some(sha)) => (v, url, sha),
-            _ => {
-                return Err(OrliqError::Internal {
-                    message: "No update is available to install.".into(),
-                });
-            }
-        };
+    let (version, download_url, sha256) = match (info.available, info.download_url, info.sha256) {
+        (Some(v), Some(url), Some(sha)) => (v, url, sha),
+        _ => {
+            return Err(OrliqError::Internal {
+                message: "No update is available to install.".into(),
+            });
+        }
+    };
 
     let user_agent = format!("Utterbar/{} (windows; x86_64)", env!("CARGO_PKG_VERSION"));
     let client = Client::builder()
