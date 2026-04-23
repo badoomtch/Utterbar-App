@@ -116,5 +116,11 @@
       }
     }
   },
-  "plugins": {}
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["utterbar"]
+      }
+    }
+  }
 }

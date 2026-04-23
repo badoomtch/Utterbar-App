@@ -16,6 +16,7 @@ use crate::services::files::FileJobService;
 use crate::services::history::HistoryService;
 use crate::services::hotkeys::HotkeyService;
 use crate::services::inference::InferenceOrchestrator;
+use crate::services::licence::LicenceService;
 use crate::services::media::MediaService;
 use crate::services::models::ModelRegistry;
 use crate::services::modes::ModeService;
@@ -43,6 +44,7 @@ pub struct AppState {
     pub inference: Arc<InferenceOrchestrator>,
     pub text_inject: Arc<TextInjectService>,
     pub media: Arc<MediaService>,
+    pub licence: Arc<LicenceService>,
     handle: RwLock<Option<AppHandle>>,
 }
 
@@ -92,6 +94,10 @@ impl AppState {
         let inference = Arc::new(InferenceOrchestrator::new(models.clone(), settings.clone()));
         let text_inject = Arc::new(TextInjectService::new());
         let media = Arc::new(MediaService::new());
+        // Licence service computes the device fingerprint at construction time
+        // (cheap, sync). The launch-time cache check runs from main.rs's setup
+        // hook via `state.licence.launch_check(handle)` so it can emit events.
+        let licence = LicenceService::shared();
 
         Ok(Self {
             db,
@@ -109,6 +115,7 @@ impl AppState {
             inference,
             text_inject,
             media,
+            licence,
             handle: RwLock::new(None),
         })
     }

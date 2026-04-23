@@ -8,6 +8,7 @@ pub mod gpu;
 pub mod history;
 pub mod hotkeys;
 pub mod inference;
+pub mod licence;
 pub mod llm;
 pub mod media;
 pub mod models;

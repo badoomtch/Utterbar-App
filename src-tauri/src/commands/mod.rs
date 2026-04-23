@@ -5,6 +5,7 @@ pub mod diagnostics;
 pub mod dictation;
 pub mod files;
 pub mod history;
+pub mod licence;
 pub mod models;
 pub mod modes;
 pub mod settings;

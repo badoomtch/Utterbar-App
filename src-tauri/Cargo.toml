@@ -17,6 +17,9 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
+# Deep-link plugin routes `utterbar://licence/{TOKEN}` URLs into the running app
+# from the installer-registered scheme handler. See §7 of the licence handoff.
+tauri-plugin-deep-link = "2"
 
 # Async
 tokio = { version = "1", features = ["full"] }

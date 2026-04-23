@@ -17,6 +17,14 @@ pub enum OrliqError {
     Io { message: String },
     #[error("{message}")]
     Internal { message: String },
+    /// Licence errors are split into a discriminator slug (`code`) so the UI
+    /// can switch on the cause without parsing human text. Codes:
+    /// `malformed`, `not_found`, `revoked`, `device_limit`, `network`,
+    /// `verification_failed`, `already_activated`, `internal`. The field is
+    /// named `code` rather than `kind` because the enum's serde tag is itself
+    /// `kind` — a colliding variant field makes the derive panic.
+    #[error("{message}")]
+    Licence { code: String, message: String },
 }
 
 pub type CmdResult<T> = Result<T, OrliqError>;
