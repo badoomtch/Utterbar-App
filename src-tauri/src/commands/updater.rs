@@ -58,7 +58,7 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use ts_rs::TS;
 
 use crate::util::result::{CmdResult, OrliqError};
