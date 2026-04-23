@@ -1,0 +1,41 @@
+{
+  "name": "@utterbar/marketing-remotion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remotion video + still pack for the Utterbar marketing site. Isolated from the shipping app.",
+  "type": "module",
+  "scripts": {
+    "start": "remotion studio src/index.ts",
+    "preview": "remotion preview src/index.ts",
+    "render": "node render.mjs",
+    "render:one": "remotion render src/index.ts",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist-mono": "^5.2.5",
+    "@fontsource-variable/instrument-sans": "^5.2.5",
+    "@remotion/bundler": "^4.0.232",
+    "@remotion/cli": "^4.0.232",
+    "@remotion/fonts": "^4.0.232",
+    "@remotion/renderer": "^4.0.232",
+    "@remotion/tailwind": "^4.0.451",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.11.17",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.232",
+    "tailwind-merge": "^2.5.4",
+    "tailwindcss-animate": "^1.0.7",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,85 @@
+/*
+ * Remotion bundle's CSS entry.
+ *
+ * One side-effect import in `Root.tsx` pulls this file in; from here we
+ * reach into the shipping app's `src/styles/globals.css` — which itself
+ * imports `tokens.css`, the fontsource woff2s, and the Tailwind layers.
+ * That is the single source of truth: if the app re-themes, the next
+ * render reflects it automatically.
+ *
+ * The override block below exists because `globals.css` carries a few
+ * rules specific to the real Tauri floating window (transparent body,
+ * hidden scrollbars tied to `html.floating-shell`). The floating window's
+ * transparency is meaningful in Windows where the OS composites the pill
+ * over the desktop wallpaper — in Remotion we need the frame to paint
+ * bg-0 behind the pill so videos can't leak to a black default.
+ * Re-declaring those rules after the import wins thanks to CSS source
+ * order.
+ */
+/*
+ * NOTE: globals.css is imported from `Root.tsx` as a sibling CSS entry,
+ * NOT via `@import` here. The reason is plumbing-deep:
+ * `@remotion/bundler/css-loader` (forked from webpack-contrib css-loader
+ * v5) hardcodes the pre-request for CSS @imports to `-!css-loader!` —
+ * which webpack reads as "disable all preceding loaders on this module"
+ * and therefore bypasses the postcss-loader that expands `@tailwind` and
+ * `@import`. Pulling globals.css in as a top-level JS import avoids that
+ * code path; it goes through the full loader chain (postcss → css →
+ * style) and `@tailwind base/components/utilities` are expanded into
+ * real utility rules before style-loader injects them.
+ */
+
+/*
+ * Remotion frame background. Every composition sets its own
+ * `background` on the outer `<AbsoluteFill>`; this is a belt-and-braces
+ * fallback so any accidental transparency or early-mount flicker still
+ * reads as the site's bg-0 rather than whatever Chromium defaults to.
+ */
+html,
+body,
+#root {
+  background: #0A0E17 !important;
+  color: #E8E8EB;
+}
+
+/*
+ * Override the shipping app's `.floating-shell` transparency.
+ *
+ * `src/routes/FloatingBar.tsx` attaches `floating-shell` to <html> in a
+ * useLayoutEffect so the live Tauri window can be transparent. In the
+ * Remotion render context the same effect fires, but we want the pill
+ * to sit on bg-0 — not on an empty-checkerboard void. Forcing the
+ * background back on here keeps the render deterministic.
+ */
+html.floating-shell,
+html.floating-shell body,
+html.floating-shell #root {
+  background: #0A0E17 !important;
+  background-color: #0A0E17 !important;
+  overflow: visible !important;
+}
+
+/*
+ * Neutralise the FloatingBar's own full-viewport outer wrapper.
+ *
+ * `src/routes/FloatingBar.tsx` wraps the pill in
+ *   `<div className="flex h-screen w-screen items-start justify-center …">`
+ * so that inside the live Tauri floating window (which IS the pill's
+ * viewport) the pill glues to the top-centre of a transparent sheet.
+ * In Remotion we render the same component inside a 1920×1080 frame and
+ * apply our own scale/centre transforms from each composition — letting
+ * that wrapper keep its `h-screen w-screen items-start` pins the pill
+ * to the top of the frame, and any `transform: scale(…)` we add outside
+ * pushes it off-screen entirely (which manifested as a blank 1080 frame
+ * with just the caption visible). Override to `auto` sizing + centred
+ * alignment so the pill sizes to its own content and sits inside
+ * whatever wrapper the composition provides. Scoped to `floating-shell`
+ * so the override only takes effect when FloatingBar has actually
+ * mounted — nothing else on the page carries that class.
+ */
+html.floating-shell
+  .flex.h-screen.w-screen.items-start.justify-center.bg-transparent.p-0 {
+  height: auto !important;
+  width: auto !important;
+  align-items: center !important;
+}
