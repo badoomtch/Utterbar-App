@@ -12,4 +12,5 @@ export const EVT = {
   trayStartRecording: 'tray:start-recording',
   trayPauseToggled: 'tray:pause-toggled',
   mainNavigate: 'main:navigate',
+  licenceChanged: 'licence_changed',
 } as const;

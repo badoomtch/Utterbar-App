@@ -1,14 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { getVersion } from '@tauri-apps/api/app';
+import { open as openShell } from '@tauri-apps/plugin-shell';
 
 import { listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
+import { Led } from '@/components/common/Led';
+import { useLicence } from '@/state/licence';
 import {
   Accessibility,
   BarChart3,
   FileAudio,
   History as HistoryIcon,
+  KeyRound,
   Keyboard,
   Layers,
   Mic,
@@ -40,6 +44,7 @@ import { PrivacySettings } from '@/routes/settings/PrivacySettings';
 import { AdvancedSettings } from '@/routes/settings/AdvancedSettings';
 import { AboutSettings } from '@/routes/settings/AboutSettings';
 import { BarSettings } from '@/routes/settings/BarSettings';
+import { LicenceSettings } from '@/routes/settings/LicenceSettings';
 
 const NAV_PRIMARY = [
   { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -59,6 +64,7 @@ const NAV_SETTINGS = [
   { to: '/settings/accessibility', label: 'Accessibility', icon: Accessibility },
   { to: '/settings/privacy', label: 'Privacy', icon: ShieldCheck },
   { to: '/settings/advanced', label: 'Advanced', icon: SlidersHorizontal },
+  { to: '/settings/licence', label: 'Licence', icon: KeyRound },
   { to: '/settings/about', label: 'About', icon: Info },
 ];
 
@@ -130,7 +136,8 @@ export function MainShell() {
           <NavGroup label="Settings" items={NAV_SETTINGS} />
         </nav>
 
-        <div className="px-5 py-3">
+        <div className="px-5 py-3 space-y-2">
+          <TierLine />
           <div className="ub-eyebrow font-mono">
             {appVersion ? `v${appVersion}` : 'v…'} · local only
           </div>
@@ -154,11 +161,54 @@ export function MainShell() {
           <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
           <Route path="/settings/privacy" element={<PrivacySettings />} />
           <Route path="/settings/advanced" element={<AdvancedSettings />} />
+          <Route path="/settings/licence" element={<LicenceSettings />} />
           <Route path="/settings/about" element={<AboutSettings />} />
         </Routes>
       </main>
       <UpdateToast />
     </div>
+  );
+}
+
+/**
+ * Sidebar tier indicator. Visible on every page so the user always knows
+ * whether the install is Pro — two forms:
+ *
+ *   • Free — muted "Upgrade to Pro →" link. Opens utterbar.com/pricing in
+ *     the default browser. Not a CTA button: the spec allows one or two
+ *     deliberate cyan moments per viewport, and an always-visible CTA in
+ *     the sidebar would burn the budget before the user has even looked
+ *     at the stage.
+ *   • Pro  — cyan LED + "Pro" label as a link to Settings → Licence. Uses
+ *     the LED primitive directly so the glow language stays consistent
+ *     with the recording-state LED on the floating pill.
+ *
+ * Hidden until the store has hydrated to avoid flashing "Free" for one
+ * frame on launch before `licence_status` resolves.
+ */
+function TierLine() {
+  const status = useLicence((s) => s.status);
+  const loaded = useLicence((s) => s.loaded);
+  if (!loaded || !status) return null;
+
+  if (status.tier === 'pro') {
+    return (
+      <NavLink
+        to="/settings/licence"
+        className="inline-flex items-center gap-2 text-[12px] font-medium text-fg-hi transition-colors hover:text-accent"
+      >
+        <Led size={6} />
+        Pro
+      </NavLink>
+    );
+  }
+  return (
+    <button
+      onClick={() => void openShell('https://utterbar.com/pricing').catch(() => undefined)}
+      className="text-[12px] font-medium text-muted transition-colors hover:text-fg-hi"
+    >
+      Upgrade to Pro →
+    </button>
   );
 }
 

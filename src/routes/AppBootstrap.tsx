@@ -5,6 +5,7 @@ import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { useDictation, type DictationPhase, type MeterFrame } from '@/state/dictation';
 import { useSettings } from '@/state/settings';
+import { attachLicenceListener, useLicence } from '@/state/licence';
 import { useSoundCues } from '@/design/sounds';
 import { useSystemNotifications } from '@/design/notifications';
 
@@ -21,6 +22,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   const loadSettings = useSettings((s) => s.load);
   const setPhase = useDictation((s) => s.setPhase);
   const setMeter = useDictation((s) => s.setMeter);
+  const loadLicence = useLicence((s) => s.load);
   const reduceMotion = useSettings((s) => s.data?.general.reduce_motion ?? false);
 
   useSoundCues();
@@ -29,6 +31,17 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  // Licence: pull the current tier once on mount and subscribe to the
+  // `licence_changed` event so the store stays in sync with Rust through
+  // activate / deactivate / background heartbeat revocations.
+  useEffect(() => {
+    void loadLicence();
+    const p = attachLicenceListener();
+    return () => {
+      void p.then((u) => u()).catch(() => undefined);
+    };
+  }, [loadLicence]);
 
   // Tag <html> with the reduce-motion flag so globals.css can kill transitions, and feed
   // the same value into Framer Motion's context so its springs respect the user's
