@@ -85,8 +85,8 @@ pub async fn subscribe_to_release_updates(email: String) -> CmdResult<String> {
             message: format!("http client build failed: {e}"),
         })?;
 
-    let base_url = std::env::var("UTTERBAR_LICENCE_BASE_URL")
-        .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
+    let base_url =
+        std::env::var("UTTERBAR_LICENCE_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let url = format!("{}/api/updates/subscribe", base_url);
 
     let resp = client

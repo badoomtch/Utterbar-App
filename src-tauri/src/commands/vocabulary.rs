@@ -4,9 +4,7 @@ use tauri::State;
 
 use crate::app_state::AppState;
 use crate::domain::{Replacement, VocabEntry, VocabularyImport};
-use crate::util::gating::{
-    cap_reached, is_pro, FREE_REPLACEMENTS_CAP, FREE_VOCAB_WORDS_CAP,
-};
+use crate::util::gating::{cap_reached, is_pro, FREE_REPLACEMENTS_CAP, FREE_VOCAB_WORDS_CAP};
 use crate::util::result::{CmdResult, OrliqError};
 
 #[tauri::command]

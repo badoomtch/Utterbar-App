@@ -114,7 +114,11 @@ impl InferenceOrchestrator {
     /// so users know why the first dictation after a cold start feels slower
     /// than subsequent ones, without having to guess from latency alone.
     pub async fn loaded_model_id(&self) -> Option<String> {
-        self.active.read().await.as_ref().map(|a| a.provider.id().to_string())
+        self.active
+            .read()
+            .await
+            .as_ref()
+            .map(|a| a.provider.id().to_string())
     }
 
     /// Manual unload path. Unused today — the inline `warm_duration_secs == 0` path and

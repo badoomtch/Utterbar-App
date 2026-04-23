@@ -268,11 +268,33 @@ fn builtin_modes() -> Vec<Mode> {
     // `ensure_seed` above for the one-shot cleanup that removes pre-release
     // copies from existing DBs.
     vec![
-        mk("voice-to-text", "Voice to Text", "mic", PostProcessing::None, base_fmt.clone()),
-        mk("message", "Message", "message-square",
-            PostProcessing::Deterministic { template: "{text}".into() }, base_fmt.clone()),
-        mk("meeting", "Meeting", "users",
-            PostProcessing::Deterministic { template: "{text}".into() },
-            Formatting { preserve_linebreaks: true, ..base_fmt }),
+        mk(
+            "voice-to-text",
+            "Voice to Text",
+            "mic",
+            PostProcessing::None,
+            base_fmt.clone(),
+        ),
+        mk(
+            "message",
+            "Message",
+            "message-square",
+            PostProcessing::Deterministic {
+                template: "{text}".into(),
+            },
+            base_fmt.clone(),
+        ),
+        mk(
+            "meeting",
+            "Meeting",
+            "users",
+            PostProcessing::Deterministic {
+                template: "{text}".into(),
+            },
+            Formatting {
+                preserve_linebreaks: true,
+                ..base_fmt
+            },
+        ),
     ]
 }
