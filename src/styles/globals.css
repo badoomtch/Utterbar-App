@@ -1,0 +1,690 @@
+@import './tokens.css';
+
+/*
+ * Typography — Instrument Sans Variable for all UI text, Geist Mono Variable
+ * for literal technical data (versions, file paths, timestamps, hash IDs,
+ * keyboard chips). Both are self-hosted via @fontsource-variable so the app
+ * never hits a CDN at runtime and the MSI ships the weights we actually use.
+ *
+ * The design system is strict about these choices: do NOT reach for a third
+ * family, and do NOT use Geist Mono for decoration ("technical vibe"). If the
+ * text isn't literal code/data, it is not mono.
+ */
+@import '@fontsource-variable/instrument-sans/index.css';
+@import '@fontsource-variable/geist-mono/index.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    /* Instrument Sans reads a touch looser than the previous Geist. The
+     * marketing site pulls at -0.005em on body copy and -0.045em on display,
+     * which the H-tier rules below handle. Body default stays neutral. */
+    background-color: var(--bg-0);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14px;   /* app is denser than the 17px site (see §11.1) */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--bg-0);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    line-height: 1.6;
+    /* Tabular numerals everywhere by default so counters and timers don't
+     * wobble as digits change. Opt out locally via font-variant-numeric. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--fg-hi);
+    font-family: var(--font-sans);
+    /* Weight discipline: H1/H2 = 800, H3 = 700. Never 600 — see §2.2. */
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+
+  h1 { font-size: 1.75rem; letter-spacing: -0.03em; }   /* 28px — app-scale display */
+  h2 { font-size: 1.375rem; letter-spacing: -0.025em; } /* 22px */
+  h3 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; }   /* 18px */
+  h4 { font-size: 1rem;     font-weight: 700; letter-spacing: -0.015em; }
+
+  a {
+    color: var(--accent);
+    transition: color 140ms ease;
+    text-decoration: none;
+  }
+  a:hover { color: var(--accent-2); }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--accent) 28%, transparent);
+    color: var(--fg-hi);
+  }
+
+  /* Scrollbars — slim, desaturated, align with the layered surfaces. */
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted) 60%, transparent);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+}
+
+@layer components {
+  /*
+   * .ub-card — the canonical panel. Elevated via background colour; no
+   * border, no shadow. Hover darkens to --bg-2 for any card that represents
+   * a clickable item; static panels should ignore that hover state by
+   * overriding on the element.
+   */
+  .ub-card {
+    background: var(--bg-1);
+    border-radius: var(--radius-card);
+    padding: 1.25rem;
+    transition: background 200ms ease;
+  }
+  .ub-card--interactive:hover {
+    background: var(--bg-2);
+  }
+
+  /*
+   * .ub-card-rail — signature motif. 2px cyan left-rail with a soft bloom
+   * pseudo-element. Used for "featured / selected / active / important".
+   * Combine with .ub-card on cards, or apply on its own to list items via
+   * the active-state pattern below.
+   */
+  .ub-card-rail {
+    position: relative;
+    border-left: 2px solid var(--accent);
+  }
+  .ub-card-rail::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -2px;
+    width: 2px;
+    box-shadow: 0 0 20px color-mix(in oklab, var(--accent) 45%, transparent);
+    pointer-events: none;
+  }
+  .ub-card-rail:hover { border-left-color: var(--accent-2); }
+
+  /*
+   * .ub-item-active — the universal active-row treatment. Used on every
+   * "selected / current / active" list item in the app: sidebar mode list,
+   * history rows, settings tabs, vocabulary rows. 2px cyan rail + bg-2 fill
+   * + white text + a faint cyan→transparent wash.
+   */
+  .ub-item-active {
+    background: var(--bg-2);
+    color: var(--fg-hi);
+    border-left: 2px solid var(--accent);
+    position: relative;
+  }
+  .ub-item-active::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0; left: -2px;
+    width: 2px;
+    box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 50%, transparent);
+    pointer-events: none;
+  }
+
+  /*
+   * .ub-btn — pill-shaped base. All buttons share this; the -cta and -ghost
+   * modifiers below supply the actual colour language. The two variants are a
+   * paired light/dark hierarchy against the dark page (see §5.3):
+   *   CTA   = white pill + neon cyan edge — the most obvious "click here".
+   *   Ghost = the logo pill itself (charcoal gradient + 2px white border +
+   *           white dot), so it reads as a miniature Utterbar.
+   * No third middle tier.
+   *
+   * App-scale padding: the site is 17px base, the app is 14px (§11.1), so
+   * CTA/Ghost paddings here are scaled down from the spec's 0.95rem / 2.2rem
+   * numbers but preserve the LED-dot ratio and the left-pad / right-pad gap.
+   */
+  .ub-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.15rem;
+    border-radius: var(--radius-pill);
+    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1;
+    letter-spacing: -0.005em;
+    transition: background 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 220ms ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+    isolation: isolate;
+    user-select: none;
+  }
+  .ub-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /*
+   * CTA — white pill with neon-cyan edge. Primary action on any surface.
+   * The cyan atmospheric box-shadow is the ONE exception to "no outward
+   * glows": it reads as the button emitting light onto the page, which is
+   * exactly what the spec wants this single control to do (§5.3).
+   */
+  .ub-btn-cta {
+    padding-left: 1.75rem;
+    padding-right: 1.2rem;
+    background: #FFFFFF;
+    color: var(--pill-bot);
+    font-weight: 600;
+    border: 2px solid var(--accent);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent),
+      0 8px 28px -8px color-mix(in oklab, var(--accent) 45%, transparent);
+  }
+  .ub-btn-cta::before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow:
+      0 0 10px color-mix(in oklab, var(--accent) 80%, transparent),
+      0 0 3px color-mix(in oklab, var(--accent) 90%, #fff);
+    pointer-events: none;
+  }
+  .ub-btn-cta:hover {
+    background: #FFFFFF;
+    color: var(--pill-bot);
+    border-color: var(--accent-2);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--accent) 50%, transparent),
+      0 12px 36px -8px color-mix(in oklab, var(--accent) 65%, transparent);
+  }
+  .ub-btn-cta:hover::before {
+    box-shadow:
+      0 0 14px color-mix(in oklab, var(--accent) 90%, transparent),
+      0 0 4px color-mix(in oklab, var(--accent) 90%, #fff);
+  }
+
+  /*
+   * Ghost — the logo pill itself. Charcoal pill gradient + 2px white border
+   * + white dot. Colours are IDENTICAL to the logo mark (§5.2 / §10.1) so
+   * the button reads as a miniature Utterbar. Use for every secondary
+   * action. Never the main action on a page.
+   */
+  .ub-btn-ghost {
+    padding-left: 1.6rem;
+    padding-right: 1.2rem;
+    background: linear-gradient(180deg, var(--pill-top) 0%, var(--pill-bot) 100%);
+    color: #FFFFFF;
+    font-weight: 500;
+    border: 2px solid #FFFFFF;
+  }
+  .ub-btn-ghost::before {
+    content: '';
+    position: absolute;
+    left: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    pointer-events: none;
+  }
+  .ub-btn-ghost:hover {
+    background: linear-gradient(180deg, var(--pill-top-lit) 0%, var(--pill-bot-lit) 100%);
+    color: #FFFFFF;
+    border-color: #FFFFFF;
+  }
+
+  /*
+   * .ub-btn-plain — neutral hairline fallback. Use ONLY for tertiary /
+   * toolbar actions where CTA and Ghost would both be too loud. Prefer
+   * Ghost in doubt.
+   */
+  .ub-btn-plain {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border-strong);
+  }
+  .ub-btn-plain:hover {
+    background: var(--bg-1);
+    color: var(--fg-hi);
+    border-color: color-mix(in oklab, var(--border-strong) 70%, var(--accent));
+  }
+
+  /*
+   * .ub-btn-danger — destructive variant. Mirrors CTA geometry but in rose.
+   * Reserved for irreversible actions (delete history entry, remove model).
+   */
+  .ub-btn-danger {
+    padding-left: 1.7rem;
+    padding-right: 1.2rem;
+    background: var(--rose);
+    color: #FFFFFF;
+    font-weight: 600;
+    border: 1px solid color-mix(in oklab, var(--rose) 70%, #ffe4e8);
+  }
+  .ub-btn-danger::before {
+    content: '';
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #1a0608;
+    pointer-events: none;
+  }
+  .ub-btn-danger:hover {
+    background: color-mix(in oklab, var(--rose) 85%, #fff);
+    border-color: var(--rose);
+  }
+
+  /*
+   * .ub-kbd — keyboard chip. Thicker bottom border for a tactile "key"
+   * feel. Only for literal key labels (Ctrl, Space, F2, …), never decoration.
+   */
+  .ub-kbd {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.45rem;
+    min-width: 1.6rem;
+    border-radius: var(--radius-kbd);
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    color: var(--fg);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /*
+   * .ub-input — text input. Sunken one step BELOW the page (bg-0) so it
+   * reads as "type into this hole in the surface" rather than "floating
+   * control". 10px radius per §6.1.
+   */
+  .ub-input {
+    display: block;
+    width: 100%;
+    background: var(--bg-0);
+    color: var(--fg);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-input);
+    padding: 0.55rem 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    transition: border-color 180ms ease;
+  }
+  .ub-input::placeholder { color: var(--fg-dim); }
+  .ub-input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--border-strong));
+  }
+  .ub-input:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /*
+   * .ub-eyebrow — small UPPERCASE label above section headings and card
+   * titles. INSTRUMENT SANS, weight 500, 11px, +0.14em tracking, --muted.
+   * Never mono — see §2.4. "Mono eyebrow" is a retired motif.
+   */
+  .ub-eyebrow {
+    color: var(--muted);
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;   /* 11px at the app's 14px base */
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+
+  /* .ub-lead — weight-300 intro paragraph, muted, generous line-height. */
+  .ub-lead {
+    font-size: 1rem;
+    line-height: 1.55;
+    font-weight: 300;
+    color: var(--muted);
+    max-width: 58ch;
+  }
+
+  /* .ub-divider — hairline horizontal rule, 1px. Use sparingly. */
+  .ub-divider {
+    height: 1px;
+    background: var(--border);
+    border: 0;
+  }
+
+  /*
+   * .ub-chip — pill-shape chip for mode tags, language labels, filters.
+   * Inactive = bg-2, no border. Active = accent fill + dark text.
+   */
+  .ub-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--radius-pill);
+    background: var(--bg-2);
+    color: var(--fg);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.3;
+    transition: background 180ms ease, color 180ms ease;
+  }
+  .ub-chip--active {
+    background: var(--accent);
+    color: #06121A;
+  }
+  .ub-chip--live::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow:
+      0 0 10px var(--accent),
+      0 0 3px color-mix(in oklab, var(--accent) 90%, #fff);
+  }
+}
+
+@layer utilities {
+  /* Draggable regions for Tauri windows. */
+  .drag-region { -webkit-app-region: drag; app-region: drag; }
+  .no-drag     { -webkit-app-region: no-drag; app-region: no-drag; }
+
+  /*
+   * .gradient-cyan-text — the tight #00e5ff → #00a3ff pair. Reserved for
+   * the wordmark "bar" letters and the <Highlight> component. Do NOT apply
+   * to generic headings — emphasis stops being emphasis when it's everywhere.
+   */
+  .gradient-cyan-text {
+    background: var(--gradient-wordmark);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /*
+   * .ub-led — the 6-7px cyan dot used as a live-state indicator. Same LED
+   * as the Ghost button ::before. Animates via prefers-reduced-motion-safe
+   * variants in the LED component.
+   */
+  .ub-led {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow:
+      0 0 10px var(--accent),
+      0 0 3px color-mix(in oklab, var(--accent) 90%, #fff);
+  }
+
+  /* Atmospheric cyan wash — radial gradient corner glow. Use AT MOST one
+   * per section, most sections should have none (see §8.5). */
+  .ub-wash-tr {
+    background-image:
+      radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 62%);
+  }
+  .ub-wash-tl {
+    background-image:
+      radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 62%);
+  }
+
+  /*
+   * .glass — kept for the floating pill window only. The main app no longer
+   * uses glass — all panels are flat --bg-1. The pill gets a quiet tinted
+   * plane with minimal blur; depth comes from the tokens, not from blur.
+   */
+  .glass {
+    background: linear-gradient(180deg,
+      color-mix(in oklab, var(--bg-1) 92%, transparent),
+      color-mix(in oklab, var(--bg-0) 90%, transparent));
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  }
+}
+
+/*
+ * Reduce-motion — respected via <html data-reduce-motion="true"> set by the
+ * accessibility setting. CSS-only kill for transforms/transitions; Framer
+ * Motion is handled separately via MotionConfig (see src/design/motion.ts)
+ * so layout animations still converge to their final state.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+html[data-reduce-motion='true'] *,
+html[data-reduce-motion='true'] *::before,
+html[data-reduce-motion='true'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/*
+ * Floating-pill window — the pill lives in its own transparent Tauri webview
+ * and must not paint a solid background behind itself. Scrollbars are also
+ * fully hidden: the pill animates width and any transient overflow rendered
+ * the default scrollbar as a dark horizontal stripe the user would drag
+ * instead of the pill.
+ */
+html.floating-shell,
+html.floating-shell body,
+html.floating-shell #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+}
+html.floating-shell { font-size: 16px !important; }
+html.floating-shell *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/*
+ * Floating-bar specific motion primitives.
+ *
+ * Matches the v2 prototype:
+ *   • `.ub-bar-ripple` — a red recording-indicator dot with an outward
+ *     ripple emanating every 1.5s. The ripple is an ::after pseudo sized to
+ *     match the dot and animated scale(1 → 2.5) + opacity(0.8 → 0). It reads
+ *     as "live transmission" without stealing focus the way a harsh pulse
+ *     does.
+ *   • `.ub-bar-wave` / `.ub-bar-wave__bar` — seven speech-waveform bars with
+ *     staggered bounce animations. Gradient fill uses the accent CSS vars so
+ *     changing the accent in General settings recolours the bar in-place.
+ *     Different per-bar animation durations + delays keep the pattern from
+ *     looking synthesised.
+ */
+@keyframes ub-bar-ripple {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0;   }
+}
+
+.ub-bar-ripple {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--rose);
+}
+.ub-bar-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: var(--rose);
+  animation: ub-bar-ripple 1.5s infinite ease-out;
+}
+
+@keyframes ub-bar-wave-bounce {
+  0%   { height: 4px; }
+  100% { height: 22px; }
+}
+
+.ub-bar-wave {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+}
+.ub-bar-wave__bar {
+  width: 4px;
+  border-radius: 2px;
+  /* Accent-driven fill — lit top → deep bottom. Switching accents in General
+   * settings updates these vars and the bars recolour live. */
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  height: 4px;
+  animation: ub-bar-wave-bounce 0.5s ease-in-out infinite alternate;
+}
+.ub-bar-wave__bar:nth-child(1) { animation-duration: 0.42s; animation-delay: 0.00s; }
+.ub-bar-wave__bar:nth-child(2) { animation-duration: 0.50s; animation-delay: 0.20s; }
+.ub-bar-wave__bar:nth-child(3) { animation-duration: 0.32s; animation-delay: 0.10s; }
+.ub-bar-wave__bar:nth-child(4) { animation-duration: 0.60s; animation-delay: 0.35s; }
+.ub-bar-wave__bar:nth-child(5) { animation-duration: 0.40s; animation-delay: 0.18s; }
+.ub-bar-wave__bar:nth-child(6) { animation-duration: 0.52s; animation-delay: 0.48s; }
+.ub-bar-wave__bar:nth-child(7) { animation-duration: 0.30s; animation-delay: 0.08s; }
+
+/* Reduce-motion respect: freeze wave bars at mid-height, kill the ripple. */
+html[data-reduce-motion='true'] .ub-bar-wave__bar {
+  animation: none !important;
+  height: 12px;
+}
+html[data-reduce-motion='true'] .ub-bar-ripple::after {
+  animation: none !important;
+  opacity: 0;
+}
+
+/* =========================================================================
+   Accessibility — body-level hooks.
+   Each class is toggled on <html> by `applyThemeClasses` in state/settings.ts
+   in response to the matching boolean under GeneralSettings. Keeping the
+   implementations here means a single source of truth — no component has to
+   opt in individually, and the toggles work across every window (main,
+   floating, onboarding) because they live on the document root.
+   ========================================================================= */
+
+/* High contrast — lift dim/muted/border tokens toward their brighter peers
+   so low-vision users always have at least ~7:1 against bg-1. We do it via
+   custom-property overrides so every component that already consumes tokens
+   picks up the bump automatically. Dark themes go toward white; light paper
+   theme pushes the other direction. */
+html.a11y-high-contrast.theme-obsidian,
+html.a11y-high-contrast.theme-graphite {
+  --fg: #ffffff;
+  --fg-hi: #ffffff;
+  --muted: #d7dde6;
+  --fg-dim: #bfc6d2;
+  --border-soft: rgba(255, 255, 255, 0.28);
+  --border-strong: rgba(255, 255, 255, 0.42);
+}
+html.a11y-high-contrast.theme-paper {
+  --fg: #000000;
+  --fg-hi: #000000;
+  --muted: #1a1a1a;
+  --fg-dim: #2a2a2a;
+  --border-soft: rgba(0, 0, 0, 0.32);
+  --border-strong: rgba(0, 0, 0, 0.48);
+}
+/* Thicken hairline separators by 1px so panel edges are legible. */
+html.a11y-high-contrast .border-border-soft\/40,
+html.a11y-high-contrast .border-border-soft\/50 {
+  border-color: var(--border-strong);
+}
+
+/* Larger focus rings — bump the outline from 2px → 4px and widen the offset
+   so tab-navigated focus is unmistakable on any surface. Scoped strictly to
+   `:focus-visible` so mouse users aren't affected. */
+html.a11y-large-focus :focus-visible {
+  outline: 4px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Reduce transparency — strip backdrop-filter / frosted-glass so content
+   never reads through a blur. We also solidify `/80` and `/95` opacity
+   modifiers we commonly apply to sticky headers so they don't show the
+   content scrolling underneath them. */
+html.a11y-no-transparency *,
+html.a11y-no-transparency *::before,
+html.a11y-no-transparency *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.a11y-no-transparency .bg-bg-1\/95,
+html.a11y-no-transparency .bg-bg-1\/80 {
+  background-color: var(--bg-1) !important;
+}
+html.a11y-no-transparency .bg-bg-2\/80,
+html.a11y-no-transparency .bg-bg-2\/60 {
+  background-color: var(--bg-2) !important;
+}
+
+/* Reduce motion — the existing `data-reduce-motion` hook predates this
+   class, but we mirror it on `.a11y-reduce-motion` so new components added
+   after this refactor can target either one. Framer Motion reads
+   `prefers-reduced-motion`; users who flip this toggle are saying "treat me
+   as if the OS-level preference were on", so we also force the matching
+   CSS variable every transition reads. */
+html.a11y-reduce-motion,
+html.a11y-reduce-motion *,
+html.a11y-reduce-motion *::before,
+html.a11y-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html.a11y-reduce-motion .ub-bar-wave__bar {
+  animation: none !important;
+  height: 12px;
+}
+html.a11y-reduce-motion .ub-bar-ripple::after {
+  animation: none !important;
+  opacity: 0;
+}

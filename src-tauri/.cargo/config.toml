@@ -1,0 +1,10 @@
+# Pin sherpa-rs-sys to the vendored prebuilt sherpa-onnx bundle at
+# src-tauri/vendor/sherpa-onnx/. SHERPA_LIB_PATH bypasses the cmake-from-source build
+# path in sherpa-rs-sys/build.rs — we get the .lib files it needs to link, and the
+# .dll runtime files get shipped next to utterbar.exe by the NSIS installer hook.
+#
+# The path is absolute-at-build-time: Cargo evaluates [env] before dispatching the
+# workspace, so a relative path here is relative to the crate root, not the caller.
+
+[env]
+SHERPA_LIB_PATH = { value = "vendor/sherpa-onnx", relative = true }

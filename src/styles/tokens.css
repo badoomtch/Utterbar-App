@@ -1,0 +1,364 @@
+/*
+ * Utterbar design tokens — canonical palette.
+ *
+ * This file is a direct port of Appendix A in the shared design system spec
+ * (see the `Utterbar Website` repo, DESIGN_SYSTEM.md). It is the single source
+ * of truth for every surface, border, and accent in the app; the marketing
+ * site is already built on these values and the two products must read as
+ * identical visual families.
+ *
+ * Rules of the road:
+ *   • Never hard-code a hex or hsl in a component. Reference the variable.
+ *   • Elevate surfaces via colour (bg-0 → bg-1 → bg-2), never via border or
+ *     shadow. A card is a card because its background is lighter than the
+ *     page, not because it has a ring around it.
+ *   • Cyan is the signature, not the atmosphere. At most three visible cyan
+ *     moments per viewport.
+ *   • If you need a new colour, add it here first — inline hex values fail
+ *     the design review automatically.
+ *
+ * Compatibility aliases for `hsl(var(--foo))` syntax live at the bottom of
+ * the file; they exist so Tailwind utilities (`bg-background`, `text-foreground`,
+ * `border-border`) and a handful of legacy tokens still resolve. Prefer the
+ * named tokens (`--bg-0`, `--fg-hi`, `--accent`) in new code.
+ */
+
+:root,
+.theme-obsidian {
+  color-scheme: dark;
+
+  /* ============ Surfaces — OLED true-black ladder ============
+   * Obsidian is the "lights off" theme. The page itself is pure #000 so it
+   * blends into an OLED bezel and dims the viewing context; card / raised
+   * steps climb just enough to be readable without introducing grey haze.
+   * This is a deliberate departure from the previous slate-blue ladder —
+   * that palette sat only two or three luminance points above Graphite,
+   * so users who picked Obsidian couldn't tell they'd switched themes.
+   * With true-black bg-0 the contrast against Graphite's #0E1014 base is
+   * unmistakable, AND cards / inputs lift cleanly off the desk.
+   *
+   * Three steps only. The numbers below are intentionally tight (0 → 10 → 23
+   * in luminance terms) because on a true black page even a 5-point step
+   * reads as a clear surface boundary.
+   */
+  --bg-0: #000000;   /* page background — true OLED black */
+  --bg-1: #0B0B0F;   /* default card / panel — "elevated by colour" */
+  --bg-2: #16161D;   /* raised — ghost buttons, chips, active list items */
+
+  /* ============ Borders ============
+   * Hairlines only, always rgba so they lift on any surface. On OLED black
+   * the 6% alpha needs to be slightly punchier (was 6/10, now 8/14) to
+   * register at all — white on true black renders at its full lumen, but
+   * single-digit alpha vanishes into the background.
+   */
+  --border:        rgba(255, 255, 255, 0.08);   /* default separator */
+  --border-strong: rgba(255, 255, 255, 0.14);   /* inputs, kbd chips, ghost-btn */
+
+  /* ============ Text ============ */
+  --fg-hi:    #FFFFFF;   /* headings, nav-active, emphasised inline text */
+  --fg:       #E8E8EB;   /* body, default UI text, nav-inactive */
+  --muted:    #8A8A94;   /* secondary text, captions, eyebrow labels */
+  --fg-dim:   #5A5A64;   /* extremely quiet metadata (mono timestamps) */
+
+  /* ============ Brand cyan ============
+   * Variable family for UI. The tighter #00e5ff → #00a3ff gradient is
+   * reserved for the wordmark "bar" letters and the <Highlight> component,
+   * and lives below as --gradient-wordmark.
+   */
+  --accent:   #22D3EE;   /* primary brand cyan — buttons, LEDs, active rails */
+  --accent-2: #67E8F9;   /* hover / lighter sibling */
+  --accent-3: #0891B2;   /* atmospheric wash, dim waveform in post-record state */
+
+  /* ============ Pill tokens (logo body + ghost button surface) ============
+   * The one sanctioned gradient in the system — `--pill-top → --pill-bot` is
+   * the same two-stop that paints the logo mark's pill body, the Ghost
+   * button body, AND the floating Utterbar's chrome. Because the two are the
+   * same object, each theme gets its own pill gradient so swapping Obsidian
+   * → Graphite visibly re-tones the bar the same way it re-tones every
+   * other surface in the app. The `-lit` pair is the slightly-raised hover
+   * state used on ghost buttons.
+   *
+   * Obsidian is the "lights off, OLED bezel-blend" theme — the pill rides a
+   * near-black stack so the floating bar melts into dark wallpapers and
+   * reads as part of the OLED panel. Graphite below picks this up in a
+   * warmer slate. Paper overrides to a light glass-pill further down.
+   *
+   * Do NOT reuse these for generic surfaces — that's what --bg-0/1/2 are for.
+   * These are specifically the "Utterbar mark" colour family.
+   */
+  --pill-top:     #0B0B10;
+  --pill-bot:     #000000;
+  --pill-top-lit: #14141B;
+  --pill-bot-lit: #07070B;
+
+  /* ============ Semantic (app-only; site is monochrome + cyan) ============ */
+  --amber:    #F59E0B;   /* warnings */
+  --rose:     #F43F5E;   /* destructive, error LED */
+  --moss:     #34D399;   /* success */
+
+  /* ============ Gradient primitives ============ */
+  --gradient-cyan:
+    linear-gradient(135deg, var(--accent-3) 0%, var(--accent) 55%, var(--accent-2) 100%);
+  --gradient-wordmark:
+    linear-gradient(90deg, #00e5ff 0%, #00a3ff 100%);
+
+  /* ============ Fonts ============
+   * Instrument Sans Variable carries everything except literal code/data
+   * (versions, paths, timestamps, hash IDs). Both families are self-hosted
+   * via @fontsource-variable — no CDN, no network hit at runtime. The Segoe
+   * UI tail keeps the app rendering identically if the bundled woff2 ever
+   * fails to load.
+   */
+  --font-sans:
+    'Instrument Sans Variable', 'Instrument Sans', ui-sans-serif,
+    system-ui, -apple-system, 'Segoe UI Variable', 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono:
+    'Geist Mono Variable', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ============ Radii ============
+   * Two-tier + special cases. 18px panels, 999px buttons/chips, 10px inputs,
+   * 6px kbd chips. Pill mark uses its own intrinsic geometry (rx=13 on a
+   * 26-high SVG) — do NOT re-derive from these.
+   */
+  --radius-card:   18px;
+  --radius-block:  24px;   /* big featured blocks (closing CTA, pricing) */
+  --radius-input:  10px;
+  --radius-kbd:    6px;
+  --radius-pill:   999px;
+
+  /* ============ Compatibility aliases ============
+   * Tailwind's `bg-background`, `text-foreground`, `border-border`, etc.
+   * consume `hsl(var(--foo))` values. Keep these as HSL triplets so alpha
+   * modifiers (`hsl(var(--foreground) / 0.5)`) still work. Named tokens
+   * above take precedence in new code.
+   */
+  --background: 0 0% 0%;          /* #000000 — true OLED black */
+  --surface:    240 13% 5%;       /* ≈ #0B0B0F */
+  --surface-raised: 240 14% 10%;  /* ≈ #16161D */
+  --surface-active: 240 14% 10%;
+  --surface-frost:  240 14% 13%;
+  --foreground: 240 7% 91%;     /* ≈ #E8E8EB */
+  --muted-hsl:  240 5% 56%;     /* ≈ #8A8A94 (avoid name-clash with --muted) */
+  --muted-foreground: var(--muted-hsl);
+  --border-hsl: 0 0% 100%;      /* consumed as hsl(... / 0.06) below */
+  --input: var(--border-hsl);
+  --ring: 189 79% 53%;          /* ≈ #22D3EE */
+
+  /* Text-tier HSL aliases for Tailwind text-strong / text-mid / text-low. */
+  --text-strong: 0 0% 100%;
+  --text-mid:    240 7% 91%;
+  --text-low:    240 5% 56%;
+  --text-dim:    240 5% 37%;
+
+  /* Accent family as HSL for Tailwind colour classes. */
+  --brand-cyan:      189 79% 53%;
+  --brand-cyan-2:    187 89% 69%;
+  --brand-cyan-deep: 190 92% 36%;
+  --accent-hsl:      var(--brand-cyan);
+  --accent-2-hsl:    var(--brand-cyan-2);
+  --accent-3-hsl:    var(--brand-cyan-deep);
+  --accent-foreground: 205 70% 6%;   /* ≈ #06121A — CTA button text on cyan fill */
+
+  /* Semantic HSL aliases. */
+  --success:     152 60% 52%;
+  --warning:      38 92% 50%;
+  --destructive: 349 89% 60%;
+  --destructive-foreground: 0 0% 100%;
+}
+
+/*
+ * Graphite — warm-slate charcoal. Deliberately lifted off Obsidian's true
+ * black so the two themes read as unmistakably different at a glance:
+ * Obsidian is "lights off, OLED bezel-blend"; Graphite is "warm desk lamp,
+ * slate-grey chrome". The ~14-point luminance gap on bg-0 (#000 → #12151C)
+ * is what gives the theme picker perceptible weight — previously the two
+ * differed by ~3 luminance points and users couldn't tell them apart.
+ *
+ * We also re-tune borders and pill tokens a hair warmer so the whole theme
+ * feels like a single intentional choice, not "obsidian with slightly
+ * lighter cards".
+ */
+.theme-graphite {
+  --bg-0: #12151C;
+  --bg-1: #1A1E28;
+  --bg-2: #242A37;
+
+  /* Borders sit a half-step cooler on the warmer slate so they don't read
+     as muddy under the lifted surface tones. */
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Pill tokens drift clearly warmer/lighter than Obsidian's near-black.
+     Obsidian's pill is #0B → #000 (OLED melt); Graphite's is a visibly
+     blue-slate charcoal, so swapping themes registers on the floating
+     bar the same way it registers on the app chrome. If these two
+     palettes ever read as "basically the same" again the theme picker
+     loses half its meaning — keep the luminance gap obvious. */
+  --pill-top:     #2F3A52;
+  --pill-bot:     #181F2E;
+  --pill-top-lit: #38456A;
+  --pill-bot-lit: #1E2638;
+
+  --background: 220 18% 9%;
+  --surface: 220 18% 13%;
+  --surface-raised: 220 22% 18%;
+}
+
+.theme-paper {
+  --bg-0: #F6F4EE;
+  --bg-1: #FFFFFF;
+  --bg-2: #EDEAE1;
+  --fg-hi: #0C1018;
+  --fg:    #1D2530;
+  --muted: #5A6372;
+  --fg-dim: #8992A1;
+  --border:        rgba(10, 14, 23, 0.08);
+  --border-strong: rgba(10, 14, 23, 0.16);
+  --background: 43 27% 95%;
+  --surface: 0 0% 100%;
+  --foreground: 217 33% 13%;
+  --muted-hsl: 218 12% 40%;
+  --muted-foreground: var(--muted-hsl);
+  --text-strong: 217 33% 8%;
+  --text-mid:    217 22% 20%;
+  --text-low:    218 12% 40%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Paper gets its own distinctive pill tone — a warm espresso-brown
+     charcoal that visibly separates from Obsidian's blue-black and
+     Graphite's slate. It stays dark enough for the white wordmark / icons
+     / timer inside the pill to read, so we don't have to rework every
+     colour-inverted element just to support a light theme. Think
+     "leather-wrapped handheld on a cream desk" — paper is the paper, the
+     widget on top is a tactile warm object. */
+  --pill-top:     #2B2620;
+  --pill-bot:     #171310;
+  --pill-top-lit: #352F27;
+  --pill-bot-lit: #1E1913;
+}
+
+/*
+ * Accent variants — theme-picker accent cascade.
+ *
+ * Each variant overrides the FULL accent family so a single class change
+ * re-tones every downstream surface in one go:
+ *
+ *   • --accent / --accent-2 / --accent-3 — UI fills, hovers, deep washes
+ *   • --accent-foreground                — text colour on accent-fill buttons
+ *                                          (so CTA labels stay legible on
+ *                                          amber / lime, where dark text is
+ *                                          the only way to hit AA)
+ *   • --gradient-wordmark                — the "bar" half of the wordmark,
+ *                                          the floating-pill mark's waveform,
+ *                                          and the bar's right-side wave bars
+ *   • --ring                             — focus ring
+ *   • --brand-cyan* (HSL aliases)        — Tailwind's accent text/bg utilities
+ *
+ * Previously only --accent and --accent-hsl were swapped, which meant
+ * picking "Violet" left the logo, wordmark, wave bars, and CTA button
+ * colour all still cyan — the accent change felt half-applied. Cascading
+ * the whole family means every visible cyan moment in the app re-colours
+ * to the chosen accent in one click.
+ *
+ * If you add a new accent, you must define all five cascade vars, otherwise
+ * surfaces downstream will fall back to cyan.
+ */
+.accent-cyan {
+  --accent:   #22D3EE;
+  --accent-2: #67E8F9;
+  --accent-3: #0891B2;
+  --accent-foreground: 205 70% 6%;    /* near-black text on bright cyan */
+  --gradient-wordmark:
+    linear-gradient(90deg, #00e5ff 0%, #00a3ff 100%);
+  --ring: 189 79% 53%;
+  --accent-hsl:      189 79% 53%;
+  --brand-cyan:      189 79% 53%;
+  --brand-cyan-2:    187 89% 69%;
+  --brand-cyan-deep: 190 92% 36%;
+}
+
+.accent-teal {
+  --accent:   #14B8A6;
+  --accent-2: #5EEAD4;
+  --accent-3: #0F766E;
+  --accent-foreground: 175 70% 6%;
+  --gradient-wordmark:
+    linear-gradient(90deg, #5eead4 0%, #0f766e 100%);
+  --ring: 173 80% 40%;
+  --accent-hsl:      173 80% 40%;
+  --brand-cyan:      173 80% 40%;
+  --brand-cyan-2:    167 85% 64%;
+  --brand-cyan-deep: 175 84% 26%;
+}
+
+.accent-amber {
+  --accent:   #F59E0B;
+  --accent-2: #FBBF24;
+  --accent-3: #B45309;
+  /* Dark text on amber fills — the only path to AA contrast on a warm
+     yellow. Same applies to lime below. */
+  --accent-foreground: 28 80% 10%;
+  --gradient-wordmark:
+    linear-gradient(90deg, #fbbf24 0%, #d97706 100%);
+  --ring: 38 92% 50%;
+  --accent-hsl:      38 92% 50%;
+  --brand-cyan:      38 92% 50%;
+  --brand-cyan-2:    45 93% 57%;
+  --brand-cyan-deep: 30 90% 37%;
+}
+
+.accent-violet {
+  --accent:   #8B5CF6;
+  --accent-2: #A78BFA;
+  --accent-3: #6D28D9;
+  --accent-foreground: 0 0% 100%;
+  --gradient-wordmark:
+    linear-gradient(90deg, #a78bfa 0%, #6d28d9 100%);
+  --ring: 258 90% 66%;
+  --accent-hsl:      258 90% 66%;
+  --brand-cyan:      258 90% 66%;
+  --brand-cyan-2:    250 95% 76%;
+  --brand-cyan-deep: 263 74% 50%;
+}
+
+.accent-coral {
+  --accent:   #FB7185;
+  --accent-2: #FDA4AF;
+  --accent-3: #BE123C;
+  --accent-foreground: 349 60% 10%;
+  --gradient-wordmark:
+    linear-gradient(90deg, #fda4af 0%, #e11d48 100%);
+  --ring: 351 95% 71%;
+  --accent-hsl:      351 95% 71%;
+  --brand-cyan:      351 95% 71%;
+  --brand-cyan-2:    351 100% 82%;
+  --brand-cyan-deep: 347 77% 41%;
+}
+
+.accent-lime {
+  --accent:   #84CC16;
+  --accent-2: #BEF264;
+  --accent-3: #4D7C0F;
+  --accent-foreground: 85 80% 8%;
+  --gradient-wordmark:
+    linear-gradient(90deg, #bef264 0%, #65a30d 100%);
+  --ring: 83 78% 44%;
+  --accent-hsl:      83 78% 44%;
+  --brand-cyan:      83 78% 44%;
+  --brand-cyan-2:    83 89% 67%;
+  --brand-cyan-deep: 86 80% 27%;
+}
+
+.accent-rose {
+  --accent:   #F43F5E;
+  --accent-2: #FB7185;
+  --accent-3: #BE123C;
+  --accent-foreground: 0 0% 100%;
+  --gradient-wordmark:
+    linear-gradient(90deg, #fb7185 0%, #be123c 100%);
+  --ring: 349 89% 60%;
+  --accent-hsl:      349 89% 60%;
+  --brand-cyan:      349 89% 60%;
+  --brand-cyan-2:    351 95% 71%;
+  --brand-cyan-deep: 347 77% 41%;
+}

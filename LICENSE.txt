@@ -1,0 +1,37 @@
+ORLIQ End User License Agreement (EULA)
+
+Copyright (c) ORLIQ. All rights reserved.
+
+This software is licensed, not sold. By installing or using ORLIQ you agree to the
+terms below.
+
+1. Grant of license. Subject to your compliance with this agreement, you are granted a
+   non-exclusive, non-transferable license to install and use ORLIQ on personal
+   computers you own or control.
+
+2. Restrictions. You may not redistribute, resell, sublicense, rent, lease, reverse
+   engineer (except to the extent permitted by applicable law), or remove proprietary
+   notices from the software.
+
+3. Privacy. ORLIQ performs all speech recognition and text processing locally on your
+   device. It does not transmit recordings, transcripts, vocabulary, or analytics to
+   any server. Optional features (update checks, user-initiated documentation links)
+   may issue network requests; these are the only exceptions.
+
+4. No warranty. The software is provided "as is", without warranty of any kind, express
+   or implied, including but not limited to warranties of merchantability, fitness for
+   a particular purpose, and non-infringement. The entire risk as to the quality and
+   performance of the software is with you.
+
+5. Limitation of liability. In no event shall the authors be liable for any claim,
+   damages, or other liability arising from the use of the software.
+
+6. Termination. This license terminates automatically if you breach any of its terms.
+   On termination you must stop using the software and remove all installed copies.
+
+7. Governing law. This agreement shall be interpreted under the laws of the
+   jurisdiction in which ORLIQ is published. If any provision is held unenforceable,
+   the remainder shall remain in effect.
+
+For the avoidance of doubt: ORLIQ is an original work and is not affiliated with or
+derived from any other dictation product.

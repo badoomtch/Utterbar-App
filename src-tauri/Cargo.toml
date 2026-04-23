@@ -1,0 +1,141 @@
+[package]
+name = "utterbar"
+version = "0.4.0"
+edition = "2021"
+description = "Utterbar — local-only dictation for Windows"
+authors = ["Utterbar"]
+license = "Proprietary"
+repository = ""
+default-run = "utterbar"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ts-rs = { version = "10", features = ["serde-json-impl"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# IDs + time
+ulid = { version = "1", features = ["serde"] }
+time = { version = "0.3", features = ["serde", "macros"] }
+
+# DB
+rusqlite = { version = "0.32", features = ["bundled"] }
+refinery = { version = "0.8", features = ["rusqlite"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.25"
+
+# Audio
+cpal = "0.15"
+hound = "3.5"                           # wav i/o
+ringbuf = "0.4"
+rubato = "0.15"                         # resampling
+symphonia = { version = "0.5", features = ["mp3", "aac", "isomp4", "mkv", "ogg", "flac", "wav", "pcm"] }
+
+# Networking (model catalogue fetches; no cloud inference)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+
+# Hashing
+sha2 = "0.10"
+hex = "0.4"
+
+# Archive extraction — sherpa-onnx Parakeet tarballs are .tar.bz2
+tar = "0.4"
+bzip2 = "0.4"
+
+# Base64 for sidecar payloads
+base64 = "0.22"
+
+# Global hotkeys
+global-hotkey = "0.6"
+tauri-plugin-global-shortcut = "2"
+
+# Real ASR: sherpa-onnx Parakeet via the Rust binding. We pin against the prebuilt
+# sherpa-onnx bundle vendored at src-tauri/vendor/sherpa-onnx/ via SHERPA_LIB_PATH
+# (see .cargo/config.toml), so sherpa-rs-sys skips its cmake build entirely. Runtime
+# DLLs are shipped next to utterbar.exe by the NSIS installer hook.
+sherpa-rs = { version = "0.6", default-features = false }
+
+# Windows-specific
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Security", # SECURITY_ATTRIBUTES, required for CreateEventW
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_UI_Accessibility",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Kernel",
+    # DXGI — enumerate Direct3D adapters so we can tell the user whether their PC has a
+    # hardware GPU we can run Parakeet on via DirectML.
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    # GDI monitor info — MonitorFromWindow + GetMonitorInfoW for taskbar-aware work area,
+    # so the floating bar can be clamped to the actual visible rectangle rather than a
+    # guessed 80 px bottom inset.
+    "Win32_Graphics_Gdi",
+    # SMTC — global media transport controls, used to auto-pause Spotify / YouTube / etc.
+    # while the user is dictating.
+    "Media_Control",
+    "Foundation",
+    "Foundation_Collections",
+    # WASAPI — loopback capture so we can transcribe system audio (meetings, videos)
+    # without needing a virtual cable. `Microphone` / `System` / `Mixed` source toggles
+    # live in Audio settings.
+    "Win32_Media",
+    "Win32_Media_Audio",
+    "Win32_Media_KernelStreaming",
+    "Win32_Media_Multimedia",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_Devices_FunctionDiscovery",
+] }
+winreg = "0.52"
+
+[features]
+default = []
+# Optional llama.cpp LLM backend.
+llama = ["dep:llama-cpp-2"]
+
+[dependencies.llama-cpp-2]
+version = "0.1"
+optional = true
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+incremental = true

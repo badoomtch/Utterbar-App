@@ -1,0 +1,31 @@
+<!--
+  Waveform-only mark for the Windows system tray. This is the interior of
+  the canonical pill mark (see mark.svg / DESIGN_SYSTEM.md §10.1) without
+  the pill body, white border, or hole-punch, so it reads cleanly at 16×16
+  against both light and dark taskbar themes.
+
+  Geometry matches mark.svg exactly — same 120×60 grid, same seven bars,
+  same central speech-bubble tail. The viewBox (44 10 64 40) tight-frames
+  the waves to maximise pixel density at tray sizes.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="44 10 64 40" color-interpolation="linearRGB">
+    <defs>
+        <linearGradient id="ub-wave-cyan" x1="0%" y1="0%" x2="0%" y2="100%" color-interpolation="linearRGB">
+            <stop offset="0%"   stop-color="#00f6ff" />
+            <stop offset="25%"  stop-color="#00e2fb" />
+            <stop offset="50%"  stop-color="#00ccf5" />
+            <stop offset="75%"  stop-color="#00b5ed" />
+            <stop offset="100%" stop-color="#00a3ff" />
+        </linearGradient>
+    </defs>
+
+    <g fill="url(#ub-wave-cyan)">
+        <rect x="44"  y="25" width="4" height="10" rx="2" />
+        <rect x="54"  y="21" width="4" height="18" rx="2" />
+        <rect x="64"  y="16" width="4" height="28" rx="2" />
+        <path d="M 74 10 A 2 2 0 0 1 78 10 V 50 L 74 44 Z" />
+        <rect x="84"  y="16" width="4" height="28" rx="2" />
+        <rect x="94"  y="21" width="4" height="18" rx="2" />
+        <rect x="104" y="25" width="4" height="10" rx="2" />
+    </g>
+</svg>

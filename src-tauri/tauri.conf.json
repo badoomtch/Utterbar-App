@@ -1,0 +1,120 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Utterbar",
+  "version": "0.4.0",
+  "identifier": "com.utterbar.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "macOSPrivateApi": false,
+    "windows": [
+      {
+        "label": "floating",
+        "url": "index.html#/floating",
+        "title": "Utterbar",
+        "width": 520,
+        "height": 64,
+        "minWidth": 220,
+        "minHeight": 56,
+        "x": 470,
+        "y": 8,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "focus": false,
+        "acceptFirstMouse": true,
+        "visible": false
+      },
+      {
+        "label": "main",
+        "url": "index.html#/",
+        "title": "Utterbar",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "decorations": true,
+        "transparent": false,
+        "visible": false,
+        "center": true,
+        "theme": "Dark"
+      },
+      {
+        "label": "onboarding",
+        "url": "index.html#/onboarding",
+        "title": "Welcome to Utterbar",
+        "width": 880,
+        "height": 620,
+        "resizable": false,
+        "decorations": true,
+        "transparent": false,
+        "visible": true,
+        "center": true,
+        "focus": true,
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: https://ipc.localhost; img-src 'self' data: asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: https://ipc.localhost ws://127.0.0.1:1421 http://127.0.0.1:1420",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/Utterbar/**"]
+      }
+    },
+    "trayIcon": {
+      "id": "main-tray",
+      "iconPath": "icons/tray.png",
+      "iconAsTemplate": false,
+      "tooltip": "Utterbar"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "category": "Productivity",
+    "copyright": "© Utterbar",
+    "publisher": "Utterbar",
+    "homepage": "https://utterbar.app",
+    "shortDescription": "Local-only dictation for Windows",
+    "longDescription": "Utterbar is a premium local-only dictation utility for Windows. It processes audio entirely on-device using NVIDIA Parakeet and integrates with every app on your PC.",
+    "licenseFile": "../LICENSE.txt",
+    "resources": {
+      "../scripts/asr_sidecar.py": "resources/asr_sidecar.py",
+      "runtime/sherpa-onnx-c-api.dll": "sherpa-onnx-c-api.dll",
+      "runtime/sherpa-onnx-cxx-api.dll": "sherpa-onnx-cxx-api.dll",
+      "runtime/onnxruntime.dll": "onnxruntime.dll",
+      "runtime/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "installer.nsh"
+      }
+    }
+  },
+  "plugins": {}
+}
