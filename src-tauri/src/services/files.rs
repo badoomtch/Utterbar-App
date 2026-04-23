@@ -167,7 +167,9 @@ impl FileJobService {
             "SELECT id,source_path,mode_id,model_id,status,progress,result_path,error_message,created_at,updated_at FROM file_jobs WHERE status = '\"queued\"' ORDER BY created_at ASC LIMIT 1"
         )?;
         let mut rows = stmt.query([])?;
-        let Some(r) = rows.next()? else { return Ok(None); };
+        let Some(r) = rows.next()? else {
+            return Ok(None);
+        };
         let status: String = r.get(4)?;
         Ok(Some(FileJob {
             id: r.get(0)?,
@@ -187,7 +189,10 @@ impl FileJobService {
         // Register the cancel flag before the first DB write. Guarded by RAII-ish dropguard
         // below so we always deregister, even if we panic or bail early.
         let cancel_flag = Arc::new(AtomicBool::new(false));
-        self.running.lock().await.insert(job.id.clone(), cancel_flag.clone());
+        self.running
+            .lock()
+            .await
+            .insert(job.id.clone(), cancel_flag.clone());
 
         let result = self
             .run_job_inner(&job, cancel_flag.clone(), app, handle)
@@ -209,7 +214,11 @@ impl FileJobService {
         emit(handle, &job.id, 0.05, FileJobStatus::Running);
 
         let settings = app.settings.snapshot().await;
-        let mode_id = job.mode_id.clone().or_else(|| settings.active_mode_id.clone()).unwrap_or_else(|| "voice-to-text".into());
+        let mode_id = job
+            .mode_id
+            .clone()
+            .or_else(|| settings.active_mode_id.clone())
+            .unwrap_or_else(|| "voice-to-text".into());
         let model_id = job
             .model_id
             .clone()
@@ -275,19 +284,26 @@ impl FileJobService {
         self.update(&job.id, FileJobStatus::Running, 0.75, None, None)?;
         emit(handle, &job.id, 0.75, FileJobStatus::Running);
 
-        let replaced = app.vocabulary.apply_replacements(&asr.text).unwrap_or(asr.text.clone());
+        let replaced = app
+            .vocabulary
+            .apply_replacements(&asr.text)
+            .unwrap_or(asr.text.clone());
         let processed = if let Some(mode) = app.modes.get(&mode_id).ok().flatten() {
             match &mode.post_processing {
                 crate::domain::PostProcessing::None => replaced.clone(),
                 crate::domain::PostProcessing::Deterministic { .. } => {
-                    crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&replaced)
+                    crate::services::llm::deterministic::DeterministicProvider
+                        .rewrite_sync(&replaced)
                 }
                 crate::domain::PostProcessing::Llm { prompt, .. } => {
                     let llm = crate::services::llm::best_available().await;
-                    llm
-                        .rewrite(&replaced, prompt, &crate::services::llm::ProcContext::default())
-                        .await
-                        .unwrap_or_else(|_| replaced.clone())
+                    llm.rewrite(
+                        &replaced,
+                        prompt,
+                        &crate::services::llm::ProcContext::default(),
+                    )
+                    .await
+                    .unwrap_or_else(|_| replaced.clone())
                 }
             }
         } else {

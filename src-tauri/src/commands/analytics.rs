@@ -17,5 +17,8 @@ pub async fn get_stats_series(
     metric: String,
     days: u32,
 ) -> CmdResult<Vec<DailyPoint>> {
-    state.analytics.series(&metric, days).map_err(OrliqError::from)
+    state
+        .analytics
+        .series(&metric, days)
+        .map_err(OrliqError::from)
 }

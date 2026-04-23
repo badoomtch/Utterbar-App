@@ -29,10 +29,24 @@ pub fn snapshot(include_selection: bool, include_clipboard: bool) -> ActiveAppCo
     let class = read_window_class(hwnd);
     let exe = read_window_exe(hwnd);
 
-    let selection = if include_selection { read_selection_uia(hwnd) } else { None };
-    let clipboard = if include_clipboard { read_clipboard() } else { None };
+    let selection = if include_selection {
+        read_selection_uia(hwnd)
+    } else {
+        None
+    };
+    let clipboard = if include_clipboard {
+        read_clipboard()
+    } else {
+        None
+    };
 
-    ActiveAppContext { exe, title, class, selection, clipboard }
+    ActiveAppContext {
+        exe,
+        title,
+        class,
+        selection,
+        clipboard,
+    }
 }
 
 fn read_window_title(hwnd: HWND) -> Option<String> {
@@ -116,7 +130,13 @@ fn read_selection_uia(hwnd: HWND) -> Option<String> {
         if trimmed.is_empty() {
             None
         } else if trimmed.chars().count() > MAX_SELECTION_CHARS {
-            Some(trimmed.chars().take(MAX_SELECTION_CHARS).collect::<String>() + "…")
+            Some(
+                trimmed
+                    .chars()
+                    .take(MAX_SELECTION_CHARS)
+                    .collect::<String>()
+                    + "…",
+            )
         } else {
             Some(trimmed.to_string())
         }

@@ -21,9 +21,14 @@ pub fn normalise(pcm: &mut [i16]) {
 }
 
 pub fn trim_silence(pcm: Vec<i16>, threshold: i16) -> Vec<i16> {
-    let start = pcm.iter().position(|s| s.abs() > threshold).unwrap_or(pcm.len());
+    let start = pcm
+        .iter()
+        .position(|s| s.abs() > threshold)
+        .unwrap_or(pcm.len());
     let end = pcm.iter().rposition(|s| s.abs() > threshold).unwrap_or(0);
-    if start >= end { return Vec::new(); }
+    if start >= end {
+        return Vec::new();
+    }
     pcm[start..=end].to_vec()
 }
 

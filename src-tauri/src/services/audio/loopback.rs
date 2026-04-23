@@ -290,12 +290,10 @@ fn run_loopback(
                 let mono: Vec<f32> = if silent || data_ptr.is_null() || num_frames == 0 {
                     vec![0.0; num_frames as usize]
                 } else if is_float {
-                    let slice =
-                        std::slice::from_raw_parts(data_ptr as *const f32, sample_count);
+                    let slice = std::slice::from_raw_parts(data_ptr as *const f32, sample_count);
                     downmix_f32(slice, channels)
                 } else if bits_per_sample == 16 {
-                    let slice =
-                        std::slice::from_raw_parts(data_ptr as *const i16, sample_count);
+                    let slice = std::slice::from_raw_parts(data_ptr as *const i16, sample_count);
                     downmix_i16(slice, channels)
                 } else {
                     // 24/32-bit PCM loopback is vanishingly rare on modern Windows mixers,
@@ -366,7 +364,11 @@ fn downmix_i16(data: &[i16], channels: usize) -> Vec<f32> {
     }
     data.chunks_exact(channels)
         .map(|frame| {
-            frame.iter().map(|s| *s as f32 / i16::MAX as f32).sum::<f32>() / channels as f32
+            frame
+                .iter()
+                .map(|s| *s as f32 / i16::MAX as f32)
+                .sum::<f32>()
+                / channels as f32
         })
         .collect()
 }

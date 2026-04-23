@@ -19,7 +19,9 @@ pub enum Strategy {
 }
 
 impl TextInjectService {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 
     #[cfg(windows)]
     pub fn deliver(&self, text: &str, strategy: Strategy) -> Result<()> {

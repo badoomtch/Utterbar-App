@@ -13,7 +13,9 @@ pub struct HistoryService {
 }
 
 impl HistoryService {
-    pub fn new(db: Arc<Db>) -> Self { Self { db } }
+    pub fn new(db: Arc<Db>) -> Self {
+        Self { db }
+    }
 
     pub fn insert(&self, entry: &HistoryEntry) -> Result<()> {
         let conn = self.db.conn()?;
@@ -37,23 +39,38 @@ impl HistoryService {
             "SELECT id,created_at,mode_id,mode_name_snapshot,asr_model_id,asr_model_version,audio_path,audio_duration_ms,raw_text,processed_text,language,processing_ms,status,error_message,app_exe,app_title,context_payload,word_timings FROM history WHERE 1=1"
         );
         let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-        if let Some(m) = filter.mode_id { sql.push_str(" AND mode_id=?"); args.push(Box::new(m)); }
-        if let Some(a) = filter.app_exe { sql.push_str(" AND app_exe=?"); args.push(Box::new(a)); }
+        if let Some(m) = filter.mode_id {
+            sql.push_str(" AND mode_id=?");
+            args.push(Box::new(m));
+        }
+        if let Some(a) = filter.app_exe {
+            sql.push_str(" AND app_exe=?");
+            args.push(Box::new(a));
+        }
         if let Some(s) = filter.search {
             sql.push_str(" AND (raw_text LIKE ? OR processed_text LIKE ?)");
             let pat = format!("%{s}%");
             args.push(Box::new(pat.clone()));
             args.push(Box::new(pat));
         }
-        if let Some(f) = filter.from_ms { sql.push_str(" AND created_at >= ?"); args.push(Box::new(f)); }
-        if let Some(t) = filter.to_ms { sql.push_str(" AND created_at <= ?"); args.push(Box::new(t)); }
+        if let Some(f) = filter.from_ms {
+            sql.push_str(" AND created_at >= ?");
+            args.push(Box::new(f));
+        }
+        if let Some(t) = filter.to_ms {
+            sql.push_str(" AND created_at <= ?");
+            args.push(Box::new(t));
+        }
         sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
         args.push(Box::new(filter.limit.unwrap_or(200)));
         args.push(Box::new(filter.offset.unwrap_or(0)));
 
         let conn = self.db.conn()?;
         let mut stmt = conn.prepare(&sql)?;
-        let param_refs: Vec<&dyn rusqlite::ToSql> = args.iter().map(|b| b.as_ref() as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> = args
+            .iter()
+            .map(|b| b.as_ref() as &dyn rusqlite::ToSql)
+            .collect();
         let rows = stmt.query_map(rusqlite::params_from_iter(param_refs), row_to_history)?;
         Ok(rows.filter_map(|r| r.ok()).collect())
     }

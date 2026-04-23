@@ -17,8 +17,8 @@ use crate::services::history::HistoryService;
 use crate::services::hotkeys::HotkeyService;
 use crate::services::inference::InferenceOrchestrator;
 use crate::services::media::MediaService;
-use crate::services::modes::ModeService;
 use crate::services::models::ModelRegistry;
+use crate::services::modes::ModeService;
 use crate::services::settings::SettingsStore;
 use crate::services::text_inject::TextInjectService;
 use crate::services::vocabulary::VocabularyService;
@@ -89,10 +89,7 @@ impl AppState {
         let ducking = Arc::new(DuckingService::new());
         let hotkeys = Arc::new(HotkeyService::new());
         let context = Arc::new(ContextService::new());
-        let inference = Arc::new(InferenceOrchestrator::new(
-            models.clone(),
-            settings.clone(),
-        ));
+        let inference = Arc::new(InferenceOrchestrator::new(models.clone(), settings.clone()));
         let text_inject = Arc::new(TextInjectService::new());
         let media = Arc::new(MediaService::new());
 

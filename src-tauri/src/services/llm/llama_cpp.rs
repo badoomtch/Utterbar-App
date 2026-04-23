@@ -24,8 +24,12 @@ mod real {
 
     #[async_trait]
     impl LlmProvider for LlamaCppProvider {
-        fn id(&self) -> &str { "llama-cpp" }
-        async fn is_available(&self) -> bool { true }
+        fn id(&self) -> &str {
+            "llama-cpp"
+        }
+        async fn is_available(&self) -> bool {
+            true
+        }
         async fn rewrite(&self, input: &str, _system: &str, _ctx: &ProcContext) -> Result<String> {
             Ok(input.into())
         }

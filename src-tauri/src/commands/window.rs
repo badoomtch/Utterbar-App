@@ -17,7 +17,9 @@ pub async fn show_floating(handle: AppHandle) -> CmdResult<()> {
         if let Err(e) = clamp_to_work_area(&w) {
             tracing::warn!(?e, "show_floating: pre-show clamp failed");
         }
-        w.show().map_err(|e| OrliqError::Internal { message: e.to_string() })?;
+        w.show().map_err(|e| OrliqError::Internal {
+            message: e.to_string(),
+        })?;
         let _ = w.set_always_on_top(true);
     }
     Ok(())
@@ -26,7 +28,9 @@ pub async fn show_floating(handle: AppHandle) -> CmdResult<()> {
 #[tauri::command]
 pub async fn hide_floating(handle: AppHandle) -> CmdResult<()> {
     if let Some(w) = handle.get_webview_window("floating") {
-        w.hide().map_err(|e| OrliqError::Internal { message: e.to_string() })?;
+        w.hide().map_err(|e| OrliqError::Internal {
+            message: e.to_string(),
+        })?;
     }
     Ok(())
 }
@@ -37,7 +41,9 @@ pub async fn show_main(handle: AppHandle) -> CmdResult<()> {
         Some(w) => {
             // Belt and braces: unminimise in case it was minimised, then show + focus.
             let _ = w.unminimize();
-            w.show().map_err(|e| OrliqError::Internal { message: e.to_string() })?;
+            w.show().map_err(|e| OrliqError::Internal {
+                message: e.to_string(),
+            })?;
             let _ = w.set_focus();
             tracing::info!("main window shown");
             Ok(())
@@ -66,7 +72,9 @@ pub async fn show_main_at(handle: AppHandle, path: String) -> CmdResult<()> {
     match handle.get_webview_window("main") {
         Some(w) => {
             let _ = w.unminimize();
-            w.show().map_err(|e| OrliqError::Internal { message: e.to_string() })?;
+            w.show().map_err(|e| OrliqError::Internal {
+                message: e.to_string(),
+            })?;
             let _ = w.set_focus();
             // Emit after show() so MainShell's listener is guaranteed to be
             // mounted — React Router is ready by the time the window is shown.
@@ -86,7 +94,9 @@ pub async fn show_main_at(handle: AppHandle, path: String) -> CmdResult<()> {
 #[tauri::command]
 pub async fn show_onboarding(handle: AppHandle) -> CmdResult<()> {
     if let Some(w) = handle.get_webview_window("onboarding") {
-        w.show().map_err(|e| OrliqError::Internal { message: e.to_string() })?;
+        w.show().map_err(|e| OrliqError::Internal {
+            message: e.to_string(),
+        })?;
         w.set_focus().ok();
     }
     Ok(())
@@ -96,7 +106,9 @@ pub async fn show_onboarding(handle: AppHandle) -> CmdResult<()> {
 pub async fn set_floating_position(handle: AppHandle, x: i32, y: i32) -> CmdResult<()> {
     if let Some(w) = handle.get_webview_window("floating") {
         w.set_position(tauri::PhysicalPosition::new(x, y))
-            .map_err(|e| OrliqError::Internal { message: e.to_string() })?;
+            .map_err(|e| OrliqError::Internal {
+                message: e.to_string(),
+            })?;
     }
     Ok(())
 }
@@ -211,7 +223,12 @@ fn work_area(w: &tauri::WebviewWindow) -> Option<(i32, i32, i32, i32)> {
             ..Default::default()
         };
         if GetMonitorInfoW(hmon, &mut info).as_bool() {
-            Some((info.rcWork.left, info.rcWork.top, info.rcWork.right, info.rcWork.bottom))
+            Some((
+                info.rcWork.left,
+                info.rcWork.top,
+                info.rcWork.right,
+                info.rcWork.bottom,
+            ))
         } else {
             None
         }
@@ -235,9 +252,7 @@ fn reset_to_primary_top_centre(w: &tauri::WebviewWindow) -> anyhow::Result<()> {
     // outer_size can be stale or zero if the window never rendered on this
     // session; fall back to the factory default so centring still produces a
     // sensible x, rather than dumping the bar flush against the left edge.
-    let ws = w
-        .outer_size()
-        .unwrap_or(tauri::PhysicalSize::new(520, 64));
+    let ws = w.outer_size().unwrap_or(tauri::PhysicalSize::new(520, 64));
     // Top-centre of the monitor, matching the factory default in
     // tauri.conf.json — the spot users expect the bar to be on first run.
     let x = mp.x + ((ms.width as i32 - ws.width as i32) / 2).max(0);

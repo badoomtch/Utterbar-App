@@ -92,12 +92,17 @@ impl ModeService {
 
     pub fn delete(&self, id: &str) -> Result<()> {
         let conn = self.db.conn()?;
-        conn.execute("DELETE FROM modes WHERE id=?1 AND is_builtin=0", params![id])?;
+        conn.execute(
+            "DELETE FROM modes WHERE id=?1 AND is_builtin=0",
+            params![id],
+        )?;
         Ok(())
     }
 
     pub fn duplicate(&self, id: &str) -> Result<Mode> {
-        let src = self.get(id)?.ok_or_else(|| anyhow::anyhow!("mode not found"))?;
+        let src = self
+            .get(id)?
+            .ok_or_else(|| anyhow::anyhow!("mode not found"))?;
         let mut copy = src.clone();
         copy.id = ulid::Ulid::new().to_string();
         copy.name = format!("{} Copy", src.name);
@@ -111,13 +116,24 @@ impl ModeService {
     /// scaffolded but not yet feeding the active-mode switcher — but this is the
     /// one-call entry the eventual auto-switch wiring will use.
     #[allow(dead_code)]
-    pub fn match_auto_activation(&self, exe: Option<&str>, title: Option<&str>, class: Option<&str>) -> Result<Option<Mode>> {
+    pub fn match_auto_activation(
+        &self,
+        exe: Option<&str>,
+        title: Option<&str>,
+        class: Option<&str>,
+    ) -> Result<Option<Mode>> {
         for m in self.list()? {
             for rule in &m.auto_activation {
                 let hit = match rule {
-                    AutoActivationRule::ByExe { pattern } => exe.map(|v| glob(v, pattern)).unwrap_or(false),
-                    AutoActivationRule::ByTitle { pattern } => title.map(|v| glob(v, pattern)).unwrap_or(false),
-                    AutoActivationRule::ByClass { pattern } => class.map(|v| glob(v, pattern)).unwrap_or(false),
+                    AutoActivationRule::ByExe { pattern } => {
+                        exe.map(|v| glob(v, pattern)).unwrap_or(false)
+                    }
+                    AutoActivationRule::ByTitle { pattern } => {
+                        title.map(|v| glob(v, pattern)).unwrap_or(false)
+                    }
+                    AutoActivationRule::ByClass { pattern } => {
+                        class.map(|v| glob(v, pattern)).unwrap_or(false)
+                    }
                 };
                 if hit {
                     return Ok(Some(m));

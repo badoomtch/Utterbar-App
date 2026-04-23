@@ -65,7 +65,9 @@ pub fn list_input_devices() -> Result<Vec<InputDevice>> {
 pub fn start(device_id: Option<&str>) -> Result<CaptureHandle> {
     let (frames_tx, frames_rx) = mpsc::channel::<Vec<i16>>(64);
     let (meter_tx, meter_rx) = mpsc::channel::<(f32, f32)>(64);
-    let buffer = Arc::new(Mutex::new(Vec::<i16>::with_capacity(TARGET_RATE as usize * 60)));
+    let buffer = Arc::new(Mutex::new(Vec::<i16>::with_capacity(
+        TARGET_RATE as usize * 60,
+    )));
     let stop_flag = Arc::new(AtomicBool::new(false));
 
     // Confirm we can build the stream before returning, so the caller gets a sensible
@@ -347,7 +349,11 @@ fn downmix_and_resample_i16(data: &[i16], channels: usize, src_rate: u32) -> Vec
     } else {
         data.chunks_exact(channels)
             .map(|frame| {
-                frame.iter().map(|s| *s as f32 / i16::MAX as f32).sum::<f32>() / channels as f32
+                frame
+                    .iter()
+                    .map(|s| *s as f32 / i16::MAX as f32)
+                    .sum::<f32>()
+                    / channels as f32
             })
             .collect()
     };

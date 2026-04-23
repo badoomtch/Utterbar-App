@@ -26,7 +26,9 @@ pub struct PySidecarProvider {
 #[derive(Serialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 enum SidecarRequest {
-    Warm { model_id: String },
+    Warm {
+        model_id: String,
+    },
     Transcribe {
         model_id: String,
         pcm_b64: String,
@@ -55,12 +57,17 @@ struct SidecarResponse {
 
 impl PySidecarProvider {
     pub fn new(model_id: String) -> Result<Self> {
-        Ok(Self { model_id, child: Mutex::new(None) })
+        Ok(Self {
+            model_id,
+            child: Mutex::new(None),
+        })
     }
 
     async fn ensure_child(&self) -> Result<()> {
         let mut guard = self.child.lock().await;
-        if guard.is_some() { return Ok(()); }
+        if guard.is_some() {
+            return Ok(());
+        }
         let python = which_python()?;
         let script = script_path()?;
         let child = Command::new(python)
@@ -78,7 +85,9 @@ impl PySidecarProvider {
     async fn exchange(&self, req: SidecarRequest) -> Result<SidecarResponse> {
         self.ensure_child().await?;
         let mut guard = self.child.lock().await;
-        let child = guard.as_mut().ok_or_else(|| anyhow!("sidecar not spawned"))?;
+        let child = guard
+            .as_mut()
+            .ok_or_else(|| anyhow!("sidecar not spawned"))?;
         let stdin = child.stdin.as_mut().ok_or_else(|| anyhow!("no stdin"))?;
         let stdout = child.stdout.as_mut().ok_or_else(|| anyhow!("no stdout"))?;
 
@@ -99,12 +108,22 @@ impl PySidecarProvider {
 
 #[async_trait]
 impl AsrProvider for PySidecarProvider {
-    fn id(&self) -> &str { &self.model_id }
-    fn supported_languages(&self) -> &[&'static str] { &["en"] }
+    fn id(&self) -> &str {
+        &self.model_id
+    }
+    fn supported_languages(&self) -> &[&'static str] {
+        &["en"]
+    }
 
     async fn warm(&self) -> Result<()> {
-        let r = self.exchange(SidecarRequest::Warm { model_id: self.model_id.clone() }).await?;
-        if !r.ok { return Err(anyhow!(r.error.unwrap_or_else(|| "warm failed".into()))); }
+        let r = self
+            .exchange(SidecarRequest::Warm {
+                model_id: self.model_id.clone(),
+            })
+            .await?;
+        if !r.ok {
+            return Err(anyhow!(r.error.unwrap_or_else(|| "warm failed".into())));
+        }
         Ok(())
     }
 
@@ -112,14 +131,18 @@ impl AsrProvider for PySidecarProvider {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
         let bytes: Vec<u8> = audio.pcm.iter().flat_map(|s| s.to_le_bytes()).collect();
         let pcm_b64 = STANDARD.encode(&bytes);
-        let resp = self.exchange(SidecarRequest::Transcribe {
-            model_id: self.model_id.clone(),
-            pcm_b64,
-            sample_rate: audio.sample_rate,
-            want_word_timings: opts.want_word_timings,
-            language_hint: opts.language_hint,
-        }).await?;
-        if !resp.ok { return Err(anyhow!(resp.error.unwrap_or_default())); }
+        let resp = self
+            .exchange(SidecarRequest::Transcribe {
+                model_id: self.model_id.clone(),
+                pcm_b64,
+                sample_rate: audio.sample_rate,
+                want_word_timings: opts.want_word_timings,
+                language_hint: opts.language_hint,
+            })
+            .await?;
+        if !resp.ok {
+            return Err(anyhow!(resp.error.unwrap_or_default()));
+        }
         Ok(AsrResult {
             text: resp.text.unwrap_or_default(),
             words: resp.words,
@@ -147,7 +170,9 @@ fn which_python() -> Result<std::path::PathBuf> {
             }
         }
     }
-    Err(anyhow!("no python found on PATH; install Python 3.10+ or use the ONNX backend"))
+    Err(anyhow!(
+        "no python found on PATH; install Python 3.10+ or use the ONNX backend"
+    ))
 }
 
 fn script_path() -> Result<std::path::PathBuf> {
@@ -157,7 +182,9 @@ fn script_path() -> Result<std::path::PathBuf> {
     for _ in 0..3 {
         if let Some(parent) = root.parent() {
             let candidate = parent.join("scripts").join("asr_sidecar.py");
-            if candidate.exists() { return Ok(candidate); }
+            if candidate.exists() {
+                return Ok(candidate);
+            }
             root = parent.to_path_buf();
         }
     }

@@ -1,4 +1,7 @@
-#![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 mod app_state;
 mod commands;
@@ -33,14 +36,24 @@ fn main() {
         tracing::error!(%info, "Utterbar panic");
         eprintln!("Utterbar panic: {info}");
         let path = crash_dir.join("crash.log");
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
             use std::io::Write;
             let _ = writeln!(
                 f,
                 "[{}] PANIC: {info}",
-                time::OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
+                time::OffsetDateTime::now_utc()
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default()
             );
-            let _ = writeln!(f, "backtrace:\n{}", std::backtrace::Backtrace::force_capture());
+            let _ = writeln!(
+                f,
+                "backtrace:\n{}",
+                std::backtrace::Backtrace::force_capture()
+            );
             let _ = f.flush();
         }
     }));
@@ -163,11 +176,10 @@ fn main() {
                 let app_handle_close = app.handle().clone();
                 main_w.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        let close_to_tray = tauri::async_runtime::block_on(
-                            state_close.settings.snapshot(),
-                        )
-                        .general
-                        .close_to_tray;
+                        let close_to_tray =
+                            tauri::async_runtime::block_on(state_close.settings.snapshot())
+                                .general
+                                .close_to_tray;
                         if close_to_tray {
                             api.prevent_close();
                             let _ = win_clone.hide();

@@ -35,7 +35,12 @@ pub fn decode_file(path: &Path) -> Result<DecodedAudio> {
     }
 
     let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .map_err(|e| anyhow!("probe: {e}"))?;
 
     let mut format = probed.format;
@@ -97,15 +102,21 @@ fn append_mono(dst: &mut Vec<f32>, buf: AudioBufferRef<'_>, channels: u16) {
     match buf {
         AudioBufferRef::F32(b) => push_mixdown(dst, &b, channels, |v| v),
         AudioBufferRef::U8(b) => push_mixdown(dst, &b, channels, |v| (v as f32 - 128.0) / 128.0),
-        AudioBufferRef::U16(b) => push_mixdown(dst, &b, channels, |v| (v as f32 - 32_768.0) / 32_768.0),
+        AudioBufferRef::U16(b) => {
+            push_mixdown(dst, &b, channels, |v| (v as f32 - 32_768.0) / 32_768.0)
+        }
         AudioBufferRef::U24(b) => push_mixdown(dst, &b, channels, |v| {
             let iv = v.inner() as i32 - (1 << 23);
             iv as f32 / (1 << 23) as f32
         }),
-        AudioBufferRef::U32(b) => push_mixdown(dst, &b, channels, |v| (v as f64 - (u32::MAX as f64 / 2.0)) as f32 / (u32::MAX as f32 / 2.0)),
+        AudioBufferRef::U32(b) => push_mixdown(dst, &b, channels, |v| {
+            (v as f64 - (u32::MAX as f64 / 2.0)) as f32 / (u32::MAX as f32 / 2.0)
+        }),
         AudioBufferRef::S8(b) => push_mixdown(dst, &b, channels, |v| v as f32 / 128.0),
         AudioBufferRef::S16(b) => push_mixdown(dst, &b, channels, |v| v as f32 / 32_768.0),
-        AudioBufferRef::S24(b) => push_mixdown(dst, &b, channels, |v| v.inner() as f32 / (1 << 23) as f32),
+        AudioBufferRef::S24(b) => {
+            push_mixdown(dst, &b, channels, |v| v.inner() as f32 / (1 << 23) as f32)
+        }
         AudioBufferRef::S32(b) => push_mixdown(dst, &b, channels, |v| v as f32 / i32::MAX as f32),
         AudioBufferRef::F64(b) => push_mixdown(dst, &b, channels, |v| v as f32),
     }

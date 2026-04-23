@@ -9,7 +9,9 @@ use crate::util::result::{CmdResult, OrliqError};
 
 #[tauri::command]
 pub async fn list_input_devices(state: State<'_, Arc<AppState>>) -> CmdResult<Vec<InputDevice>> {
-    state.audio.devices().await.map_err(|e| OrliqError::Device { message: e.to_string() })
+    state.audio.devices().await.map_err(|e| OrliqError::Device {
+        message: e.to_string(),
+    })
 }
 
 #[tauri::command]
@@ -22,7 +24,9 @@ pub async fn start_meter(
         .audio
         .start_capture(device_id)
         .await
-        .map_err(|e| OrliqError::Device { message: e.to_string() })?;
+        .map_err(|e| OrliqError::Device {
+            message: e.to_string(),
+        })?;
     meter::spawn_pump(handle, capture);
     Ok(())
 }
@@ -43,7 +47,9 @@ pub async fn record_test_clip(
         .audio
         .start_capture(device_id)
         .await
-        .map_err(|e| OrliqError::Device { message: e.to_string() })?;
+        .map_err(|e| OrliqError::Device {
+            message: e.to_string(),
+        })?;
     sleep(Duration::from_secs(seconds.min(15))).await;
     let final_ = state.audio.stop_capture().await;
     Ok(match final_ {

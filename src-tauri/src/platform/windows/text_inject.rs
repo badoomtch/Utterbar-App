@@ -44,16 +44,14 @@ pub fn deliver(text: &str, strategy: Strategy) -> Result<()> {
         Strategy::Paste {
             restore_clipboard,
             fallback_to_keystrokes,
-        } => {
-            match paste_via_clipboard(text, restore_clipboard, fallback_to_keystrokes) {
-                Ok(()) => Ok(()),
-                Err(e) if fallback_to_keystrokes => {
-                    tracing::warn!(?e, "paste failed, falling back to keystrokes");
-                    send_keystrokes(text)
-                }
-                Err(e) => Err(e),
+        } => match paste_via_clipboard(text, restore_clipboard, fallback_to_keystrokes) {
+            Ok(()) => Ok(()),
+            Err(e) if fallback_to_keystrokes => {
+                tracing::warn!(?e, "paste failed, falling back to keystrokes");
+                send_keystrokes(text)
             }
-        }
+            Err(e) => Err(e),
+        },
         Strategy::Keystrokes => send_keystrokes(text),
     }
 }
@@ -93,7 +91,11 @@ fn foreground_is_self() -> bool {
 }
 
 fn paste_via_clipboard(text: &str, restore: bool, _detect_failure: bool) -> Result<()> {
-    let prior = if restore { read_clipboard_text().ok() } else { None };
+    let prior = if restore {
+        read_clipboard_text().ok()
+    } else {
+        None
+    };
 
     set_clipboard_text(text)?;
     // Give the OS a beat to let SetClipboardData propagate to listeners before the
@@ -180,7 +182,11 @@ fn send_ctrl_v() -> Result<()> {
 }
 
 fn vk_event(vk: VIRTUAL_KEY, key_up: bool) -> INPUT {
-    let flags: KEYBD_EVENT_FLAGS = if key_up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) };
+    let flags: KEYBD_EVENT_FLAGS = if key_up {
+        KEYEVENTF_KEYUP
+    } else {
+        KEYBD_EVENT_FLAGS(0)
+    };
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
@@ -200,7 +206,8 @@ fn vk_event(vk: VIRTUAL_KEY, key_up: bool) -> INPUT {
 struct ClipGuard;
 impl ClipGuard {
     fn open() -> Result<Self> {
-        unsafe { OpenClipboard(HWND(std::ptr::null_mut())) }.map_err(|e| anyhow!("OpenClipboard: {e}"))?;
+        unsafe { OpenClipboard(HWND(std::ptr::null_mut())) }
+            .map_err(|e| anyhow!("OpenClipboard: {e}"))?;
         Ok(Self)
     }
 }
@@ -220,8 +227,8 @@ pub fn read_clipboard_text() -> Result<String> {
             .map_err(|_| anyhow!("no unicode text on clipboard"))?;
         let _guard = ClipGuard::open()?;
 
-        let handle: HANDLE = GetClipboardData(CF_UNICODETEXT)
-            .map_err(|e| anyhow!("GetClipboardData: {e}"))?;
+        let handle: HANDLE =
+            GetClipboardData(CF_UNICODETEXT).map_err(|e| anyhow!("GetClipboardData: {e}"))?;
         let h = HGLOBAL(handle.0);
         let ptr = GlobalLock(h) as *const u16;
         if ptr.is_null() {
@@ -251,8 +258,8 @@ pub fn set_clipboard_text(text: &str) -> Result<()> {
         let _guard = ClipGuard::open()?;
         EmptyClipboard().map_err(|e| anyhow!("EmptyClipboard: {e}"))?;
 
-        let h_mem: HGLOBAL = GlobalAlloc(GMEM_MOVEABLE, size_bytes)
-            .map_err(|e| anyhow!("GlobalAlloc: {e}"))?;
+        let h_mem: HGLOBAL =
+            GlobalAlloc(GMEM_MOVEABLE, size_bytes).map_err(|e| anyhow!("GlobalAlloc: {e}"))?;
         let dst = GlobalLock(h_mem) as *mut u16;
         if dst.is_null() {
             return Err(anyhow!("GlobalLock returned null"));

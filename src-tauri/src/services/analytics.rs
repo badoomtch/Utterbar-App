@@ -46,9 +46,17 @@ pub struct DailyPoint {
 }
 
 impl AnalyticsService {
-    pub fn new(db: Arc<Db>) -> Self { Self { db } }
+    pub fn new(db: Arc<Db>) -> Self {
+        Self { db }
+    }
 
-    pub fn record_dictation(&self, words: u32, seconds_spoken: u32, baseline_wpm: u32, mode_id: Option<&str>) -> Result<()> {
+    pub fn record_dictation(
+        &self,
+        words: u32,
+        seconds_spoken: u32,
+        baseline_wpm: u32,
+        mode_id: Option<&str>,
+    ) -> Result<()> {
         let day = today_utc();
         let saved = saved_seconds(words, seconds_spoken, baseline_wpm);
         // Always bump the cross-mode total (mode_id = '') and, if present, the per-mode row.
@@ -102,7 +110,11 @@ impl AnalyticsService {
         let spoken_week: f64 = conn.query_row(
             "SELECT COALESCE(SUM(value),0) FROM analytics_daily WHERE day_utc >= date(?1,'-6 days') AND metric='seconds_spoken' AND mode_id = ''",
             params![today], |r| r.get(0)).unwrap_or(0.0);
-        let avg_wpm = if spoken_week > 0.0 { (words_week_val / (spoken_week / 60.0)) as f32 } else { 0.0 };
+        let avg_wpm = if spoken_week > 0.0 {
+            (words_week_val / (spoken_week / 60.0)) as f32
+        } else {
+            0.0
+        };
 
         let streak_days = streak_from_dictations(&conn, &today).unwrap_or(0);
 
@@ -178,18 +190,23 @@ impl AnalyticsService {
             "SELECT day_utc, SUM(value) FROM analytics_daily
              WHERE metric=?1 AND mode_id = ''
              AND day_utc >= date('now', ?2)
-             GROUP BY day_utc ORDER BY day_utc ASC"
+             GROUP BY day_utc ORDER BY day_utc ASC",
         )?;
         let offset = format!("-{} days", days.saturating_sub(1));
         let rows = stmt.query_map(params![metric, offset], |r| {
-            Ok(DailyPoint { day: r.get(0)?, value: r.get(1)? })
+            Ok(DailyPoint {
+                day: r.get(0)?,
+                value: r.get(1)?,
+            })
         })?;
         Ok(rows.filter_map(|r| r.ok()).collect())
     }
 }
 
 fn saved_seconds(words: u32, seconds_spoken: u32, baseline_wpm: u32) -> u32 {
-    if baseline_wpm == 0 { return 0; }
+    if baseline_wpm == 0 {
+        return 0;
+    }
     let typing = (words as f32 * 60.0 / baseline_wpm as f32) as i32;
     (typing - seconds_spoken as i32).max(0) as u32
 }
@@ -201,7 +218,7 @@ fn streak_from_dictations(conn: &rusqlite::Connection, today: &str) -> rusqlite:
     let mut stmt = conn.prepare(
         "SELECT day_utc FROM analytics_daily
          WHERE metric = 'dictations' AND mode_id = '' AND value > 0
-         ORDER BY day_utc DESC LIMIT 400"
+         ORDER BY day_utc DESC LIMIT 400",
     )?;
     let days: Vec<String> = stmt
         .query_map([], |r| r.get::<_, String>(0))?
@@ -223,7 +240,9 @@ fn streak_from_dictations(conn: &rusqlite::Connection, today: &str) -> rusqlite:
     cursor = first;
     let mut streak = 1u32;
     for d in days.iter().skip(1) {
-        let Some(next) = parse_day(d) else { break; };
+        let Some(next) = parse_day(d) else {
+            break;
+        };
         if days_between(next, cursor) != 1 {
             break;
         }

@@ -45,7 +45,10 @@ impl SherpaParakeet {
         let joiner = first_matching(&self.model_dir, "joiner")?;
         let tokens = self.model_dir.join("tokens.txt");
         if !tokens.exists() {
-            return Err(anyhow!("tokens.txt not found in {}", self.model_dir.display()));
+            return Err(anyhow!(
+                "tokens.txt not found in {}",
+                self.model_dir.display()
+            ));
         }
         Ok((encoder, decoder, joiner, tokens))
     }
@@ -117,8 +120,8 @@ impl SherpaParakeet {
                 ..Default::default()
             };
             tracing::info!(%model_id, "sherpa: TransducerRecognizer::new calling into native");
-            let recognizer = sherpa_rs::transducer::TransducerRecognizer::new(config)
-                .map_err(|e| {
+            let recognizer =
+                sherpa_rs::transducer::TransducerRecognizer::new(config).map_err(|e| {
                     tracing::error!(%model_id, error = ?e, "sherpa init failed");
                     anyhow!("sherpa init: {e:?}")
                 })?;

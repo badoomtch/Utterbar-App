@@ -45,9 +45,15 @@ pub async fn rebuild(app: &AppHandle, state: &AppState) -> Result<()> {
 }
 
 fn build_menu(app: &AppHandle, modes: &[(String, String)]) -> Result<Menu<tauri::Wry>> {
-    let open = MenuItemBuilder::new("Open Utterbar").id(MENU_ID_OPEN).build(app)?;
-    let start = MenuItemBuilder::new("Start Recording").id(MENU_ID_START).build(app)?;
-    let pause = MenuItemBuilder::new("Pause Shortcuts").id(MENU_ID_PAUSE).build(app)?;
+    let open = MenuItemBuilder::new("Open Utterbar")
+        .id(MENU_ID_OPEN)
+        .build(app)?;
+    let start = MenuItemBuilder::new("Start Recording")
+        .id(MENU_ID_START)
+        .build(app)?;
+    let pause = MenuItemBuilder::new("Pause Shortcuts")
+        .id(MENU_ID_PAUSE)
+        .build(app)?;
     // Escape hatch for "I dragged the bar behind the taskbar and it's gone" —
     // snaps it back to the top-centre safe spot. Put directly under Start
     // Recording so users who've just lost the bar see it without scrolling the

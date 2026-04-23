@@ -13,7 +13,10 @@ pub async fn enqueue_file(
     mode_id: Option<String>,
     model_id: Option<String>,
 ) -> CmdResult<FileJob> {
-    state.files.enqueue(source_path, mode_id, model_id).map_err(OrliqError::from)
+    state
+        .files
+        .enqueue(source_path, mode_id, model_id)
+        .map_err(OrliqError::from)
 }
 
 #[tauri::command]

@@ -72,9 +72,15 @@ fn pause_windows_sessions() -> anyhow::Result<Vec<String>> {
     let mut paused = Vec::new();
 
     for i in 0..sessions.Size()? {
-        let Ok(session) = sessions.GetAt(i) else { continue };
-        let Ok(playback_info) = session.GetPlaybackInfo() else { continue };
-        let Ok(status) = playback_info.PlaybackStatus() else { continue };
+        let Ok(session) = sessions.GetAt(i) else {
+            continue;
+        };
+        let Ok(playback_info) = session.GetPlaybackInfo() else {
+            continue;
+        };
+        let Ok(status) = playback_info.PlaybackStatus() else {
+            continue;
+        };
         if status != Status::Playing {
             continue;
         }
@@ -88,7 +94,9 @@ fn pause_windows_sessions() -> anyhow::Result<Vec<String>> {
             continue;
         }
 
-        let Ok(id_hstring) = session.SourceAppUserModelId() else { continue };
+        let Ok(id_hstring) = session.SourceAppUserModelId() else {
+            continue;
+        };
         let id = id_hstring.to_string();
 
         match session.TryPauseAsync() {
@@ -112,8 +120,12 @@ fn resume_windows_sessions(ids: &[String]) -> anyhow::Result<()> {
     let sessions = manager.GetSessions()?;
 
     for i in 0..sessions.Size()? {
-        let Ok(session) = sessions.GetAt(i) else { continue };
-        let Ok(id_hstring) = session.SourceAppUserModelId() else { continue };
+        let Ok(session) = sessions.GetAt(i) else {
+            continue;
+        };
+        let Ok(id_hstring) = session.SourceAppUserModelId() else {
+            continue;
+        };
         let id = id_hstring.to_string();
         if !ids.iter().any(|x| x == &id) {
             continue;

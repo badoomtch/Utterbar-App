@@ -19,8 +19,12 @@ const FILLERS: &[&str] = &[
 
 #[async_trait]
 impl LlmProvider for DeterministicProvider {
-    fn id(&self) -> &str { "deterministic" }
-    async fn is_available(&self) -> bool { true }
+    fn id(&self) -> &str {
+        "deterministic"
+    }
+    async fn is_available(&self) -> bool {
+        true
+    }
 
     async fn rewrite(&self, input: &str, _system: &str, _ctx: &ProcContext) -> Result<String> {
         let cleaned = strip_fillers(input);
@@ -45,7 +49,9 @@ pub fn normalise_whitespace(text: &str) -> String {
     let mut last_space = false;
     for ch in text.chars() {
         if ch.is_whitespace() {
-            if !last_space { out.push(' '); }
+            if !last_space {
+                out.push(' ');
+            }
             last_space = true;
         } else {
             out.push(ch);
@@ -57,7 +63,9 @@ pub fn normalise_whitespace(text: &str) -> String {
 
 pub fn ensure_terminal_punctuation(text: &str) -> String {
     let t = text.trim();
-    if t.is_empty() { return String::new(); }
+    if t.is_empty() {
+        return String::new();
+    }
     let last = t.chars().last().unwrap();
     if matches!(last, '.' | '!' | '?' | ':' | ';' | ',') {
         t.to_string()
@@ -71,11 +79,15 @@ pub fn capitalise_sentences(text: &str) -> String {
     let mut capitalise_next = true;
     for ch in text.chars() {
         if capitalise_next && ch.is_alphabetic() {
-            for c in ch.to_uppercase() { out.push(c); }
+            for c in ch.to_uppercase() {
+                out.push(c);
+            }
             capitalise_next = false;
         } else {
             out.push(ch);
-            if matches!(ch, '.' | '!' | '?') { capitalise_next = true; }
+            if matches!(ch, '.' | '!' | '?') {
+                capitalise_next = true;
+            }
         }
     }
     out
@@ -86,7 +98,10 @@ pub fn capitalise_sentences(text: &str) -> String {
 fn regex_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
-        if matches!(c, '.' | '+' | '*' | '?' | '(' | ')' | '|' | '[' | ']' | '{' | '}' | '^' | '$' | '\\') {
+        if matches!(
+            c,
+            '.' | '+' | '*' | '?' | '(' | ')' | '|' | '[' | ']' | '{' | '}' | '^' | '$' | '\\'
+        ) {
             out.push('\\');
         }
         out.push(c);
@@ -124,7 +139,9 @@ fn replace_regex(haystack: &str, _pattern: &str, _replacement: &str) -> String {
             idx = e;
             // gobble one trailing space or comma so "uh, hello" collapses to "hello"
             // rather than ", hello". `last_end` captures the position after that gobble.
-            while idx < bytes.len() && matches!(bytes[idx], b' ' | b',') { idx += 1; }
+            while idx < bytes.len() && matches!(bytes[idx], b' ' | b',') {
+                idx += 1;
+            }
             last_end = idx;
         } else {
             idx += 1;

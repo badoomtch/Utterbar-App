@@ -14,21 +14,35 @@ pub struct VocabularyService {
 }
 
 impl VocabularyService {
-    pub fn new(db: Arc<Db>) -> Self { Self { db } }
+    pub fn new(db: Arc<Db>) -> Self {
+        Self { db }
+    }
 
     pub fn list_words(&self) -> Result<Vec<VocabEntry>> {
         let conn = self.db.conn()?;
-        let mut stmt = conn.prepare("SELECT id,word,hint,weight,enabled,created_at FROM vocabulary ORDER BY word")?;
-        let rows = stmt.query_map([], |r| Ok(VocabEntry {
-            id: r.get(0)?, word: r.get(1)?, hint: r.get(2)?,
-            weight: r.get(3)?, enabled: r.get::<_, i64>(4)? != 0, created_at: r.get(5)?,
-        }))?;
+        let mut stmt = conn.prepare(
+            "SELECT id,word,hint,weight,enabled,created_at FROM vocabulary ORDER BY word",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(VocabEntry {
+                id: r.get(0)?,
+                word: r.get(1)?,
+                hint: r.get(2)?,
+                weight: r.get(3)?,
+                enabled: r.get::<_, i64>(4)? != 0,
+                created_at: r.get(5)?,
+            })
+        })?;
         Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
     pub fn upsert_word(&self, mut e: VocabEntry) -> Result<VocabEntry> {
-        if e.id.is_empty() { e.id = ulid::Ulid::new().to_string(); }
-        if e.created_at == 0 { e.created_at = now_ms(); }
+        if e.id.is_empty() {
+            e.id = ulid::Ulid::new().to_string();
+        }
+        if e.created_at == 0 {
+            e.created_at = now_ms();
+        }
         let conn = self.db.conn()?;
         conn.execute(
             "INSERT INTO vocabulary(id,word,hint,weight,enabled,created_at) VALUES(?1,?2,?3,?4,?5,?6)
@@ -47,17 +61,28 @@ impl VocabularyService {
     pub fn list_replacements(&self) -> Result<Vec<Replacement>> {
         let conn = self.db.conn()?;
         let mut stmt = conn.prepare("SELECT id,pattern,replacement,is_regex,case_sens,enabled,sort_order,created_at FROM replacements ORDER BY sort_order")?;
-        let rows = stmt.query_map([], |r| Ok(Replacement {
-            id: r.get(0)?, pattern: r.get(1)?, replacement: r.get(2)?,
-            is_regex: r.get::<_, i64>(3)? != 0, case_sens: r.get::<_, i64>(4)? != 0,
-            enabled: r.get::<_, i64>(5)? != 0, sort_order: r.get(6)?, created_at: r.get(7)?,
-        }))?;
+        let rows = stmt.query_map([], |r| {
+            Ok(Replacement {
+                id: r.get(0)?,
+                pattern: r.get(1)?,
+                replacement: r.get(2)?,
+                is_regex: r.get::<_, i64>(3)? != 0,
+                case_sens: r.get::<_, i64>(4)? != 0,
+                enabled: r.get::<_, i64>(5)? != 0,
+                sort_order: r.get(6)?,
+                created_at: r.get(7)?,
+            })
+        })?;
         Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
     pub fn upsert_replacement(&self, mut r: Replacement) -> Result<Replacement> {
-        if r.id.is_empty() { r.id = ulid::Ulid::new().to_string(); }
-        if r.created_at == 0 { r.created_at = now_ms(); }
+        if r.id.is_empty() {
+            r.id = ulid::Ulid::new().to_string();
+        }
+        if r.created_at == 0 {
+            r.created_at = now_ms();
+        }
         let conn = self.db.conn()?;
         conn.execute(
             "INSERT INTO replacements(id,pattern,replacement,is_regex,case_sens,enabled,sort_order,created_at)
@@ -92,7 +117,9 @@ impl VocabularyService {
 }
 
 fn replace_case_insensitive(haystack: &str, needle: &str, with: &str) -> String {
-    if needle.is_empty() { return haystack.to_string(); }
+    if needle.is_empty() {
+        return haystack.to_string();
+    }
     let lower_h = haystack.to_lowercase();
     let lower_n = needle.to_lowercase();
     let mut out = String::with_capacity(haystack.len());

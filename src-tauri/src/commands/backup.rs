@@ -75,10 +75,7 @@ pub struct ExportSummary {
 /// plugin's save-file picker — we don't open a picker from here so this command
 /// stays pure and testable.
 #[tauri::command]
-pub async fn export_user_data(
-    dest: String,
-    include_recordings: bool,
-) -> CmdResult<ExportSummary> {
+pub async fn export_user_data(dest: String, include_recordings: bool) -> CmdResult<ExportSummary> {
     let dest = PathBuf::from(dest);
     // Creating the parent dir is polite — users may type a path with a new
     // folder component in the save dialog. Ignoring AlreadyExists is fine.
@@ -141,14 +138,18 @@ pub async fn export_user_data(
             .unwrap_or(0),
         included: included.clone(),
     };
-    let manifest_bytes = serde_json::to_vec_pretty(&manifest)
-        .map_err(|e| OrliqError::Internal { message: format!("manifest: {e}") })?;
+    let manifest_bytes =
+        serde_json::to_vec_pretty(&manifest).map_err(|e| OrliqError::Internal {
+            message: format!("manifest: {e}"),
+        })?;
     append_bytes(&mut builder, MANIFEST_NAME, &manifest_bytes)?;
 
     builder
         .into_inner()
         .and_then(|w| w.into_inner().map_err(|e| e.into_error()))
-        .map_err(|e| OrliqError::Internal { message: format!("finalise tar: {e}") })?
+        .map_err(|e| OrliqError::Internal {
+            message: format!("finalise tar: {e}"),
+        })?
         .sync_all()
         .ok();
 
@@ -189,11 +190,10 @@ pub async fn import_user_data(handle: AppHandle, src: String) -> CmdResult<()> {
                 let mut buf = Vec::new();
                 use std::io::Read;
                 entry.read_to_end(&mut buf).map_err(io_err)?;
-                let manifest: BackupManifest = serde_json::from_slice(&buf).map_err(|e| {
-                    OrliqError::Internal {
+                let manifest: BackupManifest =
+                    serde_json::from_slice(&buf).map_err(|e| OrliqError::Internal {
                         message: format!("invalid manifest: {e}"),
-                    }
-                })?;
+                    })?;
                 if manifest.format_version > FORMAT_VERSION {
                     return Err(OrliqError::Internal {
                         message: format!(
@@ -234,7 +234,10 @@ pub async fn import_user_data(handle: AppHandle, src: String) -> CmdResult<()> {
         // Reject any path that tries to escape the data root via "..".
         // Tar bombs are unlikely here (we control the writer) but defence
         // in depth is cheap.
-        if rel.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        if rel
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
             return Err(OrliqError::Internal {
                 message: format!("refused to extract path with ..: {}", rel.display()),
             });
@@ -266,7 +269,9 @@ fn append_file(
     let mut f = fs::File::open(src).map_err(io_err)?;
     builder
         .append_file(archive_path, &mut f)
-        .map_err(|e| OrliqError::Internal { message: format!("archive {}: {e}", archive_path) })
+        .map_err(|e| OrliqError::Internal {
+            message: format!("archive {}: {e}", archive_path),
+        })
 }
 
 fn append_bytes(
@@ -280,7 +285,9 @@ fn append_bytes(
     header.set_cksum();
     builder
         .append_data(&mut header, archive_path, bytes)
-        .map_err(|e| OrliqError::Internal { message: format!("archive {}: {e}", archive_path) })
+        .map_err(|e| OrliqError::Internal {
+            message: format!("archive {}: {e}", archive_path),
+        })
 }
 
 /// Shallow-append all direct children of `src` under `archive_prefix/…`.
@@ -301,7 +308,10 @@ fn append_dir_shallow(
         if !path.is_file() {
             continue;
         }
-        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("unknown");
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown");
         let archive_path = format!("{}/{}", archive_prefix, name);
         append_file(builder, &path, &archive_path)?;
         any = true;
@@ -310,5 +320,7 @@ fn append_dir_shallow(
 }
 
 fn io_err(e: impl std::fmt::Display) -> OrliqError {
-    OrliqError::Internal { message: e.to_string() }
+    OrliqError::Internal {
+        message: e.to_string(),
+    }
 }

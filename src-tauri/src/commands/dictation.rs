@@ -59,7 +59,10 @@ fn should_prepend_space(now_ms: i64, current_app_exe: Option<&str>, next_text: &
     }
     // Only prepend when the new text starts with an alnum — don't inject a space before
     // punctuation like a closing quote, a period, or a comma.
-    next_text.chars().next().is_some_and(|c| c.is_alphanumeric())
+    next_text
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_alphanumeric())
 }
 
 fn record_delivery(now_ms: i64, app_exe: Option<&str>, delivered: &str) {
@@ -98,8 +101,8 @@ pub async fn start_recording(
     // Pause any media that's currently playing (Spotify / YouTube / etc.) so the user's
     // speech isn't mixing with music. Skipped for System/Mixed capture — pausing would
     // defeat the entire point of transcribing what's playing.
-    let should_pause_media = settings.privacy.pause_media_while_recording
-        && matches!(source, CaptureSource::Microphone);
+    let should_pause_media =
+        settings.privacy.pause_media_while_recording && matches!(source, CaptureSource::Microphone);
     if should_pause_media {
         let media = state.media.clone();
         tokio::task::spawn_blocking(move || media.pause_playing());
@@ -139,11 +142,15 @@ pub async fn start_recording(
                 rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
                 set_phase(
                     &handle,
-                    DictationPhase::Error { message: format!("mic unavailable: {e}") },
+                    DictationPhase::Error {
+                        message: format!("mic unavailable: {e}"),
+                    },
                 )
                 .await;
                 schedule_idle(&handle, 1200);
-                return Err(OrliqError::Device { message: e.to_string() });
+                return Err(OrliqError::Device {
+                    message: e.to_string(),
+                });
             }
         }
     } else {
@@ -162,11 +169,15 @@ pub async fn start_recording(
             rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
             set_phase(
                 &handle,
-                DictationPhase::Error { message: format!("loopback unavailable: {e}") },
+                DictationPhase::Error {
+                    message: format!("loopback unavailable: {e}"),
+                },
             )
             .await;
             schedule_idle(&handle, 1200);
-            return Err(OrliqError::Device { message: e.to_string() });
+            return Err(OrliqError::Device {
+                message: e.to_string(),
+            });
         }
     }
 
@@ -174,7 +185,13 @@ pub async fn start_recording(
     // `started_at_ms` tag drives the elapsed-time counter on the floating bar, so it has
     // to line up with the moment real audio started flowing, not the moment the command
     // entered.
-    set_phase(&handle, DictationPhase::Listening { started_at_ms: now_ms() }).await;
+    set_phase(
+        &handle,
+        DictationPhase::Listening {
+            started_at_ms: now_ms(),
+        },
+    )
+    .await;
 
     // Drive the meter from the mic when available; fall back to a no-op when we're only
     // capturing loopback (the waveform animation still has its own fallback jitter).
@@ -218,7 +235,9 @@ pub async fn stop_recording(
     let final_ = state.audio.stop_capture().await;
     let Some(mut final_) = final_ else {
         tracing::warn!("stop_recording called with no active recording");
-        return Err(OrliqError::User { message: "no active recording".into() });
+        return Err(OrliqError::User {
+            message: "no active recording".into(),
+        });
     };
     tracing::info!(
         samples = final_.pcm.len(),
@@ -251,7 +270,8 @@ pub async fn stop_recording(
                 (i16::MAX as f32 * 0.003) as i16,
             );
             final_.pcm = trimmed;
-            final_.duration_ms = (final_.pcm.len() as u64 * 1000) / final_.sample_rate.max(1) as u64;
+            final_.duration_ms =
+                (final_.pcm.len() as u64 * 1000) / final_.sample_rate.max(1) as u64;
         }
         if audio_settings.dynamic_normalisation {
             crate::services::audio::preprocess::normalise(&mut final_.pcm);
@@ -268,7 +288,9 @@ pub async fn stop_recording(
         .get(&active_mode_id)
         .ok()
         .flatten()
-        .ok_or_else(|| OrliqError::User { message: "active mode not found".into() })?;
+        .ok_or_else(|| OrliqError::User {
+            message: "active mode not found".into(),
+        })?;
 
     let model_id = mode
         .asr_model_id
@@ -341,22 +363,32 @@ pub async fn stop_recording(
             }
             set_phase(
                 &handle,
-                DictationPhase::Error { message: format!("transcribe: {e}") },
+                DictationPhase::Error {
+                    message: format!("transcribe: {e}"),
+                },
             )
             .await;
             schedule_idle(&handle, 1800);
-            return Err(OrliqError::Model { message: e.to_string() });
+            return Err(OrliqError::Model {
+                message: e.to_string(),
+            });
         }
     };
     tracing::info!(chars = asr.text.len(), "inference.transcribe done");
 
-    let raw = state.vocabulary.apply_replacements(&asr.text).unwrap_or(asr.text.clone());
+    let raw = state
+        .vocabulary
+        .apply_replacements(&asr.text)
+        .unwrap_or(asr.text.clone());
 
     // Capture context for post-processing and history — gated by both the mode's rules
     // and the user's global privacy toggles.
-    let include_app = mode.context_rules.use_active_app && settings.privacy.allow_context_active_app;
-    let include_selection = mode.context_rules.use_selection && settings.privacy.allow_context_selection;
-    let include_clipboard = mode.context_rules.use_clipboard && settings.privacy.allow_context_clipboard;
+    let include_app =
+        mode.context_rules.use_active_app && settings.privacy.allow_context_active_app;
+    let include_selection =
+        mode.context_rules.use_selection && settings.privacy.allow_context_selection;
+    let include_clipboard =
+        mode.context_rules.use_clipboard && settings.privacy.allow_context_clipboard;
     let ctx_snapshot = if include_app || include_selection || include_clipboard {
         let s = state.context.snapshot(include_selection, include_clipboard);
         crate::services::llm::ProcContext {
@@ -373,12 +405,12 @@ pub async fn stop_recording(
     let mut processed = match &mode.post_processing {
         crate::domain::PostProcessing::None => raw.clone(),
         crate::domain::PostProcessing::Deterministic { .. } => {
-            crate::services::llm::deterministic::DeterministicProvider
-                .rewrite_sync(&raw)
+            crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
         }
-        crate::domain::PostProcessing::Llm { prompt, .. } => {
-            llm.rewrite(&raw, prompt, &ctx_snapshot).await.unwrap_or(raw.clone())
-        }
+        crate::domain::PostProcessing::Llm { prompt, .. } => llm
+            .rewrite(&raw, prompt, &ctx_snapshot)
+            .await
+            .unwrap_or(raw.clone()),
     };
 
     // English dialect normalisation. Parakeet is a monolingual English model trained
@@ -411,8 +443,7 @@ pub async fn stop_recording(
     // delivery — the user was holding Shift when they released the hotkey, and our
     // synthesised keypresses below will clear it. The Enter keystroke fires after the
     // paste has landed so Teams / Slack / Discord submit the line.
-    let auto_send =
-        settings.text_output.shift_to_auto_send && state.text_inject.shift_is_held();
+    let auto_send = settings.text_output.shift_to_auto_send && state.text_inject.shift_is_held();
 
     // Attempt text delivery.
     let strategy = if settings.text_output.paste_automatically {
@@ -492,10 +523,7 @@ pub async fn stop_recording(
 }
 
 #[tauri::command]
-pub async fn cancel_recording(
-    handle: AppHandle,
-    state: State<'_, Arc<AppState>>,
-) -> CmdResult<()> {
+pub async fn cancel_recording(handle: AppHandle, state: State<'_, Arc<AppState>>) -> CmdResult<()> {
     let _ = state.audio.stop_capture().await;
     // Resume whatever was paused on start, even on cancel — the user expects their
     // music to pick back up as soon as they hit the cancel hotkey.
@@ -549,7 +577,8 @@ impl crate::services::llm::deterministic::DeterministicProvider {
     pub fn rewrite_sync(&self, input: &str) -> String {
         let normalised = crate::services::llm::deterministic::normalise_whitespace(input);
         let stripped = crate::services::llm::deterministic::strip_fillers(&normalised);
-        let punctuated = crate::services::llm::deterministic::ensure_terminal_punctuation(&stripped);
+        let punctuated =
+            crate::services::llm::deterministic::ensure_terminal_punctuation(&stripped);
         crate::services::llm::deterministic::capitalise_sentences(&punctuated)
     }
 }

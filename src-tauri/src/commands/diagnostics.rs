@@ -56,7 +56,9 @@ pub async fn open_path(path: String) -> CmdResult<()> {
 }
 
 fn num_cpus() -> usize {
-    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
 }
 
 /// Tiny opener wrapper — uses `cmd /c start` on Windows, `open` on macOS, `xdg-open` on Linux.

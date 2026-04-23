@@ -10,8 +10,8 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use tauri::{AppHandle, Emitter};
 use std::str::FromStr;
+use tauri::{AppHandle, Emitter};
 
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut as GhShortcut, ShortcutState};
 use tokio::sync::RwLock;
@@ -27,7 +27,9 @@ pub struct HotkeyService {
 type ShortcutIdKey = String;
 
 impl HotkeyService {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub async fn bind(&self, id: ShortcutId, shortcut: Shortcut) -> Result<()> {
         let key = key_of(&id);
@@ -90,10 +92,16 @@ pub async fn arm_from_settings(handle: &AppHandle, state: &AppState) -> Result<(
 
     // Build (id, accelerator) pairs, skipping unbound slots.
     let pairs: Vec<(ShortcutId, String)> = [
-        (ShortcutId::ToggleRecording, s.shortcuts.toggle_recording.as_ref()),
+        (
+            ShortcutId::ToggleRecording,
+            s.shortcuts.toggle_recording.as_ref(),
+        ),
         (ShortcutId::PushToTalk, s.shortcuts.push_to_talk.as_ref()),
         (ShortcutId::HoldToTalk, s.shortcuts.hold_to_talk.as_ref()),
-        (ShortcutId::CancelRecording, s.shortcuts.cancel_recording.as_ref()),
+        (
+            ShortcutId::CancelRecording,
+            s.shortcuts.cancel_recording.as_ref(),
+        ),
         (ShortcutId::CycleMode, s.shortcuts.cycle_mode.as_ref()),
         (ShortcutId::OpenSettings, s.shortcuts.open_settings.as_ref()),
         (ShortcutId::OpenHistory, s.shortcuts.open_history.as_ref()),

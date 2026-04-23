@@ -16,7 +16,9 @@ pub struct ActiveAppContext {
 pub struct ContextService;
 
 impl ContextService {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 
     #[cfg(windows)]
     pub fn snapshot(&self, include_selection: bool, include_clipboard: bool) -> ActiveAppContext {

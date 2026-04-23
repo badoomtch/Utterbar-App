@@ -10,14 +10,21 @@ pub struct StubProvider;
 
 #[async_trait]
 impl AsrProvider for StubProvider {
-    fn id(&self) -> &str { "stub" }
-    fn supported_languages(&self) -> &[&'static str] { &["en"] }
-    async fn warm(&self) -> Result<()> { Ok(()) }
+    fn id(&self) -> &str {
+        "stub"
+    }
+    fn supported_languages(&self) -> &[&'static str] {
+        &["en"]
+    }
+    async fn warm(&self) -> Result<()> {
+        Ok(())
+    }
 
     async fn transcribe(&self, audio: AudioBuffer, _opts: AsrOptions) -> Result<AsrResult> {
         let dur_ms = (audio.pcm.len() as u64 * 1000 / audio.sample_rate.max(1) as u64) as u32;
         Ok(AsrResult {
-            text: "Install a Parakeet model in Settings → Models to enable real transcription.".into(),
+            text: "Install a Parakeet model in Settings → Models to enable real transcription."
+                .into(),
             words: None,
             language: Some("en".into()),
             confidence: None,
@@ -26,5 +33,7 @@ impl AsrProvider for StubProvider {
         })
     }
 
-    async fn unload(&self) -> Result<()> { Ok(()) }
+    async fn unload(&self) -> Result<()> {
+        Ok(())
+    }
 }

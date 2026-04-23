@@ -50,8 +50,13 @@ pub enum EnglishVariant {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PostProcessing {
     None,
-    Deterministic { template: String },
-    Llm { prompt: String, template: Option<String> },
+    Deterministic {
+        template: String,
+    },
+    Llm {
+        prompt: String,
+        template: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]

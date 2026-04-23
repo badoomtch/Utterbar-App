@@ -26,7 +26,9 @@ pub async fn install_model(
         .models
         .install(&handle, &id)
         .await
-        .map_err(|e| OrliqError::Model { message: e.to_string() })
+        .map_err(|e| OrliqError::Model {
+            message: e.to_string(),
+        })
 }
 
 #[tauri::command]
@@ -35,7 +37,10 @@ pub async fn remove_model(state: State<'_, Arc<AppState>>, id: String) -> CmdRes
 }
 
 #[tauri::command]
-pub async fn model_status(state: State<'_, Arc<AppState>>, id: String) -> CmdResult<Option<ModelInfo>> {
+pub async fn model_status(
+    state: State<'_, Arc<AppState>>,
+    id: String,
+) -> CmdResult<Option<ModelInfo>> {
     let installed = state.models.list_installed().map_err(OrliqError::from)?;
     Ok(installed.into_iter().find(|m| m.id == id))
 }

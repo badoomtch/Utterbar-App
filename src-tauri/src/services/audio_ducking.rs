@@ -86,9 +86,10 @@ mod windows_impl {
     use super::MutedSession;
     use anyhow::{anyhow, Result};
     use windows::core::Interface;
+    use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::Media::Audio::{
-        eConsole, eRender, IAudioSessionControl2, IAudioSessionEnumerator,
-        IAudioSessionManager2, IMMDeviceEnumerator, ISimpleAudioVolume, MMDeviceEnumerator,
+        eConsole, eRender, IAudioSessionControl2, IAudioSessionEnumerator, IAudioSessionManager2,
+        IMMDeviceEnumerator, ISimpleAudioVolume, MMDeviceEnumerator,
     };
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
@@ -97,7 +98,6 @@ mod windows_impl {
     use windows::Win32::System::Threading::{
         OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
     };
-    use windows::Win32::Foundation::CloseHandle;
 
     /// Small RAII guard so failures mid-function still balance CoUninitialize.
     struct ComGuard;
@@ -130,13 +130,19 @@ mod windows_impl {
 
         let mut muted = Vec::new();
         for i in 0..count {
-            let Ok(control) = (unsafe { enumerator.GetSession(i) }) else { continue };
-            let Ok(ctrl2) = control.cast::<IAudioSessionControl2>() else { continue };
+            let Ok(control) = (unsafe { enumerator.GetSession(i) }) else {
+                continue;
+            };
+            let Ok(ctrl2) = control.cast::<IAudioSessionControl2>() else {
+                continue;
+            };
             let pid = unsafe { ctrl2.GetProcessId().unwrap_or(0) };
             if pid == 0 {
                 continue; // system / inactive
             }
-            let Some(exe) = exe_basename_of(pid) else { continue };
+            let Some(exe) = exe_basename_of(pid) else {
+                continue;
+            };
             let exe_lower = exe.to_lowercase();
             if !targets_lower.iter().any(|t| t == &exe_lower) {
                 continue;
@@ -144,7 +150,9 @@ mod windows_impl {
 
             // Only flip sessions that aren't already muted, so restore() won't
             // accidentally unmute something the user muted manually.
-            let Ok(vol) = control.cast::<ISimpleAudioVolume>() else { continue };
+            let Ok(vol) = control.cast::<ISimpleAudioVolume>() else {
+                continue;
+            };
             let already_muted = unsafe { vol.GetMute().map(|b| b.as_bool()).unwrap_or(false) };
             if already_muted {
                 continue;
@@ -184,8 +192,12 @@ mod windows_impl {
         let count = unsafe { enumerator.GetCount()? };
 
         for i in 0..count {
-            let Ok(control) = (unsafe { enumerator.GetSession(i) }) else { continue };
-            let Ok(ctrl2) = control.cast::<IAudioSessionControl2>() else { continue };
+            let Ok(control) = (unsafe { enumerator.GetSession(i) }) else {
+                continue;
+            };
+            let Ok(ctrl2) = control.cast::<IAudioSessionControl2>() else {
+                continue;
+            };
             let Ok(instance_id_pwstr) = (unsafe { ctrl2.GetSessionInstanceIdentifier() }) else {
                 continue;
             };
@@ -195,7 +207,9 @@ mod windows_impl {
             let Some(target) = sessions.iter().find(|s| s.instance_id == instance_id) else {
                 continue;
             };
-            let Ok(vol) = control.cast::<ISimpleAudioVolume>() else { continue };
+            let Ok(vol) = control.cast::<ISimpleAudioVolume>() else {
+                continue;
+            };
             if let Err(e) = unsafe { vol.SetMute(false, std::ptr::null()) } {
                 tracing::debug!(?e, exe = %target.exe_basename, "SetMute(false) failed");
             } else {

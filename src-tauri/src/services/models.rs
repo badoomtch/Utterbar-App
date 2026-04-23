@@ -65,7 +65,9 @@ impl ModelRegistry {
 
     pub fn list_installed(&self) -> Result<Vec<ModelInfo>> {
         let conn = self.db.conn()?;
-        let mut stmt = conn.prepare("SELECT id,kind,display_name,version,size_bytes,path,backend,languages FROM models")?;
+        let mut stmt = conn.prepare(
+            "SELECT id,kind,display_name,version,size_bytes,path,backend,languages FROM models",
+        )?;
         let rows = stmt
             .query_map([], |row| {
                 let kind: String = row.get(1)?;
@@ -112,7 +114,9 @@ impl ModelRegistry {
             .clone()
             .ok_or_else(|| anyhow!("model has no download_url: {id}"))?;
 
-        let partial = self.models_dir.join(format!("{}.tar.bz2.partial", entry.id));
+        let partial = self
+            .models_dir
+            .join(format!("{}.tar.bz2.partial", entry.id));
         let extracted_dir = self.models_dir.join(&entry.id);
 
         // Start fresh — remove any leftovers from a previous attempt.
@@ -120,7 +124,13 @@ impl ModelRegistry {
         let _ = tokio::fs::remove_dir_all(&extracted_dir).await;
         tokio::fs::create_dir_all(&self.models_dir).await?;
 
-        emit(handle, &entry.id, 0, entry.size_bytes, ModelProgressPhase::Starting);
+        emit(
+            handle,
+            &entry.id,
+            0,
+            entry.size_bytes,
+            ModelProgressPhase::Starting,
+        );
 
         // ---- Download ----
         let client = reqwest::Client::builder()
@@ -139,7 +149,13 @@ impl ModelRegistry {
             hasher.update(&chunk);
             done += chunk.len() as u64;
             if done >= next_emit {
-                emit(handle, &entry.id, done, total, ModelProgressPhase::Downloading);
+                emit(
+                    handle,
+                    &entry.id,
+                    done,
+                    total,
+                    ModelProgressPhase::Downloading,
+                );
                 next_emit = done + (total / 100).max(512 * 1024);
             }
         }
@@ -147,7 +163,13 @@ impl ModelRegistry {
         drop(file);
 
         // ---- Verify ----
-        emit(handle, &entry.id, done, total, ModelProgressPhase::Verifying);
+        emit(
+            handle,
+            &entry.id,
+            done,
+            total,
+            ModelProgressPhase::Verifying,
+        );
         let digest = hex::encode(hasher.finalize());
         if !entry.sha256.is_empty() && digest != entry.sha256 {
             let _ = tokio::fs::remove_file(&partial).await;
@@ -160,7 +182,13 @@ impl ModelRegistry {
         }
 
         // ---- Extract ----
-        emit(handle, &entry.id, done, total, ModelProgressPhase::Extracting);
+        emit(
+            handle,
+            &entry.id,
+            done,
+            total,
+            ModelProgressPhase::Extracting,
+        );
         let partial_for_blocking = partial.clone();
         let extracted_for_blocking = extracted_dir.clone();
         tokio::task::spawn_blocking(move || -> Result<()> {
@@ -245,9 +273,7 @@ fn extract_tar_bz2(archive_path: &std::path::Path, dest: &std::path::Path) -> Re
 /// If `dir` contains exactly one child that is itself a directory, move every entry
 /// from that child into `dir` and delete the empty child.
 fn flatten_single_subdir(dir: &std::path::Path) -> Result<()> {
-    let entries: Vec<_> = std::fs::read_dir(dir)?
-        .filter_map(|e| e.ok())
-        .collect();
+    let entries: Vec<_> = std::fs::read_dir(dir)?.filter_map(|e| e.ok()).collect();
     if entries.len() != 1 {
         return Ok(());
     }

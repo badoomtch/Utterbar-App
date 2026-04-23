@@ -8,12 +8,18 @@ use crate::util::result::{CmdResult, OrliqError};
 use crate::util::time::now_ms;
 
 #[tauri::command]
-pub async fn list_history(state: State<'_, Arc<AppState>>, filter: HistoryFilter) -> CmdResult<Vec<HistoryEntry>> {
+pub async fn list_history(
+    state: State<'_, Arc<AppState>>,
+    filter: HistoryFilter,
+) -> CmdResult<Vec<HistoryEntry>> {
     state.history.list(filter).map_err(OrliqError::from)
 }
 
 #[tauri::command]
-pub async fn get_history_entry(state: State<'_, Arc<AppState>>, id: String) -> CmdResult<Option<HistoryEntry>> {
+pub async fn get_history_entry(
+    state: State<'_, Arc<AppState>>,
+    id: String,
+) -> CmdResult<Option<HistoryEntry>> {
     state.history.get(&id).map_err(OrliqError::from)
 }
 
@@ -34,13 +40,17 @@ pub async fn reprocess_history(
         .history
         .get(&id)
         .map_err(OrliqError::from)?
-        .ok_or_else(|| OrliqError::User { message: "History entry not found".into() })?;
+        .ok_or_else(|| OrliqError::User {
+            message: "History entry not found".into(),
+        })?;
 
     let mode = state
         .modes
         .get(&mode_id)
         .map_err(OrliqError::from)?
-        .ok_or_else(|| OrliqError::User { message: "Mode not found".into() })?;
+        .ok_or_else(|| OrliqError::User {
+            message: "Mode not found".into(),
+        })?;
 
     let raw = state
         .vocabulary
@@ -59,10 +69,14 @@ pub async fn reprocess_history(
     let started = now_ms();
     let processed = match &mode.post_processing {
         PostProcessing::None => raw.clone(),
-        PostProcessing::Deterministic { .. } => crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw),
+        PostProcessing::Deterministic { .. } => {
+            crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
+        }
         PostProcessing::Llm { prompt, .. } => {
             let llm = crate::services::llm::best_available().await;
-            llm.rewrite(&raw, prompt, &ctx).await.unwrap_or_else(|_| raw.clone())
+            llm.rewrite(&raw, prompt, &ctx)
+                .await
+                .unwrap_or_else(|_| raw.clone())
         }
     };
 
@@ -96,6 +110,8 @@ pub async fn export_history(
     filter: HistoryFilter,
 ) -> CmdResult<String> {
     let rows = state.history.list(filter).map_err(OrliqError::from)?;
-    let json = serde_json::to_string_pretty(&rows).map_err(|e| OrliqError::Internal { message: e.to_string() })?;
+    let json = serde_json::to_string_pretty(&rows).map_err(|e| OrliqError::Internal {
+        message: e.to_string(),
+    })?;
     Ok(json)
 }
