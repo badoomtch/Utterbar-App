@@ -25,6 +25,8 @@ export type LicenceErrorCode =
   | 'network'
   | 'verification_failed'
   | 'already_activated'
+  | 'rate_limited'
+  | 'pro_required'
   | 'internal';
 
 export interface LicenceError {

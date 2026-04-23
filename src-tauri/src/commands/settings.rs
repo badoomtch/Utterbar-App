@@ -18,6 +18,16 @@ pub async fn update_settings(
     state: State<'_, Arc<AppState>>,
     patch: serde_json::Value,
 ) -> CmdResult<Settings> {
+    // Pro gate: Free users cannot enable `privacy.retain_audio`. Strip
+    // that key from the incoming patch so any other changes still land.
+    // The dictation command also refuses to write on Free — this is the
+    // first of two guards so the stored value stays honest.
+    let patch = if !crate::util::gating::is_pro(&state.licence.status().await) {
+        strip_pro_only_keys(patch)
+    } else {
+        patch
+    };
+
     let updated = state
         .settings
         .update(|s| merge_patch(s, &patch))
@@ -26,6 +36,18 @@ pub async fn update_settings(
     apply_side_effects(&updated);
     let _ = handle.emit(EVT_SETTINGS_CHANGED, &updated);
     Ok(updated)
+}
+
+/// Remove Pro-gated keys from a settings patch so a Free user can still
+/// update everything else. Today only `privacy.retain_audio` is gated; add
+/// to this list as more Pro-only toggles land.
+fn strip_pro_only_keys(mut patch: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = patch.as_object_mut() {
+        if let Some(privacy) = obj.get_mut("privacy").and_then(|v| v.as_object_mut()) {
+            privacy.remove("retain_audio");
+        }
+    }
+    patch
 }
 
 #[tauri::command]

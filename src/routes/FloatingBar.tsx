@@ -353,20 +353,21 @@ export function FloatingBar() {
           // the old blurred-glass stack.
           background: 'linear-gradient(180deg, var(--pill-top), var(--pill-bot))',
           // Border:
-          //   • Default: FULL white at 72% — matches the pill-mark's white
-          //     rim in the logo, so the floating bar reads as "the logo,
-          //     full-size". Before this the border was a translucent 32%
-          //     white which came across as a grey hairline and didn't
-          //     echo the brand at all.
+          //   • Default: `--pill-stroke` — on dark-pill themes this is
+          //     white @ 72% (matching the pill-mark's rim in the logo so
+          //     the floating bar reads as "the logo, full-size"); on
+          //     Paper's light pill it flips to dark ink @ 28% so the
+          //     outline stays visible without punching through.
           //   • Dragging: accent colour, full opacity — picks up off the
           //     desktop with a crisp blue edge, like the SVG reference.
-          //   • Outline-off: a quieter hairline so the user's "I don't
-          //     want a ring" preference is still honoured.
+          //   • Outline-off: a quieter hairline (`--pill-stroke-soft`) so
+          //     the user's "I don't want a ring" preference is still
+          //     honoured on either pill tone.
           borderColor: dragging
             ? 'var(--accent)'
             : barOutline
-              ? 'rgba(255,255,255,0.72)'
-              : 'rgba(255,255,255,0.14)',
+              ? 'var(--pill-stroke)'
+              : 'var(--pill-stroke-soft)',
           // Shadow:
           //   • Rest: a tight hairline shadow (2px / 8px blur). The old
           //     stack of 14/32 + 2/6 was producing a big dark halo that
@@ -432,7 +433,7 @@ export function FloatingBar() {
               'cursor-default select-none font-semibold tracking-[-0.01em] whitespace-nowrap',
               isCompact ? 'text-[17px]' : 'text-[19px]',
             )}
-            style={{ color: 'rgba(255,255,255,0.92)' }}
+            style={{ color: 'var(--pill-fg)' }}
           >
             Utter
             <span
@@ -474,7 +475,10 @@ export function FloatingBar() {
                       cues (colour, number, motion) so the state reads at any
                       glance angle. */}
                   <span className="ub-bar-ripple shrink-0" aria-hidden />
-                  <span className="cursor-default select-none font-mono text-[13px] tabular-nums text-[rgba(255,255,255,0.88)] -tracking-[0.01em]">
+                  <span
+                    className="cursor-default select-none font-mono text-[13px] tabular-nums -tracking-[0.01em]"
+                    style={{ color: 'var(--pill-fg-muted)' }}
+                  >
                     {formatDuration(elapsed)}
                   </span>
                   <div className="ub-bar-wave ml-1 mr-1 shrink-0" aria-hidden>
@@ -569,8 +573,12 @@ function BarButton({
             boxShadow: '0 2px 10px color-mix(in oklab, var(--rose) 40%, transparent)',
           }
         : {
-            background: 'rgba(255,255,255,0.06)',
-            color: 'rgba(255,255,255,0.78)',
+            // Neutral buttons use the pill-local surface/ink family so
+            // they invert cleanly on Paper's light pill (dark ink on a
+            // barely-there warm-grey tile) instead of staying white-on-
+            // white-on-paper.
+            background: 'var(--pill-surface)',
+            color: 'var(--pill-fg-muted)',
           };
   return (
     <button
@@ -588,7 +596,7 @@ function BarButton({
         'transition-[transform,box-shadow,background,color] duration-150',
         '[transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)]',
         'hover:scale-[1.08] active:scale-[0.86]',
-        tone === 'default' && 'hover:bg-[rgba(255,255,255,0.12)] hover:text-white',
+        tone === 'default' && 'hover:bg-[var(--pill-surface-hi)] hover:text-[var(--pill-ink-on-hi)]',
         (tone === 'accent' || tone === 'rose') && 'hover:brightness-110',
       )}
     >
@@ -607,7 +615,7 @@ function Divider() {
     <span
       aria-hidden
       className="mx-0.5 block h-5 w-px"
-      style={{ background: 'rgba(255,255,255,0.14)' }}
+      style={{ background: 'var(--pill-dim)' }}
     />
   );
 }

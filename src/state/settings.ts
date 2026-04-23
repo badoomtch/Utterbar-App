@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import type { Settings } from '@/generated/Settings';
@@ -52,14 +53,47 @@ export function applyThemeClasses(s: Settings) {
   if (s.general.theme === 'paper') root.classList.remove('dark');
   else root.classList.add('dark');
 
-  // UI scale: drive the root `html` font-size, which scales every Tailwind `rem` unit
-  // across the app — padding, gaps, font sizes, buttons, everything. The floating bar
-  // opts out by carrying a `floating-shell` class that pins its own font-size, so the
-  // pill stays the same physical size whatever the user has set here.
+  // Drive the OS window chrome (native Windows title bar on main + onboarding)
+  // off the app theme so Paper gets a light title bar and Obsidian/Graphite
+  // keep the dark one. Without this, `tauri.conf.json`'s hardcoded
+  // `"theme": "Dark"` pinned every window's caption to a charcoal strip that
+  // read as "just greyish" on the cream Paper theme — the top bar looked
+  // completely detached from the app's content.
+  //
+  // This has to run via the Tauri API at runtime because the config value is
+  // only consulted at window-create time. Failures are swallowed because the
+  // call is a no-op in the onboarding webview until the plugin has loaded,
+  // and a best-effort theme sync should never block settings persistence.
+  void getCurrentWindow()
+    .setTheme(s.general.theme === 'paper' ? 'light' : 'dark')
+    .catch(() => undefined);
+
+  // UI scale: drive it through CSS `zoom` on <body>, not via root font-size.
+  //
+  // The earlier implementation set `root.style.fontSize = 16 * scale / 100`.
+  // That scaled every Tailwind `rem` (padding, gap, width) but left absolute
+  // px values (the `text-[14px]` form used throughout the app) untouched —
+  // so at 175% the padding doubled while the text stayed the same size and
+  // the layout read as broken, exactly as users reported ("buttons grow but
+  // the text doesn't, it's all off"). Switching to `zoom` scales every
+  // dimension — text, padding, borders, icons — uniformly, which is what
+  // OS display-scale does and what the user expects.
+  //
+  // The floating pill opts out by carrying the `floating-shell` class on
+  // <html>; we keep its zoom pinned to 1 so the bar stays the same physical
+  // size regardless of this setting.
   const rawScale = Number(s.general.ui_scale ?? 100);
   const clamped = Number.isFinite(rawScale) ? Math.min(175, Math.max(90, rawScale)) : 100;
-  // 16 px is the browser default, our Tailwind `rem` baseline.
-  root.style.fontSize = `${(16 * clamped) / 100}px`;
+  // Identify the floating window via the URL route rather than the
+  // `floating-shell` class, because `applyThemeClasses` can run during
+  // settings hydration before FloatingBar's mount effect has had a chance
+  // to attach that class. URL hash is set at window-open time by
+  // tauri.conf.json's `url: "index.html#/floating"`, so it's always right.
+  const isFloating = window.location.hash.startsWith('#/floating');
+  // Clear the legacy font-size override in case an older build left one on
+  // the root element — without this it would compound with the new zoom.
+  root.style.fontSize = '';
+  document.body.style.zoom = isFloating ? '1' : String(clamped / 100);
 
   // Accessibility flags — each is a body-level class hook that `globals.css` attaches
   // behaviour to. Toggled here so every window (main / floating / onboarding) picks them

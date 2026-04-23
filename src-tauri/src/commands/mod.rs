@@ -11,5 +11,6 @@ pub mod modes;
 pub mod settings;
 pub mod shortcuts;
 pub mod updater;
+pub mod updates;
 pub mod vocabulary;
 pub mod window;

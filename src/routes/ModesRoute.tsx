@@ -3,9 +3,11 @@ import { Copy, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { PageHeader } from '@/components/common/PageHeader';
+import { ProNudge } from '@/components/common/ProNudge';
 import { ModeEditor, type EditableMode } from '@/components/modes/ModeEditor';
 import { invoke } from '@/lib/ipc';
 import { cn } from '@/lib/cn';
+import { useLicence, isPro } from '@/state/licence';
 
 type Mode = EditableMode;
 type ModelInfo = { id: string; display_name: string };
@@ -87,17 +89,34 @@ export function ModesRoute() {
     await reload();
   };
 
+  const licenceStatus = useLicence((s) => s.status);
+  const pro = isPro(licenceStatus);
+
   return (
     <div className="mx-auto max-w-5xl p-8">
       <PageHeader
         title="Modes"
         subtitle="Shape output for different writing contexts. Each mode owns its own ASR, formatting, and post-processing."
         actions={
-          <Button variant="cta" size="sm" onClick={createNew}>
+          <Button
+            variant="cta"
+            size="sm"
+            onClick={createNew}
+            disabled={!pro}
+            title={pro ? undefined : 'Authoring custom modes is a Pro feature.'}
+          >
             <Plus className="h-3.5 w-3.5" /> New mode
           </Button>
         }
       />
+
+      {!pro && (
+        <ProNudge
+          feature="Custom modes"
+          description="The built-ins are yours to use — Pro unlocks authoring your own: per-app auto-activation, your own templates, and custom post-processing rules."
+          className="mt-5"
+        />
+      )}
 
       <ul className="mt-6 overflow-hidden rounded-card bg-bg-1">
         {modes.map((m) => {
@@ -151,9 +170,11 @@ export function ModesRoute() {
               <IconBtn label="Edit" onClick={() => setEditing(m)}>
                 <Pencil className="h-4 w-4" />
               </IconBtn>
-              <IconBtn label="Duplicate" onClick={() => void duplicate(m.id)}>
-                <Copy className="h-4 w-4" />
-              </IconBtn>
+              {pro && (
+                <IconBtn label="Duplicate" onClick={() => void duplicate(m.id)}>
+                  <Copy className="h-4 w-4" />
+                </IconBtn>
+              )}
               {!m.is_builtin && (
                 <IconBtn label="Delete" onClick={() => void remove(m.id)}>
                   <Trash2 className="h-4 w-4" />

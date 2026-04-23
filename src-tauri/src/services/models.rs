@@ -94,6 +94,13 @@ impl ModelRegistry {
                     sha256: String::new(),
                     download_url: None,
                     recommended: false,
+                    // DB row on its own can't supply comparison scores — those
+                    // live only in the catalogue. `list_available` merges in the
+                    // real values; `list_installed` callers that need them
+                    // should go through `list_available` + filter, not here.
+                    accuracy_score: 0,
+                    speed_score: 0,
+                    requires_pro: false,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -338,6 +345,13 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
                     .into(),
             ),
             recommended: true,
+            // int8 compact is the reference: great speed on any CPU (10/10)
+            // and very usable accuracy (8/10). v3 below is a touch more
+            // accurate (9/10) at the same speed; fp16 is the accuracy
+            // ceiling (10/10) but at a real speed cost on most hardware.
+            accuracy_score: 8,
+            speed_score: 10,
+            requires_pro: false,
         },
         // v3 int8 — newer NeMo Parakeet generation, same 0.6B parameter budget
         // and same TDT architecture so it's a drop-in replacement that just
@@ -363,6 +377,9 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
                     .into(),
             ),
             recommended: false,
+            accuracy_score: 9,
+            speed_score: 10,
+            requires_pro: false,
         },
         // fp16 variant — higher-precision weights, slightly better accuracy on edge cases
         // (accents, noisy input, proper nouns), larger download. Only safe to run when a
@@ -389,6 +406,15 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
                     .into(),
             ),
             recommended: false,
+            // fp16 hits the accuracy ceiling on edge cases (accents, proper
+            // nouns, noisy audio). Speed drops because the model only runs
+            // on a GPU path — anyone without one either can't load it or is
+            // pushed to the CPU fallback, which is noticeably slower than
+            // the int8 variants. 6/10 reflects that realistic user
+            // experience rather than a synthetic GPU-only benchmark.
+            accuracy_score: 10,
+            speed_score: 6,
+            requires_pro: true,
         },
     ]
 }

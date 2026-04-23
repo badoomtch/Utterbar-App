@@ -3,10 +3,14 @@ import { Flame, Radio } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/common/Card';
+import { ProNudge } from '@/components/common/ProNudge';
 import { Select, type SelectOption } from '@/components/common/Select';
+import { ScoreBars } from '@/components/common/ScoreBars';
 import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { formatBytes } from '@/lib/format';
+import { cn } from '@/lib/cn';
+import { useLicence, isPro } from '@/state/licence';
 import { useSettings } from '@/state/settings';
 
 type ModelInfo = {
@@ -18,6 +22,9 @@ type ModelInfo = {
   languages: string[];
   installed: boolean;
   recommended: boolean;
+  accuracy_score: number;
+  speed_score: number;
+  requires_pro: boolean;
 };
 
 type Progress = {
@@ -30,6 +37,28 @@ type Progress = {
 export function ModelsSettings() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [progress, setProgress] = useState<Record<string, Progress>>({});
+  // `loadedId` is the id of the model currently resident in memory — null
+  // when the orchestrator is cold. We poll every 2s while this page is
+  // mounted so the "Ready / Idle" badge below stays accurate without
+  // wiring AppHandle into the inference orchestrator just for an event.
+  // 2s is a deliberate pick: faster feels jittery on a static surface,
+  // slower and the state lags noticeably after "stop dictation".
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () =>
+      invoke<string | null>('asr_runtime_status')
+        .then((id) => {
+          if (!cancelled) setLoadedId(id ?? null);
+        })
+        .catch(() => undefined);
+    void poll();
+    const t = window.setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, []);
 
   const reload = () =>
     invoke<ModelInfo[]>('list_available_models').then(setModels).catch(() => setModels([]));
@@ -78,6 +107,8 @@ export function ModelsSettings() {
   };
 
   const installedModels = useMemo(() => items.filter((m) => m.installed), [items]);
+  const licenceStatus = useLicence((s) => s.status);
+  const pro = isPro(licenceStatus);
 
   return (
     <div className="mx-auto max-w-3xl p-8">
@@ -90,6 +121,7 @@ export function ModelsSettings() {
         className="mt-6"
         title="Default model"
         description="Used by any mode that hasn't pinned a specific model. Modes can still override this — the setting here is the fallback your whole app uses by default."
+        aside={<ModelRuntimeBadge loadedId={loadedId} />}
       >
         {installedModels.length === 0 ? (
           <div className="flex items-center gap-2 rounded-input border border-dashed border-border-soft bg-bg-2/50 px-3 py-2.5 text-[12px] text-muted">
@@ -152,6 +184,7 @@ export function ModelsSettings() {
             const prog = progress[m.id];
             const downloading = prog && prog.phase !== 'done' && prog.phase !== 'error';
             const pct = prog && prog.bytes_total > 0 ? Math.round((prog.bytes_done / prog.bytes_total) * 100) : 0;
+            const locked = m.requires_pro && !pro;
             return (
               <li key={m.id} className="py-4">
                 <div className="flex items-start gap-4">
@@ -176,6 +209,24 @@ export function ModelsSettings() {
                         {m.description}
                       </p>
                     )}
+                    {/* Paired comparison bars — makes the trade-offs between
+                        the int8 / v3 / fp16 variants legible without the
+                        user having to parse the descriptions against each
+                        other. Hidden automatically when both scores are 0
+                        (DB-only installed rows, unknown models). */}
+                    <ScoreBars
+                      accuracy={m.accuracy_score}
+                      speed={m.speed_score}
+                      className="mt-3 max-w-[280px]"
+                    />
+                    {locked && (
+                      <ProNudge
+                        feature={m.display_name}
+                        description="The higher-precision fp16 model is part of Pro. It's the accuracy ceiling of the Parakeet family and benefits from a real GPU — same privacy guarantees as every other model (never leaves your machine)."
+                        dense
+                        className="mt-3 max-w-xl"
+                      />
+                    )}
                   </div>
                   {m.installed ? (
                     <button
@@ -189,7 +240,8 @@ export function ModelsSettings() {
                   ) : (
                     <button
                       onClick={() => invoke('install_model', { id: m.id }).then(reload).catch(() => undefined)}
-                      className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px]"
+                      disabled={locked}
+                      className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Install
                     </button>
@@ -214,6 +266,50 @@ export function ModelsSettings() {
         </ul>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Subtle runtime-state badge shown next to "Default model".
+ *
+ * ASR models are lazily loaded — the first dictation after launch pays a
+ * 1–3 s load cost (ONNX session init, GPU upload) and subsequent dictations
+ * land near-instant while the model stays warm. Users who don't know this
+ * experience the first-dictation lag as "the app is slow" with no visible
+ * reason. This badge makes the cold/warm state legible:
+ *
+ *   • Ready  — model is resident in memory, next dictation is instant.
+ *              Cyan LED + `text-accent`, single beat of the cyan budget.
+ *   • Idle   — orchestrator is cold, next dictation will take a moment.
+ *              Muted dot + `text-muted`, sits back into the card chrome.
+ *
+ * Deliberately small and quiet — this is meta, not a control. Don't give
+ * it the ub-chip active treatment.
+ */
+function ModelRuntimeBadge({ loadedId }: { loadedId: string | null }) {
+  const isReady = loadedId !== null;
+  return (
+    <span
+      className={cn(
+        'inline-flex cursor-default select-none items-center gap-1.5 rounded-full px-2.5 py-0.5',
+        'font-mono text-[10px] font-medium uppercase tracking-[0.1em]',
+        isReady ? 'text-accent' : 'text-muted',
+      )}
+      title={
+        isReady
+          ? 'The ASR model is loaded in memory. Next dictation will start instantly.'
+          : 'No ASR model is currently loaded. The next dictation will pay a one-off 1–3 s load cost.'
+      }
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'h-1.5 w-1.5 rounded-full',
+          isReady ? 'bg-accent shadow-[0_0_8px_var(--accent)]' : 'bg-fg-dim/70',
+        )}
+      />
+      {isReady ? 'Ready' : 'Idle'}
+    </span>
   );
 }
 

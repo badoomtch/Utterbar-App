@@ -426,6 +426,22 @@ const ERROR_SPEC: Record<LicenceErrorCode, ErrorSpec> = {
     title: 'This device is already activated.',
     body: null,
   },
+  rate_limited: {
+    tone: 'warn',
+    title: "You're trying a lot of keys.",
+    body: 'Slow down for a minute and try again — the activation endpoint briefly blocks rapid retries.',
+  },
+  pro_required: {
+    // `pro_required` travels over the same licence-error envelope but is
+    // raised by backend gates (file transcription, fp16 install, custom
+    // modes, vocab caps, audio retention, re-transcribe) rather than the
+    // activation flow. The UI surfaces ProNudge next to the gated control,
+    // so the only way we'd ever hit this spec is if a user pasted a pro-
+    // gated IPC call into the wrong place — treat it as a non-fatal hint.
+    tone: 'warn',
+    title: 'That feature needs Pro.',
+    body: null,
+  },
   internal: {
     tone: 'error',
     title: 'Something went wrong on this device.',

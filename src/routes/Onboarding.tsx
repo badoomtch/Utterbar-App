@@ -22,6 +22,7 @@ import { UtterbarWordmark } from '@/components/bar/UtterbarWordmark';
 import { Waveform } from '@/components/bar/Waveform';
 import { Button } from '@/components/common/Button';
 import { Select } from '@/components/common/Select';
+import { ScoreBars } from '@/components/common/ScoreBars';
 import { Textarea } from '@/components/common/Input';
 import { Kbd } from '@/components/common/Kbd';
 import { useDictation } from '@/state/dictation';
@@ -317,6 +318,8 @@ type ModelCatEntry = {
   languages: string[];
   installed: boolean;
   recommended: boolean;
+  accuracy_score: number;
+  speed_score: number;
 };
 
 type ModelProgress = {
@@ -483,6 +486,16 @@ function ModelPickStep() {
                   {shortDescription(m.id, m.description)}
                 </p>
               )}
+              {/* Same comparison bars the Settings → Models page shows, so
+                  the onboarding picker can be made on the same criteria
+                  the user will see later if they change their mind. Kept
+                  compact to preserve the tight tile rhythm. */}
+              <ScoreBars
+                accuracy={m.accuracy_score}
+                speed={m.speed_score}
+                compact
+                className="mt-2 max-w-[260px]"
+              />
             </RadioTile>
           </li>
         ))}

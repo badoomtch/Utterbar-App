@@ -311,7 +311,13 @@ pub async fn stop_recording(
     // the PCM to the inference layer (which consumes the vec) so we're writing the
     // exact same audio that was transcribed. File naming is `<ulid>.wav` under
     // `%APPDATA%\Utterbar\recordings\` — same place the history row references.
-    let recorded_path = if settings.privacy.retain_audio {
+    //
+    // Pro gate: audio retention is a paid feature. Even if the user flipped
+    // the stored flag via some other path, we refuse to persist on Free.
+    // The Privacy settings panel also disables the toggle.
+    let retention_allowed = settings.privacy.retain_audio
+        && crate::util::gating::is_pro(&state.licence.status().await);
+    let recorded_path = if retention_allowed {
         match write_recording_wav(&final_.pcm, final_.sample_rate) {
             Ok(path) => {
                 // Best-effort pruning of old recordings. Runs inline because it's just a

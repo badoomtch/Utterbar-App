@@ -105,6 +105,18 @@ impl InferenceOrchestrator {
         result
     }
 
+    /// Which model (if any) is currently resident in memory. `None` when the
+    /// orchestrator is cold — the next dictation will pay the full load cost
+    /// (1–3 s depending on disk cache / GPU init). `Some(id)` means the model
+    /// is warm and the next transcribe will start as fast as audio arrives.
+    ///
+    /// Used by Settings → Models to surface a subtle "Ready / Loading" state
+    /// so users know why the first dictation after a cold start feels slower
+    /// than subsequent ones, without having to guess from latency alone.
+    pub async fn loaded_model_id(&self) -> Option<String> {
+        self.active.read().await.as_ref().map(|a| a.provider.id().to_string())
+    }
+
     /// Manual unload path. Unused today — the inline `warm_duration_secs == 0` path and
     /// the idle sweeper together cover every eviction case we currently need — but kept
     /// as the canonical "drop the model right now" entry for settings-change flows we

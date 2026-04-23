@@ -86,6 +86,15 @@ pub struct GeneralSettings {
     pub bar_visibility: BarVisibility,
     #[serde(default = "default_bar_outline")]
     pub bar_outline: bool,
+    /// Email the user subscribed with for release-announcement mail, if any.
+    /// `None` means the user hasn't opted in. When `Some`, the Settings →
+    /// General UI shows a "subscribed" state. We keep the email locally so the
+    /// toggle can round-trip across restarts without re-prompting; the server
+    /// is the authoritative list (via `update_subscribers` + confirmation mail)
+    /// and one-click unsubscribe lives on the server too. Serde-defaulted so
+    /// older settings.json files upgrade cleanly.
+    #[serde(default)]
+    pub releases_email: Option<String>,
 }
 
 fn default_bar_outline() -> bool {
@@ -159,6 +168,7 @@ impl Default for GeneralSettings {
             bar_size: BarSize::Standard,
             bar_visibility: BarVisibility::Always,
             bar_outline: true,
+            releases_email: None,
         }
     }
 }

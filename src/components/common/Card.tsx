@@ -17,6 +17,10 @@ import { cn } from '@/lib/cn';
  *   • `tone` — `'raised'` lifts to bg-2, used for cards that are themselves
  *     the "lit" / featured tile of a page (e.g. the Pro-equivalent in a
  *     pair). Default `'default'` is bg-1.
+ *   • `aside` — optional right-aligned content that sits on the same row as
+ *     the title (small badges, runtime state readouts, lightweight actions).
+ *     Pushed to the far right, vertically centred against the title line so
+ *     it reads as meta rather than part of the heading itself.
  */
 export function Card({
   children,
@@ -26,6 +30,7 @@ export function Card({
   eyebrow,
   rail = false,
   tone = 'default',
+  aside,
 }: {
   children: ReactNode;
   className?: string;
@@ -34,6 +39,7 @@ export function Card({
   eyebrow?: string;
   rail?: boolean;
   tone?: 'default' | 'raised';
+  aside?: ReactNode;
 }) {
   return (
     <section
@@ -44,14 +50,19 @@ export function Card({
         className,
       )}
     >
-      {(title || description || eyebrow) && (
+      {(title || description || eyebrow || aside) && (
         <header className="mb-5">
           {eyebrow && <div className="ub-eyebrow mb-2">{eyebrow}</div>}
-          {title && (
-            // Weight 700 (H3 tier per §2.3). Weight 600 is forbidden.
-            <h3 className="text-[17px] font-bold text-fg-hi -tracking-[0.02em] leading-tight">
-              {title}
-            </h3>
+          {(title || aside) && (
+            <div className="flex items-center gap-3">
+              {title && (
+                // Weight 700 (H3 tier per §2.3). Weight 600 is forbidden.
+                <h3 className="flex-1 text-[17px] font-bold text-fg-hi -tracking-[0.02em] leading-tight">
+                  {title}
+                </h3>
+              )}
+              {aside && <div className="shrink-0">{aside}</div>}
+            </div>
           )}
           {description && (
             <p className="mt-1.5 text-[13px] leading-relaxed text-muted max-w-[60ch]">

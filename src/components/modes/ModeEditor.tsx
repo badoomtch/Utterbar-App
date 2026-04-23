@@ -204,17 +204,18 @@ export function ModeEditor({
           </Section>
 
           <Section title="Post-processing">
+            {/* `llm` is deliberately absent in 0.6 — the llama.cpp provider
+                isn't wired yet, so the option would silently fall back to
+                deterministic. Returns in 0.7 with the real LLM backend. */}
             <div className="flex flex-wrap gap-2">
-              {(['none', 'deterministic', 'llm'] as const).map((k) => (
+              {(['none', 'deterministic'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() =>
                     patchPost(
                       k === 'none'
                         ? { kind: 'none' }
-                        : k === 'deterministic'
-                          ? { kind: 'deterministic', template: '{text}' }
-                          : { kind: 'llm', prompt: '', template: null },
+                        : { kind: 'deterministic', template: '{text}' },
                     )
                   }
                   className={cn(
@@ -238,14 +239,16 @@ export function ModeEditor({
               </Field>
             )}
             {draft.post_processing.kind === 'llm' && (
+              // An existing mode on disk could still report `kind: 'llm'`
+              // (legacy rows from pre-release builds). Render a read-only
+              // placeholder so the editor doesn't crash; saving swaps it to
+              // deterministic on the next edit.
               <Field label="Prompt">
                 <Textarea
                   value={draft.post_processing.prompt}
-                  onChange={(e) =>
-                    patchPost({ kind: 'llm', prompt: e.target.value, template: null })
-                  }
-                  rows={4}
-                  className="flex-1"
+                  readOnly
+                  rows={3}
+                  className="flex-1 opacity-60"
                 />
               </Field>
             )}

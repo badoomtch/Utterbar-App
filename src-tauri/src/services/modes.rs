@@ -21,6 +21,24 @@ impl ModeService {
     }
 
     pub fn ensure_seed(&self) -> Result<()> {
+        // 0.6 cleanup: the LLM built-ins (Email / Note / Super) shipped in
+        // pre-release builds but their LLM provider was never wired, so they
+        // silently fell back to deterministic output. We defer LLM
+        // post-processing to 0.7 and drop the three modes from the built-in
+        // catalogue — when LLM lands they return with real behaviour.
+        //
+        // Delete them unconditionally on every launch so dev-build upgraders
+        // don't carry stale is_builtin=1 rows that the new catalogue no
+        // longer seeds. Custom user modes are untouched (they'd have
+        // is_builtin=0 and different IDs even if a user named one "Email").
+        {
+            let conn = self.db.conn()?;
+            conn.execute(
+                "DELETE FROM modes WHERE is_builtin=1 AND id IN ('email','note','super')",
+                [],
+            )?;
+        }
+
         let conn = self.db.conn()?;
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM modes", [], |r| r.get(0))?;
         if count > 0 {
@@ -243,30 +261,18 @@ fn builtin_modes() -> Vec<Mode> {
         preserve_linebreaks: false,
     };
 
+    // 0.6 catalogue — three built-ins, all deterministic. Email / Note /
+    // Super are parked until 0.7 when the llama.cpp provider actually works;
+    // shipping them today would mean shipping `PostProcessing::Llm` modes
+    // that silently fall back to deterministic at runtime. See
+    // `ensure_seed` above for the one-shot cleanup that removes pre-release
+    // copies from existing DBs.
     vec![
         mk("voice-to-text", "Voice to Text", "mic", PostProcessing::None, base_fmt.clone()),
         mk("message", "Message", "message-square",
             PostProcessing::Deterministic { template: "{text}".into() }, base_fmt.clone()),
-        mk("email", "Email", "mail",
-            PostProcessing::Llm {
-                prompt: "Rewrite the user's dictation as a polite, well-formatted email. Keep tone aligned with the user's voice; do not invent facts.".into(),
-                template: None,
-            },
-            base_fmt.clone()),
-        mk("note", "Note", "notebook",
-            PostProcessing::Llm {
-                prompt: "Format the user's dictation as a clean note with bullet structure where appropriate. Preserve all facts.".into(),
-                template: None,
-            },
-            Formatting { bullet_style: BulletStyle::Dash, ..base_fmt.clone() }),
         mk("meeting", "Meeting", "users",
             PostProcessing::Deterministic { template: "{text}".into() },
-            Formatting { preserve_linebreaks: true, ..base_fmt.clone() }),
-        mk("super", "Super", "sparkles",
-            PostProcessing::Llm {
-                prompt: "Use the provided app, selection, and clipboard context to produce the most appropriate response. If the user is in a reply context, format as a reply; if they are drafting a note, format as a note.".into(),
-                template: None,
-            },
-            base_fmt),
+            Formatting { preserve_linebreaks: true, ..base_fmt }),
     ]
 }

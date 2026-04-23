@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, CircleSlash, FileAudio, Loader2, UploadCloud, XCircle } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/PageHeader';
+import { ProNudge } from '@/components/common/ProNudge';
 import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { cn } from '@/lib/cn';
+import { useLicence, isPro } from '@/state/licence';
 
 type FileJob = {
   id: string;
@@ -56,6 +58,28 @@ export function FilesRoute() {
     await invoke('enqueue_file', { sourcePath: path, modeId: null, modelId: null });
     await reload();
   };
+
+  const licenceStatus = useLicence((s) => s.status);
+  const pro = isPro(licenceStatus);
+
+  // Free-tier users see only a ProNudge — the dropzone and job list are
+  // Pro-only surfaces. The backend also rejects `enqueue_file`, so the
+  // worst case is a stale job list from a previous Pro session (harmless).
+  if (!pro) {
+    return (
+      <div className="mx-auto max-w-4xl p-8">
+        <PageHeader
+          title="File transcription"
+          subtitle="Drop audio or video files to transcribe locally. Results land next to the source file as .utterbar.txt."
+        />
+        <ProNudge
+          feature="File transcription"
+          description="Transcribe any audio or video file from disk — meetings, voice memos, lectures — with the same local-only Parakeet model that powers dictation. Nothing leaves your machine."
+          className="mt-6"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl p-8">

@@ -91,6 +91,32 @@
   --pill-top-lit: #14141B;
   --pill-bot-lit: #07070B;
 
+  /* Ink / stroke / surface ON the pill.
+   *
+   * These exist so light-pill themes (Paper) can flip the floating-bar
+   * interior from white-on-dark to dark-on-light without every caller
+   * hardcoding `rgba(255,255,255,…)`. Obsidian/Graphite inherit these
+   * white-ink defaults; Paper overrides to a dark-ink set below. The pill
+   * gradient itself stays distinct per theme via `--pill-top` / `--pill-bot`.
+   *
+   *   --pill-fg          primary text inside the pill (wordmark, timer)
+   *   --pill-fg-muted    secondary text (timer in listening state)
+   *   --pill-stroke      pill outline when `bar_outline` is on
+   *   --pill-stroke-soft pill outline when `bar_outline` is off
+   *   --pill-dim         in-pill dividers + hairlines
+   *   --pill-surface     in-pill button / chip surface (rest)
+   *   --pill-surface-hi  in-pill button / chip surface (hover)
+   *   --pill-ink-on-hi   text on `--pill-surface-hi` buttons at hover
+   */
+  --pill-fg:          rgba(255, 255, 255, 0.92);
+  --pill-fg-muted:    rgba(255, 255, 255, 0.78);
+  --pill-stroke:      rgba(255, 255, 255, 0.72);
+  --pill-stroke-soft: rgba(255, 255, 255, 0.14);
+  --pill-dim:         rgba(255, 255, 255, 0.14);
+  --pill-surface:     rgba(255, 255, 255, 0.06);
+  --pill-surface-hi:  rgba(255, 255, 255, 0.12);
+  --pill-ink-on-hi:   #ffffff;
+
   /* ============ Semantic (app-only; site is monochrome + cyan) ============ */
   --amber:    #F59E0B;   /* warnings */
   --rose:     #F43F5E;   /* destructive, error LED */
@@ -224,17 +250,28 @@
   --text-low:    218 12% 40%;
   --accent-foreground: 0 0% 100%;
 
-  /* Paper gets its own distinctive pill tone — a warm espresso-brown
-     charcoal that visibly separates from Obsidian's blue-black and
-     Graphite's slate. It stays dark enough for the white wordmark / icons
-     / timer inside the pill to read, so we don't have to rework every
-     colour-inverted element just to support a light theme. Think
-     "leather-wrapped handheld on a cream desk" — paper is the paper, the
-     widget on top is a tactile warm object. */
-  --pill-top:     #2B2620;
-  --pill-bot:     #171310;
-  --pill-top-lit: #352F27;
-  --pill-bot-lit: #1E1913;
+  /* Paper's pill flips LIGHT so the floating bar reads as "paper, on
+     paper" — a matte white tablet floating above the cream page. The top
+     stop is a touch warmer than pure white (matches --bg-1) and the
+     bottom stop dips to the page tone so the pill still has a subtle
+     top-down gradient instead of reading as a flat rectangle. */
+  --pill-top:     #FFFFFF;
+  --pill-bot:     #EDEAE1;
+  --pill-top-lit: #F6F4EE;
+  --pill-bot-lit: #E2DED1;
+
+  /* Flip the in-pill ink family to dark-on-light so the wordmark, timer,
+     dividers, and ghost-button surfaces stay legible on the white pill.
+     Without this, Paper inherits the white-on-dark defaults from :root
+     and the pill looks empty. */
+  --pill-fg:          rgba(12, 16, 24, 0.92);
+  --pill-fg-muted:    rgba(12, 16, 24, 0.72);
+  --pill-stroke:      rgba(12, 16, 24, 0.28);
+  --pill-stroke-soft: rgba(12, 16, 24, 0.12);
+  --pill-dim:         rgba(12, 16, 24, 0.14);
+  --pill-surface:     rgba(12, 16, 24, 0.05);
+  --pill-surface-hi:  rgba(12, 16, 24, 0.10);
+  --pill-ink-on-hi:   #0C1018;
 }
 
 /*

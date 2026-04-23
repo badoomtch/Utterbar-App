@@ -4,7 +4,16 @@ import { Button } from '@/components/common/Button';
 import { Card, Row } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { PageHeader } from '@/components/common/PageHeader';
+import { ProNudge } from '@/components/common/ProNudge';
 import { invoke } from '@/lib/ipc';
+import { useLicence, isPro } from '@/state/licence';
+
+// Must track the backend caps in src-tauri/src/util/gating.rs. If you edit
+// one, edit the other — there's no shared source of truth for "50 / 25"
+// that bridges Rust and TS (these are display values, not validation —
+// the backend is the enforcement).
+const FREE_VOCAB_CAP = 50;
+const FREE_REPLACEMENTS_CAP = 25;
 
 type Vocab = { id: string; word: string; hint: string | null; enabled: boolean; weight: number };
 type Replacement = {
@@ -74,6 +83,20 @@ export function VocabularyRoute() {
     await reload();
   };
 
+  const licenceStatus = useLicence((s) => s.status);
+  const pro = isPro(licenceStatus);
+  const wordsAtCap = !pro && words.length >= FREE_VOCAB_CAP;
+  const repsAtCap = !pro && reps.length >= FREE_REPLACEMENTS_CAP;
+
+  // Same "X / N" counter pattern the DESIGN_SYSTEM uses for any bounded
+  // count — muted, tabular-nums, sits next to the section title.
+  const wordsCounter = pro
+    ? `${words.length} word${words.length === 1 ? '' : 's'}`
+    : `${words.length} / ${FREE_VOCAB_CAP} words`;
+  const repsCounter = pro
+    ? `${reps.length} replacement${reps.length === 1 ? '' : 's'}`
+    : `${reps.length} / ${FREE_REPLACEMENTS_CAP} replacements`;
+
   return (
     <div className="mx-auto max-w-4xl p-8">
       <PageHeader
@@ -85,19 +108,38 @@ export function VocabularyRoute() {
         <Card
           title="Custom words"
           description="Help the ASR model recognise proper nouns, brand names, or technical terms."
+          aside={
+            <span className="font-mono text-[11px] tabular-nums text-muted">
+              {wordsCounter}
+            </span>
+          }
         >
           <div className="flex gap-2">
             <Input
               value={newWord}
               onChange={(e) => setNewWord(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void addWord()}
+              onKeyDown={(e) => e.key === 'Enter' && !wordsAtCap && void addWord()}
               placeholder="Add a word (e.g. Kubernetes)"
               className="flex-1"
+              disabled={wordsAtCap}
             />
-            <Button variant="cta" size="sm" onClick={() => void addWord()}>
+            <Button
+              variant="cta"
+              size="sm"
+              onClick={() => void addWord()}
+              disabled={wordsAtCap}
+            >
               Add
             </Button>
           </div>
+          {wordsAtCap && (
+            <ProNudge
+              feature="Unlimited vocabulary"
+              description={`You're at the Free-tier cap of ${FREE_VOCAB_CAP} words. Existing words keep working — Pro removes the cap.`}
+              dense
+              className="mt-3"
+            />
+          )}
           <ul className="mt-3 divide-y divide-border-soft/50">
             {words.map((w) => (
               <li
@@ -122,6 +164,11 @@ export function VocabularyRoute() {
         <Card
           title="Text replacements"
           description="Swap literal phrases post-ASR. Useful for common typos or shorthand expansion."
+          aside={
+            <span className="font-mono text-[11px] tabular-nums text-muted">
+              {repsCounter}
+            </span>
+          }
         >
           <div className="flex gap-2">
             <Input
@@ -129,18 +176,33 @@ export function VocabularyRoute() {
               onChange={(e) => setNewReplacement((r) => ({ ...r, from: e.target.value }))}
               placeholder="Match"
               className="flex-1"
+              disabled={repsAtCap}
             />
             <Input
               value={newReplacement.to}
               onChange={(e) => setNewReplacement((r) => ({ ...r, to: e.target.value }))}
-              onKeyDown={(e) => e.key === 'Enter' && void addReplacement()}
+              onKeyDown={(e) => e.key === 'Enter' && !repsAtCap && void addReplacement()}
               placeholder="Replace with"
               className="flex-1"
+              disabled={repsAtCap}
             />
-            <Button variant="cta" size="sm" onClick={() => void addReplacement()}>
+            <Button
+              variant="cta"
+              size="sm"
+              onClick={() => void addReplacement()}
+              disabled={repsAtCap}
+            >
               Add
             </Button>
           </div>
+          {repsAtCap && (
+            <ProNudge
+              feature="Unlimited replacements"
+              description={`You're at the Free-tier cap of ${FREE_REPLACEMENTS_CAP} replacements. Existing rules keep working — Pro removes the cap.`}
+              dense
+              className="mt-3"
+            />
+          )}
           <ul className="mt-3 divide-y divide-border-soft/50">
             {reps.map((r) => (
               <li

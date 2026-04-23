@@ -7,4 +7,32 @@ export type ModelInfo = { id: string, kind: ModelKind, display_name: string,
  * Short human-readable rationale: "why would I pick this one?". Shown under each
  * card in the onboarding + Settings pickers.
  */
-description: string, version: string, size_bytes: bigint, backend: ModelBackend, languages: Array<string>, installed: boolean, path: string | null, sha256: string, download_url: string | null, recommended: boolean, };
+description: string, version: string, size_bytes: bigint, backend: ModelBackend, languages: Array<string>, installed: boolean, path: string | null, sha256: string, download_url: string | null, recommended: boolean, 
+/**
+ * Accuracy score on a 1–10 scale, relative to other models in the
+ * catalogue. Editorial judgement, not a measured WER — the absolute
+ * scale is unstable (Parakeet variants are clustered in a tight band)
+ * and users care about "which of these is better for me" rather than
+ * a WER percentage they can't interpret. Used by the Settings → Models
+ * and Onboarding pickers to render paired accuracy/speed comparison
+ * bars next to each option. 0 means "no comparison data available" —
+ * the bars hide in that case.
+ */
+accuracy_score: number, 
+/**
+ * Inference speed on a 1–10 scale, same semantics as `accuracy_score`.
+ * Factors in quantisation (int8 vs fp16) and the cost of the GPU path
+ * on machines that have one — a GPU-only fp16 model scores lower here
+ * because most installs will fall back to CPU and run slowly (or fail
+ * to load at all).
+ */
+speed_score: number, 
+/**
+ * Pro-gated model. The Rust side rejects `install_model` with a
+ * `pro_required` licence error; the frontend shows a `<ProNudge>`
+ * under the card and disables the Install button. fp16 carries this
+ * flag because the accuracy-ceiling experience is part of the paid
+ * promise — plus it's the only variant that needs a real GPU, so
+ * pairing the gate with the hardware reality keeps the funnel honest.
+ */
+requires_pro: boolean, };

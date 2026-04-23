@@ -1,8 +1,13 @@
+import { useEffect, useState } from 'react';
+import { Mail } from 'lucide-react';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
+import { Input } from '@/components/common/Input';
 import { useSettings } from '@/state/settings';
 import { cn } from '@/lib/cn';
+import { invoke } from '@/lib/ipc';
 import { previewProfile, SOUND_PROFILES, type SoundProfileId } from '@/design/sounds';
 
 const ACCENTS = ['teal', 'amber', 'violet', 'rose', 'cyan', 'lime'] as const;
@@ -150,7 +155,7 @@ export function GeneralSettings() {
           </Row>
         </Card>
 
-        <Card title="Updates">
+        <Card title="App updates">
           <Row
             label="Check for updates automatically"
             description="Checks the update feed on launch and shows a toast if a newer version is available. No auto-install — you always click Install."
@@ -161,7 +166,156 @@ export function GeneralSettings() {
             />
           </Row>
         </Card>
+
+        <ReleaseEmailCard
+          current={(g.releases_email as string | null | undefined) ?? null}
+          onSubscribe={(email) => void update('releases_email', email)}
+        />
       </div>
     </div>
+  );
+}
+
+/**
+ * Release-email subscription card.
+ *
+ * Opt-in list for the short release-announcement mail we send when a new
+ * version ships. The server (utterbar.com) owns the double-opt-in flow
+ * (confirmation mail + one-click unsubscribe), so this surface deliberately
+ * does NOT track "confirmed vs pending" — we just show the verbatim
+ * `message` the server returns and record the email locally so the UI
+ * knows the user has opted in across restarts. Unsubscribing happens via
+ * the link in every release mail, not here.
+ *
+ * States:
+ *   • Closed, no email on file — toggle off, no inputs.
+ *   • Open, fresh — toggle on, email input + Subscribe button.
+ *   • Submitted — server's verbatim message under the input.
+ *   • Subscribed — read-only "Subscribed as X" line with a change button.
+ */
+function ReleaseEmailCard({
+  current,
+  onSubscribe,
+}: {
+  current: string | null;
+  onSubscribe: (email: string | null) => void;
+}) {
+  const [enabled, setEnabled] = useState<boolean>(Boolean(current));
+  const [email, setEmail] = useState<string>(current ?? '');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
+  // Keep local state synced when the underlying setting changes (e.g. reset,
+  // import of settings, cross-window update). Without this the card stays
+  // on stale values after the store rehydrates.
+  useEffect(() => {
+    setEnabled(Boolean(current));
+    setEmail(current ?? '');
+  }, [current]);
+
+  async function submit() {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setStatus({ tone: 'err', text: 'Enter your email to subscribe.' });
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const msg = await invoke<string>('subscribe_to_release_updates', { email: trimmed });
+      // Persist locally so the card renders "subscribed" on next load — the
+      // confirmation handshake is a server concern so we treat a successful
+      // POST as "the user has opted in as far as this app knows".
+      onSubscribe(trimmed);
+      setStatus({ tone: 'ok', text: msg });
+    } catch (e) {
+      const env = e as { kind?: string; code?: string; message?: string };
+      setStatus({
+        tone: 'err',
+        text: env?.message ?? 'Could not reach the server. Try again in a moment.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggle(next: boolean) {
+    setEnabled(next);
+    if (!next) {
+      // Local opt-out only — the server list is authoritative and the user
+      // can fully unsubscribe via the link in any release mail. Clearing
+      // the local hint just hides the subscribed state in this UI.
+      onSubscribe(null);
+      setStatus(null);
+    }
+  }
+
+  const subscribed = Boolean(current) && current === email.trim();
+
+  return (
+    <Card
+      title="Release updates"
+      description="Get a short email when a new Utterbar version ships — what's new, how to update, nothing else. Unsubscribe in one click from any release mail."
+    >
+      <Row
+        label="Email me when there's a new release"
+        description="We send at most one mail per release. Your address stays on the server's list only; we never share it."
+      >
+        <Toggle checked={enabled} onChange={toggle} />
+      </Row>
+      {enabled && (
+        <div className="border-t border-border-soft/70 pt-4">
+          {subscribed ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 text-[13px] text-fg-hi">
+                <Mail className="h-4 w-4 text-accent shrink-0" />
+                <span className="truncate">Subscribed as {current}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmail('')}
+                className="ub-btn ub-btn-plain !py-[0.4rem] !text-[12px] shrink-0"
+              >
+                Change email
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted shrink-0" />
+              <Input
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                disabled={busy}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !busy) void submit();
+                }}
+                className="flex-1"
+                autoComplete="email"
+              />
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={busy || email.trim().length === 0}
+                className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] shrink-0"
+              >
+                {busy ? 'Sending…' : 'Subscribe'}
+              </button>
+            </div>
+          )}
+          {status && (
+            <p
+              className={cn(
+                'mt-2 text-[12px] leading-relaxed',
+                status.tone === 'ok' ? 'text-accent' : 'text-rose-400',
+              )}
+            >
+              {status.text}
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

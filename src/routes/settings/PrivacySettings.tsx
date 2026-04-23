@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
+import { ProNudge } from '@/components/common/ProNudge';
 import { Toggle } from '@/components/common/Toggle';
 import { invoke } from '@/lib/ipc';
+import { useLicence, isPro } from '@/state/licence';
 import { useSettings } from '@/state/settings';
 
 type DataPaths = {
@@ -17,6 +19,7 @@ type DataPaths = {
 export function PrivacySettings() {
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
+  const licenceStatus = useLicence((x) => x.status);
   const [paths, setPaths] = useState<DataPaths | null>(null);
 
   useEffect(() => {
@@ -24,6 +27,7 @@ export function PrivacySettings() {
   }, []);
 
   if (!s) return null;
+  const pro = isPro(licenceStatus);
   // PrivacySettings is typed end-to-end via `@/generated/PrivacySettings`, but this
   // screen intentionally drives every field through a generic `update(key, value)`
   // helper so the JSX stays flat. Cast once here to a loose index so the per-field
@@ -69,8 +73,20 @@ export function PrivacySettings() {
             label="Save recordings"
             description="Keep the WAV of each dictation on disk so you can re-play or re-transcribe it later. Files live under your Recordings folder and are automatically pruned after the retention window below."
           >
-            <Toggle checked={Boolean(p.retain_audio)} onChange={(v) => void update('retain_audio', v)} />
+            <Toggle
+              checked={pro && Boolean(p.retain_audio)}
+              onChange={(v) => void update('retain_audio', v)}
+              disabled={!pro}
+            />
           </Row>
+          {!pro && (
+            <ProNudge
+              feature="Audio retention"
+              description="Keep a local WAV of every dictation so you can re-listen or re-transcribe it later. Stored on your disk only — never uploaded."
+              dense
+              className="mt-1"
+            />
+          )}
           <Row
             label="Delete recordings after"
             description="Older WAVs are cleaned up automatically on each new dictation, so the recordings folder doesn't balloon."
@@ -81,7 +97,7 @@ export function PrivacySettings() {
                 min={1}
                 max={90}
                 step={1}
-                disabled={!p.retain_audio}
+                disabled={!pro || !p.retain_audio}
                 value={Number(p.retain_audio_days ?? 14)}
                 onChange={(e) => void update('retain_audio_days', Number(e.target.value))}
                 className="w-40"

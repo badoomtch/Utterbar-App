@@ -123,6 +123,7 @@ fn main() {
             commands::models::install_model,
             commands::models::remove_model,
             commands::models::model_status,
+            commands::models::asr_runtime_status,
             // shortcuts
             commands::shortcuts::list_shortcuts,
             commands::shortcuts::bind_shortcut,
@@ -157,6 +158,8 @@ fn main() {
             // updater (no-op stubs until signing is wired)
             commands::updater::check_update,
             commands::updater::install_update,
+            // release-email subscription
+            commands::updates::subscribe_to_release_updates,
             // diagnostics
             commands::diagnostics::get_diagnostics,
             commands::diagnostics::probe_gpu,

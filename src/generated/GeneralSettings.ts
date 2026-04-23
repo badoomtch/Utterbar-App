@@ -40,4 +40,14 @@ larger_focus_rings: boolean,
  * have to parse content through a semi-transparent blur. Cheap perf win
  * on older integrated GPUs too.
  */
-reduce_transparency: boolean, notifications_enabled: boolean, bar_size: BarSize, bar_visibility: BarVisibility, bar_outline: boolean, };
+reduce_transparency: boolean, notifications_enabled: boolean, bar_size: BarSize, bar_visibility: BarVisibility, bar_outline: boolean, 
+/**
+ * Email the user subscribed with for release-announcement mail, if any.
+ * `None` means the user hasn't opted in. When `Some`, the Settings →
+ * General UI shows a "subscribed" state. We keep the email locally so the
+ * toggle can round-trip across restarts without re-prompting; the server
+ * is the authoritative list (via `update_subscribers` + confirmation mail)
+ * and one-click unsubscribe lives on the server too. Serde-defaulted so
+ * older settings.json files upgrade cleanly.
+ */
+releases_email: string | null, };

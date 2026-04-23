@@ -10,11 +10,17 @@ import { Check, Copy, FileText, Search, Sparkles, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { PageHeader } from '@/components/common/PageHeader';
+import { ProNudge } from '@/components/common/ProNudge';
 import { Select } from '@/components/common/Select';
 import { cn } from '@/lib/cn';
 import { invoke } from '@/lib/ipc';
 import { formatDuration } from '@/lib/format';
+import { useLicence, isPro } from '@/state/licence';
 import { useModes } from '@/state/modes';
+
+// Mirrors FREE_HISTORY_CAP in src-tauri/src/util/gating.rs. Display-only —
+// the backend truncates the list, this is just for the footnote copy.
+const FREE_HISTORY_CAP = 100;
 
 type HistoryEntry = {
   id: string;
@@ -144,6 +150,9 @@ export function HistoryRoute() {
   // Group entries by calendar day so we can render sticky date eyebrows.
   // `entries` is already sorted newest-first by the backend, so we just fold
   // in order and push into buckets keyed by the day label.
+  const licenceStatus = useLicence((s) => s.status);
+  const pro = isPro(licenceStatus);
+
   const grouped = useMemo(() => {
     const out: { key: string; label: string; items: HistoryEntry[] }[] = [];
     let current: (typeof out)[number] | null = null;
@@ -195,6 +204,15 @@ export function HistoryRoute() {
                 Press your hotkey to start dictating — transcripts will appear here,
                 stored only on this device.
               </div>
+            </div>
+          )}
+          {!pro && entries.length >= FREE_HISTORY_CAP && (
+            <div className="border-t border-border-soft/40 px-5 pt-4 pb-5">
+              <ProNudge
+                feature="Full history"
+                description={`Free shows your most recent ${FREE_HISTORY_CAP} dictations. Pro shows everything — the older entries are still on disk and reappear the moment you activate.`}
+                dense
+              />
             </div>
           )}
           {grouped.map((group) => (
@@ -323,20 +341,29 @@ export function HistoryRoute() {
                 </button>
               </div>
 
-              <div className="mt-5 flex items-center gap-2 rounded-input bg-bg-2 p-2">
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
-                <span className="text-[11px] text-muted">Reprocess as</span>
-                <div className="flex-1">
-                  <Select
-                    value={reprocessMode}
-                    onChange={setReprocessMode}
-                    options={modes.map((m) => ({ value: m.id, label: m.name }))}
-                  />
+              {pro ? (
+                <div className="mt-5 flex items-center gap-2 rounded-input bg-bg-2 p-2">
+                  <Sparkles className="h-3.5 w-3.5 text-accent" />
+                  <span className="text-[11px] text-muted">Reprocess as</span>
+                  <div className="flex-1">
+                    <Select
+                      value={reprocessMode}
+                      onChange={setReprocessMode}
+                      options={modes.map((m) => ({ value: m.id, label: m.name }))}
+                    />
+                  </div>
+                  <Button variant="ghost" size="sm" noLed onClick={() => void reprocess()}>
+                    Run
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" noLed onClick={() => void reprocess()}>
-                  Run
-                </Button>
-              </div>
+              ) : (
+                <ProNudge
+                  feature="Re-transcribe"
+                  description="Run any stored transcript back through a different mode — swap formatting, try a different template — without recording again."
+                  dense
+                  className="mt-5"
+                />
+              )}
 
               <Block
                 label="Raw transcript"
