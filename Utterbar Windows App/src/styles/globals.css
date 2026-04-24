@@ -22,6 +22,13 @@
   body,
   #root {
     height: 100%;
+    /* Kill the document-level scrollbars entirely. MainShell and the
+     * floating-window roots manage their own overflow; a stray document
+     * scrollbar was appearing behind the main-pane scrollbar and scrolling
+     * the left-nav (the aside sat inside the doc scroll region). Every
+     * screen we ship has its own internal scroll container, so nothing
+     * legitimately needs a window-level scrollbar. */
+    overflow: hidden;
   }
 
   html {

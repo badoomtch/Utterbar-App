@@ -452,11 +452,17 @@ export function FloatingBar() {
           scale:   { type: 'spring', stiffness: 460, damping: 28, mass: 0.7 },
           opacity: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
           y:       { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
-          // Layout owns the expand/collapse width transition. Dragging
-          // holds `expanded` high for the full drag cycle, and on drop the
-          // 220 ms hover-grace delays the collapse so the bar eases back
-          // to its closed size on a spring rather than snapping shut.
-          layout:  { type: 'spring', stiffness: 380, damping: 34, mass: 0.85 },
+          // Layout owns the expand/collapse width transition. A predictable
+          // duration-based tween is used instead of a spring here because
+          // the inner-content AnimatePresence runs on its own timeline —
+          // a spring "settle" at the end of the layout animation meant
+          // the icons had already finished fading out while the pill
+          // was still wobbling to a stop, which reads as a staggered,
+          // three-stage close. A 280 ms tween finishes at a known instant
+          // so the inner mode="wait" exit (180 ms) completes just inside
+          // the window, and the eye sees one smooth close rather than
+          // sequential stages.
+          layout:  { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
         }}
         style={{
           willChange: 'transform, width',
@@ -496,14 +502,33 @@ export function FloatingBar() {
           //   • Expanded: swap the hairline for an inner accent rim —
           //     that's where the "I'm live" glow lives — plus a still-
           //     modest outer shadow. No stacked offsets.
-          //   • Dragging: inner rim brightens + an outer accent halo so
-          //     the lifted pill has a visible aura, matching the SVG
-          //     reference's "glow-while-held" beat.
+          //   • Dragging: a solid-accent outer ring painted flush against
+          //     the existing 2px border (box-shadow with spread=2 and no
+          //     blur) so the whole pill's perimeter reads as cyan, plus
+          //     an outer accent halo. Box-shadow is on the GPU compositor
+          //     so the ring becomes visible instantly even while Tauri's
+          //     startDragging() has stalled the webview's main-DOM paint.
+          //     The inner-rim glow comes through underneath for depth.
           boxShadow: dragging
-            ? 'inset 0 0 22px color-mix(in oklab, var(--accent) 32%, transparent), 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent), 0 6px 18px rgba(0,0,0,0.28)'
+            ? [
+                // Outer accent ring, flush against the pill border (spread=2
+                // matches border-2, no blur = sharp edge).
+                '0 0 0 2px var(--accent)',
+                // Soft halo outside that ring.
+                '0 0 0 6px color-mix(in oklab, var(--accent) 22%, transparent)',
+                // Inner cyan glow reinforces the "lifted + charged" read.
+                'inset 0 0 22px color-mix(in oklab, var(--accent) 32%, transparent)',
+                // Ground shadow so it still reads as sitting above the
+                // desktop rather than floating in the void.
+                '0 6px 18px rgba(0,0,0,0.28)',
+              ].join(', ')
             : expanded
               ? 'inset 0 0 20px color-mix(in oklab, var(--accent) 14%, transparent), 0 3px 10px rgba(0,0,0,0.26)'
               : '0 2px 8px rgba(0,0,0,0.24)',
+          // Smooth the ring on/off so it doesn't pop. GPU opacity/shadow
+          // transitions survive the Tauri drag paint-stall because
+          // compositor-level changes don't require main-DOM repaint.
+          transition: 'box-shadow 120ms ease-out',
         }}
         className={cn(
           // Height scales with size preference. Standard is 52px (prototype
@@ -536,30 +561,6 @@ export function FloatingBar() {
               : 'min-w-[210px]',
         )}
       >
-        {/* Drag-accent ring. Absolutely positioned INSIDE the pill, own
-            compositor layer (`transform: translateZ(0)` + `will-change:
-            opacity`). Opacity toggles based on `dragging`; because a GPU
-            opacity change doesn't require the webview's main-paint loop,
-            the accent ring becomes visible the instant drag starts even
-            though `startDragging()` has handed the window move to the OS
-            and the webview's main paint is stalled. The ring sits just
-            inside the existing white/ink border so the user sees the
-            default outline unchanged, with a bright accent ring lit up
-            alongside it — reads as "the pill is charged" rather than
-            "border swapped colour". pointer-events:none so it never
-            intercepts clicks on the buttons. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-full border-2"
-          style={{
-            borderColor: 'var(--accent)',
-            opacity: dragging ? 1 : 0,
-            transition: 'opacity 90ms ease-out',
-            willChange: 'opacity',
-            transform: 'translateZ(0)',
-            zIndex: 1,
-          }}
-        />
         {/* LEFT — always visible. Waveform-only glyph (the pill body + hole-
             punch from the full logo are deliberately dropped here: the
             floating bar already IS a pill, and rendering a miniature pill
@@ -603,27 +604,38 @@ export function FloatingBar() {
         </div>
 
         {/* RIGHT — expanded content. AnimatePresence gates mount; the outer
-            motion.div's `layout` spring handles width. `mode="wait"` keeps
-            only one right-side tree alive at a time so icons never straddle
-            two widths during the transition. Exit is deliberately LONGER
-            than the mount (opacity 180ms + scale+translate) so the icons
-            visibly ease out rather than being clipped flat by the outer
-            pill's simultaneously-closing width spring. Without the scale/x
-            terms the pill's narrowing edge chews through the icons before
-            the opacity has had time to drop — reads as "they just vanished"
-            when what's really happening is they're being masked by an
-            `overflow-hidden` container that shrinks faster than they fade. */}
-        <AnimatePresence initial={false} mode="wait">
+            motion.div's `layout` tween handles width in a fixed 280ms
+            window. The inner timings are deliberately nested inside that
+            window:
+              - Exit (close): 180ms — finishes while the pill is still
+                ~65% of the way through its width closure, so the
+                overflow-hidden mask never catches icons that are still
+                fully opaque. The eye reads a single smooth close.
+              - Enter (open): starts 80ms after the expanded state flips
+                (via `delay`), then runs 200ms — so the pill widens first
+                and icons fade in against the already-growing pill rather
+                than appearing in a narrow stub. Total enter completes
+                just inside the 280ms layout window.
+            `mode="wait"` is intentionally NOT used here: we want the
+            exit animation to run concurrently with the layout closure,
+            not serially before it, otherwise the two finish in sequence
+            and read as two separate stages. */}
+        <AnimatePresence initial={false}>
           {expanded && (
             <motion.div
               key={`expanded-${phase.kind === 'listening' ? 'rec' : 'idle'}`}
-              initial={{ opacity: 0, x: 8, scale: 0.96 }}
+              initial={{ opacity: 0, x: 8, scale: 0.97 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 6, scale: 0.94 }}
+              exit={{ opacity: 0, x: 4, scale: 0.97 }}
               transition={{
-                opacity: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
-                x:       { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
-                scale:   { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+                opacity: { duration: 0.2, delay: 0.08, ease: [0.22, 1, 0.36, 1] },
+                x:       { duration: 0.2, delay: 0.08, ease: [0.22, 1, 0.36, 1] },
+                scale:   { duration: 0.2, delay: 0.08, ease: [0.22, 1, 0.36, 1] },
+                // Exit is unconditionally fast + no delay so the content
+                // is gone before the outer pill finishes closing, and the
+                // scale/x on exit is deliberately subtle so icons read as
+                // fading into the pill rather than flying off.
+                exit: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
               }}
               className="flex flex-1 items-center justify-end gap-2 overflow-hidden whitespace-nowrap pl-1"
             >

@@ -6,7 +6,7 @@ import {
   isToday,
   isYesterday,
 } from 'date-fns';
-import { Check, Copy, FileText, Search, Sparkles, Trash2 } from 'lucide-react';
+import { Check, Copy, FileText, Search, Sparkles, Trash2, X } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -39,26 +39,22 @@ type HistoryEntry = {
 /**
  * History — the permanent record.
  *
- * v2 layout (2026-04): the earlier version was cramped — `max-w-6xl` capped
- * the content at 1152 px, rows sat at `py-3` with no day grouping, and the
- * detail pane was a 460 px sliver that pushed code blocks into two-line
- * wraps at any serious transcript length. This rewrite:
+ * v3 layout (2026-04-24): single column. The earlier two-column grid with a
+ * fixed 540 px detail pane squeezed the list down to ~300 px on a normal
+ * window, and then the ProNudge / empty-state cards inside it wrapped to
+ * one-word-per-line — genuinely unreadable. v0.6.1's release notes
+ * over-claimed a fix here; v0.6.3 actually lands the rewrite.
  *
- *   • widens the container to `max-w-[1560px]` so on a 1440/1600 px window
- *     the grid actually breathes;
- *   • groups rows by day with a sticky date eyebrow (Today / Yesterday /
- *     explicit date), matching the `.ub-eyebrow` vocabulary used elsewhere;
- *   • bumps row padding to `py-4` and the transcript snippet to 14 px so
- *     the list reads as content, not a log table;
- *   • switches timestamps to a relative format ("3m ago", "Yesterday 14:02")
- *     for the primary label and keeps the absolute time in a hover title;
- *   • widens the detail pane to 540 px with more internal padding, and
- *     promotes Raw / Processed blocks to proper cards with eyebrow headers.
+ *   • ONE full-width list. Each entry is a card: transcript first, metadata
+ *     second, inline copy affordance on hover.
+ *   • Clicking a row opens the detail in a centre-screen modal. No permanent
+ *     side pane that eats layout real estate when nothing is selected.
+ *   • The Pro nudge is the first full-width card, not a half-width empty
+ *     state — so it reads as a clear pitch rather than a cramped nag.
  *
  * Per DESIGN_SYSTEM.md §4, panels sit on bg-1 with NO border / shadow;
- * separation comes from tone. The selected row still uses `.ub-item-active`
- * (2 px accent rail + bg-2 lift) so the active-state vocabulary stays
- * consistent with the settings tabs.
+ * separation comes from tone. The modal is a centre overlay on a
+ * semi-transparent bg-0 scrim, matching the app's UpgradeModal convention.
  */
 export function HistoryRoute() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
@@ -101,8 +97,8 @@ export function HistoryRoute() {
   // Inline row copy. Copies whichever text the row is actually displaying
   // (processed if it exists, otherwise raw — matches the snippet line below)
   // so the user gets exactly what they see. The event is stopped from
-  // propagating so we don't also flip selection in the detail pane when
-  // someone just wants the text on their clipboard.
+  // propagating so we don't also open the detail modal when someone just
+  // wants the text on their clipboard.
   const copyRow = async (e: React.MouseEvent, entry: HistoryEntry) => {
     e.stopPropagation();
     const text = entry.processed_text || entry.raw_text;
@@ -138,14 +134,17 @@ export function HistoryRoute() {
     await reload(search);
   };
 
-  const parsedContext = (() => {
-    if (!selected?.context_payload) return null;
-    try {
-      return JSON.parse(selected.context_payload) as Record<string, string | null>;
-    } catch {
-      return null;
-    }
-  })();
+  // ESC to close the detail modal — standard dismissal convention the user
+  // will try first. Scoped to the document so typing in the search field
+  // above doesn't get intercepted.
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
 
   // Group entries by calendar day so we can render sticky date eyebrows.
   // `entries` is already sorted newest-first by the backend, so we just fold
@@ -171,9 +170,10 @@ export function HistoryRoute() {
   return (
     // Outer padding steps down on narrower widths so the page doesn't feel
     // like it's been force-fed 40 px of empty gutter when the user has pulled
-    // the window in to pair it with a video/editor. The max-w cap above
-    // prevents it from sprawling at ultrawide.
-    <div className="mx-auto flex h-full max-w-[1560px] flex-col px-6 pb-8 pt-6 md:px-8 md:pb-10 md:pt-8 lg:px-10">
+    // the window in to pair it with a video/editor. The max-w cap prevents
+    // sprawl at ultrawide — entries stay readable rather than stretching
+    // to a 2000 px single line.
+    <div className="mx-auto flex h-full max-w-[1100px] flex-col px-6 pb-8 pt-6 md:px-8 md:pb-10 md:pt-8 lg:px-10">
       <PageHeader
         title="History"
         subtitle="Every dictation, stored locally. Reprocess, export, or wipe at any time."
@@ -195,236 +195,238 @@ export function HistoryRoute() {
         </span>
       </div>
 
-      {/* `min-h-0` is the Tailwind-flavoured fix for the flex-1 + overflow
-          footgun: without it, the grid's min-content height would fight
-          `overflow-hidden` and spill children out of the viewport. */}
-      <div className="mt-6 grid min-h-0 flex-1 gap-6 overflow-hidden lg:grid-cols-[minmax(0,1fr)_540px]">
-        {/* List — scrollable, bg-1, day-grouped. Rows have more vertical
-            breathing room (py-4) and bigger transcript type (14 px) to make
-            the page read as content rather than a log. */}
-        <div className="overflow-y-auto rounded-card bg-bg-1">
-          {entries.length === 0 && (
-            // Empty state differentiates "no results for this search" from
-            // "nothing recorded yet" — otherwise a user searching for a term
-            // that doesn't exist sees the welcome copy and thinks their
-            // history has been wiped. Copy stays short either way; the full
-            // "how to dictate" story lives in onboarding.
-            <div className="flex h-full flex-col items-center justify-center gap-2 p-12 text-center">
-              <FileText className="h-8 w-8 text-fg-dim opacity-60" />
-              <div className="text-[14px] text-fg">
-                {search ? 'No matches' : 'No dictations yet'}
-              </div>
-              <div className="max-w-xs text-[12px] text-muted">
-                {search
-                  ? 'No transcripts match your search. Try a shorter query or clear the filter.'
-                  : 'Press your hotkey (Ctrl+Space by default) to start dictating — transcripts will appear here, stored only on this device.'}
-              </div>
-            </div>
-          )}
-          {!pro && entries.length >= FREE_HISTORY_CAP && (
-            <div className="border-t border-border-soft/40 px-5 pt-4 pb-5">
-              <ProNudge
-                feature="Full history"
-                description={`Free shows your most recent ${FREE_HISTORY_CAP} dictations. Pro shows everything — the older entries are still on disk and reappear the moment you activate.`}
-                dense
-              />
-            </div>
-          )}
-          {grouped.map((group) => (
-            <section key={group.key} className="pb-2">
-              {/* Sticky date eyebrow. `sticky top-0` keeps it pinned while the
-                  user scrolls through a long day's worth of dictations, and
-                  `bg-bg-1` matches the panel so it occludes rows below it.
-                  Drop-shadow is soft so it doesn't turn into a hard ledge. */}
-              <div className="sticky top-0 z-10 flex items-center gap-3 bg-bg-1/95 px-5 py-2 backdrop-blur-sm">
-                <span className="ub-eyebrow">{group.label}</span>
-                <span className="font-mono text-[10px] text-fg-dim">
-                  {group.items.length}
-                </span>
-              </div>
-              <ul>
-                {group.items.map((e) => {
-                  const active = selected?.id === e.id;
-                  const created = new Date(e.created_at);
-                  return (
-                    <li
-                      key={e.id}
-                      onClick={() => setSelected(e)}
-                      className={cn(
-                        'group relative cursor-pointer px-5 py-4 transition-colors',
-                        'border-t border-border-soft/40 first:border-t-0',
-                        active ? 'bg-bg-2' : 'hover:bg-bg-2/60',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute left-0 top-3 bottom-3 w-[2px] rounded-r-full transition-opacity',
-                          active ? 'bg-accent opacity-100' : 'opacity-0',
-                        )}
-                        aria-hidden
-                      />
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          {/* Transcript first — this is what the user is
-                              actually scanning for. Line-clamped to 2 so the
-                              row height stays predictable. */}
-                          <div className="line-clamp-2 text-[14px] leading-[1.45] text-fg">
-                            {e.processed_text || e.raw_text || (
-                              <span className="italic text-muted">Empty transcript</span>
-                            )}
-                          </div>
-                          {/* Metadata row — mode · duration · app (if any). */}
-                          <div className="mt-2 flex items-center gap-2 font-mono text-[11px] text-fg-dim">
-                            <span
-                              className="truncate"
-                              title={created.toLocaleString()}
-                            >
-                              {formatDistanceToNowStrict(created, { addSuffix: true })}
-                            </span>
-                            <span aria-hidden>·</span>
-                            <span className="truncate">{e.mode_name_snapshot}</span>
-                            <span aria-hidden>·</span>
-                            <span>{formatDuration(e.audio_duration_ms)}</span>
-                            {e.app_exe && (
-                              <>
-                                <span aria-hidden>·</span>
-                                <span className="truncate">{e.app_exe}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        {/* Inline copy affordance. Lives on every row so the
-                            user doesn't have to click through to the detail
-                            pane — 80% of the time they just want the text
-                            they can see. Flashes ✓ for 1.2 s per copiedId. */}
-                        <button
-                          onClick={(ev) => void copyRow(ev, e)}
-                          onPointerDown={(ev) => ev.stopPropagation()}
-                          title="Copy"
-                          aria-label="Copy transcript"
-                          className={cn(
-                            'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] transition-all',
-                            'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-                            copiedId === e.id
-                              ? 'bg-accent/15 text-accent opacity-100'
-                              : 'bg-bg-1 text-muted hover:bg-bg-2 hover:text-fg-hi',
-                          )}
-                        >
-                          {copiedId === e.id ? (
-                            <Check className="h-3.5 w-3.5" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+      {/* The Pro nudge lives above the list as a full-width card when the
+          user is Free and has hit the cap. Before v0.6.3 this sat INSIDE
+          the list column and, on narrow windows, wrapped one word per line.
+          Hoisting it out is the single biggest readability win on the page. */}
+      {!pro && entries.length >= FREE_HISTORY_CAP && (
+        <div className="mt-6">
+          <ProNudge
+            feature="Full history"
+            description={`Free shows your most recent ${FREE_HISTORY_CAP} dictations. Pro shows everything — the older entries are still on disk and reappear the moment you activate.`}
+          />
         </div>
+      )}
 
-        {/* Detail pane — wider (540 px) with generous padding so Raw /
-            Processed blocks don't wrap every line. On narrow widths (below lg)
-            we stack the grid, and the empty "Nothing selected" placeholder
-            below the list would waste a whole viewport — so we hide the aside
-            entirely when there's nothing to show. Once the user picks an entry
-            it reappears and the list scrolls alongside it. */}
-        <aside
-          className={cn(
-            'overflow-y-auto rounded-card bg-bg-1 p-7',
-            !selected && 'hidden lg:block',
-          )}
-        >
-          {selected ? (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[11px] text-fg-dim">
-                    {format(new Date(selected.created_at), 'EEEE, d MMM yyyy · HH:mm')}
-                  </div>
-                  {/* Weight 700 — font-semibold (600) is forbidden per §2.3. */}
-                  <div className="mt-1.5 truncate text-[16px] font-bold text-fg-hi">
-                    {selected.mode_name_snapshot}
-                  </div>
-                  {selected.app_exe && (
-                    <div className="mt-1 truncate text-[11px] text-muted">
-                      {selected.app_exe}
-                      {selected.app_title ? ` · ${selected.app_title}` : ''}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => void remove(selected.id)}
-                  title="Delete"
-                  aria-label="Delete entry"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-fg-dim transition-colors hover:bg-bg-2 hover:text-rose"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-
-              {pro ? (
-                <div className="mt-5 flex items-center gap-2 rounded-input bg-bg-2 p-2">
-                  <Sparkles className="h-3.5 w-3.5 text-accent" />
-                  <span className="text-[11px] text-muted">Reprocess as</span>
-                  <div className="flex-1">
-                    <Select
-                      value={reprocessMode}
-                      onChange={setReprocessMode}
-                      options={modes.map((m) => ({ value: m.id, label: m.name }))}
-                    />
-                  </div>
-                  <Button variant="ghost" size="sm" noLed onClick={() => void reprocess()}>
-                    Run
-                  </Button>
-                </div>
-              ) : (
-                <ProNudge
-                  feature="Re-transcribe"
-                  description="Run any stored transcript back through a different mode — swap formatting, try a different template — without recording again."
-                  dense
-                  className="mt-5"
-                />
-              )}
-
-              <Block
-                label="Raw transcript"
-                text={selected.raw_text}
-                onCopy={() => void copy(selected.raw_text)}
-              />
-              <Block
-                label="Processed"
-                text={selected.processed_text}
-                onCopy={() => void copy(selected.processed_text)}
-              />
-
-              {parsedContext && (
-                <details className="mt-5 rounded-input bg-bg-2 p-3 text-[12px]">
-                  <summary className="cursor-pointer font-medium text-fg-hi">
-                    Context inspection
-                  </summary>
-                  <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] text-muted">
-                    {JSON.stringify(parsedContext, null, 2)}
-                  </pre>
-                </details>
-              )}
-            </>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-              <FileText className="h-8 w-8 text-fg-dim opacity-60" />
-              <div className="text-[13px] text-fg">Nothing selected</div>
-              <div className="max-w-xs text-[12px] text-muted">
-                Pick a dictation on the left to inspect its raw, processed, and
-                context data.
-              </div>
+      {/* List — single column, full width, scrollable. `min-h-0` is the
+          Tailwind-flavoured fix for the flex-1 + overflow footgun: without
+          it, min-content height would fight `overflow-hidden` and spill
+          children out of the viewport. */}
+      <div className="mt-6 min-h-0 flex-1 overflow-y-auto rounded-card bg-bg-1">
+        {entries.length === 0 && (
+          // Empty state differentiates "no results for this search" from
+          // "nothing recorded yet" — otherwise a user searching for a term
+          // that doesn't exist sees the welcome copy and thinks their
+          // history has been wiped. Copy stays short either way; the full
+          // "how to dictate" story lives in onboarding.
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-12 text-center">
+            <FileText className="h-8 w-8 text-fg-dim opacity-60" />
+            <div className="text-[14px] text-fg">
+              {search ? 'No matches' : 'No dictations yet'}
             </div>
-          )}
-        </aside>
+            <div className="max-w-xs text-[12px] text-muted">
+              {search
+                ? 'No transcripts match your search. Try a shorter query or clear the filter.'
+                : 'Press your hotkey (Ctrl+Space by default) to start dictating — transcripts will appear here, stored only on this device.'}
+            </div>
+          </div>
+        )}
+        {grouped.map((group) => (
+          <section key={group.key} className="pb-2">
+            {/* Sticky date eyebrow. `sticky top-0` keeps it pinned while the
+                user scrolls through a long day's worth of dictations, and
+                `bg-bg-1` matches the panel so it occludes rows below it. */}
+            <div className="sticky top-0 z-10 flex items-center gap-3 bg-bg-1/95 px-5 py-2 backdrop-blur-sm">
+              <span className="ub-eyebrow">{group.label}</span>
+              <span className="font-mono text-[10px] text-fg-dim">
+                {group.items.length}
+              </span>
+            </div>
+            <ul>
+              {group.items.map((e) => {
+                const created = new Date(e.created_at);
+                return (
+                  <li
+                    key={e.id}
+                    onClick={() => setSelected(e)}
+                    className={cn(
+                      'group relative cursor-pointer px-5 py-4 transition-colors',
+                      'border-t border-border-soft/40 first:border-t-0',
+                      'hover:bg-bg-2/60',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        {/* Transcript first — this is what the user is
+                            actually scanning for. Line-clamped to 2 so the
+                            row height stays predictable. */}
+                        <div className="line-clamp-2 text-[14px] leading-[1.45] text-fg">
+                          {e.processed_text || e.raw_text || (
+                            <span className="italic text-muted">Empty transcript</span>
+                          )}
+                        </div>
+                        {/* Metadata row — time · mode · duration · app. */}
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-fg-dim">
+                          <span title={created.toLocaleString()}>
+                            {formatDistanceToNowStrict(created, { addSuffix: true })}
+                          </span>
+                          <span aria-hidden>·</span>
+                          <span className="truncate">{e.mode_name_snapshot}</span>
+                          <span aria-hidden>·</span>
+                          <span>{formatDuration(e.audio_duration_ms)}</span>
+                          {e.app_exe && (
+                            <>
+                              <span aria-hidden>·</span>
+                              <span className="truncate">{e.app_exe}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {/* Inline copy affordance. Lives on every row so the
+                          user doesn't have to open detail — 80% of the time
+                          they just want the text they can see. */}
+                      <button
+                        onClick={(ev) => void copyRow(ev, e)}
+                        onPointerDown={(ev) => ev.stopPropagation()}
+                        title="Copy"
+                        aria-label="Copy transcript"
+                        className={cn(
+                          'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] transition-all',
+                          'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                          copiedId === e.id
+                            ? 'bg-accent/15 text-accent opacity-100'
+                            : 'bg-bg-1 text-muted hover:bg-bg-2 hover:text-fg-hi',
+                        )}
+                      >
+                        {copiedId === e.id ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
       </div>
+
+      {/* Detail modal. Centre-screen overlay, dismissed by ESC (wired
+          in a useEffect above), clicking outside, or the explicit close
+          button. Because it's modal and not a side pane, it works at ANY
+          window size — no more "list column collapses to 200 px". */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-bg-0/80 backdrop-blur-sm"
+          onClick={() => setSelected(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="relative max-h-[86vh] w-[min(720px,92vw)] overflow-y-auto rounded-card bg-bg-1 p-7"
+            // Stop click-outside-to-close from firing when the click lands
+            // inside the modal body.
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelected(null)}
+              aria-label="Close"
+              title="Close"
+              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-fg-dim transition-colors hover:bg-bg-2 hover:text-fg-hi"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-start justify-between gap-3 pr-10">
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-[11px] text-fg-dim">
+                  {format(new Date(selected.created_at), 'EEEE, d MMM yyyy · HH:mm')}
+                </div>
+                {/* Weight 700 — font-semibold (600) is forbidden per §2.3. */}
+                <div className="mt-1.5 truncate text-[16px] font-bold text-fg-hi">
+                  {selected.mode_name_snapshot}
+                </div>
+                {selected.app_exe && (
+                  <div className="mt-1 truncate text-[11px] text-muted">
+                    {selected.app_exe}
+                    {selected.app_title ? ` · ${selected.app_title}` : ''}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => void remove(selected.id)}
+                title="Delete"
+                aria-label="Delete entry"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-fg-dim transition-colors hover:bg-bg-2 hover:text-rose"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+
+            {pro ? (
+              <div className="mt-5 flex items-center gap-2 rounded-input bg-bg-2 p-2">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                <span className="text-[11px] text-muted">Reprocess as</span>
+                <div className="flex-1">
+                  <Select
+                    value={reprocessMode}
+                    onChange={setReprocessMode}
+                    options={modes.map((m) => ({ value: m.id, label: m.name }))}
+                  />
+                </div>
+                <Button variant="ghost" size="sm" noLed onClick={() => void reprocess()}>
+                  Run
+                </Button>
+              </div>
+            ) : (
+              <ProNudge
+                feature="Re-transcribe"
+                description="Run any stored transcript back through a different mode — swap formatting, try a different template — without recording again."
+                dense
+                className="mt-5"
+              />
+            )}
+
+            <Block
+              label="Raw transcript"
+              text={selected.raw_text}
+              onCopy={() => void copy(selected.raw_text)}
+            />
+            <Block
+              label="Processed"
+              text={selected.processed_text}
+              onCopy={() => void copy(selected.processed_text)}
+            />
+
+            {parsedContext(selected) && (
+              <details className="mt-5 rounded-input bg-bg-2 p-3 text-[12px]">
+                <summary className="cursor-pointer font-medium text-fg-hi">
+                  Context inspection
+                </summary>
+                <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] text-muted">
+                  {JSON.stringify(parsedContext(selected), null, 2)}
+                </pre>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** Safely parse the stored context JSON. Kept outside the component so the
+ *  modal can call it for both the `if` guard and the rendered body without
+ *  re-running the parse twice. */
+function parsedContext(e: HistoryEntry): Record<string, string | null> | null {
+  if (!e.context_payload) return null;
+  try {
+    return JSON.parse(e.context_payload) as Record<string, string | null>;
+  } catch {
+    return null;
+  }
 }
 
 /** Human-friendly day label. Today / Yesterday / weekday (this week) /
