@@ -19,16 +19,15 @@ export interface ProPrice {
 
 /**
  * Static offline fallback surfaced during the initial loading tick. Matches
- * the Rust fallback exactly so the modal opens with a price already baked
- * in rather than flashing a "loading" state — a one-frame "$29" that later
- * refines to "$29 / month" (if the server contract changes) reads cleaner
- * than a skeleton → number transition for a single line of copy.
+ * the Rust fallback exactly (see pricing.rs) so the modal opens with a
+ * price already baked in rather than flashing a "loading" state. Keep in
+ * lockstep with Stripe's live price — currently £39.99 GBP one-time.
  */
 const BOOTSTRAP_FALLBACK: ProPrice = {
-  amount_usd: 29,
-  currency: 'USD',
+  amount_usd: 39.99,
+  currency: 'GBP',
   period: 'one_time',
-  display: '$29',
+  display: '£39.99',
   source: 'fallback',
 };
 

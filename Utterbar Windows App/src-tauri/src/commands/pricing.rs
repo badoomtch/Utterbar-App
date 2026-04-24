@@ -47,16 +47,19 @@ pub struct ProPrice {
 }
 
 impl ProPrice {
-    /// Offline fallback. Launch price at v0.6 — keep this in sync with the
-    /// live `utterbar.com/pricing` page. If they diverge the checkout flow
-    /// still wins (the server is the source of truth), but the in-app modal
-    /// should never advertise a price lower than the real one.
+    /// Offline fallback. Keep this in sync with the live Stripe price
+    /// on `utterbar.com/pricing` — currently £39.99 GBP one-time. If
+    /// they diverge the checkout flow still wins (the server is the
+    /// source of truth), but the in-app modal must never advertise a
+    /// price lower than the real one. The `amount_usd` wire field is
+    /// named for legacy reasons; it carries the amount in whichever
+    /// currency `currency` specifies.
     fn fallback() -> Self {
         ProPrice {
-            amount_usd: 29.0,
-            currency: "USD".into(),
+            amount_usd: 39.99,
+            currency: "GBP".into(),
             period: "one_time".into(),
-            display: "$29".into(),
+            display: "£39.99".into(),
             source: "fallback".into(),
         }
     }

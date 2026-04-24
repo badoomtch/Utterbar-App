@@ -87,6 +87,32 @@ pub async fn start_recording(
 ) -> CmdResult<()> {
     tracing::info!(?device_id, "dictation::start_recording enter");
 
+    // Re-entry guard. Before v0.6.2, a single hotkey press could fire three
+    // concurrent invocations (one per webview receiving the broadcast
+    // `shortcut:triggered` event). All three armed their own capture stream
+    // and raced on sherpa-onnx's recognizer construction — reliably
+    // corrupting the heap (STATUS_HEAP_CORRUPTION, 0xC0000374). The
+    // frontend fan-out fix gates the broadcast; this CAS is defence in
+    // depth so a future frontend regression can't re-introduce the same
+    // crash. A concurrent second call returns a user-level error (the UI
+    // treats it as "still recording, ignore") — never continues into the
+    // capture arming path.
+    if state
+        .recording_in_progress
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::AcqRel,
+            std::sync::atomic::Ordering::Acquire,
+        )
+        .is_err()
+    {
+        tracing::warn!("start_recording rejected: another start is already in progress");
+        return Err(OrliqError::User {
+            message: "recording already in progress".into(),
+        });
+    }
+
     let settings = state.settings.snapshot().await;
 
     use crate::domain::settings::CaptureSource;
@@ -140,6 +166,9 @@ pub async fn start_recording(
             Err(e) => {
                 tracing::error!(error = %e, "audio.start_capture failed");
                 rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
+                state
+                    .recording_in_progress
+                    .store(false, std::sync::atomic::Ordering::Release);
                 set_phase(
                     &handle,
                     DictationPhase::Error {
@@ -167,6 +196,9 @@ pub async fn start_recording(
                 let _ = state.audio.stop_capture().await;
             }
             rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
+            state
+                .recording_in_progress
+                .store(false, std::sync::atomic::Ordering::Release);
             set_phase(
                 &handle,
                 DictationPhase::Error {
@@ -235,10 +267,26 @@ pub async fn stop_recording(
     let final_ = state.audio.stop_capture().await;
     let Some(mut final_) = final_ else {
         tracing::warn!("stop_recording called with no active recording");
+        // Clear the guard even on "no-op stop" — the post-v0.6.2 fan-out
+        // fix means this branch is only hit when a client explicitly
+        // double-taps the hotkey faster than Listening flips to Idle,
+        // but we still want the next genuine start to succeed without
+        // having to click "Reset" anywhere.
+        state
+            .recording_in_progress
+            .store(false, std::sync::atomic::Ordering::Release);
         return Err(OrliqError::User {
             message: "no active recording".into(),
         });
     };
+    // Capture drained — now we own the session. Release the guard so a
+    // user who starts a new dictation while transcription is still
+    // running isn't blocked. The orchestrator serialises work on its
+    // own side (see InferenceOrchestrator::ensure_loaded), so
+    // overlapping start-after-stop is safe from here.
+    state
+        .recording_in_progress
+        .store(false, std::sync::atomic::Ordering::Release);
     tracing::info!(
         samples = final_.pcm.len(),
         sample_rate = final_.sample_rate,
@@ -531,6 +579,13 @@ pub async fn stop_recording(
 #[tauri::command]
 pub async fn cancel_recording(handle: AppHandle, state: State<'_, Arc<AppState>>) -> CmdResult<()> {
     let _ = state.audio.stop_capture().await;
+    // Always release the re-entry guard — cancel is the user's "get me
+    // out of whatever state I'm in" command, and if we stranded the
+    // flag high they'd lose the ability to start the next recording
+    // without restarting the app.
+    state
+        .recording_in_progress
+        .store(false, std::sync::atomic::Ordering::Release);
     // Resume whatever was paused on start, even on cancel — the user expects their
     // music to pick back up as soon as they hit the cancel hotkey.
     {

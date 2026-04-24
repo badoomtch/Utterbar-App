@@ -1,6 +1,7 @@
 //! Central dependency container. Everything touching long-lived state lives on AppState.
 
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -45,6 +46,18 @@ pub struct AppState {
     pub text_inject: Arc<TextInjectService>,
     pub media: Arc<MediaService>,
     pub licence: Arc<LicenceService>,
+    /// Dictation re-entry guard. `start_recording` swaps this `false → true`
+    /// via a CAS; concurrent callers that lose the race bail early without
+    /// arming a second capture stream. Cleared by the single successful
+    /// `stop_recording` / cancel / error path that owns the active session.
+    ///
+    /// Before v0.6.2 a single hotkey press could fire `start_recording`
+    /// three times (once per Tauri webview receiving the broadcast event),
+    /// which then raced three capture streams + three recognizer builds
+    /// and reliably corrupted the heap (STATUS_HEAP_CORRUPTION 0xC0000374).
+    /// The frontend fan-out gate is the primary fix; this is defence in
+    /// depth so a future regression can't re-introduce the same crash.
+    pub recording_in_progress: AtomicBool,
     handle: RwLock<Option<AppHandle>>,
 }
 
@@ -116,6 +129,7 @@ impl AppState {
             text_inject,
             media,
             licence,
+            recording_in_progress: AtomicBool::new(false),
             handle: RwLock::new(None),
         })
     }

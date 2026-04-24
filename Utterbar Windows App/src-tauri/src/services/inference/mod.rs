@@ -49,21 +49,53 @@ impl InferenceOrchestrator {
     pub async fn ensure_loaded(&self, model_id: &str) -> Result<Arc<dyn AsrProvider>> {
         let desired = resolve_provider_string(&self.settings).await;
 
-        if let Some(active) = self.active.read().await.as_ref() {
+        // Single write lock around the whole check-then-build sequence.
+        //
+        // Before v0.6.2 this was a read-lock hit test followed by a
+        // separate write-lock build, which is a classic TOCTOU: two
+        // transcribe() calls arriving during a model swap could each
+        // (a) read the stale cache, (b) see it was invalid, (c) drop
+        // their read lock, (d) both acquire the write lock one after
+        // the other, and (e) both call into sherpa-onnx's native
+        // `TransducerRecognizer::new`. The DirectML provider's session
+        // construction touches global D3D12 device state, so two
+        // concurrent builds inside the same process would corrupt the
+        // ORT heap — reliably killing the app with
+        // STATUS_HEAP_CORRUPTION (0xC0000374).
+        //
+        // Holding a write lock for the whole sequence costs us some
+        // parallelism on the rare genuine model-swap case, but every
+        // other code path hits the fast-return inside the same lock
+        // with no contention worth measuring. The safety is worth it.
+        let mut guard = self.active.write().await;
+
+        if let Some(active) = guard.as_ref() {
             if active.provider.id() == model_id && active.provider_string == desired {
                 return Ok(active.provider.clone());
             }
         }
 
-        // Unload any currently-active recognizer before building a new one so we don't
-        // keep two sets of ONNX sessions resident in memory.
-        if let Some(prev) = self.active.write().await.take() {
+        // Either no provider, or it doesn't match. Drop the previous
+        // one (if any) before building a new one so we don't keep two
+        // sets of ONNX sessions resident in memory during the swap.
+        if let Some(prev) = guard.take() {
+            // Drop the guard across the await so `unload()` — which
+            // does its own synchronous mutex dance inside the provider
+            // — doesn't deadlock with another caller that's blocked
+            // waiting for our write lock. Safe because `guard.take()`
+            // already transferred ownership of the old `Active` to a
+            // local, so nothing else can see it mid-unload.
+            drop(guard);
             let _ = prev.provider.unload().await;
+            guard = self.active.write().await;
         }
 
         let provider = build_provider(model_id, &self.registry, &desired).await?;
+        // `warm()` runs native `TransducerRecognizer::new` internally;
+        // while we hold the write lock no other transcribe() can be
+        // racing this path. See the bug comment above.
         provider.warm().await?;
-        *self.active.write().await = Some(Active {
+        *guard = Some(Active {
             provider: provider.clone(),
             provider_string: desired,
             last_used: StdMutex::new(Instant::now()),
