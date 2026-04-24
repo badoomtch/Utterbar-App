@@ -50,15 +50,22 @@ class ReleasePublishValidationTest extends TestCase
         Storage::fake('r2');
     }
 
-    /** Seeds and returns the admin user for actingAs() on browser-form tests. */
+    /**
+     * Seeds and returns the admin user for actingAs() on browser-form
+     * tests. Returns an existing row when the test has already seeded
+     * one — tests that loop over invalid inputs re-enter postBrowser()
+     * and would otherwise unique-violate on users.email.
+     */
     private function adminUser(): User
     {
-        return User::create([
-            'name'              => 'Admin',
-            'email'             => self::ADMIN_EMAIL,
-            'password'          => Hash::make(Str::random(64)),
-            'email_verified_at' => now(),
-        ]);
+        return User::firstOrCreate(
+            ['email' => self::ADMIN_EMAIL],
+            [
+                'name'              => 'Admin',
+                'password'          => Hash::make(Str::random(64)),
+                'email_verified_at' => now(),
+            ],
+        );
     }
 
     /** Common body fields for a well-formed publish request. */
@@ -78,7 +85,8 @@ class ReleasePublishValidationTest extends TestCase
         ], $override);
     }
 
-    private function post(array $body)
+    /** JSON POST to the admin release API, bearer-authenticated. */
+    private function postApi(array $body)
     {
         return $this->postJson('/api/admin/releases', $body, [
             'Authorization' => 'Bearer ' . self::ADMIN_TOKEN,
@@ -86,8 +94,8 @@ class ReleasePublishValidationTest extends TestCase
     }
 
     /**
-     * Browser-form equivalent of `post()` — seeds an admin user, acts as
-     * them, and submits the standard HTML form body. The browser form
+     * Browser-form equivalent of `postApi()` — seeds an admin user, acts
+     * as them, and submits the standard HTML form body. The browser form
      * uses `notes` as the field name (the API uses `notes_markdown`), so
      * we translate here and strip any API-only keys. Returns the
      * TestResponse for the same assert* API.
@@ -113,13 +121,13 @@ class ReleasePublishValidationTest extends TestCase
     {
         $body = $this->body();
         unset($body['sha256']);
-        $this->post($body)->assertStatus(422)->assertJsonValidationErrors(['sha256']);
+        $this->postApi($body)->assertStatus(422)->assertJsonValidationErrors(['sha256']);
         $this->assertSame(0, Release::count(), 'no release row must be created');
     }
 
     public function test_publish_rejects_blank_sha256(): void
     {
-        $this->post($this->body(['sha256' => '']))
+        $this->postApi($this->body(['sha256' => '']))
             ->assertStatus(422)
             ->assertJsonValidationErrors(['sha256']);
         $this->assertSame(0, Release::count());
@@ -127,7 +135,7 @@ class ReleasePublishValidationTest extends TestCase
 
     public function test_publish_rejects_short_sha256(): void
     {
-        $this->post($this->body(['sha256' => 'abc123']))
+        $this->postApi($this->body(['sha256' => 'abc123']))
             ->assertStatus(422)
             ->assertJsonValidationErrors(['sha256']);
         $this->assertSame(0, Release::count());
@@ -135,7 +143,7 @@ class ReleasePublishValidationTest extends TestCase
 
     public function test_publish_rejects_non_hex_sha256(): void
     {
-        $this->post($this->body(['sha256' => str_repeat('z', 64)]))
+        $this->postApi($this->body(['sha256' => str_repeat('z', 64)]))
             ->assertStatus(422)
             ->assertJsonValidationErrors(['sha256']);
         $this->assertSame(0, Release::count());
@@ -146,7 +154,7 @@ class ReleasePublishValidationTest extends TestCase
         // Upper-case input should round-trip as lower-case in the DB so
         // downstream equality checks (client verification) have a single
         // canonical form.
-        $resp = $this->post($this->body(['sha256' => str_repeat('A', 64)]));
+        $resp = $this->postApi($this->body(['sha256' => str_repeat('A', 64)]));
         $resp->assertStatus(201);
         $resp->assertJsonPath('ok', true);
 
@@ -160,7 +168,7 @@ class ReleasePublishValidationTest extends TestCase
     public function test_publish_rejects_prerelease_version(): void
     {
         foreach (['0.7.0-rc.1', '0.7.0-beta', '0.7.0-alpha.2', '1.0.0-rc'] as $bad) {
-            $resp = $this->post($this->body([
+            $resp = $this->postApi($this->body([
                 'version' => $bad,
                 'r2_key'  => "releases/{$bad}/Utterbar-Setup-{$bad}.exe",
             ]));
@@ -172,7 +180,7 @@ class ReleasePublishValidationTest extends TestCase
     public function test_publish_rejects_non_semver_version(): void
     {
         foreach (['v0.7.0', '0.7', '0.7.0.1', '1.0', 'abc'] as $bad) {
-            $resp = $this->post($this->body([
+            $resp = $this->postApi($this->body([
                 'version' => $bad,
                 'r2_key'  => "releases/{$bad}/Utterbar-Setup.exe",
             ]));
@@ -183,7 +191,7 @@ class ReleasePublishValidationTest extends TestCase
 
     public function test_publish_accepts_strict_xyz_version(): void
     {
-        $resp = $this->post($this->body(['version' => '0.6.2']));
+        $resp = $this->postApi($this->body(['version' => '0.6.2']));
         $resp->assertStatus(201);
         $this->assertSame(1, Release::where('version', '0.6.2')->count());
     }
@@ -192,7 +200,7 @@ class ReleasePublishValidationTest extends TestCase
     {
         // Beta channel gets its own uniqueness namespace — reuse the
         // stable version string is fine.
-        $resp = $this->post($this->body([
+        $resp = $this->postApi($this->body([
             'version' => '0.7.0',
             'channel' => 'beta',
             'r2_key'  => 'releases/0.7.0/Utterbar-Setup-0.7.0.exe',

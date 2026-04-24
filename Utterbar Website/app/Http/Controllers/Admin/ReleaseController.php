@@ -88,7 +88,10 @@ class ReleaseController extends Controller
             'r2_key'          => $r2Key,
             'file_size_bytes' => $size,
             'sha256'          => strtolower($data['sha256']),
-            'tag'             => $data['tag'] ?: null,
+            // `tag` is nullable in the validator so it may be absent from
+            // $data entirely when the form leaves the field blank — use
+            // coalesce rather than indexing.
+            'tag'             => ($data['tag'] ?? '') !== '' ? $data['tag'] : null,
             'notes_markdown'  => $data['notes'],
             'published_at'    => now(),
         ]);
@@ -144,10 +147,10 @@ class ReleaseController extends Controller
             $sub->prepareRotation();
             try {
                 Mail::to($sub->email)->send(new UpdateAnnouncement(
-                    subscriber: $sub,
-                    release:    $release->version,
-                    subject:    $subject,
-                    notesMd:    $release->notes_markdown,
+                    subscriber:      $sub,
+                    release:         $release->version,
+                    announceSubject: $subject,
+                    notesMd:         $release->notes_markdown,
                 ));
                 $sub->commitRotation();
                 $sent++;

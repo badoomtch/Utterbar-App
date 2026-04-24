@@ -156,10 +156,10 @@ class AdminReleaseApiController extends Controller
             $sub->prepareRotation();
             try {
                 Mail::to($sub->email)->send(new UpdateAnnouncement(
-                    subscriber: $sub,
-                    release:    $release->version,
-                    subject:    $subject,
-                    notesMd:    $release->notes_markdown,
+                    subscriber:      $sub,
+                    release:         $release->version,
+                    announceSubject: $subject,
+                    notesMd:         $release->notes_markdown,
                 ));
                 $sub->commitRotation();
                 $sent++;

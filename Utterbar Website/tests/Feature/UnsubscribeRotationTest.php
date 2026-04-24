@@ -67,18 +67,24 @@ class UnsubscribeRotationTest extends TestCase
     }
 
     /**
-     * Install a stub Mailer that always throws on `to()->send()`. Used by
-     * tests that need to exercise the blast's catch branch — `Mail::fake()`
+     * Install a Mail transport that throws on every send. Used by tests
+     * that need to exercise the blast's catch branch — `Mail::fake()`
      * treats every send as success and has no public "fail next send" hook.
+     *
+     * Implementation: register a one-off listener on MessageSending that
+     * throws. Laravel's MailManager fires this before handing off to the
+     * transport, so the throw propagates up through `Mail::to()->send()`
+     * into the blast's try/catch. Cleaner than swapping the mailer
+     * binding (which the MailManager bypasses in Laravel 12).
      */
     private function installFailingMailer(): void
     {
-        $this->app->instance('mailer', new class {
-            public function to($_) { return $this; }
-            public function send($_) { throw new \RuntimeException('simulated SMTP failure'); }
-            public function raw($_, $__) { return null; }
-            public function __call($name, $args) { return $this; }
-        });
+        $this->app['events']->listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            function () {
+                throw new \RuntimeException('simulated SMTP failure');
+            },
+        );
     }
 
     private function seedActive(string $email = 'jay@example.com'): array

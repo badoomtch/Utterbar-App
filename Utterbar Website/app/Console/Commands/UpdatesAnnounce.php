@@ -93,10 +93,10 @@ class UpdatesAnnounce extends Command
             $sub->prepareRotation();
             try {
                 Mail::to($sub->email)->send(new UpdateAnnouncement(
-                    subscriber: $sub,
-                    release:    $release,
-                    subject:    $subject,
-                    notesMd:    $notes,
+                    subscriber:      $sub,
+                    release:         $release,
+                    announceSubject: $subject,
+                    notesMd:         $notes,
                 ));
                 $sub->commitRotation();
                 $sent++;

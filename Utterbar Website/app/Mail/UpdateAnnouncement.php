@@ -13,16 +13,19 @@ class UpdateAnnouncement extends Mailable
 {
     use Queueable, SerializesModels;
 
+    // `$subject` is declared on the parent Mailable without a type; PHP
+    // 8.2 rejects re-declaring it here with a type. We carry our own
+    // `$announceSubject` and feed it into the envelope instead.
     public function __construct(
         public UpdateSubscriber $subscriber,
         public string $release,
-        public string $subject,
+        public string $announceSubject,
         public string $notesMd,
     ) {}
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->subject);
+        return new Envelope(subject: $this->announceSubject);
     }
 
     public function content(): Content
