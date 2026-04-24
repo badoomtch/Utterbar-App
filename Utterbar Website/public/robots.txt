@@ -1,0 +1,17 @@
+# https://utterbar.com/robots.txt
+# Crawlers welcome on everything public; private surfaces are blocked.
+
+User-agent: *
+Disallow: /admin
+Disallow: /admin/
+Disallow: /account
+Disallow: /account/
+Disallow: /sign-in
+Disallow: /sign-in/
+Disallow: /sign-out
+Disallow: /api/
+Disallow: /thanks
+Disallow: /updates/confirm
+Disallow: /updates/unsubscribe
+
+Sitemap: https://utterbar.com/sitemap.xml

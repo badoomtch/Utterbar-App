@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -10 440 120" width="880" height="240" color-interpolation="linearRGB">
+    <defs>
+        <linearGradient id="wm-bar" gradientUnits="userSpaceOnUse" x1="190" y1="0" x2="320" y2="0">
+            <stop offset="0%"   stop-color="#00E5FF" />
+            <stop offset="100%" stop-color="#00A3FF" />
+        </linearGradient>
+    </defs>
+    <text x="0" y="76"
+          font-family="Instrument Sans, 'Instrument Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-size="80" font-weight="600" letter-spacing="-3.2"
+          fill="url(#wm-bar)"><tspan fill="#0A0E17">Utter</tspan>bar</text>
+</svg>

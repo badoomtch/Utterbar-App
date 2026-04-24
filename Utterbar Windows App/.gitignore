@@ -1,0 +1,40 @@
+# Node
+node_modules/
+dist/
+.vite/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+src-tauri/WixTools/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.claude/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Models & user data (never commit)
+models/
+*.onnx
+*.gguf
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Remotion bundle: transient render logs (rendered assets under out/ ARE tracked)
+marketing/remotion/render-*.txt
+marketing/remotion/render-*.log

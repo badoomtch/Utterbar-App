@@ -1,40 +1,105 @@
-# Node
+# Monorepo root .gitignore. Supersedes and augments the per-subproject
+# gitignores that live inside `Utterbar Windows App/.gitignore` and
+# (not-present-pre-monorepo) `Utterbar Website/.gitignore`.
+#
+# Things listed here are either sensitive (secrets, installers, raw
+# recordings) or generated (node_modules, compiled output, vendor PHP,
+# build caches). Do NOT commit any of them.
+
+# -----------------------------------------------------------------------
+# Secrets — NEVER commit.
+# -----------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+# Laravel env variants
+Utterbar\ Website/.env
+Utterbar\ Website/.env.local
+
+# Off-repo deploy secrets (per-machine, never in VCS)
+.utterbar-deploy/
+
+# -----------------------------------------------------------------------
+# Node / frontend
+# -----------------------------------------------------------------------
 node_modules/
 dist/
 .vite/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+yarn-debug.log*
 
-# Rust / Tauri
-src-tauri/target/
-src-tauri/gen/schemas/
-src-tauri/WixTools/
+# -----------------------------------------------------------------------
+# PHP / Laravel (Utterbar Website)
+# -----------------------------------------------------------------------
+Utterbar\ Website/vendor/
+Utterbar\ Website/storage/app/*
+!Utterbar\ Website/storage/app/.gitkeep
+Utterbar\ Website/storage/framework/cache/*
+!Utterbar\ Website/storage/framework/cache/.gitkeep
+Utterbar\ Website/storage/framework/sessions/*
+!Utterbar\ Website/storage/framework/sessions/.gitkeep
+Utterbar\ Website/storage/framework/views/*
+!Utterbar\ Website/storage/framework/views/.gitkeep
+Utterbar\ Website/storage/logs/*
+!Utterbar\ Website/storage/logs/.gitkeep
+Utterbar\ Website/bootstrap/cache/*
+!Utterbar\ Website/bootstrap/cache/.gitkeep
+Utterbar\ Website/public/hot
+Utterbar\ Website/public/storage
+Utterbar\ Website/public/build
+Utterbar\ Website/auth.json
 
-# OS
+# -----------------------------------------------------------------------
+# Rust / Tauri (Utterbar Windows App)
+# -----------------------------------------------------------------------
+Utterbar\ Windows\ App/src-tauri/target/
+Utterbar\ Windows\ App/src-tauri/gen/schemas/
+Utterbar\ Windows\ App/src-tauri/WixTools/
+
+# Vendored prebuilt sherpa-onnx libs ARE committed — they're needed for
+# the build. Do not add `Utterbar Windows App/src-tauri/vendor/` here.
+
+# -----------------------------------------------------------------------
+# OS / Editor
+# -----------------------------------------------------------------------
 .DS_Store
 Thumbs.db
-
-# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Claude local config lives outside tracked tree
 .claude/
 
-# Env
-.env
-.env.local
-.env.*.local
-
-# Models & user data (never commit)
-models/
+# -----------------------------------------------------------------------
+# Models & user-local data — never commit
+# -----------------------------------------------------------------------
+Utterbar\ Windows\ App/models/
 *.onnx
 *.gguf
 
+# Large raw recordings (if a test drop ends up in-tree accidentally)
+*.wav
+!Utterbar\ Windows\ App/src-tauri/resources/*.wav
+
+# -----------------------------------------------------------------------
+# Remotion bundle — source IS tracked, but render outputs are large
+# enough that they're their own rotation rule. Keep the `out/` tree
+# tracked (website consumes it) but drop transient logs.
+# -----------------------------------------------------------------------
+Utterbar\ Windows\ App/marketing/remotion/render-*.txt
+Utterbar\ Windows\ App/marketing/remotion/render-*.log
+
+# -----------------------------------------------------------------------
 # Test / coverage
+# -----------------------------------------------------------------------
 coverage/
 .nyc_output/
-
-# Remotion bundle: transient render logs (rendered assets under out/ ARE tracked)
-marketing/remotion/render-*.txt
-marketing/remotion/render-*.log
+.phpunit.cache/
+.phpunit.result.cache
