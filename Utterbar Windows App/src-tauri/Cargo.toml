@@ -1,6 +1,6 @@
 [package]
 name = "utterbar"
-version = "0.6.4"
+version = "0.7.0"
 edition = "2021"
 description = "Utterbar — local-only dictation for Windows"
 authors = ["Utterbar"]
@@ -167,3 +167,22 @@ opt-level = 3
 [profile.dev]
 opt-level = 1
 incremental = true
+
+# -----------------------------------------------------------------------------
+# Utterbar v0.6.7 runtime patch.
+#
+# Points Cargo at our vendored copy of tauri-runtime-wry-2.10.1 with the
+# `main_thread: Arc<DispatcherMainThreadContext<T>>` fix. See the module-
+# level comment in vendor/tauri-runtime-wry-2.10.1/src/lib.rs for the root-
+# cause analysis and rationale.
+#
+# The vendored crate's Cargo.toml declares the same version (2.10.1) as
+# crates.io so Cargo's resolver accepts the override without semver tears.
+# Any cargo update that moves Tauri past 2.10.x MUST be followed by a
+# rebase of this vendored directory against the new source — otherwise we
+# silently lose the fix. Flagged in MONOREPO.md §10.9.
+#
+# Upstream issue: https://github.com/tauri-apps/tauri/issues/10001
+# -----------------------------------------------------------------------------
+[patch.crates-io]
+tauri-runtime-wry = { path = "vendor/tauri-runtime-wry-2.10.1" }
