@@ -59,8 +59,12 @@ class AdminReleaseApiController extends Controller
 
         $channel = $data['channel'] ?? 'stable';
 
-        // Default r2_key convention: releases/{version}/Utterbar-Setup.exe
-        $r2Key = $data['r2_key'] ?? "releases/{$data['version']}/Utterbar-Setup.exe";
+        // Default r2_key convention: releases/{version}/Utterbar-Setup-{version}.exe
+        // (the versioned filename is canon so a user dragging the installer
+        // anywhere can still tell which build it is). publish-release.sh
+        // always sends r2_key explicitly — this default is only hit by
+        // manual POSTs that omitted it.
+        $r2Key = $data['r2_key'] ?? "releases/{$data['version']}/Utterbar-Setup-{$data['version']}.exe";
         $r2Key = ltrim($r2Key, '/');
 
         if (Release::where('version', $data['version'])->where('channel', $channel)->exists()) {

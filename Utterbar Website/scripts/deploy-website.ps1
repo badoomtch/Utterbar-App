@@ -4,12 +4,20 @@
 #
 # Usage (from a PowerShell prompt):
 #
-#     $env:CLOUDWAYS_PASSWORD = 'your-ssh-password-here'
 #     .\Utterbar Website\scripts\deploy-website.ps1
 #
-# Prefer piping the password out of a password manager / keyring rather
-# than pasting it inline. The script never writes it to disk; it is read
-# once from the environment and passed to `pscp` / `plink` via -pw.
+# The Cloudways SSH password is read from `~/.utterbar-deploy/.env` —
+# the same off-repo credential file that holds the R2 keys and admin
+# API token. Add a line:
+#
+#     CLOUDWAYS_PASSWORD=your-ssh-password
+#
+# to that file (one-time setup) and future deploys just work. The file
+# is outside the repo, per-user, and should be `chmod 600`.
+#
+# If you'd rather not persist the password, set `$env:CLOUDWAYS_PASSWORD`
+# in your shell before invoking this script — the env var wins over
+# the file if both are present.
 #
 # Prerequisites (one-time, on the builder's machine):
 #   winget install PuTTY.PuTTY     # brings pscp + plink
@@ -40,18 +48,99 @@
 # ----------------------------------------------------------------------
 
 param(
-    [string]$HostName = 'utter@178.62.6.215',
-    [string]$RemotePath = 'public_html',
+    # Explicit -HostName / -RemotePath still override anything loaded from
+    # the env file. Useful if you ever need to target a staging server
+    # without editing the credential file. Leave empty to let the env
+    # file drive both.
+    [string]$HostName = '',
+    [string]$RemotePath = '',
     [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
 
-if (-not $env:CLOUDWAYS_PASSWORD) {
-    Write-Error "CLOUDWAYS_PASSWORD env var is not set. See the script header for usage."
-    exit 1
+# Credential loading from ~/.utterbar-deploy/.env (off-repo, per-user).
+#
+# Supports two Cloudways auth patterns; the script picks whichever is set:
+#
+# 1. MASTER-LEVEL credentials (most common for fresh Cloudways servers):
+#      CLOUDWAYS_IP          = 178.62.6.215
+#      CLOUDWAYS_MASTER_USER = master_xxxxxxxxxx
+#      CLOUDWAYS_MASTER_PASS = <pw>
+#    Apps live at ~/applications/<APP_FOLDER>/public_html/ on the master
+#    user's home directory. The app folder is the 10-char random Cloudways
+#    assigns (NOT the domain) — look it up in Application Management.
+#    Set CLOUDWAYS_APP_FOLDER in the env file too, or pass -RemotePath.
+#
+# 2. APP-LEVEL credentials (only if you've explicitly set an app SSH
+#    password via Cloudways → SSH/SFTP Access → "Enable SSH"):
+#      CLOUDWAYS_HOST     = utter@178.62.6.215
+#      CLOUDWAYS_PASSWORD = <pw>
+#    App files live at ~/public_html on the per-app user. The script
+#    targets that by default under this pattern.
+#
+# No secret ever lives in the repo; editing ~/.utterbar-deploy/.env once
+# sets you up for every future deploy.
+function Read-EnvValue($key) {
+    $envFile = Join-Path $env:USERPROFILE '.utterbar-deploy\.env'
+    if (-not (Test-Path $envFile)) { return $null }
+    # Iterate explicitly so the linter can see the assignment flow
+    # (ForEach-Object closure hides it). Last match wins — later lines
+    # in the env file override earlier ones if a key is duplicated.
+    $found = $null
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match "^\s*$([regex]::Escape($key))\s*=\s*(.+?)\s*$") {
+            $value = $Matches[1]
+            if ($value -match '^"(.*)"$' -or $value -match "^'(.*)'`$") {
+                $value = $Matches[1]
+            }
+            $found = $value
+        }
+    }
+    return $found
 }
-$pass = $env:CLOUDWAYS_PASSWORD
+
+# Resolve the credentials. Master-level wins if present; falls back to
+# app-level; errors out if neither is set.
+$masterUser = Read-EnvValue 'CLOUDWAYS_MASTER_USER'
+$masterPass = Read-EnvValue 'CLOUDWAYS_MASTER_PASS'
+$masterIp   = Read-EnvValue 'CLOUDWAYS_IP'
+$appFolder  = Read-EnvValue 'CLOUDWAYS_APP_FOLDER'
+$appHost    = Read-EnvValue 'CLOUDWAYS_HOST'
+$appPass    = Read-EnvValue 'CLOUDWAYS_PASSWORD'
+
+if (-not $HostName -or -not $RemotePath) {
+    if ($masterUser -and $masterPass -and $masterIp) {
+        if (-not $HostName)   { $HostName   = "${masterUser}@${masterIp}" }
+        if (-not $RemotePath) {
+            if (-not $appFolder) {
+                Write-Error "Master-credential path selected, but CLOUDWAYS_APP_FOLDER is not set in ~/.utterbar-deploy/.env. Cloudways apps live at ~/applications/<FOLDER>/public_html - look up the 10-char app folder in Application Management and add it to the env file."
+                exit 1
+            }
+            $RemotePath = "applications/${appFolder}/public_html"
+        }
+        $pass = $masterPass
+    }
+    elseif ($appHost -and $appPass) {
+        if (-not $HostName)   { $HostName   = $appHost }
+        if (-not $RemotePath) { $RemotePath = 'public_html' }
+        $pass = $appPass
+    }
+    else {
+        Write-Error "Neither master credentials (CLOUDWAYS_MASTER_USER + CLOUDWAYS_MASTER_PASS + CLOUDWAYS_IP) nor app credentials (CLOUDWAYS_HOST + CLOUDWAYS_PASSWORD) are set in ~/.utterbar-deploy/.env. Add one set."
+        exit 1
+    }
+}
+else {
+    # Both -HostName and -RemotePath were passed explicitly — caller
+    # is overriding everything. Still need a password from somewhere.
+    if ($masterPass) { $pass = $masterPass }
+    elseif ($appPass) { $pass = $appPass }
+    else {
+        Write-Error "-HostName / -RemotePath passed explicitly but no password in env file."
+        exit 1
+    }
+}
 
 # Locate the Website root relative to this script.
 $websiteRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -113,7 +202,7 @@ $safeFiles = @(
 # 2. pscp the source tree.
 # -----------------------------------------------------------------
 Write-Output ""
-Write-Output "=== Pushing source tree to $HostName:$RemotePath ==="
+Write-Output "=== Pushing source tree to ${HostName}:${RemotePath} ==="
 
 function Send($localPath, $remoteSubpath) {
     if (-not (Test-Path $localPath)) {
@@ -197,7 +286,7 @@ foreach ($url in $endpoints) {
         Write-Output "  $($r.StatusCode) $url"
     }
     catch {
-        Write-Warning "  FAIL $url — $($_.Exception.Message)"
+        Write-Warning "  FAIL $url - $($_.Exception.Message)"
     }
 }
 
