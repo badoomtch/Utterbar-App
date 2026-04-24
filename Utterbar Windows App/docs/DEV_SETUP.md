@@ -21,10 +21,12 @@ One-time setup for contributors on Windows 11.
 ## Clone & install
 
 ```bash
-git clone <your-fork> Orliq
-cd Orliq
+git clone <your-fork> Utterbar
+cd Utterbar/Utterbar\ Windows\ App
 pnpm install
 ```
+
+The desktop app lives inside the monorepo under `Utterbar Windows App/`. The marketing website and licence backend live alongside it at `Utterbar Website/`. All commands below assume you're in the `Utterbar Windows App/` directory.
 
 ## Run in dev mode
 
@@ -63,17 +65,19 @@ Everything Utterbar writes is under `%APPDATA%\Utterbar\`:
 ```
 %APPDATA%\Utterbar\
 ├── config\settings.json
-├── data\orliq.db          (SQLite)
+├── config\floating_position.json   (last known floating-bar position)
+├── data\utterbar.db                (SQLite; legacy installs may still use orliq.db)
+├── licence.json                    (dual-cache fallback for Credential Manager)
 ├── models\<model-id>\...
-├── recordings\YYYY\MM\... (opt-in)
-└── logs\utterbar.log
+├── recordings\YYYY\MM\...          (opt-in)
+└── logs\utterbar.log.<date>
 ```
 
 Delete that directory to fully reset the app for a new dev session.
 
 ## Directory map
 
-See [ARCHITECTURE.md](ARCHITECTURE.md#3-rust-module-map) for the full module layout.
+See [../../MONOREPO.md §2.3](../../MONOREPO.md) for the full module layout. An older, partially-drifted architecture doc is preserved for historical reference at [./_historical/ARCHITECTURE.md](./_historical/ARCHITECTURE.md).
 
 ## Troubleshooting
 

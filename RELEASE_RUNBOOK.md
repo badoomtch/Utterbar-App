@@ -163,12 +163,12 @@ Flags:
 4. POSTs metadata (`version`, `channel`, `sha256`, `notes_markdown`, `announce`, `tag`) to `$UTTERBAR_API_BASE/api/admin/releases` with bearer-token auth.
 5. Expects `201 Created` with `id`, `download_url`, `size_bytes`, `announced_to`.
 
-### Known drifts and workarounds (as of 2026-04-23)
+### Known drifts and workarounds (as of 2026-04-24)
 
-These are in [MONOREPO.md §10](MONOREPO.md) and still apply. When fixing them, **fix them for real** — don't work around them every release.
+See [MONOREPO.md §10](MONOREPO.md) for the full list. When fixing drift, **fix it for real** — don't work around it every release.
 
 - **Legacy R2 key.** Admin API's `file_not_in_bucket` check is hardcoded to the legacy `releases/<v>/Utterbar-Setup.exe` (no version suffix). Until fixed web-side, the script uploads to BOTH keys. Don't delete the legacy upload path in `publish-release.sh` yet.
-- **`curl -d "$PAYLOAD"` quoting bug.** On Windows git-bash, `-d "$PAYLOAD"` mangles multiline JSON and the server 422's on "version required". Workaround: use `--data-binary "@$TMPFILE"`. Patch in the committed `publish-release.sh` is pending — if you hit a 422 and the payload looks correct, this is why.
+- **`curl -d "$PAYLOAD"` quoting bug — FIXED.** The committed `publish-release.sh` now uses `--data-binary "@$TMP_PAYLOAD"` with a temp file and explicitly sends `r2_key` in the payload. If you hit a 422 about missing fields, it's not this bug — read the actual server response body before re-running.
 
 ### If publish fails
 

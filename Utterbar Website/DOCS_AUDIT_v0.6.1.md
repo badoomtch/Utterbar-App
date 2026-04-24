@@ -1,8 +1,9 @@
 # /docs audit against Utterbar app v0.6.0 → v0.6.1
 
 Generated 2026-04-23. All line references below are to the docs Blade files
-under `resources/views/pages/docs/`. App references use paths in the sibling
-`Orliq/` repo.
+under `resources/views/pages/docs/`. App references below use paths that
+predate the monorepo consolidation — where an old path says `Orliq/` or
+"sibling repo", read it as `Utterbar Windows App/` in the current layout.
 
 ## `index.blade.php`
 
@@ -64,7 +65,7 @@ OK — the three toggles described (clipboard capture, active-window context, se
 
 1. **LINE ~11 (pill visibility toggle hotkey):** copy claims `Ctrl+Alt+\` toggles pill visibility. No such binding exists in `ShortcutSettings` defaults or the hotkeys service. Either remove the claim or replace with the correct instruction (Settings → Floating Bar → Visibility, which is a preference, not a hotkey). Likely safer to remove — users were searching for a hotkey that doesn't exist.
 
-2. **Add a v0.6.1 section — "Update didn't install."** New in 0.6.1: the in-app updater (see Orliq's `src-tauri/src/commands/updater.rs`). Suggested copy:
+2. **Add a v0.6.1 section — "Update didn't install."** New in 0.6.1: the in-app updater (see `Utterbar Windows App/src-tauri/src/commands/updater.rs`). Suggested copy:
 
    > **The update didn't install.** The updater downloads the new installer to `%TEMP%\Utterbar-Setup-<version>.exe`, verifies its SHA-256, and silently replaces the app. If it fails: (1) Try **Settings → General → Check now** to re-fetch the update. (2) If that keeps failing, grab the installer directly from the Downloads page — we use the same binary. (3) SmartScreen may have quarantined the downloaded `.exe`; right-click → Properties → Unblock.
 

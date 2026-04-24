@@ -1,6 +1,14 @@
 # Utterbar — Website Brief
 
-> You are building `utterbar.app` — the marketing site for a Windows-first, local-only dictation app. This file is the single source of truth for scope, brand, copy, and tech stack. Read it end to end before touching code.
+> **Scope note (2026-04-24):** this file is authoritative for **product positioning, brand voice, and marketing copy tone** — the things that describe what the product is and how to talk about it. It is NOT authoritative for: the current shipping status, tech stack details, visual tokens, or any implementation-level "we have this / we don't have this" claim. Those live elsewhere:
+>
+> - Architecture, stack, and the shipping state of endpoints → [../MONOREPO.md](../MONOREPO.md)
+> - Visual language, tokens, components → [./DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md)
+> - Repo-wide working rules → [../CLAUDE.md](../CLAUDE.md)
+>
+> If something in this file contradicts one of those, they win.
+>
+> The domain is `utterbar.com`, not `utterbar.app` (an earlier working name). The product ships — the site has live Stripe Checkout and real downloads — any claim in this file to the contrary (sections 2 and 3.2 are the most stale) is historical and kept only because the voice / copy sections around them are still useful.
 
 ---
 
@@ -25,14 +33,18 @@ Elevator pitch (use verbatim on hero):
 
 ---
 
-## 2. Status / what this site is NOT yet doing
+## 2. Status — HISTORICAL, do not follow
 
-- **No downloads.** The app is still pre-release. The site exists to (a) build a waiting list, (b) establish the brand, (c) explain the product to future paying customers. Where a "Download for Windows" button would normally go, show a waitlist email capture instead — copy below.
-- **No Stripe / checkout yet.** Pricing page exists and names the tiers ("Free", "Pro", "Team"), but every CTA on paid tiers routes to the same waitlist.
-- **No login / app shell.** No user accounts on the marketing site yet.
-- **No macOS / Linux pages.** A single "Windows" line on the hero, plus an "Other platforms" FAQ answer: _"macOS and Linux are on the roadmap. Windows ships first."_
+The section that used to live here described a pre-release waiting-list phase: no downloads, no Stripe, no login, no user accounts. **None of that is true any more.** As of v0.6 the site has:
 
-When Jay is ready to ship, a single future task will swap the waitlist CTA for a real download button and the pricing CTAs for Stripe Checkout. Design every page so that's a one-line change, not a rework.
+- A real `/download` page serving the latest NSIS installer from R2 / `dl.utterbar.com`.
+- Live Stripe Checkout at `£39.99` GBP one-time for Pro (3-device cap).
+- Magic-link auth for customer accounts at `/sign-in` → `/account`.
+- Admin surfaces at `/admin` (release publishing, licence management).
+- Licence-issuance backend wired to a Stripe webhook.
+- Licence-activation API that the desktop app calls over HTTPS.
+
+The shipping picture lives in [../MONOREPO.md §3–§5](../MONOREPO.md). Use that, not this section. This heading is kept as a deliberate landmark so future readers notice the change — the voice / copy sections below it are still useful and intentionally preserved.
 
 ---
 
@@ -44,53 +56,19 @@ When Jay is ready to ship, a single future task will swap the waitlist CTA for a
 
 The floating pill in the app is called "the Utterbar" (definite article) in docs and help content. On the website, lean on "Utterbar" as a proper noun.
 
-### 3.2 Palette
+### 3.2 Palette — see DESIGN_SYSTEM.md
 
-Utterbar's identity colour is an electric cyan, not a navy tech-blue. Think tape-deck VU-meter glow, not enterprise SaaS.
+The exact hex tokens, gradients, and theme rules live in [./DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) and are the authoritative source. Earlier versions of this file inlined a `#22D3EE` / cyan-400 palette and an `Inter` + `JetBrains Mono` font pair — both have since drifted from the shipped look. Do not copy values from this section; always pull from DESIGN_SYSTEM.md (or the live `src/styles/tokens.css` files in the app and the website's `resources/css/app.css`).
 
-```
---bg-0:     #0B0F14   /* page background, near-black with a hint of slate */
---bg-1:     #10161D   /* cards, inputs, alternate bands */
---bg-2:     #18212C   /* hover surfaces, subtle elevation */
---border:   #1F2A36   /* 1px separators */
---muted:    #7A8A99   /* secondary text */
---fg:       #E6EEF6   /* primary text, slightly off-white */
---fg-hi:    #FFFFFF   /* headings only, use sparingly */
---accent:   #22D3EE   /* primary CTA, links, live/listening glow  (cyan-400) */
---accent-2: #67E8F9   /* hover state                               (cyan-300) */
---accent-3: #0891B2   /* deep end of gradients                     (cyan-600) */
---warn:     #F59E0B
---danger:   #F43F5E
---ok:       #34D399
-```
+What's still authoritative from this brief at the identity level:
 
-Gradients: favour `linear-gradient(135deg, var(--accent-3) 0%, var(--accent) 55%, var(--accent-2) 100%)` for the hero pill, the logo waveform, and the occasional oversized headline accent.
+- Electric cyan identity colour. Not navy, not enterprise-SaaS blue. Tape-deck VU-meter glow.
+- Dark by default. Cyan is reserved for action, focus, and live-listening cues — never a body-copy tint.
+- The accent gradient used in the logo waveform is canonical and lives in the app's SVG assets (`src-tauri/icons/mark.svg` etc.).
 
-**Rules:**
-- Default mode is dark. There is no light mode on v1. Don't build one.
-- Never use pure black (`#000`) — it kills the cyan glow.
-- Cyan is reserved for action, focus, and the live-listening indicator. Don't tint body paragraphs with it.
+### 3.3 Typography — see DESIGN_SYSTEM.md
 
-### 3.3 Typography
-
-Two families, paired:
-
-- **Display / UI:** `Inter` (variable font, weights 400 / 500 / 600 / 700 / 800). Tighten tracking on big sizes: `letter-spacing: -0.02em` at 48px+, `-0.015em` at 24–32px.
-- **Mono:** `JetBrains Mono` for keyboard-chip pills (`Ctrl`, `Space`), for the rare code snippet, and for the "v0.3.x · local-only" footer strip.
-
-Headlines use Inter **800**; body uses **400**; mid-weight labels use **500**. Never use 300 (it goes grey on cyan and looks anaemic).
-
-Type scale (rem, 16 = 1):
-
-```
-h1 / hero    clamp(2.75rem, 5.5vw, 4.5rem)   lh 1.05  weight 800
-h2           clamp(2rem,   3.5vw, 2.75rem)   lh 1.1   weight 700
-h3           1.5rem                           lh 1.2   weight 700
-lead         1.25rem                          lh 1.5   weight 400
-body         1rem                             lh 1.65  weight 400
-small        0.875rem                         lh 1.5   weight 400
-kbd / mono   0.85rem                          weight 500
-```
+Font families, weights, and type scale are in [./DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). The authoritative fonts are Instrument Sans (body/display) and Geist Mono (mono) — earlier versions of this brief named Inter + JetBrains Mono and are superseded.
 
 ### 3.4 Logo
 
@@ -437,166 +415,11 @@ Failure (already subscribed): _"You're already on the list — nothing to do."_
 
 ---
 
-## 8. Tech stack
+## 8. Tech stack — see MONOREPO.md
 
-This is a **Laravel** project — not Next.js, not a Vercel deploy. The Laravel skeleton has already been scaffolded in the repo (`artisan`, `composer.json`, `app/`, `resources/`, `routes/`, `vite.config.js`). Build on top of what's there.
+The earlier body of this section specified Laravel 11 + Livewire 3 + Plausible + `utterbar.app` + Inter fonts + a waitlist-form folder tree. **None of it matches what shipped.** The website is Laravel 12 + Blade + Alpine (no Livewire) + Tailwind v4, domain is `utterbar.com`, fonts are Instrument Sans + Geist Mono, there is no waitlist (the site sells the app directly via Stripe Checkout), and the folder tree has drifted.
 
-**Stack:**
-
-- **Framework:** **Laravel 11** + PHP 8.3. Server-rendered Blade templates — we don't need an SPA for a marketing site.
-- **Frontend build:** **Vite** (already configured by Laravel). Tailwind CSS v3+ via `resources/css/app.css`, Alpine.js for small interactions, Livewire 3 for the waitlist form + anywhere else we want reactive behaviour without shipping a JSON API.
-- **Database:** **MySQL 8** (provided by Cloudways). Migrations live in `database/migrations/`, seeders in `database/seeders/`. Use Eloquent everywhere — no raw SQL unless you can justify it in a code comment.
-- **Hosting:** **Cloudways** (DigitalOcean / Vultr stack underneath — don't care which, defer to Jay's existing server). Deploy via Git push + Cloudways's deploy hook, or manually if the pipeline isn't wired yet. Use the built-in Varnish + Redis where it helps — cached routes + session/cache store.
-- **Styling:** Tailwind CSS + CSS variables for the palette. Do NOT hard-code hex in Blade or components — reference `--accent`, `--bg-0`, etc. All colour tokens live in `resources/css/app.css`.
-- **Typography:** Self-host Inter Variable and JetBrains Mono under `public/fonts/` with `@font-face` in `resources/css/app.css`. No Google Fonts CDN link.
-- **Animations:** Framer Motion is Next.js-specific — we're on Blade, so use **Alpine.js transitions** and plain CSS keyframes. For the hero waveform, a looping `<video>` or a small Alpine/canvas component is plenty. Respect `prefers-reduced-motion` via a media query that neuters the animation classes.
-- **Icons:** **Lucide** via the official `lucide` SVG sprite or `blade-ui-kit/blade-icons` + `mallardduck/blade-lucide-icons`. Stroke width 1.5 everywhere.
-- **Markdown / docs:** **Spatie's `laravel-markdown`** for parsing Markdown files in `resources/markdown/docs/*.md`, `changelog.md`, `roadmap.md`. Use shiki-php or `league/commonmark` extensions for syntax highlighting on any code samples.
-- **Email:** Laravel Mail via SMTP. Easiest option is **Postmark** or **Resend** (Cloudways's bundled SMTP is acceptable but has worse deliverability). DKIM/SPF/DMARC on `mail.utterbar.app` configured through whichever provider we pick.
-- **Waitlist form:** A Livewire component (`App\Livewire\WaitlistForm`) handles the POST, validates email + honeypot, inserts the row, and sends the `WaitlistConfirmation` mailable. Success state is rendered in-place — no page reload.
-- **Analytics:** **Plausible** (cloud). No Google Analytics. No Hotjar. No FullStory. Drop the script in `resources/views/layouts/app.blade.php` in the `<head>`, `async defer`.
-- **Queue:** Waitlist confirmation emails go through the `redis` queue (Cloudways Redis), worker supervised by Laravel Horizon or a basic Supervisor conf. The form POST returns in <200ms — it enqueues, it doesn't block on SMTP.
-- **Sessions / cache:** Redis. Cloudways has Redis available; set `SESSION_DRIVER=redis` and `CACHE_STORE=redis`.
-- **Domain:** `utterbar.app` (apex) + `www.utterbar.app` (301 to apex) via Cloudways's SSL + DNS app.
-- **Email domain:** `mail.utterbar.app` (SPF, DKIM, DMARC configured at the DNS provider).
-
-**Folder structure** (building on the scaffold that's already in the repo):
-
-```
-app/
-  Http/
-    Controllers/
-      PageController.php        # home, features, how-it-works, privacy, pricing, press, roadmap
-      DocsController.php        # serves parsed Markdown from resources/markdown/docs
-      ChangelogController.php
-      WaitlistController.php    # non-Livewire fallback POST handler + unsubscribe
-    Middleware/
-      RedirectApex.php          # www -> apex
-  Livewire/
-    WaitlistForm.php            # primary reactive form
-  Mail/
-    WaitlistConfirmation.php
-  Models/
-    WaitlistEntry.php
-  Services/
-    Markdown.php                # wraps Spatie's markdown renderer with our shiki config
-
-config/
-  site.php                      # name, domain, emails, current app version, social links
-
-database/
-  migrations/
-    2026_04_22_000000_create_waitlist_table.php
-  seeders/
-
-resources/
-  views/
-    layouts/
-      app.blade.php             # <head>, nav, footer, analytics, slot
-      docs.blade.php            # sidebar + article layout
-    partials/
-      nav.blade.php
-      footer.blade.php
-      waitlist.blade.php        # wraps the Livewire component
-      logo.blade.php
-      kbd-chip.blade.php
-      waveform-loop.blade.php
-    pages/
-      home.blade.php
-      features.blade.php
-      how-it-works.blade.php
-      privacy.blade.php
-      pricing.blade.php
-      changelog.blade.php
-      press.blade.php
-      roadmap.blade.php
-      waitlist.blade.php
-      errors/404.blade.php
-      legal/
-        privacy.blade.php
-        terms.blade.php
-        eula.blade.php
-    docs/
-      index.blade.php
-      show.blade.php
-    livewire/
-      waitlist-form.blade.php
-  markdown/
-    docs/
-      getting-started.md
-      shortcuts.md
-      modes.md
-      privacy-architecture.md
-    changelog.md
-    roadmap.md
-  css/
-    app.css                     # Tailwind directives + CSS variables + font-face
-  js/
-    app.js                      # Alpine init + Livewire
-
-routes/
-  web.php                       # all marketing routes
-  # optional: channels.php, console.php as Laravel defaults
-
-public/
-  fonts/                        # Inter Variable, JetBrains Mono
-  og/                           # open-graph images, one per route (render via Browsershot or pre-export)
-  press/                        # logos, screenshots zip
-  videos/hero-loop.mp4
-  videos/how-it-works.mp4
-  favicon.svg, favicon.ico, apple-touch-icon.png
-  robots.txt
-  sitemap.xml                   # generated by a scheduled command, see below
-```
-
-**Shared config (`config/site.php`):**
-
-```php
-<?php
-
-return [
-    'name'     => 'Utterbar',
-    'tagline'  => 'Dictation that stays on your PC.',
-    'domain'   => 'utterbar.app',
-    'emails'   => [
-        'press'   => 'press@utterbar.app',
-        'support' => 'support@utterbar.app',
-        'founder' => 'founder@utterbar.app',
-    ],
-    'social' => [
-        'github' => 'https://github.com/utterbar',
-        'x'      => 'https://x.com/utterbar_app',
-    ],
-    // Kept in sync with src-tauri/tauri.conf.json on every release.
-    'app_version' => '0.3.5',
-];
-```
-
-Access via `config('site.tagline')` etc. Don't sprinkle strings across Blade — centralise.
-
-**Routing (`routes/web.php`):**
-
-```php
-use App\Http\Controllers\{PageController, DocsController, ChangelogController};
-
-Route::get('/',               [PageController::class, 'home'])->name('home');
-Route::get('/features',       [PageController::class, 'features'])->name('features');
-Route::get('/how-it-works',   [PageController::class, 'howItWorks'])->name('how-it-works');
-Route::get('/privacy',        [PageController::class, 'privacy'])->name('privacy');
-Route::get('/pricing',        [PageController::class, 'pricing'])->name('pricing');
-Route::get('/press',          [PageController::class, 'press'])->name('press');
-Route::get('/roadmap',        [PageController::class, 'roadmap'])->name('roadmap');
-Route::get('/waitlist',       [PageController::class, 'waitlist'])->name('waitlist');
-Route::get('/changelog',      [ChangelogController::class, 'index'])->name('changelog');
-Route::get('/docs',           [DocsController::class, 'index'])->name('docs.index');
-Route::get('/docs/{slug}',    [DocsController::class, 'show'])->name('docs.show');
-Route::get('/legal/{page}',   [PageController::class, 'legal'])->whereIn('page', ['privacy', 'terms', 'eula'])->name('legal');
-```
-
-**Scheduled jobs (`app/Console/Kernel.php`):**
-
-- Regenerate `public/sitemap.xml` nightly via `spatie/laravel-sitemap` (`php artisan sitemap:generate`).
-- Optionally, weekly "waitlist digest to Jay" mailable summarising signups.
+The authoritative description of what actually runs lives in [../MONOREPO.md §3](../MONOREPO.md). Do not follow anything that used to live in this section.
 
 ---
 
@@ -696,89 +519,23 @@ Good luck. Build it confidently — this is the site that sells a product Jay's 
 
 ---
 
-## 16. Canonical app facts (single source of truth)
+## 16. Canonical app facts — now lives in config + code, not this brief
 
-This section exists so the site never lies about the app. If a page references a version, a hotkey name, a mode, a model, etc., it should pull from here (centralise in `config/site.php` where practical). If the app changes, update this section in the same PR as the code change.
+This section used to describe itself as the "single source of truth" for app version, supported platforms, installer type, bundle identifier, and canonical domain. It was written against v0.3.5 and has not been updated since. Each of those facts now has a better home:
 
-**Current version:** `0.3.5` (in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `package.json`).
+- **Current version** lives in `Utterbar Windows App/src-tauri/Cargo.toml`, `tauri.conf.json`, and `package.json` (kept in lockstep by the release process). The server reflects what was actually published via the admin-release API (`releases` table) — [../MONOREPO.md §5](../MONOREPO.md) has the pipeline.
+- **Platform, installer type, bundle ID** are in `tauri.conf.json`.
+- **Canonical domain** is `utterbar.com`. Earlier drafts used `utterbar.app` as a working name; `.app` is not owned and should not be referenced anywhere.
 
-**Platform:** Windows 10 22H2+ and Windows 11. x86_64 only. WebView2 (auto-bootstrapped on Windows 10; built into 11).
-
-**Installer:** MSI + NSIS bundles. Unsigned today; signing pipeline is on the "Now" roadmap.
-
-**Bundle identifier:** `com.utterbar.app`.
-
-**Domain:** **Jay — decide canonical: `utterbar.app` or `utterbar.com`.**
-- This brief uses `utterbar.app` throughout.
-- The app's About page (`src/routes/settings/AboutSettings.tsx`) currently links to `utterbar.com`.
-- Pick one, point the other as a 301 redirect. Whichever you pick, update both the website config and the app's AboutSettings so they match.
-
-**Modes (6 built-in, IDs exactly as shipped):**
-
-| ID               | Display           | Post-processing            | Notes                                                  |
-|------------------|-------------------|----------------------------|--------------------------------------------------------|
-| `voice-to-text`  | Voice to Text     | None (pass-through)        | Default. Just types what you said.                     |
-| `message`        | Message           | Deterministic template     | Casual tone, sentence cap, no filler.                  |
-| `email`          | Email             | LLM (or deterministic fb)  | "Polite, well-formatted email."                        |
-| `note`           | Note              | LLM (or deterministic fb)  | Bullets (dash style default).                          |
-| `meeting`        | Meeting           | Deterministic, preserve \n | Keeps linebreaks for verbatim capture.                 |
-| `super`          | Super             | LLM + context              | Uses active-app / selection / clipboard if permitted.  |
-
-**Shortcut slots (7, IDs exactly as shipped):**
-
-| ID                  | Default accelerator | Trigger style |
-|---------------------|---------------------|---------------|
-| `ToggleRecording`   | `Ctrl+Space`        | Toggle        |
-| `PushToTalk`        | unbound             | PushToTalk    |
-| `HoldToTalk`        | unbound             | HoldToTalk    |
-| `CancelRecording`   | unbound             | Toggle        |
-| `CycleMode`         | unbound             | Toggle        |
-| `OpenSettings`      | unbound             | Toggle        |
-| `OpenHistory`       | unbound             | Toggle        |
-
-**ASR models (catalogue exactly as shipped):**
-
-| ID                                    | Display                                    | Size     | Language | Runtime              |
-|---------------------------------------|--------------------------------------------|----------|----------|----------------------|
-| `sherpa-parakeet-tdt-0.6b-v2-int8`    | Parakeet (English, compact) — recommended  | ~460 MB  | English  | CPU or GPU           |
-| `sherpa-parakeet-tdt-0.6b-v2-fp16`    | Parakeet (English, high-precision)         | ~1.16 GB | English  | GPU-only (DML / CUDA)|
-
-**GPU acceleration options:** Auto (default) · DirectML · CUDA · CPU.
-
-**Capture sources:** Microphone · System (WASAPI loopback) · Mixed.
-
-**File formats (file transcription):** WAV · MP3 · AAC · MP4 · MKV · Ogg · FLAC · PCM. Exports: `.txt` · `.srt` · `.vtt`.
-
-**Text output methods:** Paste-via-clipboard (restores clipboard ~1.5 s after) · per-character keystroke injection (auto-fallback on `SendInput` failure — UIPI, RDP, elevated targets).
-
-**Privacy toggles (defaults):** active-app context ON · selection context OFF · clipboard context OFF · retain audio OFF · retain-days 14 · pause media ON · telemetry OFF (no collection today).
-
-**Themes (3):** Obsidian · Graphite · Paper.
-**Accents (6):** Teal · Amber · Violet · Rose · Cyan · Lime. Cyan is the default and the brand colour — the site should stay cyan regardless of what the user picks in-app.
-
-**Floating bar:** 420 × 48 px, always-on-top, drag to move, double-click to maximise view, right-click to minimise. Visibility: Always · WhileRecording · Hidden. Size: Compact · Standard.
-
-**In-app data paths:** `%APPDATA%\Utterbar\` → `data\` (SQLite) · `models\` · `recordings\` · `logs\` · `config\`.
-
-**Brand cyan in the app:** vertical gradient `#00f6ff → #00a3ff`. The site's `--accent` (`#22D3EE`) is close but not identical — if a hero mockup needs to pixel-match the real pill, use the in-app gradient. For body chrome, the token is fine.
+The modes / built-in models / privacy defaults lists that used to live below were useful once but drifted faster than anyone updated them. For current shipped modes see the seed in `Utterbar Windows App/src-tauri/src/services/modes.rs`. For current shipped models see the catalogue at `Utterbar Windows App/src-tauri/src/services/models.rs`. The authoritative copy of "what the app actually does right now" is the app itself and the per-version release notes at `Utterbar Windows App/releases/`.
 
 ---
 
-## 17. What's NOT yet in the app (don't over-promise on the site)
+## 17. What's NOT yet in the app — see TODO.md
 
-These are commonly assumed or requested, but not shipped as of v0.3.5. Do not write marketing copy that implies they're there:
+The list that used to live here was accurate for v0.3 (signed installer absent, auto-update not wired, file-transcription drag-drop incomplete, Team tier unbuilt, multilingual English-only, macOS absent, telemetry absent). Most of those items have moved: file transcription, auto-update, and the licence-gated Pro tier all ship in v0.6.x. Some are still accurate (macOS, multilingual dictation, telemetry opt-in).
 
-- **Signed installer** — binaries are unsigned today. Don't claim "signed" on the site yet; say "signing coming with 1.0" or omit.
-- **Auto-update** — the "check for updates" toggle exists in General settings; the installer round-trip + update channel is not wired. Don't promise "one-click updates" until it lands.
-- **File-transcription drag-and-drop UI** — the backend decoder + ASR pipeline handle the file formats listed in §16, but the polished drop-zone UX is on the 1.0 punch-list. Phrase it as "file transcription" without implying a mature drag-drop experience until it's done.
-- **Custom model imports** — roadmap only. Don't claim user-supplied models work today.
-- **Multilingual dictation** — English only today. Roadmap.
-- **macOS build** — roadmap only.
-- **Team plan / SSO / shared vocabulary** — pricing tier exists in the brief; none of the backend is built yet. Keep "join the waitlist" as the only CTA for Team.
-- **Telemetry of any kind** — there is none. The `telemetry_enabled` setting exists but does not send anything. If/when it lights up, it will be opt-in and payloads will be visible; say so on the privacy page.
-- **Public open-core repo** — on the roadmap; today the code is private. FAQ #10 already frames this correctly — keep it that way.
-
-If you find yourself writing a sentence that touches any of the above, either cut it, add "coming with 1.0", or move it into the roadmap.
+Rather than maintain two truth sources that drift apart, the current list of what is and isn't shipped lives in [../TODO.md](../TODO.md) and the per-version release notes at [../Utterbar Windows App/releases/](../Utterbar%20Windows%20App/releases/). If you're writing marketing copy and need to know whether to claim a feature, check those first.
 
 ---
 

@@ -173,38 +173,49 @@ macOS / Linux:
 sha256sum src-tauri/target/release/bundle/nsis/Utterbar_0.7.0_x64-setup.exe | awk '{print $1}'
 ```
 
-### 3b. Upload to R2
+### 3b. Upload to R2 (versioned key)
+
+The versioned filename is canonical — every release asset must carry its version so a user who drags the installer anywhere still knows which build it is.
 
 ```bash
 aws s3 cp \
   "src-tauri/target/release/bundle/nsis/Utterbar_0.7.0_x64-setup.exe" \
-  "s3://utterbar/releases/0.7.0/Utterbar-Setup.exe" \
+  "s3://utterbar/releases/0.7.0/Utterbar-Setup-0.7.0.exe" \
   --profile utterbar-r2
 ```
+
+Until the website's admin API drops its legacy `file_not_in_bucket` fallback (tracked as open drift — see [../MONOREPO.md §10.4](../MONOREPO.md)), the script also uploads to the unversioned `releases/0.7.0/Utterbar-Setup.exe` key as a second copy. You only need the second `aws s3 cp` for manual runs if the server-side fallback is still live; the canonical key is the versioned one.
 
 ### 3c. Verify it's live on the CDN
 
 ```bash
-curl -I "https://dl.utterbar.com/releases/0.7.0/Utterbar-Setup.exe"
+curl -I "https://dl.utterbar.com/releases/0.7.0/Utterbar-Setup-0.7.0.exe"
 # expect: HTTP/2 200, content-length matching the .exe
 ```
 
 ### 3d. POST the metadata
 
+Two things matter here: **send `r2_key` explicitly** (so the server doesn't fall back to the legacy unversioned key), and **use `--data-binary "@<tempfile>"`** (git-bash on Windows mangles multiline JSON inside `-d "$PAYLOAD"`).
+
 ```bash
 source ~/.utterbar-deploy/.env
 NOTES=$(cat releases/0.7.0.md)
+
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
+jq -n \
+  --arg v "0.7.0" \
+  --arg r2 "releases/0.7.0/Utterbar-Setup-0.7.0.exe" \
+  --arg sha "47bd8249f82d1210f500d738bd0529a06f5970fa1e5282138bb6d9acf17920da" \
+  --arg notes "$NOTES" \
+  '{version:$v, channel:"stable", r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:true, tag:"latest"}' \
+  > "$TMP"
 
 curl -s -X POST "$UTTERBAR_API_BASE/api/admin/releases" \
   -H "Authorization: Bearer $UTTERBAR_ADMIN_API_TOKEN" \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  -d "$(jq -n \
-      --arg v "0.7.0" \
-      --arg sha "47bd8249f82d1210f500d738bd0529a06f5970fa1e5282138bb6d9acf17920da" \
-      --arg notes "$NOTES" \
-      '{version: $v, channel: "stable", sha256: $sha, notes_markdown: $notes, announce: true, tag: "latest"}'
-  )"
+  --data-binary "@$TMP"
 ```
 
 Expected response (HTTP 201):
@@ -215,7 +226,7 @@ Expected response (HTTP 201):
   "id": 4,
   "version": "0.7.0",
   "channel": "stable",
-  "download_url": "https://dl.utterbar.com/releases/0.7.0/Utterbar-Setup.exe",
+  "download_url": "https://dl.utterbar.com/releases/0.7.0/Utterbar-Setup-0.7.0.exe",
   "size_bytes": 10962662,
   "announced_to": 142,
   "admin_url": "https://utterbar.com/admin/releases"
@@ -233,11 +244,11 @@ Expected response (HTTP 201):
 **Body (JSON):**
 ```json
 {
-  "version": "0.7.0",                 // required, semver-ish
+  "version": "0.7.0",                 // required, strict semver X.Y.Z
   "channel": "stable",                // optional, "stable" | "beta" (default: stable)
-  "r2_key":  "releases/0.7.0/Utterbar-Setup.exe",  // optional, defaults to this pattern from version
+  "r2_key":  "releases/0.7.0/Utterbar-Setup-0.7.0.exe",  // SEND EXPLICITLY — the server's default is the legacy unversioned path which isn't what publish-release.sh uploads to
   "tag":     "latest",                // optional, small pill shown on download page
-  "sha256":  "47bd8249…",             // optional but recommended, 64 hex chars
+  "sha256":  "47bd8249…",             // REQUIRED, 64 hex chars lowercase (server validates the object in R2 matches)
   "notes_markdown": "- first change\n- second change",  // required
   "announce": true,                   // optional, fires the release email
   "announce_subject": "Utterbar 0.7.0 is out"  // optional, defaults to this format
@@ -341,20 +352,32 @@ fi
 echo "  200 OK"
 
 echo "→ publishing metadata to $UTTERBAR_API_BASE…"
+# Include `r2_key` explicitly so the server doesn't fall back to the
+# legacy default of `releases/{version}/Utterbar-Setup.exe` (unversioned).
 PAYLOAD=$(jq -n \
     --arg v "$VERSION" \
     --arg ch "$CHANNEL" \
+    --arg r2 "$KEY" \
     --arg sha "$SHA" \
     --arg notes "$NOTES" \
     --arg tag "$TAG" \
     --argjson ann "$ANNOUNCE" \
-    '{version:$v, channel:$ch, sha256:$sha, notes_markdown:$notes, announce:$ann} + (if $tag == "" then {} else {tag:$tag} end)')
+    '{version:$v, channel:$ch, r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:$ann} + (if $tag == "" then {} else {tag:$tag} end)')
+
+# Write payload to a temp file and curl via --data-binary @<file> instead of
+# -d "$PAYLOAD". The inline -d form mangles multiline JSON on Windows git-bash
+# (bash on MSYS reinterprets embedded newlines in ways curl's arg parser can't
+# recover from), producing a request body the server rejects with "missing
+# version" or similar even though jq generated valid JSON.
+TMP_PAYLOAD=$(mktemp)
+trap 'rm -f "$TMP_PAYLOAD"' EXIT
+printf '%s' "$PAYLOAD" > "$TMP_PAYLOAD"
 
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$UTTERBAR_API_BASE/api/admin/releases" \
     -H "Authorization: Bearer $UTTERBAR_ADMIN_API_TOKEN" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -d "$PAYLOAD")
+    --data-binary "@$TMP_PAYLOAD")
 
 BODY=$(echo "$RESP" | head -n -1)
 CODE=$(echo "$RESP" | tail -n 1)

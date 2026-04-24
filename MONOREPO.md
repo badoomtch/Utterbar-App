@@ -355,11 +355,9 @@ Webhook events handled: `checkout.session.completed`, `charge.refunded`, `charge
 
 ### 4.6 R2 release storage
 
-`utterbar` bucket. Two keys per release currently:
-- `releases/<v>/Utterbar-Setup-<v>.exe` — versioned (new, preferred)
-- `releases/<v>/Utterbar-Setup.exe` — legacy, still required by the admin API's `file_not_in_bucket` check
+`utterbar` bucket. Canonical key per release: `releases/<v>/Utterbar-Setup-<v>.exe`. Served via `dl.utterbar.com`. Anyone can download; gating happens in-app via licence check.
 
-Served via `dl.utterbar.com`. Anyone can download; gating happens in-app via licence check.
+Historical note: until v0.6.5, the admin API's `file_not_in_bucket` fallback defaulted to the unversioned `Utterbar-Setup.exe`, so earlier releases may still have a second R2 object at that key as an orphan. Safe to delete, but no rush.
 
 ---
 
@@ -563,30 +561,29 @@ UTTERBAR_ADMIN_API_TOKEN, UTTERBAR_API_BASE
 
 ## 10. Known contract drift + open threads
 
-### 10.1 Pro price currency + amount mismatch
+### 10.1 Pro price currency + amount mismatch — FIXED (not yet shipped)
 
-- Desktop fallback: `$29 USD` at [useProPrice.ts:31](Utterbar%20Windows%20App/src/hooks/useProPrice.ts#L31) and [pricing.rs:59](Utterbar%20Windows%20App/src-tauri/src/commands/pricing.rs#L59).
-- Release notes: "offline fallback of $29 one-time" at [releases/0.6.1.md:9](Utterbar%20Windows%20App/releases/0.6.1.md#L9).
-- Website Stripe price: `£39.99 GBP` (`price_1TPGCIBGkUvjTVVkBQ4qMzlu`).
-- Website JSON-LD, meta descriptions, pricing page: all say `£39.99`.
+Both app-side fallbacks now return `£39.99 GBP`:
+- [useProPrice.ts](Utterbar%20Windows%20App/src/hooks/useProPrice.ts)
+- [pricing.rs](Utterbar%20Windows%20App/src-tauri/src/commands/pricing.rs)
 
-**Fix both fallbacks** (Rust + TS + comments in useProPrice + pricing.rs doc comment that says `launch price at v0.6`). The real purchase enforces Stripe's price, so this is cosmetic drift, but it's a trust hit on first launch.
+Will ship in v0.6.5. The old `$29` string in [releases/0.6.1.md](Utterbar%20Windows%20App/releases/0.6.1.md) is historical and intentionally untouched.
 
-### 10.2 Pricing API route missing
+### 10.2 Pricing API route missing — FIXED (code committed, needs deploy)
 
-App hits `/api/pricing`; website doesn't expose it. [routes/web.php](Utterbar%20Website/routes/web.php) only has `/pricing` (page). Add a tiny controller that returns current price from config or Stripe.
+`/api/pricing` controller + route exist. Not yet deployed to Cloudways — see §4.3.
 
-### 10.3 Updater API route missing
+### 10.3 Updater API route missing — FIXED (code committed, needs deploy)
 
-App hits `/api/updater/check`; website returns 404 on every candidate path. v0.6.0 users can't auto-upgrade. **Highest-priority cross-repo fix.** Schema and behaviour documented in §4.4.
+`/api/updater/check` controller + route exist. Not yet deployed to Cloudways — see §4.4. Still the priority 1 cross-repo item because **v0.6.1 users can't auto-upgrade until the website deploy goes out**.
 
-### 10.4 Installer filename legacy key
+### 10.4 Installer filename legacy key — FIXED
 
-`publish-release.sh` uploads `Utterbar-Setup-<v>.exe`; admin API's `file_not_in_bucket` check hardcodes `Utterbar-Setup.exe`. Currently double-uploading. Website repo owns the fix; once done, drop the double-upload in the script.
+`publish-release.sh` uploads to the versioned key `releases/<v>/Utterbar-Setup-<v>.exe` and sends `r2_key` explicitly in the POST body. [AdminReleaseApiController.php](Utterbar%20Website/app/Http/Controllers/Api/AdminReleaseApiController.php) now also defaults its own fallback to the versioned path (previously defaulted to the unversioned `Utterbar-Setup.exe`). Needs a Cloudways deploy to take effect on live.
 
-### 10.5 `publish-release.sh` curl quoting
+### 10.5 `publish-release.sh` curl quoting — FIXED
 
-Uses `-d "$PAYLOAD"`; multiline JSON mangles on Windows git-bash, server 422's on missing fields. Use `--data-binary "@$TMPFILE"`. Still in the committed script.
+Script now uses `--data-binary "@$TMP_PAYLOAD"` with a temp file. Also explicitly includes `r2_key` in the payload so the server doesn't fall back to the legacy key. See [publish-release.sh](Utterbar%20Windows%20App/scripts/publish-release.sh).
 
 ### 10.6 Idle RAM 4.9 GB spike (user flagged 2026-04-23)
 
@@ -611,7 +608,48 @@ Not a minor-release patch — real redesign, queue for next polish cycle.
 
 12 MP4s render correctly at 1920×1080 but not verified at the website's mobile breakpoint. Queue for when the website is ready to consume them.
 
-### 10.9 Docs vs code drift (from DOCS_AUDIT_v0.6.1.md)
+### 10.9 Tauri v2.10 IPC heap corruption — PATCHED VIA VENDORED RUNTIME IN v0.6.7
+
+Three symbolicated minidumps from 2026-04-24 testing, all exception code `0xC0000374` (heap corruption), all final frame `ntdll!RtlReportFatalFailure+0x9` at the same address:
+
+| Time (UTC) | Version | Thread | Stack top (app frames) |
+|---|---|---|---|
+| 16:24:22 | v0.6.4 | tokio worker | `respond_async_serialized_inner` → `InvokeResolver::return_result` → `Webview::on_message` → `handle_ipc_message::closure$1` → drop `Webview` → drop `Context` → `Rc::drop_slow<EventLoopRunner>` → `RtlFreeHeap` (detect) |
+| 16:57:26 | v0.6.5 | tokio worker | *Identical* pattern. Additional detail in parent frame: `window::plugin::init::closure$0::closure$72::async_block_env$0` — the async IPC that was resolving when the drop corrupted the heap was inside Tauri's built-in `window` plugin. |
+| 17:34:36 | v0.6.5 | **main thread** | `tao::event_loop::run_return` → `user32::DispatchMessageWorker` → `wry::webview2::attach_ipc_handler::closure$0` → `tauri::ipc::protocol::message_handler::closure$0` → `RtlFreeHeap` (detect) |
+
+**Two distinct stack shapes.** The first two are the `Rc<EventLoopRunner>` drop on a tokio worker — a `DispatcherMainThreadContext<T>` pattern that Tauri's own code has `unsafe impl Send` on, despite containing `Rc`s internally. The third is on the main thread during a WebView2 IPC arrival — no tokio involvement.
+
+**Shared property.** All three: the detection fires at `RtlFreeHeap` inside Tauri/wry IPC machinery, downstream of the actual bad write. The seed allocation and the detection can be on different threads — Low-Fragmentation Heap arenas see the corruption later at an unrelated free within the same arena.
+
+**Attempted diagnostic: Windows PageHeap** (`gflags /p /enable utterbar.exe /full` then `/p /enable utterbar.exe` for header-only). Both forms caused the crash to stop reproducing in testing. This is circumstantial evidence that the root cause is concurrency-shaped (a race that resolves badly only under specific timing): the extra per-allocation overhead changes the timing enough that the bad-drop window closes. PageHeap was reverted after 30 min of testing. Revert command: `gflags /p /disable utterbar.exe` from an Administrator PowerShell.
+
+**Also relevant for differential diagnosis.** Our code amplifies the bug: `clamp_floating_position` was previously an `#[tauri::command] pub async fn` called via `invoke()` on every `onMoved` event during a drag — dozens of async-IPC calls per second, each resolving through `respond_async_serialized_inner`. v0.6.6 changes it to `pub fn` (non-async), which routes through Tauri's sync IPC path instead. **Narrow experiment, not a fix.** If crashes continue in v0.6.6 testing, the Tauri fork is confirmed necessary. If they stop, we were the amplifier.
+
+**v0.6.6 status:** shipped with diagnostics + frontend/Rust stuck-hotkey self-heal + `clamp_floating_position` sync experiment, but the crash reproduced again on v0.6.6 with matching symbols — new minidump at 2026-04-24T18:28:15Z symbolicated to `tauri_runtime_wry::impl$50::clone<EventLoopMessage>+0x149` at [tauri-runtime-wry-2.10.1/src/lib.rs:256](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/src/lib.rs). Failure bucket: `ILLEGAL_INSTRUCTION_c000001d_utterbar.exe!tauri_runtime_wry::impl$50::clone<enum2$<tauri::EventLoopMessage>>`.
+
+**v0.6.7 fix — vendored runtime patch.** Rather than wait on upstream (issue [#10001](https://github.com/tauri-apps/tauri/issues/10001) is open, labelled "needs triage" with no movement; the duplicate [#10987](https://github.com/tauri-apps/tauri/issues/10987) was closed "not planned"), we vendor `tauri-runtime-wry-2.10.1` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/) and wire it via `[patch.crates-io]` in [src-tauri/Cargo.toml](Utterbar%20Windows%20App/src-tauri/Cargo.toml).
+
+The patch is **two lines**: change `Context<T>::main_thread` from `DispatcherMainThreadContext<T>` to `Arc<DispatcherMainThreadContext<T>>`, and wrap the one construction site in `Arc::new(...)`. Rationale (full version in the file's module-level comment):
+
+- `#[derive(Clone)]` on `Context<T>` walks `main_thread`'s derived `Clone` → `EventLoopWindowTarget::clone` → `Rc::clone` on `runner_shared: tao::EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>` ([tao-0.34.8/src/platform_impl/windows/event_loop/runner.rs:27](https://docs.rs/tao/0.34.8/src/tao/platform_impl/windows/event_loop/runner.rs.html)). `Context::clone` runs on every IPC message, including on tokio workers via `tauri::ipc::respond_async_serialized_inner`. The non-atomic `Rc::clone` off the main thread either fires `assert_unchecked` (ud2 → ILLEGAL_INSTRUCTION) or corrupts heap header state that `RtlFreeHeap` detects at the next unrelated free.
+- Wrapping `main_thread` in `Arc` makes the per-IPC-message clone an atomic refcount bump on the Arc — never touches the inner `Rc`. The `Rc<EventLoopRunner>` is only consulted by main-thread-gated code paths (Tauri's own `current_thread().id() == main_thread_id` check at lib.rs:238 + display-handle accessor at 2659) which continue to work via Arc's `Deref`.
+- **Not a `Rc → Arc` cargo-cult fix.** The inner `EventLoopRunner` contains `Cell`, `RefCell`, raw `HWND`, `Box<dyn FnMut>` — none of those become thread-safe. The patch does not widen access to that state. It only stops the wrong-thread `Rc::clone`/`Rc::drop` that the derived `Clone` was invoking via the ownership chain.
+- Upstream's own source comment at `DispatcherMainThreadContext::windows` — `// changing this to an Rc will cause frequent app crashes.` — shows the maintainers already applied this same treatment to one field. We extend it to the outer wrapper.
+
+**Verification.** `cargo check` + `cargo clippy --all-targets -- -D warnings` both green. `cargo tree --package tauri-runtime-wry --edges=no-build` reports `tauri-runtime-wry v2.10.1 (C:\Users\jaypa\...\src-tauri\vendor\tauri-runtime-wry-2.10.1)` — confirming the resolver picked the vendored override, not the crates.io copy. No other code changes were necessary.
+
+**Maintenance cost.** Any `cargo update` that moves Tauri past 2.10.x must be followed by a rebase of the vendored directory against the new upstream source. The module-level comment in the vendored `lib.rs` documents the full rationale so a future maintainer can re-apply the patch. If the Tauri maintainers accept an upstream PR for this, we drop the vendor dir and the `[patch.crates-io]` block.
+
+**Follow-up (non-blocking).** File a new comment on upstream [#10001](https://github.com/tauri-apps/tauri/issues/10001) with the four minidumps' symbolicated stacks + the failure bucket, so other Tauri users benefit. Draft is in the v0.6.7 session log.
+
+**Crash-analyser tooling.** [scripts/analyse-crash.ps1](Utterbar%20Windows%20App/scripts/analyse-crash.ps1) was rewritten in the v0.6.6 session to parse cleanly and symbolicate matching-version dumps. Previous versions had a string-quoting bug that broke on paths with spaces. Usage: `.\scripts\analyse-crash.ps1` (newest dump) or `.\scripts\analyse-crash.ps1 -Dump <path>` or `.\scripts\analyse-crash.ps1 -All`. Output includes `!analyze -v` with the failure bucket.
+
+### 10.10 Licence persistence across app restarts — FIXED (v0.6.5)
+
+Cache is now loaded synchronously in `LicenceService::new()` rather than deferred to a tokio task, so the tier is correct from the first paint and no longer races the UI mount. See [services/licence/mod.rs:97-139](Utterbar%20Windows%20App/src-tauri/src/services/licence/mod.rs). Needs Jay's test confirmation.
+
+### 10.11 Docs vs code drift (from DOCS_AUDIT_v0.6.1.md)
 
 - `docs/shortcuts.blade.php` claims all bindings are "unbound"; the app ships real defaults (see [DOCS_AUDIT_v0.6.1.md](Utterbar%20Website/DOCS_AUDIT_v0.6.1.md)).
 - `docs/modes.blade.php` claims 6 built-in modes; app ships 3 (`voice-to-text`, `message`, `meeting`).
@@ -634,8 +672,8 @@ Not blocking; land in priority order from the audit doc.
 
 - `publish-release.sh` needs `aws` + `jq`. Fresh Windows: `winget install Amazon.AWSCLI jqlang.jq`.
 - On fresh machines, seed `~/.aws/config` + `~/.aws/credentials` from `~/.utterbar-deploy/.env`.
-- `publish-release.sh` with `-d "$PAYLOAD"` mangles multiline JSON on git-bash Windows. Use `--data-binary "@$TMPFILE"`.
-- R2 legacy-key uploads are currently double-done. Drop after website fix.
+- `publish-release.sh` already uses `--data-binary "@$TMP_PAYLOAD"` and explicitly sends `r2_key`. A manual `curl -d "$PAYLOAD"` from git-bash on Windows would mangle multiline JSON — if you're writing a one-off POST, use the temp-file form.
+- The admin API's legacy fallback now defaults to the versioned key (see §10.4). Once the website is deployed, manual POSTs that omit `r2_key` will still work correctly.
 
 ### 11.3 Laravel-specific
 
@@ -666,16 +704,17 @@ Not blocking; land in priority order from the audit doc.
 ## 12. Current state (2026-04-24)
 
 ### Desktop app
-- **In-tree version:** `v0.6.4`. Built but not yet shipped.
+- **In-tree version:** `v0.6.7`. Runtime patch landed; installer build pending.
 - **Last publicly-shipped version:** `v0.6.1` (still on `/download`).
-- Everything between those — v0.6.2 and v0.6.3 — was built locally but
-  never uploaded to R2 / POSTed to admin API / announced. All their
-  fixes are rolled into v0.6.4's release notes.
+- **v0.6.6** built but never publicly shipped — crash reproduced after 1 use of the build, which triggered the v0.6.7 runtime patch work. v0.6.6's user-facing fixes carry forward into v0.6.7.
+- Everything between v0.6.1 and v0.6.7 rolled into [releases/0.6.7.md](Utterbar%20Windows%20App/releases/0.6.7.md).
+- **Crash patched in v0.6.7** via a vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). See §10.9.
+- Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed. Script was rewritten in the v0.6.6 session to parse cleanly.
 
 ### Website
 - `/api/pricing` + `/api/updater/check`: **code committed, not deployed**.
 - Sign-in + update-subscriber token-hashing migrations: **code committed, not applied in prod DB**.
-- 58 PHP tests: green locally.
+- 58 PHP tests: green on Jay's dev machine 2026-04-24 (PHP 8.2 + phpunit 11, in-memory SQLite). **One-machine-single-point-in-time** — not CI-verified. Re-run before deploy.
 - Cloudways deploy: run `Utterbar Website/scripts/deploy-website.ps1` with `$env:CLOUDWAYS_PASSWORD` set.
 
 ### Environment
@@ -683,7 +722,6 @@ Not blocking; land in priority order from the audit doc.
 - Ed25519 keypair: **sandbox** still in use. Rotate at v0.7.
 - R2 CDN: `dl.utterbar.com` — hosts installers at `releases/<v>/Utterbar-Setup-<v>.exe` (+ legacy `Utterbar-Setup.exe` alias).
 - Admin notify: `hello@utterbar.com`.
-- Latest git commits on `badoomtch/Utterbar-App` main (at session start): `3fa393e` (v0.6.3 guards) → `794502a` (layout + self-heal) → ... → v0.6.4 staged.
 
 ---
 
@@ -691,15 +729,16 @@ Not blocking; land in priority order from the audit doc.
 
 Ranked by user-impact, current priorities:
 
-1. **Verify v0.6.4 doesn't crash.** Jay tests ~30 min post-install. If it still crashes, read `%APPDATA%\Utterbar\logs\crash.log` — if a new subsystem name appears in the surrounding log lines, that's the next thing to fix.
-2. **Publish v0.6.4 to R2 + admin API** once Jay signs off. `publish-release.sh` flow.
-3. **Deploy the website** via `deploy-website.ps1`. Independent of app release — can run before or after v0.6.4 publish.
-4. **Licence not persisting across app restarts.** Real bug Jay reported; deferred from v0.6.4 to keep scope manageable.
+1. **Verify v0.6.7 resolves the crash.** Jay tests ~30 min post-install, stress-testing IPC-heavy paths (drag, repeated dictation, multi-window). If crashes recur, read `%APPDATA%\Utterbar\logs\crash.log` and symbolicate the new dump. A v0.6.7 crash would indicate either a second independent bug or that the vendored patch is insufficient.
+2. **Publish v0.6.7 to R2 + admin API** once Jay signs off. `publish-release.sh` flow.
+3. **Deploy the website** via `deploy-website.ps1`. Independent of app release. Unblocks `/api/pricing` + `/api/updater/check` — so v0.6.1 users can actually auto-upgrade.
+4. **File a comment on upstream [tauri#10001](https://github.com/tauri-apps/tauri/issues/10001)** with the four minidumps' symbolicated stacks + the failure bucket. Evidence-only, without revealing proprietary app detail. Non-blocking — helps upstream and future Tauri users.
 5. **Admin dashboard cohesion** — no releases link from `/admin`, no licence-revoke UI. Website-only, ships whenever.
 6. **Docs audit fixes** from [DOCS_AUDIT_v0.6.1.md](Utterbar%20Website/DOCS_AUDIT_v0.6.1.md) — shortcuts / modes / vocabulary / troubleshooting doc pages drifted from app reality.
 7. **Remotion video quality pass** — current renders are slow, zoomed-out, bordered, waveform speed wrong. Separate dedicated session. Consider R2-backed CDN delivery.
-8. **Patch `publish-release.sh` curl** to `--data-binary @file` (fix committed-script quoting bug).
-9. **Drop the legacy R2 key** from the admin API `file_not_in_bucket` check, then drop the double-upload from `publish-release.sh`.
+8. **Clean up orphan R2 objects** — legacy `releases/<v>/Utterbar-Setup.exe` copies from pre-v0.6.5 releases. Safe to delete from the bucket once the v0.6.5 website deploy is live.
+9. **4.9 GB idle RAM investigation** (§10.6) — not investigated yet; requires VMMap attach.
+10. **Tauri Rc drop mitigation** (§10.9) — only if v0.6.5 recurs. Fork `tauri-runtime-wry`, defer `DispatcherMainThreadContext::Drop` to main thread.
 
 ---
 
