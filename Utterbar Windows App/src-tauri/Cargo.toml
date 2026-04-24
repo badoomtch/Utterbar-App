@@ -104,6 +104,10 @@ windows = { version = "0.58", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_System_Threading",
     "Win32_System_ProcessStatus",
+    # Minidump write — used by the SEH handler in main.rs to capture a
+    # full crash dump when a native exception fires. Essential for
+    # post-mortem symbolisation via cdb/windbg.
+    "Win32_Storage_FileSystem",
     "Win32_System_DataExchange",
     "Win32_System_Memory",
     "Win32_UI_Accessibility",
@@ -150,7 +154,14 @@ optional = true
 codegen-units = 1
 lto = true
 panic = "abort"
-strip = true
+# Keep full symbols in the PDB for post-mortem debugging. The EXE stays
+# stripped (strip = "symbols" leaves debug info in the PDB only). With a
+# minidump from the SEH handler + this PDB, cdb/windbg can resolve the
+# full Rust call stack at the moment of a crash. Flip back to
+# `strip = true` + `debug = false` once we're confident the
+# heap-corruption class is dead.
+strip = "symbols"
+debug = 1
 opt-level = 3
 
 [profile.dev]

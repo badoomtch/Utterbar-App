@@ -363,15 +363,32 @@ fn main() {
 #[cfg(windows)]
 fn install_seh_handler(log_dir: std::path::PathBuf) {
     use std::io::Write;
-    use windows::Win32::System::Diagnostics::Debug::{
-        AddVectoredExceptionHandler, EXCEPTION_POINTERS,
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::Foundation::{HANDLE, HMODULE};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_WRITE, FILE_SHARE_NONE, OPEN_ALWAYS,
     };
+    use windows::Win32::System::Diagnostics::Debug::{
+        AddVectoredExceptionHandler, MiniDumpNormal, MiniDumpWithDataSegs,
+        MiniDumpWithHandleData, MiniDumpWithProcessThreadData, MiniDumpWithThreadInfo,
+        MiniDumpWriteDump, EXCEPTION_POINTERS, MINIDUMP_EXCEPTION_INFORMATION, MINIDUMP_TYPE,
+    };
+    use windows::Win32::System::Threading::{GetCurrentProcess, GetCurrentProcessId};
+    use windows::core::PCWSTR;
 
     static LOG_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
     let _ = LOG_DIR.set(log_dir);
 
+    // Reentry guard. If the dump-writing path itself crashes (unlikely but
+    // it's our-own-process writing to disk during an exception), we don't
+    // want to recursively spawn more dumps. AtomicBool set true on first
+    // entry, never cleared; second entry bails straight to CONTINUE_SEARCH.
+    static IN_HANDLER: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+
     unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
-        // EXCEPTION_CONTINUE_SEARCH = 0 — we only LOG, then let Windows handle it.
+        // EXCEPTION_CONTINUE_SEARCH = 0 — we only LOG + write the dump,
+        // then let Windows' normal exception path (WER, terminate) run.
         if info.is_null() {
             return 0;
         }
@@ -389,24 +406,120 @@ fn install_seh_handler(log_dir: std::path::PathBuf) {
         if code == MS_CPP_EH {
             return 0;
         }
+        // Also skip the benign debugger-name / RPC-server-unavailable noise
+        // seen in earlier crash.log entries — they fire during normal
+        // startup and aren't faults.
+        const DBG_THREAD_NAME: u32 = 0x406D1388;
+        const RPC_SERVER_UNAVAILABLE: u32 = 0x000006BA;
+        if code == DBG_THREAD_NAME || code == RPC_SERVER_UNAVAILABLE {
+            return 0;
+        }
+
+        // Reentry guard — CAS this to true. If we lost the race, bail out.
+        if IN_HANDLER
+            .compare_exchange(
+                false,
+                true,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            )
+            .is_err()
+        {
+            return 0;
+        }
+
+        // Timestamp for both the log line and the dump filename, so a user
+        // can pair them up.
+        let ts = time::OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default();
+        // RFC3339 has colons which Windows filesystems don't like — replace.
+        let ts_safe = ts.replace(':', "-");
+        let pid = GetCurrentProcessId();
 
         if let Some(dir) = LOG_DIR.get() {
             let _ = std::fs::create_dir_all(dir);
+
+            // Log line first (cheap, always works).
+            let dump_name = format!("crash-{ts_safe}-pid{pid}.dmp");
             if let Ok(mut f) = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(dir.join("crash.log"))
             {
-                let ts = time::OffsetDateTime::now_utc()
-                    .format(&time::format_description::well_known::Rfc3339)
-                    .unwrap_or_default();
                 let _ = writeln!(
                     f,
-                    "[{ts}] SEH exception code=0x{code:08X} address=0x{addr:016X}"
+                    "[{ts}] SEH exception code=0x{code:08X} address=0x{addr:016X} dump={dump_name}"
                 );
                 let _ = f.flush();
             }
+
+            // MiniDumpWriteDump requires:
+            //   * HANDLE to a newly-created file, writable, exclusive
+            //   * GetCurrentProcess() + GetCurrentProcessId()
+            //   * MINIDUMP_EXCEPTION_INFORMATION with the pointers we got
+            //   * A dump type. We want enough to walk the stack and inspect
+            //     heap regions the crashing thread was touching — Normal
+            //     alone is too thin for heap-corruption analysis.
+            let dump_path = dir.join(&dump_name);
+            // Build a null-terminated UTF-16 path for CreateFileW.
+            let wide: Vec<u16> = dump_path
+                .as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect();
+            let pcw = PCWSTR::from_raw(wide.as_ptr());
+
+            let file = CreateFileW(
+                pcw,
+                FILE_GENERIC_WRITE.0,
+                FILE_SHARE_NONE,
+                None,
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                HANDLE::default(),
+            );
+
+            if let Ok(file_handle) = file {
+                if !file_handle.is_invalid() {
+                    let mut exc_info = MINIDUMP_EXCEPTION_INFORMATION {
+                        ThreadId: windows::Win32::System::Threading::GetCurrentThreadId(),
+                        ExceptionPointers: info,
+                        ClientPointers: false.into(),
+                    };
+
+                    // Dump type: enough context for post-mortem without
+                    // bloating to multi-GB heap dumps. WithDataSegs +
+                    // ProcessThreadData + HandleData + ThreadInfo gives us
+                    // thread stacks, module list, loaded heap metadata
+                    // blocks, and per-thread TEB info — plenty to
+                    // reconstruct the crashing call stack with full Rust
+                    // symbolisation via cdb/windbg.
+                    let dump_type = MINIDUMP_TYPE(
+                        MiniDumpNormal.0
+                            | MiniDumpWithDataSegs.0
+                            | MiniDumpWithHandleData.0
+                            | MiniDumpWithProcessThreadData.0
+                            | MiniDumpWithThreadInfo.0,
+                    );
+
+                    let _ = MiniDumpWriteDump(
+                        GetCurrentProcess(),
+                        pid,
+                        file_handle,
+                        dump_type,
+                        Some(&mut exc_info as *mut _),
+                        None,
+                        None,
+                    );
+                    let _ = windows::Win32::Foundation::CloseHandle(file_handle);
+                }
+            }
         }
+        // Keep IN_HANDLER set — a reentrant fault while we're dying is
+        // exactly when we want to NOT recurse. The process is about to
+        // exit anyway.
+        let _ = HMODULE::default(); // silence unused import on some feature sets
         0
     }
 

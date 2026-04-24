@@ -555,11 +555,10 @@ export function FloatingBar() {
           layout:  { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
         }}
         style={{
-          // Tell the compositor what's going to change so transitions
-          // stay GPU-accelerated. box-shadow is included so the drag
-          // ring + busy-flash appear instantly even while Tauri's
-          // startDragging() has stalled the main-DOM paint loop.
-          willChange: 'transform, width, box-shadow',
+          // GPU hints for the compositor. The accent ring uses its own
+          // sibling element (see below) so box-shadow doesn't need to
+          // animate on this node.
+          willChange: 'transform, width',
           // The prototype's signature chrome: a top→bottom gradient driven by
           // the theme tokens `--pill-top` / `--pill-bot`, so every theme
           // (Graphite, Obsidian, Parchment…) paints its own pill. Replaces
@@ -603,34 +602,20 @@ export function FloatingBar() {
           //     so the ring becomes visible instantly even while Tauri's
           //     startDragging() has stalled the webview's main-DOM paint.
           //     The inner-rim glow comes through underneath for depth.
-          // Box-shadow composition:
-          //   dragging / busyFlash: solid accent ring flush with the 2px
-          //     border + soft accent halo + inner cyan rim-glow + ground
-          //     shadow. Makes the whole pill perimeter read cyan.
-          //   expanded (no drag / flash): inner accent rim-glow only —
-          //     subtle "charged" state.
-          //   collapsed idle: tight hairline shadow.
-          //
-          // `busyFlash` piggybacks on the drag ring so the user gets
-          // the SAME visual cue whether they held the pill or tapped a
-          // hotkey while busy. 900ms of flash, cleared by setBusyFlash.
-          //
-          // `transition` lives INSIDE the style object but note that
-          // framer-motion does apply inline-style transitions when
-          // there's no conflicting motion track — box-shadow isn't in
-          // `animate={}` so the browser handles the transition
-          // directly, GPU-composited.
-          boxShadow: (dragging || busyFlash)
-            ? [
-                '0 0 0 2px var(--accent)',
-                '0 0 0 6px color-mix(in oklab, var(--accent) 22%, transparent)',
-                'inset 0 0 22px color-mix(in oklab, var(--accent) 32%, transparent)',
-                '0 6px 18px rgba(0,0,0,0.28)',
-              ].join(', ')
-            : expanded
-              ? 'inset 0 0 20px color-mix(in oklab, var(--accent) 14%, transparent), 0 3px 10px rgba(0,0,0,0.26)'
-              : '0 2px 8px rgba(0,0,0,0.24)',
-          transition: 'box-shadow 180ms ease-out',
+          // Box-shadow does two jobs:
+          //   expanded: inner accent rim-glow for the "charged" feel +
+          //     ground shadow
+          //   collapsed idle: tight hairline shadow
+          // The drag / busy-flash ACCENT RING is rendered as a sibling
+          // overlay element OUTSIDE the motion.div (see DragAccentRing
+          // below) because framer-motion's style prop can race with
+          // CSS transitions on box-shadow during its `layout` animation,
+          // producing the "flashes for a split second then vanishes"
+          // behaviour. A separate DOM node with its own plain CSS opacity
+          // transition is deterministic and framer-motion never touches it.
+          boxShadow: expanded
+            ? 'inset 0 0 20px color-mix(in oklab, var(--accent) 14%, transparent), 0 3px 10px rgba(0,0,0,0.26)'
+            : '0 2px 8px rgba(0,0,0,0.24)',
         }}
         className={cn(
           // Height scales with size preference. Standard is 52px (prototype
@@ -652,13 +637,41 @@ export function FloatingBar() {
           isCompact ? 'h-[44px]' : 'h-[52px]',
           expanded
             ? isCompact
-              ? 'pl-1.5 pr-1 gap-2 min-w-[400px] justify-between'
-              : 'pl-3 pr-2 gap-2.5 min-w-[540px] justify-between'
+              ? 'pl-1.5 pr-1 gap-2 min-w-[340px] justify-between'
+              : 'pl-3 pr-2 gap-2.5 min-w-[460px] justify-between'
             : isCompact
               ? 'px-2 gap-1.5'
               : 'px-3 gap-2.5',
         )}
       >
+        {/* Drag/busy accent ring. Rendered as its own positioned child
+            with a plain CSS opacity transition — NOT via the motion.div's
+            box-shadow — because framer-motion's layout animation can
+            interleave with CSS box-shadow transitions in ways that cause
+            the ring to flash for a frame and then vanish. A separate
+            DOM node with inline style `opacity` is deterministic: the
+            browser transitions opacity on its own compositor layer,
+            framer-motion doesn't touch this element, and the ring stays
+            lit for the entire time `dragging` or `busyFlash` is true.
+            `inset-0` sits flush with the existing border (the
+            motion.div already carries border-2 with its own stroke
+            colour); the ring paints a 2px cyan line just inside that
+            border, producing the visual of "the whole pill perimeter
+            glows cyan" without disturbing the base border.
+            pointer-events-none so it never intercepts clicks. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-full border-2"
+          style={{
+            borderColor: 'var(--accent)',
+            opacity: (dragging || busyFlash) ? 1 : 0,
+            transition: 'opacity 140ms ease-out',
+            zIndex: 2,
+            boxShadow: (dragging || busyFlash)
+              ? '0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent)'
+              : 'none',
+          }}
+        />
         {/* LEFT — always visible. Waveform-only glyph (the pill body + hole-
             punch from the full logo are deliberately dropped here: the
             floating bar already IS a pill, and rendering a miniature pill
