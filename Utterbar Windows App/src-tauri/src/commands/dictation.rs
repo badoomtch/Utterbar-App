@@ -120,6 +120,7 @@ pub async fn start_recording(
         let has_live_capture = state.audio.current().await.is_some();
         if has_live_capture {
             tracing::warn!("start_recording rejected: another start is already in progress");
+            emit_busy(&handle);
             return Err(OrliqError::User {
                 message: "recording already in progress".into(),
             });
@@ -131,6 +132,55 @@ pub async fn start_recording(
         tracing::warn!(
             "start_recording: recording_in_progress flag was stuck true with no active capture — clearing as stale and proceeding"
         );
+    }
+
+    // Transcribe-in-flight rejection. The inference orchestrator
+    // serialises with a single write lock, so even if we armed a new
+    // capture here we'd stall when `stop_recording` tries to transcribe
+    // — and we'd tempt the concurrent-native-teardown race that's the
+    // suspected cause of the v0.6.3 heap-corruption regression.
+    //
+    // Stale self-heal: if `transcribe_in_progress` has been true for
+    // more than 30 s it is stale (transcribe hung, panic in post-
+    // processing, dropped error path). Clear it + proceed rather than
+    // wedge the user out of the app. 30 s covers real transcribe times
+    // with plenty of headroom — the log shows a 25-second recording
+    // finishing its transcribe in 1.2 s.
+    const TRANSCRIBE_STALE_MS: i64 = 30_000;
+    if state
+        .transcribe_in_progress
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        let started_at = state
+            .transcribe_started_at_ms
+            .load(std::sync::atomic::Ordering::Acquire);
+        let stale = started_at > 0 && (now_ms() - started_at) > TRANSCRIBE_STALE_MS;
+        if !stale {
+            tracing::warn!(
+                transcribe_started_at_ms = started_at,
+                "start_recording rejected: transcribe still in flight"
+            );
+            // Clear our recording_in_progress CAS — we're about to bail
+            // without actually starting, so leaving it true would wedge
+            // the next press.
+            state
+                .recording_in_progress
+                .store(false, std::sync::atomic::Ordering::Release);
+            emit_busy(&handle);
+            return Err(OrliqError::User {
+                message: "still transcribing — wait a moment".into(),
+            });
+        }
+        tracing::warn!(
+            elapsed_ms = now_ms() - started_at,
+            "start_recording: transcribe_in_progress flag was stuck for >30s — clearing as stale and proceeding"
+        );
+        state
+            .transcribe_in_progress
+            .store(false, std::sync::atomic::Ordering::Release);
+        state
+            .transcribe_started_at_ms
+            .store(0, std::sync::atomic::Ordering::Release);
     }
 
     let settings = state.settings.snapshot().await;
@@ -404,7 +454,18 @@ pub async fn stop_recording(
 
     let started = now_ms();
     tracing::info!(%model_id, mode_id = %mode.id, "inference.transcribe begin");
-    let asr = match state
+    // Set the transcribe-in-flight guard. `start_recording` rejects
+    // while this is true so a new recording can't race the current
+    // transcribe's write lock on the inference orchestrator.
+    // `transcribe_started_at_ms` timestamp lets the start-recording
+    // stale-guard self-heal if the transcribe hangs longer than 30 s.
+    state
+        .transcribe_in_progress
+        .store(true, std::sync::atomic::Ordering::Release);
+    state
+        .transcribe_started_at_ms
+        .store(now_ms(), std::sync::atomic::Ordering::Release);
+    let asr_result = state
         .inference
         .transcribe(
             &model_id,
@@ -419,8 +480,19 @@ pub async fn stop_recording(
                 vocabulary_hints: vocab_hints,
             },
         )
-        .await
-    {
+        .await;
+    // Clear the guard the instant the future settles. All exit paths
+    // below (error, success) observe it cleared; any new recording that
+    // comes in while the outer stop_recording is still doing text-inject
+    // / history-write (post-transcribe work) is safe, because the
+    // inference orchestrator's write lock is already released.
+    state
+        .transcribe_in_progress
+        .store(false, std::sync::atomic::Ordering::Release);
+    state
+        .transcribe_started_at_ms
+        .store(0, std::sync::atomic::Ordering::Release);
+    let asr = match asr_result {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, %model_id, "inference.transcribe failed");
@@ -632,6 +704,17 @@ async fn set_phase(handle: &AppHandle, phase: DictationPhase) {
     if let DictationPhase::Error { message } = &phase {
         let _ = handle.emit(EVT_DICTATION_ERROR, message.clone());
     }
+}
+
+/// Fire the `dictation:busy` event. The FloatingBar listens for this
+/// and runs a one-second accent border flash — the user pressed the
+/// hotkey while the app was busy (either mid-recording or mid-
+/// transcribe), and a silent no-op would be confusing. A flash plus
+/// the rejection error (swallowed by the frontend) together read as
+/// "noted, try again in a moment" without any modal interruption.
+fn emit_busy(handle: &AppHandle) {
+    use crate::domain::EVT_DICTATION_BUSY;
+    let _ = handle.emit(EVT_DICTATION_BUSY, ());
 }
 
 /// Capitalise the first alphabetic character of `s`, leaving everything else alone.

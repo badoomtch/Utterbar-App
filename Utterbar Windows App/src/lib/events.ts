@@ -4,6 +4,10 @@ export const EVT = {
   dictationMeter: 'dictation:meter',
   dictationResult: 'dictation:result',
   dictationError: 'dictation:error',
+  // Fired when start_recording is rejected because the app is already
+  // busy (previous recording mid-transcribe, guard still held, etc.).
+  // FloatingBar listens for this and runs a one-second border flash.
+  dictationBusy: 'dictation:busy',
   modelProgress: 'model:progress',
   modelChanged: 'model:changed',
   settingsChanged: 'settings:changed',

@@ -78,7 +78,27 @@ impl InferenceOrchestrator {
         // Either no provider, or it doesn't match. Drop the previous
         // one (if any) before building a new one so we don't keep two
         // sets of ONNX sessions resident in memory during the swap.
+        //
+        // But only if no other caller holds an Arc clone of the old
+        // provider. If they do (a transcribe is mid-flight with the
+        // previous model), we must wait for them to finish — dropping
+        // the native recognizer while their tokio task is still calling
+        // into its C++ code would race sherpa-onnx's teardown.
         if let Some(prev) = guard.take() {
+            if Arc::strong_count(&prev.provider) > 1 {
+                // Put it back. The caller was asking for a model swap,
+                // but there's still a transcribe running against the
+                // current model — bail out for this call and let the
+                // caller retry, so the active transcribe can finish
+                // before we tear its recognizer down.
+                tracing::warn!(
+                    "ensure_loaded: model swap deferred — previous provider still in use by another transcribe"
+                );
+                *guard = Some(prev);
+                return Err(anyhow!(
+                    "model swap pending: another transcribe is still in flight — retry shortly"
+                ));
+            }
             // Drop the guard across the await so `unload()` — which
             // does its own synchronous mutex dance inside the provider
             // — doesn't deadlock with another caller that's blocked
@@ -127,10 +147,30 @@ impl InferenceOrchestrator {
         // a warm disk) but uses zero RAM in between. Sweeper handles the `> 0`
         // case; we just shortcut here so the user sees the effect immediately
         // rather than on the next sweeper tick.
+        //
+        // We must not unload while another concurrent transcribe holds a
+        // clone of this same provider Arc. Our local `provider` above is
+        // one clone; `active.provider` is another. So strong_count == 2
+        // means "just us". Higher means another transcribe is in flight
+        // and unloading would race its native teardown.
         let warm_secs = self.settings.snapshot().await.models.warm_duration_secs;
         if warm_secs == 0 {
-            if let Some(prev) = self.active.write().await.take() {
-                let _ = prev.provider.unload().await;
+            // Drop our local `provider` Arc BEFORE the check so strong_count
+            // reflects only other in-flight callers, not ourselves.
+            drop(provider);
+            let mut guard = self.active.write().await;
+            let safe_to_unload = guard
+                .as_ref()
+                .is_some_and(|a| Arc::strong_count(&a.provider) == 1);
+            if safe_to_unload {
+                if let Some(prev) = guard.take() {
+                    drop(guard);
+                    let _ = prev.provider.unload().await;
+                }
+            } else {
+                tracing::info!(
+                    "inference: inline unload (warm=0) deferred — another transcribe still in flight"
+                );
             }
         }
 
@@ -174,6 +214,20 @@ impl InferenceOrchestrator {
     /// sweeper's job is the `> 0` case where the model hangs around for N
     /// seconds after the last dictation, then is released to free RAM /
     /// VRAM for other apps.
+    ///
+    /// v0.6.3 hardening: the sweeper now refuses to unload while any
+    /// caller still holds a clone of the current provider Arc. Before
+    /// this check, the sweeper could fire in between `ensure_loaded`
+    /// returning an `Arc<dyn AsrProvider>` to a caller and that caller
+    /// finishing `provider.transcribe().await`. On the active happy
+    /// path the inner mutex serialises well enough to avoid UB, but
+    /// the post-transcribe read-lock + `last_used` update runs AFTER
+    /// the native call — if the sweeper dropped the provider's native
+    /// recognizer mid-way, the drop invoked sherpa-onnx's native ORT
+    /// teardown concurrently with another tokio task that still held
+    /// the Arc for its own cleanup. That racing native teardown is the
+    /// most likely source of the remaining STATUS_HEAP_CORRUPTION
+    /// (0xC0000374) crashes post-v0.6.2.
     pub fn spawn_idle_sweeper(self: Arc<Self>) {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(Duration::from_secs(10));
@@ -191,19 +245,51 @@ impl InferenceOrchestrator {
                 let should_unload = {
                     let guard = self.active.read().await;
                     match guard.as_ref() {
-                        Some(a) => a
-                            .last_used
-                            .lock()
-                            .map(|last| last.elapsed() >= Duration::from_secs(warm_secs as u64))
-                            .unwrap_or(false),
+                        Some(a) => {
+                            let elapsed = a
+                                .last_used
+                                .lock()
+                                .map(|last| last.elapsed())
+                                .unwrap_or_default();
+                            let idle = elapsed >= Duration::from_secs(warm_secs as u64);
+                            // Refuse to unload if another caller still holds
+                            // a clone of this provider Arc — they're mid-use,
+                            // and dropping the native recognizer out from
+                            // under them races the sherpa-onnx native teardown
+                            // with their in-flight transcribe. One extra live
+                            // clone (besides ours in `a.provider`) means at
+                            // least one transcribe hasn't returned yet.
+                            let in_use = Arc::strong_count(&a.provider) > 1;
+                            if idle && in_use {
+                                tracing::info!(
+                                    strong_count = Arc::strong_count(&a.provider),
+                                    "inference: idle sweeper deferring — provider still in use"
+                                );
+                            }
+                            idle && !in_use
+                        }
                         None => false,
                     }
                 };
 
                 if should_unload {
-                    if let Some(prev) = self.active.write().await.take() {
-                        let _ = prev.provider.unload().await;
-                        tracing::info!(warm_secs, "inference: idle unload");
+                    // Re-check strong_count under the write lock. Another
+                    // transcribe may have cloned between our read-lock
+                    // check and here. Cheap guard, avoids the read→write
+                    // upgrade race.
+                    let mut guard = self.active.write().await;
+                    let still_single = guard
+                        .as_ref()
+                        .is_some_and(|a| Arc::strong_count(&a.provider) == 1);
+                    if still_single {
+                        if let Some(prev) = guard.take() {
+                            // Drop the write lock across the await so a
+                            // transcribe blocked on our lock isn't held
+                            // up by the native teardown.
+                            drop(guard);
+                            let _ = prev.provider.unload().await;
+                            tracing::info!(warm_secs, "inference: idle unload");
+                        }
                     }
                 }
             }

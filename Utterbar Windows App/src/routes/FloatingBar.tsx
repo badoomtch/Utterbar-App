@@ -13,7 +13,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { StatePill } from '@/components/bar/StatePill';
 import { UtterbarMiniMark } from '@/components/bar/UtterbarMiniMark';
-import { invoke } from '@/lib/ipc';
+import { EVT } from '@/lib/events';
+import { invoke, listen } from '@/lib/ipc';
 import { cn } from '@/lib/cn';
 import { formatDuration } from '@/lib/format';
 import { useDictation } from '@/state/dictation';
@@ -42,6 +43,13 @@ export function FloatingBar() {
   // can't get stuck if the user releases outside the window (which does
   // happen when dragging to a screen edge).
   const [dragging, setDragging] = useState(false);
+  // Busy-flash signal — set true for 900ms when Rust fires the
+  // `dictation:busy` event. This happens when the user pressed the
+  // hotkey while the app was mid-transcribe / mid-recording. We flash
+  // the accent border for a moment so the user gets a visible "noted,
+  // try again" cue instead of the hotkey silently doing nothing.
+  const [busyFlash, setBusyFlash] = useState(false);
+  const busyFlashTimerRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!dragging) return;
     const clear = () => setDragging(false);
@@ -55,6 +63,30 @@ export function FloatingBar() {
     };
   }, [dragging]);
   const pillRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe to the `dictation:busy` event Rust emits when a hotkey
+  // press was rejected because the app was already recording or
+  // transcribing. We toggle `busyFlash` on for 900ms so the accent
+  // border lights briefly — user sees "noted, but not yet" instead
+  // of a silent no-op.
+  useEffect(() => {
+    const p = listen(EVT.dictationBusy, () => {
+      setBusyFlash(true);
+      if (busyFlashTimerRef.current !== undefined) {
+        window.clearTimeout(busyFlashTimerRef.current);
+      }
+      busyFlashTimerRef.current = window.setTimeout(() => {
+        setBusyFlash(false);
+        busyFlashTimerRef.current = undefined;
+      }, 900);
+    });
+    return () => {
+      void p.then((u) => u()).catch(() => undefined);
+      if (busyFlashTimerRef.current !== undefined) {
+        window.clearTimeout(busyFlashTimerRef.current);
+      }
+    };
+  }, []);
 
   // Hover-off grace period. The "it snaps closed as you leave" problem has
   // two sources:
@@ -465,7 +497,11 @@ export function FloatingBar() {
           layout:  { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
         }}
         style={{
-          willChange: 'transform, width',
+          // Tell the compositor what's going to change so transitions
+          // stay GPU-accelerated. box-shadow is included so the drag
+          // ring + busy-flash appear instantly even while Tauri's
+          // startDragging() has stalled the main-DOM paint loop.
+          willChange: 'transform, width, box-shadow',
           // The prototype's signature chrome: a top→bottom gradient driven by
           // the theme tokens `--pill-top` / `--pill-bot`, so every theme
           // (Graphite, Obsidian, Parchment…) paints its own pill. Replaces
@@ -509,26 +545,34 @@ export function FloatingBar() {
           //     so the ring becomes visible instantly even while Tauri's
           //     startDragging() has stalled the webview's main-DOM paint.
           //     The inner-rim glow comes through underneath for depth.
-          boxShadow: dragging
+          // Box-shadow composition:
+          //   dragging / busyFlash: solid accent ring flush with the 2px
+          //     border + soft accent halo + inner cyan rim-glow + ground
+          //     shadow. Makes the whole pill perimeter read cyan.
+          //   expanded (no drag / flash): inner accent rim-glow only —
+          //     subtle "charged" state.
+          //   collapsed idle: tight hairline shadow.
+          //
+          // `busyFlash` piggybacks on the drag ring so the user gets
+          // the SAME visual cue whether they held the pill or tapped a
+          // hotkey while busy. 900ms of flash, cleared by setBusyFlash.
+          //
+          // `transition` lives INSIDE the style object but note that
+          // framer-motion does apply inline-style transitions when
+          // there's no conflicting motion track — box-shadow isn't in
+          // `animate={}` so the browser handles the transition
+          // directly, GPU-composited.
+          boxShadow: (dragging || busyFlash)
             ? [
-                // Outer accent ring, flush against the pill border (spread=2
-                // matches border-2, no blur = sharp edge).
                 '0 0 0 2px var(--accent)',
-                // Soft halo outside that ring.
                 '0 0 0 6px color-mix(in oklab, var(--accent) 22%, transparent)',
-                // Inner cyan glow reinforces the "lifted + charged" read.
                 'inset 0 0 22px color-mix(in oklab, var(--accent) 32%, transparent)',
-                // Ground shadow so it still reads as sitting above the
-                // desktop rather than floating in the void.
                 '0 6px 18px rgba(0,0,0,0.28)',
               ].join(', ')
             : expanded
               ? 'inset 0 0 20px color-mix(in oklab, var(--accent) 14%, transparent), 0 3px 10px rgba(0,0,0,0.26)'
               : '0 2px 8px rgba(0,0,0,0.24)',
-          // Smooth the ring on/off so it doesn't pop. GPU opacity/shadow
-          // transitions survive the Tauri drag paint-stall because
-          // compositor-level changes don't require main-DOM repaint.
-          transition: 'box-shadow 120ms ease-out',
+          transition: 'box-shadow 180ms ease-out',
         }}
         className={cn(
           // Height scales with size preference. Standard is 52px (prototype

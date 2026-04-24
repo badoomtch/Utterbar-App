@@ -58,6 +58,25 @@ pub struct AppState {
     /// The frontend fan-out gate is the primary fix; this is defence in
     /// depth so a future regression can't re-introduce the same crash.
     pub recording_in_progress: AtomicBool,
+    /// Transcribe-in-flight guard. Set when `stop_recording` hands audio
+    /// off to the inference orchestrator, cleared when `stop_recording`
+    /// returns. `start_recording` rejects while this is true — the user
+    /// can't start a new dictation while the previous is mid-transcribe,
+    /// because doing so races the inference write lock and (on v0.6.1)
+    /// was the source of intermittent heap corruption when the two
+    /// recordings competed for the DirectML session.
+    ///
+    /// Self-heal: if the guard has been true for more than ~30 s, it's
+    /// stale (transcribe hung or dropped an error). `start_recording`
+    /// sees the stale timestamp via `transcribe_started_at_ms` and
+    /// clears the flag rather than wedge the user out of the app.
+    pub transcribe_in_progress: AtomicBool,
+    /// Unix ms of the last `transcribe_in_progress = true` transition.
+    /// Used by the stale-guard self-heal in `start_recording`. Stored
+    /// as an i64 atomic because that's what `now_ms()` returns; 0 means
+    /// "no transcribe in flight". Writes only happen when
+    /// `transcribe_in_progress` is being toggled, so no separate lock.
+    pub transcribe_started_at_ms: std::sync::atomic::AtomicI64,
     handle: RwLock<Option<AppHandle>>,
 }
 
@@ -130,6 +149,8 @@ impl AppState {
             media,
             licence,
             recording_in_progress: AtomicBool::new(false),
+            transcribe_in_progress: AtomicBool::new(false),
+            transcribe_started_at_ms: std::sync::atomic::AtomicI64::new(0),
             handle: RwLock::new(None),
         })
     }

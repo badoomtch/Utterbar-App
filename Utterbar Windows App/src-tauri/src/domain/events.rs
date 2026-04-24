@@ -17,6 +17,12 @@ pub const EVT_FILE_JOB_PROGRESS: &str = "file-job:progress";
 /// floating bar's History / Settings buttons can land the user on the right
 /// page instead of dumping them wherever they last were.
 pub const EVT_MAIN_NAVIGATE: &str = "main:navigate";
+/// Fired when `start_recording` refuses to arm a capture because the app
+/// is already busy (a transcribe is in flight, or the re-entry guard is
+/// still set from a previous recording). The FloatingBar listens for
+/// this and plays a one-second border flash so the user gets a visible
+/// "busy, wait" cue instead of pressing the hotkey into a silent void.
+pub const EVT_DICTATION_BUSY: &str = "dictation:busy";
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
