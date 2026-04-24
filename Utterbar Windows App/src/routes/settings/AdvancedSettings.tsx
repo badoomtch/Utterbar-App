@@ -159,7 +159,7 @@ export function AdvancedSettings() {
   const bestAdapter = gpu?.adapters.find((a) => !a.is_software);
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader title="Advanced" subtitle="Diagnostics, hardware preferences, and experimental toggles." />
       <div className="mt-6 space-y-4">
         <Card

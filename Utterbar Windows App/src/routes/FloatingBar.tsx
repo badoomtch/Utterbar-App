@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -76,7 +76,16 @@ export function FloatingBar() {
   //   • Window `blur` still clears — if the OS moves focus away during
   //     a drag something's wrong and we'd rather reset than stick.
   useEffect(() => {
-    if (!dragging) return;
+    if (!dragging) {
+      // Ensure the data-attribute is cleared whenever React believes the
+      // drag has ended — covers post-drop, blur-out, and the hard fallback
+      // path. Matches the CSS rule that lights `.ub-drag-ring` on
+      // `[data-dragging="true"]`.
+      if (pillRef.current) {
+        pillRef.current.removeAttribute('data-dragging');
+      }
+      return;
+    }
     let moveTimer: number | undefined;
     let hardFallback: number | undefined;
     let unlistenMoved: (() => void) | undefined;
@@ -210,7 +219,8 @@ export function FloatingBar() {
   const terminal =
     phase.kind === 'success' ||
     phase.kind === 'error' ||
-    phase.kind === 'cancelled';
+    phase.kind === 'cancelled' ||
+    phase.kind === 'no_audio';
 
   const [terminalUntil, setTerminalUntil] = useState(0);
   useEffect(() => {
@@ -426,6 +436,37 @@ export function FloatingBar() {
       return;
     }
     e.preventDefault();
+    // Why we mutate the DOM attribute directly rather than relying on React:
+    //
+    // Previous fixes (v0.6.2–v0.6.5) drove the drag ring via React state
+    // (`dragging` bound to an inline `opacity` style). Even with `flushSync`,
+    // the sequence is:
+    //   1. flushSync renders the component with dragging=true
+    //   2. React commits the new inline style to the DOM
+    //   3. `startDragging()` is called — OS enters modal window-move loop
+    //   4. WebView2's renderer generates no new frame until the modal loop
+    //      returns, because the OS now owns the window's paint ticks
+    //
+    // The commit at step 2 happens, but the frame that would show the
+    // post-commit pixels is never produced until after the drag ends.
+    // Result: ring appears to flash briefly on drag-start (what the user
+    // sometimes saw) or not at all (what they saw more recently).
+    //
+    // Setting a DOM attribute synchronously in the handler — BEFORE the
+    // browser processes the next paint cycle — plus driving the ring via a
+    // CSS rule (`[data-dragging="true"] .ub-drag-ring { opacity: 1 }`),
+    // means the attribute is observable to the compositor as soon as the
+    // handler returns. The compositor already has everything it needs to
+    // paint the ring; no new frame from the renderer is required (CSS
+    // opacity is a composited property).
+    //
+    // The React `dragging` state is still set — it drives the pill scale
+    // transform (which is post-drop, so normal React paint works) and the
+    // debounced drag-termination effect. The data-attribute is purely the
+    // visual-during-drag channel.
+    if (pillRef.current) {
+      pillRef.current.setAttribute('data-dragging', 'true');
+    }
     setDragging(true);
     void getCurrentWindow().startDragging().catch(() => undefined);
   };
@@ -516,6 +557,12 @@ export function FloatingBar() {
       <motion.div
         ref={pillRef}
         layout
+        // `data-busy-flash` is driven by React state (safe — fires only
+        // post-hotkey, not during a native drag). `data-dragging` is NOT
+        // a React-controlled attribute: it's written directly to the DOM
+        // in the pointerdown handler so the CSS rule can pick it up before
+        // WebView2's paint loop is starved by Tauri's modal move loop.
+        data-busy-flash={busyFlash ? 'true' : undefined}
         onMouseEnter={() => setHoveredDelayed(true)}
         onMouseLeave={() => setHoveredDelayed(false)}
         onPointerLeave={() => setHoveredDelayed(false)}
@@ -527,18 +574,39 @@ export function FloatingBar() {
         // listener in the drag effect above.
         initial={{ scale: 0.96, opacity: 0, y: -12 }}
         animate={{
-          // Drag-lift: pill scales up noticeably while dragging (1.05 —
-          // more visible than the v1 1.03) and settles back with a small
-          // spring overshoot on release. Combined with the accent-border
-          // + accent-glow-halo swap below, this is the "picks up off the
-          // desktop" moment.
+          // Drag-lift: pill scales up 1.05 while dragging and settles
+          // back with a small spring overshoot on release. Framer-motion
+          // drives this via inline transform mutations; that means the
+          // effect is visible on the renderer's next frame (pre-drag
+          // flash) and during the spring-back, but NOT during Tauri's
+          // native drag where the renderer is blocked by the OS modal
+          // move loop.
+          //
+          // v0.6.8 tried to move this to a compositor-promoted CSS rule
+          // so it would paint during the native drag. That worked for
+          // the drag, but the promotion hint (`translateZ(0)` + `transition:
+          // transform 160ms`) fought framer-motion's `layout` transform
+          // mutations on the same element, producing a stutter in the
+          // normal open/close animation. Smooth open/close is higher
+          // priority than "visible scale during drag", so we reverted.
+          //
+          // Net effect now matches v0.6.7: scale animates via framer
+          // before and after the native drag, but the drag itself is
+          // the OS-owned window-move loop during which renderer paint
+          // is starved — if you watch closely the scale "settles" on
+          // drop rather than being live during the move. The accent
+          // ring (ub-drag-ring) is a separate sibling element and
+          // continues to drive from data-dragging + CSS; that's the
+          // channel that can, in principle, light during drag because
+          // it has its own compositor layer and framer doesn't touch
+          // it. See the honest note in globals.css.
           scale: dragging ? 1.05 : 1,
           opacity: 1,
           y: 0,
         }}
         transition={{
-          // Mount + drag-lift share the scale track. The spring gives the
-          // drag release a satisfying little overshoot back to rest.
+          // Mount + drag-lift share the scale track. The spring gives
+          // the drag release a satisfying little overshoot back to rest.
           scale:   { type: 'spring', stiffness: 460, damping: 28, mass: 0.7 },
           opacity: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
           y:       { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
@@ -633,6 +701,13 @@ export function FloatingBar() {
           //     min-w keeps the pill wide enough that the drag region
           //     never collapses to zero even with a minimal action
           //     cluster (idle state: StatePill + 3 buttons).
+          // Outer pill class. Does NOT include any compositor-promotion
+          // hint (will-change / translateZ) — attempting that in v0.6.8
+          // made the normal open/close `layout` animation stutter because
+          // framer-motion writes inline transforms every frame during
+          // layout transitions; the CSS-rule transform kept fighting it.
+          // See the honest note in globals.css about what this means for
+          // the drag-lift scale.
           'relative mt-0.5 flex items-center overflow-hidden rounded-full border-2',
           isCompact ? 'h-[44px]' : 'h-[52px]',
           expanded
@@ -644,33 +719,22 @@ export function FloatingBar() {
               : 'px-3 gap-2.5',
         )}
       >
-        {/* Drag/busy accent ring. Rendered as its own positioned child
-            with a plain CSS opacity transition — NOT via the motion.div's
-            box-shadow — because framer-motion's layout animation can
-            interleave with CSS box-shadow transitions in ways that cause
-            the ring to flash for a frame and then vanish. A separate
-            DOM node with inline style `opacity` is deterministic: the
-            browser transitions opacity on its own compositor layer,
-            framer-motion doesn't touch this element, and the ring stays
-            lit for the entire time `dragging` or `busyFlash` is true.
-            `inset-0` sits flush with the existing border (the
-            motion.div already carries border-2 with its own stroke
-            colour); the ring paints a 2px cyan line just inside that
-            border, producing the visual of "the whole pill perimeter
-            glows cyan" without disturbing the base border.
+        {/* Drag/busy accent ring. Two channels light this:
+            - `data-dragging="true"` on the parent motion.div, set
+              synchronously in the pointer-down handler before Tauri's
+              `startDragging()` hands the OS the modal move loop. This is
+              the WHILE-DRAGGING channel: a CSS rule on the attribute
+              means the compositor can paint the ring without waiting
+              for a React render or a renderer frame, which WebView2
+              won't produce during the native drag.
+            - `data-busy-flash="true"` for the 900ms busy pulse.
+            The ring itself is a plain DOM node with no React-driven
+            inline styling — all state lives in the two data-attributes
+            + CSS. See globals.css `.ub-drag-ring` for the visual spec.
             pointer-events-none so it never intercepts clicks. */}
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-full border-2"
-          style={{
-            borderColor: 'var(--accent)',
-            opacity: (dragging || busyFlash) ? 1 : 0,
-            transition: 'opacity 140ms ease-out',
-            zIndex: 2,
-            boxShadow: (dragging || busyFlash)
-              ? '0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent)'
-              : 'none',
-          }}
+          className="ub-drag-ring pointer-events-none absolute inset-0 rounded-full border-2"
         />
         {/* LEFT — always visible. Waveform-only glyph (the pill body + hole-
             punch from the full logo are deliberately dropped here: the
@@ -714,42 +778,81 @@ export function FloatingBar() {
           </span>
         </div>
 
-        {/* RIGHT — expanded content. AnimatePresence gates mount; the outer
-            motion.div's `layout` tween handles width in a fixed 280ms
-            window. The inner tween runs SYNCHRONOUSLY with the layout
-            rather than nesting inside it: a pure opacity fade with no
-            delay / scale / translate, same 280ms duration, same easing.
-            That way the pill width and the content opacity read as a
-            SINGLE motion — previously the content faded in a separate
-            short burst (180ms exit, 200ms enter with 80ms delay) while
-            the pill resized on its own timeline, which the eye still
-            picked up as two sequential stages no matter how short.
-            Matching the timelines is the only way to produce one
-            cohesive motion. */}
-        <AnimatePresence initial={false}>
-          {expanded && (
-            <motion.div
-              key={`expanded-${phase.kind === 'listening' ? 'rec' : 'idle'}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              // `min-w-0` + `overflow-hidden` let the content clip cleanly
-              // as the pill closes. No `flex-1` or `justify-end` — those
-              // were the source of the empty gap between "Utterbar" and
-              // the recording cluster on the expanded state: flex-1 pushed
-              // the action cluster to the right edge, justify-end kept it
-              // there, and the empties between read as wasted real estate.
-              className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap"
-            >
+        {/* RIGHT — expanded content. v0.6.7 animation fix.
+            Previous attempt used `AnimatePresence` so the child only
+            existed while `expanded` was true, with enter/exit opacity
+            animations on a 280ms timeline matched to the outer `layout`
+            tween. Theoretically one motion. In practice stepped:
+            - When `expanded` flipped false, the child began a 280ms
+              opacity 1→0 exit but STAYED MOUNTED until the exit finished.
+            - During those 280ms the child still had its full width
+              contribution (opacity doesn't remove layout).
+            - Framer-motion's `layout` measures width at the moment
+              `expanded` flips. It sees the still-mounted child
+              contributing full width, so it animates the outer shrink
+              to the "with child" width (most of which disappeared
+              because `min-w-[460px]` was removed).
+            - At t=280ms the child unmounts. Natural width collapses
+              another 250+ pixels. This second shrink was NOT part of
+              the outer `layout` animation — the layout animation had
+              already finished — so it snapped.
+            - Eye reads "shrinks a bit, then shrinks a bit more".
+
+            Fix: render the child UNCONDITIONALLY, not via
+            AnimatePresence. Its layout contribution is removed
+            synchronously via `max-w-0 opacity-0` when `expanded` is
+            false. The outer `layout` animation therefore measures a
+            truly collapsed natural width at t=0 and animates to it
+            cleanly in one 280ms motion. Opacity fades in parallel.
+            No second snap. */}
+        <motion.div
+          // One wrapper, always mounted. Opacity + max-width are the
+          // state-driven channels — no AnimatePresence, no enter/exit
+          // timeline of its own. Framer-motion's outer `layout` owns
+          // the width animation; we just gate our contribution to
+          // that width via max-w on this same element.
+          aria-hidden={!expanded}
+          initial={false}
+          animate={{
+            opacity: expanded ? 1 : 0,
+            // max-width collapsing to 0 removes this wrapper's width
+            // contribution the instant `expanded` flips false. The
+            // outer pill then resizes against its natural collapsed
+            // width (logo + wordmark + padding), one motion, no two-
+            // stage snap. 720px is a safe upper bound for any content
+            // we ever render inside the expanded bar.
+            maxWidth: expanded ? 720 : 0,
+          }}
+          transition={{
+            opacity: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+            maxWidth: { duration: 0.28, ease: [0.22, 1, 0.36, 1] },
+          }}
+          style={{
+            // pointer-events disabled when collapsed so buttons that
+            // happen to survive the clip can't be clicked through.
+            pointerEvents: expanded ? 'auto' : 'none',
+          }}
+          className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap"
+        >
               {phase.kind === 'listening' ? (
                 <>
                   {/* Red ripple dot + mono timer + seven-bar speech wave.
                       The ripple, timer and wave together form the prototype's
                       "we are recording RIGHT NOW" cluster — three separate
                       cues (colour, number, motion) so the state reads at any
-                      glance angle. */}
-                  <span className="ub-bar-ripple shrink-0" aria-hidden />
+                      glance angle.
+                      Outer wrapper gives the pulse (which scales to 2.5x =
+                      ~25px) room to breathe WITHOUT being clipped by the
+                      parent's overflow-hidden. 18x18 is the pulse's peak
+                      bounding box plus a 1px safety margin; the dot sits
+                      centred inside it. Left margin keeps the ripple clear
+                      of the pill's inner edge on the listening layout. */}
+                  <span
+                    aria-hidden
+                    className="ml-1 mr-0.5 inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center overflow-visible"
+                  >
+                    <span className="ub-bar-ripple" />
+                  </span>
                   <span
                     className="cursor-default select-none font-mono text-[13px] tabular-nums -tracking-[0.01em]"
                     style={{ color: 'var(--pill-fg-muted)' }}
@@ -816,9 +919,7 @@ export function FloatingBar() {
                   </div>
                 </>
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </motion.div>
       </motion.div>
     </div>
   );

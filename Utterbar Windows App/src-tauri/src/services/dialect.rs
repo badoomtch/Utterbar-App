@@ -122,7 +122,13 @@ const PAIRS: &[(&str, &str)] = &[
     ("mum", "mom"),
     ("maths", "math"),
     ("whilst", "while"),
-    ("cheque", "check"),
+    // Deliberately no `cheque`/`check` entry. The American `check` is
+    // overloaded — "check the code", "can you check that", "checkpoint",
+    // "check-in", "check out" — and a deterministic lowercase swap can't
+    // tell the financial-instrument sense from the verb/adjective sense.
+    // Users who want to dictate the British noun say "cheque" and the
+    // ASR transcribes it; users who want "check" keep it unmolested.
+    // See v0.6.6 release notes.
     ("draught", "draft"),
     ("programme", "program"),
     ("storey", "story"),
@@ -268,5 +274,52 @@ mod tests {
             EnglishVariant::British,
         );
         assert_eq!(got, "Colour, flavour; and honour!  (really)");
+    }
+
+    /// Regression tests: the naive `cheque`/`check` swap was removed in
+    /// v0.6.6. A British user dictating "check the code" must see "check",
+    /// not "cheque" — the financial-instrument sense is context-dependent
+    /// and cannot be picked deterministically.
+    #[test]
+    fn british_does_not_rewrite_check_to_cheque() {
+        let got = normalise("Check the code, hand me the check.", EnglishVariant::British);
+        // Whatever else the normaliser does, `check` must not become `cheque`.
+        assert!(!got.contains("cheque"));
+        assert!(got.contains("Check") || got.contains("check"));
+    }
+
+    #[test]
+    fn british_leaves_verb_check_alone() {
+        for phrase in [
+            "Can you check that for me?",
+            "Check the code",
+            "I need to check out",
+            "Let's do a checkpoint.",
+        ] {
+            let got = normalise(phrase, EnglishVariant::British);
+            assert!(
+                !got.to_lowercase().contains("cheque"),
+                "expected no 'cheque' in '{}', got '{}'",
+                phrase,
+                got
+            );
+        }
+    }
+
+    #[test]
+    fn british_preserves_user_dictated_cheque() {
+        // The user speaks "cheque" — ASR produces "cheque" — normaliser
+        // must leave it alone (not swap it to `check`).
+        let got = normalise("I wrote them a cheque.", EnglishVariant::British);
+        assert_eq!(got, "I wrote them a cheque.");
+    }
+
+    #[test]
+    fn american_preserves_user_dictated_cheque() {
+        // Symmetry: if the user dictates the British form, the American
+        // normaliser doesn't now rewrite it back either (we removed the
+        // mapping in both directions).
+        let got = normalise("I wrote them a cheque.", EnglishVariant::American);
+        assert_eq!(got, "I wrote them a cheque.");
     }
 }

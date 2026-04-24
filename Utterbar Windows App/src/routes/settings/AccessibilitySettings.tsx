@@ -53,7 +53,7 @@ export function AccessibilitySettings() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
         title="Accessibility"
         subtitle="Make Utterbar's main window more comfortable to read, hear, and move through."

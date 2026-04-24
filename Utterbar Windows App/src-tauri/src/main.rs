@@ -240,6 +240,17 @@ fn main() {
                 }
             } else {
                 if let Some(w) = handle.get_webview_window("floating") {
+                    // v0.6.7: restore the user's last good position
+                    // BEFORE showing the window, so the bar appears
+                    // directly where they left it with no visible
+                    // snap from the default top-centre location.
+                    // Validity (monitor still attached, within work
+                    // area, etc.) is checked inside the function; a
+                    // stale save falls through to the tauri.conf.json
+                    // default coords.
+                    if let Err(e) = commands::window::restore_floating_position(&w) {
+                        tracing::warn!(?e, "restore_floating_position failed at startup");
+                    }
                     let _ = w.show();
                     info!("floating bar shown");
                 }

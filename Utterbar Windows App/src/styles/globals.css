@@ -434,6 +434,74 @@
   .no-drag     { -webkit-app-region: no-drag; app-region: no-drag; }
 
   /*
+   * FloatingBar drag + busy accent ring.
+   *
+   * Why this lives in CSS not React inline style:
+   * When Tauri's `startDragging()` hands the OS a modal window-move loop,
+   * WebView2's renderer thread stops producing frames for the window
+   * until the OS returns control. Any change to inline style driven by
+   * a React re-render therefore does not paint during the drag — the
+   * user sees a flash at drag-start (if at all) and nothing else.
+   *
+   * Selecting on a DOM attribute that's mutated synchronously in the
+   * pointerdown handler — BEFORE startDragging is called — means the
+   * compositor sees the rule change without needing a new renderer
+   * frame. Opacity is a composited property, so the ring lights up on
+   * the next compositor cycle and stays lit for the entire drag.
+   *
+   * `.ub-drag-ring` is the positioned 2px ring. The two trigger rules
+   * live on the ancestor `[data-dragging]` / `[data-busy-flash]` which
+   * is set on the outer `motion.div`.
+   */
+  /*
+   * Drag / busy accent ring. Honest scope note after three rounds of
+   * attempting to make "the border visibly changes colour during the
+   * native drag" work reliably (v0.6.2-v0.6.8):
+   *
+   * This ring IS promoted to its own compositor layer (will-change +
+   * translateZ) so in principle its opacity can flip on the compositor
+   * thread during Tauri's native window-move loop without needing a
+   * renderer frame. In practice this varies by WebView2 build, GPU
+   * driver, and DWM state — sometimes the layer is live during the
+   * drag, sometimes the compositor still needs a renderer-produced
+   * paint to update the layer's contents and the effect is invisible
+   * until drag release.
+   *
+   * What we DO NOT do any more: try to promote the outer pill itself
+   * so the scale-lift can also paint during drag. That was tried in
+   * v0.6.8 and it fought framer-motion's `layout` transform mutations
+   * on the same element, producing a stutter in the normal open/close
+   * animation. Smooth open/close is higher priority than "scale
+   * visible during drag"; the outer pill stays framer-motion-driven
+   * only. Scale-up therefore does NOT paint during the native drag
+   * window — it plays before/after. Accepted tradeoff.
+   *
+   * The ring is a SIBLING element, not the outer pill, so promoting
+   * it is free of that conflict.
+   */
+  .ub-drag-ring {
+    border-color: var(--accent);
+    opacity: 0;
+    z-index: 2;
+    /* Own compositor layer so opacity/box-shadow flips don't require
+       a renderer frame. See the note above — this still isn't a
+       guarantee that the change paints during the native drag, but
+       it's the best we've got without fighting framer-motion. */
+    will-change: opacity, box-shadow;
+    transform: translateZ(0);
+    transition:
+      opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  [data-dragging="true"] > .ub-drag-ring,
+  [data-busy-flash="true"] > .ub-drag-ring {
+    opacity: 1;
+    box-shadow:
+      0 0 0 3px color-mix(in oklab, var(--accent) 30%, transparent),
+      0 4px 14px color-mix(in oklab, var(--accent) 18%, transparent);
+  }
+
+  /*
    * .gradient-cyan-text — the tight #00e5ff → #00a3ff pair. Reserved for
    * the wordmark "bar" letters and the <Highlight> component. Do NOT apply
    * to generic headings — emphasis stops being emphasis when it's everywhere.

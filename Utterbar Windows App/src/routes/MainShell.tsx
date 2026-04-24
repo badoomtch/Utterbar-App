@@ -133,7 +133,19 @@ export function MainShell() {
 
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 pb-4">
           <NavGroup label="Workspace" items={NAV_PRIMARY} />
-          <NavGroup label="Settings" items={NAV_SETTINGS} />
+          <NavGroup
+            label="Settings"
+            items={NAV_SETTINGS.map((item) =>
+              // Attach the live app version directly beneath the `About` row.
+              // This is in addition to — not instead of — the footer strap and
+              // the version shown inside the About page itself. Users reported
+              // wanting the version glanceable from the nav without having to
+              // open the About page or scan to the bottom of the sidebar.
+              item.to === '/settings/about'
+                ? { ...item, subLabel: appVersion ? `v${appVersion}` : undefined }
+                : item,
+            )}
+          />
         </nav>
 
         {/* Footer — TierLine + version + "local only" strap.
@@ -155,7 +167,16 @@ export function MainShell() {
         </div>
       </aside>
 
-      <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto bg-bg-0">
+      {/* v0.7.0 scroll fix. Previous version used `flex-1 min-h-0 overflow-y-auto`
+          which in theory constrains height via flex and enables scrolling.
+          In practice it was miscomputing scroll extent: the scrollbar bottomed
+          out before the true content bottom (see screenshot in chat log).
+          Root cause appeared to be flex-child height resolution interacting
+          with the scrollable region — making the container explicitly
+          `h-screen` removes every bit of ambiguity. It can't be anything
+          other than viewport-height; the child settings panel flows
+          naturally inside and scrolls fully to its end. */}
+      <main ref={mainRef} className="h-screen flex-1 overflow-y-auto bg-bg-0">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -241,13 +262,20 @@ function NavGroup({
   items,
 }: {
   label: string;
-  items: { to: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  items: {
+    to: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    /** Optional secondary line rendered directly under the main label.
+     *  Currently used only for the live app version under the `About` row. */
+    subLabel?: string;
+  }[];
 }) {
   return (
     <div className="mb-5">
       <div className="ub-eyebrow px-3 pb-2 pt-3">{label}</div>
       <div className="flex flex-col gap-0.5">
-        {items.map(({ to, label: l, icon: Icon }) => (
+        {items.map(({ to, label: l, icon: Icon, subLabel }) => (
           <NavLink
             key={to}
             to={to}
@@ -288,7 +316,20 @@ function NavGroup({
                     isActive ? 'text-fg-hi' : 'text-muted group-hover:text-fg-hi',
                   )}
                 />
-                <span className="truncate">{l}</span>
+                {subLabel ? (
+                  // When the row carries a secondary line, stack the label
+                  // + sub-label so the version sits directly beneath the
+                  // `About` text (not beneath the icon). `leading-tight`
+                  // keeps vertical rhythm close to the single-line rows.
+                  <span className="flex min-w-0 flex-col leading-tight">
+                    <span className="truncate">{l}</span>
+                    <span className="truncate text-[11px] font-mono text-muted">
+                      {subLabel}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="truncate">{l}</span>
+                )}
               </>
             )}
           </NavLink>

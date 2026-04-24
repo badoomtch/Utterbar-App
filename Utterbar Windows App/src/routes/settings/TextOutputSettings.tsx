@@ -14,7 +14,7 @@ export function TextOutputSettings() {
   const t = s.text_output as Record<string, boolean>;
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader title="Text Output" subtitle="How dictated text reaches your active app." />
       <div className="mt-6 space-y-4">
         <Card title="Delivery">

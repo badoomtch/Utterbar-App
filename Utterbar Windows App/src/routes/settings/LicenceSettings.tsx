@@ -46,7 +46,7 @@ export function LicenceSettings() {
   const loaded = useLicence((s) => s.loaded);
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
         title="Licence"
         subtitle="Your Utterbar Pro key unlocks advanced features on this device. No account, no sign-in — just the key."

@@ -87,7 +87,16 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unlisteners: Array<Promise<() => void>> = [
-      listen<DictationPhase>(EVT.dictationPhase, (e) => setPhase(e.payload)),
+      listen<DictationPhase>(EVT.dictationPhase, (e) => {
+        // v0.6.6 diagnostics. Log every phase event as received. When the
+        // frontend store desyncs from Rust (stuck-hotkey bug), the log
+        // previously went silent on the JS side and we couldn't tell
+        // whether the event reached the webview at all or was dropped by
+        // the zustand store. The console message is the missing link.
+        // Low volume — one line per phase change is fine.
+        console.info('[utterbar] phase <-', e.payload.kind);
+        setPhase(e.payload);
+      }),
       listen<MeterFrame>(EVT.dictationMeter, (e) => setMeter(e.payload)),
       // Keep `lastText` in sync with the most recent successful dictation.
       // Powers the floating bar's "Copy last message" button — the button
@@ -111,10 +120,68 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
             hotkeyInFlightRef.current = true;
             try {
               const current = useDictation.getState().phase;
+              // v0.6.6 diagnostics: log the decision the hotkey made so a
+              // stuck-hotkey trace includes whether the store's phase was
+              // telling us to start or stop. Cheap — one line per press.
+              console.info(
+                '[utterbar] hotkey toggle_recording: phase.kind =',
+                current.kind,
+                '-> will',
+                current.kind === 'listening' ? 'STOP' : 'START',
+              );
               if (current.kind === 'listening') {
                 await invoke('stop_recording');
               } else {
-                await invoke('start_recording', { deviceId: null });
+                // v0.6.6: stuck-state recovery.
+                //
+                // Symptom observed 2026-04-24T17:59: the frontend store's
+                // `phase` falls out of sync with the Rust side — phase is
+                // e.g. `idle`/`success`/`processing` while Rust still has
+                // `recording_in_progress=true` from a previous start whose
+                // stop_recording event the frontend missed. Every hotkey
+                // press routes through the `else` branch (not listening →
+                // start), which Rust then rejects with
+                // "recording already in progress". The user sees nothing.
+                //
+                // Before v0.6.6, there was no client-side recovery: the
+                // user had to quit and relaunch. Now: if start_recording
+                // rejects with that specific message, force a
+                // stop_recording to clear Rust's live capture, nudge the
+                // phase back to idle locally, and log the event. Next
+                // press lands clean. A real "recording already in
+                // progress" (legitimate rapid second press against an
+                // ongoing capture) is indistinguishable at this layer —
+                // but the 180ms debounce above already blocks those, so
+                // in practice this path only fires on genuine desync.
+                try {
+                  await invoke('start_recording', { deviceId: null });
+                } catch (err) {
+                  const msg = String(
+                    (err as { message?: string } | null)?.message ?? err ?? '',
+                  );
+                  if (msg.toLowerCase().includes('already in progress')) {
+                    console.warn(
+                      '[utterbar] start_recording rejected as busy but frontend phase is not Listening — desync detected, running recovery stop_recording',
+                      { phase: current.kind, error: msg },
+                    );
+                    try {
+                      await invoke('stop_recording');
+                    } catch (stopErr) {
+                      console.warn(
+                        '[utterbar] recovery stop_recording also failed',
+                        stopErr,
+                      );
+                    }
+                    // Force the store back to Idle so the NEXT hotkey
+                    // press is guaranteed to hit the start branch.
+                    useDictation.getState().setPhase({ kind: 'idle' });
+                  } else {
+                    // Any other error from start_recording — rethrow so
+                    // the outer catch surfaces it in the console, phase
+                    // stays as-is.
+                    throw err;
+                  }
+                }
               }
             } finally {
               hotkeyInFlightRef.current = false;

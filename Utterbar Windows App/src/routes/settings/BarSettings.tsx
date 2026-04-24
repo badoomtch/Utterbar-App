@@ -45,7 +45,7 @@ export function BarSettings() {
   const outline = (g.bar_outline as boolean | undefined) ?? true;
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
         title="Utterbar"
         subtitle="The floating pill that lives on top of your desktop. Tune what it looks like and when it shows up."

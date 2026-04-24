@@ -7,7 +7,14 @@ export type DictationPhase =
   | { kind: 'processing' }
   | { kind: 'success' }
   | { kind: 'error'; message: string }
-  | { kind: 'cancelled' };
+  | { kind: 'cancelled' }
+  // v0.6.6 — the clip had no usable speech; bar shows "No audio detected"
+  // and decays back to idle without writing a history row or firing the
+  // success cue. Keep in lockstep with the Rust `DictationPhase` enum in
+  // src-tauri/src/domain/events.rs (and with the generated type at
+  // src/generated/DictationPhase.ts which ts-rs produces from the Rust
+  // source — this hand-maintained copy exists for the zustand store).
+  | { kind: 'no_audio' };
 
 export type MeterFrame = { rms: number; peak: number; ts_ms: number };
 

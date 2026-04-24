@@ -111,7 +111,7 @@ export function ModelsSettings() {
   const pro = isPro(licenceStatus);
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
         title="Models"
         subtitle="Parakeet ASR models. Downloaded once, stored locally, never uploaded anywhere."

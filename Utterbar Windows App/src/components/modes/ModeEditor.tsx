@@ -81,7 +81,10 @@ const ENGLISH_VARIANTS: {
 
 export function ModeEditor({
   mode,
-  models,
+  // `models` was read by the removed per-mode ASR picker. Keeping the
+  // prop in the signature so callers don't need to change their
+  // render site; the underscore prefix silences the unused-var lint.
+  models: _models,
   onClose,
   onSaved,
 }: {
@@ -114,8 +117,9 @@ export function ModeEditor({
     }));
   const patchFormat = (p: Partial<EditableMode['formatting']>) =>
     setDraft((d) => ({ ...d, formatting: { ...d.formatting, ...p } }));
-  const patchContext = (p: Partial<EditableMode['context_rules']>) =>
-    setDraft((d) => ({ ...d, context_rules: { ...d.context_rules, ...p } }));
+  // `context_rules` is no longer edited in the UI (v0.6.6: globals own
+  // it). The struct field stays for back-compat with older Mode rows —
+  // we just don't expose a patch helper for it.
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
@@ -155,20 +159,11 @@ export function ModeEditor({
                 className="flex-1"
               />
             </Field>
-            <Field label="ASR model">
-              <select
-                value={draft.asr_model_id ?? ''}
-                onChange={(e) => patch({ asr_model_id: e.target.value || null })}
-                className="ub-input flex-1"
-              >
-                <option value="">Inherit default</option>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.display_name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {/* v0.6.6: the per-mode ASR model picker was removed. Globals
+                are authoritative — change the model in Settings → Models.
+                The field is still on the Mode struct for back-compat; it's
+                just ignored at dictation time. Hiding the editor keeps the
+                UI consistent with the runtime behaviour. */}
             <Field label="Target language (BCP-47)">
               <Input
                 value={draft.target_language ?? ''}
@@ -254,26 +249,14 @@ export function ModeEditor({
             )}
           </Section>
 
-          <Section
-            title="Context rules"
-            description="Signals this mode may consult when processing."
-          >
-            {(['use_active_app', 'use_selection', 'use_clipboard'] as const).map((k) => (
-              <label key={k} className="flex items-center gap-2 text-[13px] text-fg">
-                <input
-                  type="checkbox"
-                  checked={draft.context_rules[k]}
-                  onChange={(e) =>
-                    patchContext({ [k]: e.target.checked } as Partial<
-                      EditableMode['context_rules']
-                    >)
-                  }
-                  className="accent-[var(--accent)]"
-                />
-                {k.replace('use_', '').replace('_', ' ')}
-              </label>
-            ))}
-          </Section>
+          {/* v0.6.6: the per-mode Context Rules block was removed. Privacy
+              is authoritative — toggle clipboard / selection / active-app
+              context in Settings → Privacy. The struct fields are still
+              persisted for back-compat with older Mode rows on disk, but
+              they're no longer consulted at dictation time and the editor
+              no longer surfaces them. `patchContext` is now unused — kept
+              as a no-op alias in case old handlers reach it; next major
+              version should drop it with the struct field. */}
 
           <Section title="Formatting">
             <Field label="Capitalisation">

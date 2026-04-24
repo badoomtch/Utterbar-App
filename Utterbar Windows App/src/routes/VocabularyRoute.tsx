@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/common/Button';
 import { Card, Row } from '@/components/common/Card';
@@ -37,11 +37,34 @@ type Replacement = {
  * Row list rhythm stays hairline-only (§4.3); no rail per row since
  * individual vocab entries aren't a selection surface.
  */
+/**
+ * Sort order for the word list.
+ *
+ * v0.6.7 adds explicit user-facing sort choice because the backend list
+ * comes back in insertion order. With only a handful of entries that
+ * reads fine, but once you have 50+ entries you can't find anything
+ * without scanning the whole list. Alphabetical is the default because
+ * "I know what I typed, where is it?" is the dominant workflow; "recent"
+ * is a secondary option for the "I just added something, was the spelling
+ * what I think?" case.
+ */
+type WordSort = 'alpha' | 'recent';
+
 export function VocabularyRoute() {
   const [words, setWords] = useState<Vocab[]>([]);
   const [reps, setReps] = useState<Replacement[]>([]);
   const [newWord, setNewWord] = useState('');
   const [newReplacement, setNewReplacement] = useState({ from: '', to: '' });
+
+  // v0.6.7 scalability: search filters + explicit sort. Kept separate for
+  // each list so one doesn't mask the other. Search is a simple
+  // case-insensitive substring match — at the scale we care about
+  // (hundreds of entries) anything fancier would be premature. Sort
+  // applies only to the words list (replacements already sort by
+  // sort_order server-side).
+  const [wordsQuery, setWordsQuery] = useState('');
+  const [wordsSort, setWordsSort] = useState<WordSort>('alpha');
+  const [repsQuery, setRepsQuery] = useState('');
 
   const reload = async () => {
     const [w, r] = await Promise.all([
@@ -87,6 +110,33 @@ export function VocabularyRoute() {
   const pro = isPro(licenceStatus);
   const wordsAtCap = !pro && words.length >= FREE_VOCAB_CAP;
   const repsAtCap = !pro && reps.length >= FREE_REPLACEMENTS_CAP;
+
+  // Filter + sort pipeline for the visible words list. useMemo so a
+  // render caused by something else (e.g. licence status refresh) doesn't
+  // resort a long list unnecessarily.
+  const visibleWords = useMemo(() => {
+    const q = wordsQuery.trim().toLowerCase();
+    const filtered = q
+      ? words.filter((w) => w.word.toLowerCase().includes(q))
+      : words.slice();
+    if (wordsSort === 'alpha') {
+      filtered.sort((a, b) =>
+        a.word.localeCompare(b.word, undefined, { sensitivity: 'base' }),
+      );
+    }
+    // `recent` is the server's natural order (insertion), so no sort.
+    return filtered;
+  }, [words, wordsQuery, wordsSort]);
+
+  const visibleReps = useMemo(() => {
+    const q = repsQuery.trim().toLowerCase();
+    if (!q) return reps;
+    return reps.filter(
+      (r) =>
+        r.pattern.toLowerCase().includes(q) ||
+        r.replacement.toLowerCase().includes(q),
+    );
+  }, [reps, repsQuery]);
 
   // Same "X / N" counter pattern the DESIGN_SYSTEM uses for any bounded
   // count — muted, tabular-nums, sits next to the section title.
@@ -140,16 +190,58 @@ export function VocabularyRoute() {
               className="mt-3"
             />
           )}
+          {/* Search + sort controls. Hidden until the list is worth
+              filtering (10+ entries) so small lists don't get chrome they
+              don't need. */}
+          {words.length >= 10 && (
+            <div className="mt-3 flex items-center gap-2">
+              <Input
+                value={wordsQuery}
+                onChange={(e) => setWordsQuery(e.target.value)}
+                placeholder={`Search ${words.length} words…`}
+                className="flex-1"
+              />
+              <div className="inline-flex overflow-hidden rounded-[8px] border border-border-soft">
+                <button
+                  type="button"
+                  onClick={() => setWordsSort('alpha')}
+                  className={`px-2.5 py-1 text-[11px] transition-colors ${
+                    wordsSort === 'alpha'
+                      ? 'bg-bg-2 text-fg-hi'
+                      : 'text-muted hover:text-fg-hi'
+                  }`}
+                  title="Sort A–Z"
+                >
+                  A–Z
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWordsSort('recent')}
+                  className={`px-2.5 py-1 text-[11px] transition-colors ${
+                    wordsSort === 'recent'
+                      ? 'bg-bg-2 text-fg-hi'
+                      : 'text-muted hover:text-fg-hi'
+                  }`}
+                  title="Sort by most recently added"
+                >
+                  Recent
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Tightened row density (py-1.5 rather than py-2) so more of a
+              long list fits on-screen at once. Row height is still tall
+              enough for a comfortable click target. */}
           <ul className="mt-3 divide-y divide-border-soft/50">
-            {words.map((w) => (
+            {visibleWords.map((w) => (
               <li
                 key={w.id}
-                className="flex items-center justify-between py-2 text-[13px] text-fg"
+                className="flex items-center justify-between py-1.5 text-[13px] text-fg"
               >
-                <span>{w.word}</span>
+                <span className="truncate">{w.word}</span>
                 <button
                   onClick={() => invoke('delete_vocabulary', { id: w.id }).then(reload)}
-                  className="text-[11px] text-fg-dim transition-colors hover:text-rose"
+                  className="shrink-0 text-[11px] text-fg-dim transition-colors hover:text-rose"
                 >
                   Remove
                 </button>
@@ -157,6 +249,11 @@ export function VocabularyRoute() {
             ))}
             {words.length === 0 && (
               <li className="py-3 text-[12px] text-muted">No words yet.</li>
+            )}
+            {words.length > 0 && visibleWords.length === 0 && (
+              <li className="py-3 text-[12px] text-muted">
+                No matches for “{wordsQuery}”.
+              </li>
             )}
           </ul>
         </Card>
@@ -203,20 +300,29 @@ export function VocabularyRoute() {
               className="mt-3"
             />
           )}
+          {reps.length >= 10 && (
+            <div className="mt-3">
+              <Input
+                value={repsQuery}
+                onChange={(e) => setRepsQuery(e.target.value)}
+                placeholder={`Search ${reps.length} replacements…`}
+              />
+            </div>
+          )}
           <ul className="mt-3 divide-y divide-border-soft/50">
-            {reps.map((r) => (
+            {visibleReps.map((r) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between py-2 text-[13px] text-fg"
+                className="flex items-center justify-between py-1.5 text-[13px] text-fg"
               >
-                <span>
+                <span className="min-w-0 truncate">
                   <span className="font-mono text-[12px]">{r.pattern}</span>
                   <span className="mx-2 text-fg-dim">→</span>
                   <span className="font-mono text-[12px]">{r.replacement}</span>
                 </span>
                 <button
                   onClick={() => invoke('delete_replacement', { id: r.id }).then(reload)}
-                  className="text-[11px] text-fg-dim transition-colors hover:text-rose"
+                  className="shrink-0 text-[11px] text-fg-dim transition-colors hover:text-rose"
                 >
                   Remove
                 </button>
@@ -224,6 +330,11 @@ export function VocabularyRoute() {
             ))}
             {reps.length === 0 && (
               <li className="py-3 text-[12px] text-muted">No replacements yet.</li>
+            )}
+            {reps.length > 0 && visibleReps.length === 0 && (
+              <li className="py-3 text-[12px] text-muted">
+                No matches for “{repsQuery}”.
+              </li>
             )}
           </ul>
         </Card>

@@ -40,7 +40,7 @@ export function PrivacySettings() {
     patch({ privacy: { ...s.privacy, [key]: value } });
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
         title="Privacy"
         subtitle="Utterbar processes everything on-device. You are always in control of what is retained and what is used as context."

@@ -76,12 +76,67 @@ impl LicenceService {
             }
         };
 
+        // Read the keyring cache + verify the signed blob synchronously
+        // here, so by the time the first webview mounts and calls the
+        // `licence_status` Tauri command, the in-memory `status` already
+        // reflects a Pro licence if one is persisted.
+        //
+        // Without this, there was a race: the frontend's `AppBootstrap`
+        // mount effect called `invoke('licence_status')` which returned
+        // the default `Free`, *then* the background task at `main.rs`
+        // eventually ran `launch_check` which emitted `licence_changed`
+        // — but if that event arrived at the frontend before the
+        // `attachLicenceListener()` promise had resolved, it was lost
+        // and the UI stayed on Free until the user refreshed.
+        //
+        // Doing the initial verify synchronously at bootstrap is ~0ms
+        // for a no-licence user (one keyring miss) and ~1ms for a
+        // Pro user (one keyring read + one ed25519-dalek verify). No
+        // network calls here — `launch_check` from the background
+        // task still handles the 30-day heartbeat.
+        let initial_status = {
+            let cache = LicenceCache::new();
+            match cache.load() {
+                Ok(Some(cached)) => match STANDARD.decode(&cached.signed_blob_b64) {
+                    Ok(blob) => match verify::verify_signed_blob(&blob) {
+                        Ok(_) => {
+                            let status = LicenceStatus::Pro {
+                                display_key: cached.key_display.clone(),
+                                licence_id: cached.licence_id.to_string(),
+                                sku: cached.sku.clone(),
+                                issued_at_ms: String::new(),
+                                max_devices: cached.max_devices,
+                                devices: Vec::new(),
+                            };
+                            tracing::info!("licence restored from keyring cache");
+                            status
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = ?e, "cached licence signature invalid at bootstrap; clearing");
+                            let _ = cache.clear();
+                            LicenceStatus::Free
+                        }
+                    },
+                    Err(e) => {
+                        tracing::warn!(error = ?e, "cached blob not base64 at bootstrap; clearing");
+                        let _ = cache.clear();
+                        LicenceStatus::Free
+                    }
+                },
+                Ok(None) => LicenceStatus::Free,
+                Err(e) => {
+                    tracing::warn!(error = ?e, "licence cache read failed at bootstrap; running as Free");
+                    LicenceStatus::Free
+                }
+            }
+        };
+
         Self {
             api: LicenceApi::shared(),
             cache: LicenceCache::new(),
             fingerprint,
             device_name,
-            status: RwLock::new(LicenceStatus::Free),
+            status: RwLock::new(initial_status),
         }
     }
 

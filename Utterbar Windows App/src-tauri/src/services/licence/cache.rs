@@ -8,14 +8,40 @@
 //! We **never** store the fingerprint inside the signed blob itself — the blob
 //! is server-signed and must round-trip untouched. The fingerprint is stashed
 //! alongside so `/heartbeat` can re-send the exact bytes we activated with.
+//!
+//! ## v0.6.6: dual-cache (keyring + file) fallback
+//!
+//! Keyring v3 on Windows has been observed returning `Ok(())` from
+//! `set_password` while the credential never actually appears in
+//! Windows Credential Manager (`cmdkey /list`). Root cause unknown —
+//! likely a Windows API quirk with forward-slashes in target names,
+//! or an interaction with the process's integrity level under NSIS
+//! installation. Until that's isolated, we write to BOTH the keyring
+//! AND a plain JSON file at `%APPDATA%\Utterbar\licence.json`.
+//!
+//! Load order: keyring first (the canonical store), then file if
+//! keyring returns `NoEntry`. The file is authoritative when keyring
+//! is broken; keyring is authoritative when both are populated
+//! (covers the "user deleted via cmdkey for testing" case).
+//!
+//! Security note: the licence blob is server-signed Ed25519 — tampering
+//! with the file invalidates the signature, and `verify_signed_blob`
+//! rejects it at load. There's nothing secret in there; the file is
+//! stored in the user's roaming profile which is already per-user
+//! access-controlled. Not encrypting at rest here is a deliberate
+//! simplification; full DPAPI wrapping can be layered later if ever
+//! needed (we have keyring for that already).
 
 use anyhow::{Context, Result};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 use time::OffsetDateTime;
 
 const SERVICE: &str = "Utterbar/Licence";
 const ACCOUNT: &str = "default";
+const FILE_NAME: &str = "licence.json";
 
 /// Persistent record as stored in the OS keyring. Deliberately a flat JSON
 /// object — the whole blob is small enough that we read/write it atomically on
@@ -68,36 +94,145 @@ impl LicenceCache {
         Entry::new(SERVICE, ACCOUNT).context("create keyring entry")
     }
 
+    /// Locate the fallback file path inside `%APPDATA%\Utterbar\`. Returns
+    /// None on failure rather than propagating — the file path is advisory;
+    /// the keyring is still canonical. Callers treat "no file path" the
+    /// same as "file read failed".
+    fn file_path() -> Option<PathBuf> {
+        // `data_dir()` creates the directory if needed and returns the
+        // `%APPDATA%\Utterbar\` canonical root.
+        let dir = crate::util::paths::data_dir().ok()?;
+        Some(dir.join(FILE_NAME))
+    }
+
+    fn load_from_file() -> Result<Option<CachedLicence>> {
+        let Some(path) = Self::file_path() else {
+            return Ok(None);
+        };
+        if !path.exists() {
+            return Ok(None);
+        }
+        let json = fs::read_to_string(&path).context("read licence file")?;
+        let rec: CachedLicence =
+            serde_json::from_str(&json).context("decode cached licence file")?;
+        Ok(Some(rec))
+    }
+
+    fn save_to_file(rec: &CachedLicence) -> Result<()> {
+        let Some(path) = Self::file_path() else {
+            anyhow::bail!("no data dir available for licence fallback file");
+        };
+        let json = serde_json::to_string(rec).context("encode cached licence for file")?;
+        fs::write(&path, json).context("write licence file")?;
+        Ok(())
+    }
+
+    fn clear_file() -> Result<()> {
+        let Some(path) = Self::file_path() else {
+            return Ok(());
+        };
+        if path.exists() {
+            fs::remove_file(&path).context("remove licence file")?;
+        }
+        Ok(())
+    }
+
     /// Returns `Ok(None)` when no record is stored. Any decode failure is
     /// surfaced as `Err` so the service can choose to clear the entry —
     /// tampering or corruption is treated the same as "no licence".
+    ///
+    /// Load order: keyring first, file fallback second. See module docs.
     pub fn load(&self) -> Result<Option<CachedLicence>> {
+        // Keyring first.
         let entry = Self::entry()?;
-        match entry.get_password() {
+        let from_keyring = match entry.get_password() {
             Ok(json) => {
                 let rec: CachedLicence =
                     serde_json::from_str(&json).context("decode cached licence JSON")?;
+                Some(rec)
+            }
+            Err(keyring::Error::NoEntry) => None,
+            Err(e) => {
+                // Don't fail the whole load on a keyring error — the file
+                // fallback might still rescue us. Log noisily so the
+                // keyring issue is visible.
+                tracing::warn!(error = ?e, "keyring read failed; falling back to file cache");
+                None
+            }
+        };
+        if from_keyring.is_some() {
+            return Ok(from_keyring);
+        }
+
+        // File fallback.
+        match Self::load_from_file() {
+            Ok(Some(rec)) => {
+                tracing::info!(
+                    "licence loaded from file fallback (keyring was empty or unavailable)"
+                );
                 Ok(Some(rec))
             }
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(anyhow::Error::new(e).context("read keyring entry")),
+            Ok(None) => Ok(None),
+            Err(e) => {
+                tracing::warn!(error = ?e, "licence file fallback read failed");
+                Ok(None)
+            }
         }
     }
 
+    /// Writes to BOTH the keyring and the fallback file. Returns Ok even
+    /// if the keyring write fails, as long as the file write succeeded —
+    /// persistence is the guarantee, the mechanism is secondary. Both
+    /// failing is a real error.
     pub fn save(&self, rec: &CachedLicence) -> Result<()> {
         let entry = Self::entry()?;
         let json = serde_json::to_string(rec).context("encode cached licence")?;
-        entry.set_password(&json).context("write keyring entry")?;
-        Ok(())
+        let keyring_result = entry
+            .set_password(&json)
+            .context("write keyring entry");
+        let file_result = Self::save_to_file(rec);
+
+        match (keyring_result, file_result) {
+            (Ok(()), Ok(())) => {
+                tracing::info!("licence cached to keyring + file");
+                Ok(())
+            }
+            (Ok(()), Err(fe)) => {
+                // Keyring worked; file didn't. Tolerable — keyring is
+                // canonical — but log it so we notice if keyring later
+                // stops working too.
+                tracing::warn!(error = ?fe, "licence saved to keyring but file write failed");
+                Ok(())
+            }
+            (Err(ke), Ok(())) => {
+                // Keyring failed silently (the v0.6.6 case) — the file
+                // fallback saved us.
+                tracing::warn!(
+                    error = ?ke,
+                    "keyring write failed; licence persisted via file fallback"
+                );
+                Ok(())
+            }
+            (Err(ke), Err(fe)) => {
+                tracing::error!(keyring_err = ?ke, file_err = ?fe, "both licence stores failed");
+                Err(ke)
+            }
+        }
     }
 
     pub fn clear(&self) -> Result<()> {
         let entry = Self::entry()?;
-        match entry.delete_credential() {
+        let keyring_result = match entry.delete_credential() {
             Ok(()) => Ok(()),
             Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(anyhow::Error::new(e).context("delete keyring entry")),
-        }
+        };
+        let file_result = Self::clear_file();
+        // Both should succeed; surface the keyring error first if it
+        // failed, since that's the canonical store.
+        keyring_result?;
+        file_result?;
+        Ok(())
     }
 }
 

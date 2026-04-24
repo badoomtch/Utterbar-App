@@ -117,11 +117,45 @@ pub async fn set_floating_position(handle: AppHandle, x: i32, y: i32) -> CmdResu
 /// any drag (via the window's `onMoved` listener) so a user can't strand the pill
 /// behind the Windows taskbar or off-screen entirely. Also surfaced as a tray menu
 /// entry and a Settings → Utterbar button for when the bar has already gone missing.
+// v0.6.6 crash-investigation experiment: removed `async` on this command.
+//
+// `respond_async_serialized_inner` (seen in every v0.6.4/v0.6.5 crash
+// stack) is the tokio-worker path that drops an `AppHandle` clone on a
+// non-main thread on command completion. AppHandle carries an
+// `Arc<Runtime::Context>` whose inner type in tauri-runtime-wry 2.10.x
+// is NOT actually `Send` (it holds `Rc<EventLoopRunner>`), even though
+// Tauri unsafely impls `Send` on the outer wrapper.
+//
+// `clamp_floating_position` is fired on every `onMoved` event from the
+// FloatingBar drag handler — dozens of times per second during a drag.
+// That's the single highest-frequency async-command path in the app.
+// Making it sync routes it through Tauri's synchronous IPC path which
+// does NOT go through `respond_async_serialized_inner` — the command
+// runs on the main UI thread and returns, no tokio task involved.
+//
+// This is a narrow, revertible experiment: if the crash stops recurring
+// after this change, our code was the amplifier. If it continues, the
+// Tauri built-in window plugin (also visible in the stack as
+// `window::plugin::init::closure$72`) is the independent culprit and
+// we need the `tauri-runtime-wry` fork.
 #[tauri::command]
-pub async fn clamp_floating_position(handle: AppHandle) -> CmdResult<()> {
+pub fn clamp_floating_position(handle: AppHandle) -> CmdResult<()> {
     if let Some(w) = handle.get_webview_window("floating") {
         if let Err(e) = clamp_to_work_area(&w) {
             tracing::warn!(?e, "clamp_floating_position failed");
+        }
+        // v0.6.7 persist-on-move. `clamp_floating_position` is the
+        // natural "the user stopped dragging" signal (FloatingBar.tsx
+        // debounces onMoved and invokes this 200ms after the last
+        // move). We piggy-back on that to persist the new position —
+        // no extra round-trip needed, and the persist fires on the
+        // same terminal-drag event the clamp does. Post-clamp position
+        // is authoritative: if the drop would have stranded the bar
+        // off-screen, clamp already corrected it and we save the
+        // corrected coords, not the stranded ones. Best-effort; any
+        // disk write failure logs a warning and is ignored.
+        if let Err(e) = save_floating_position(&w) {
+            tracing::warn!(?e, "save_floating_position failed");
         }
     }
     Ok(())
@@ -154,6 +188,12 @@ pub async fn reset_floating_position(handle: AppHandle) -> CmdResult<()> {
         if let Err(e) = reset_to_primary_top_centre(&w) {
             tracing::warn!(?e, "reset_floating_position failed");
         }
+        // v0.6.7: reset is the user's explicit "start over" — wipe the
+        // persisted position so the next launch doesn't resurrect the
+        // broken location. The user can still drag the bar to a
+        // preferred spot after the reset and that new position will be
+        // saved by the next clamp_floating_position call.
+        clear_saved_floating_position();
         // If the bar was behind the taskbar it was effectively invisible; a
         // focused show() after the move guarantees it redraws on top.
         let _ = w.show();
@@ -327,5 +367,241 @@ pub async fn finish_onboarding(
     if let Some(w) = handle.get_webview_window("onboarding") {
         let _ = w.hide();
     }
+    Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// v0.6.7 floating-bar position persistence
+//
+// The bar now reopens at the user's last position rather than always snapping
+// to top-centre on launch. Pattern:
+//   1. After every drag (signalled by the debounced onMoved → clamp call in
+//      FloatingBar.tsx), `clamp_floating_position` persists the current
+//      outer_position to `%APPDATA%\Utterbar\config\floating_position.json`.
+//   2. On launch, `restore_floating_position` reads that file and validates
+//      the saved coords against the current set of monitor work-areas:
+//       - position must fit inside some monitor's work-area rect (i.e. the
+//         saved monitor is still connected at that resolution)
+//       - if it doesn't, we fall through and let Tauri's config default
+//         (top-centre of primary, per tauri.conf.json) apply.
+//   3. `reset_floating_position` (tray → Reset + Settings → Utterbar)
+//      deletes the saved file so the user's next launch starts clean.
+// -----------------------------------------------------------------------------
+
+/// On-disk shape. Physical pixels (what Tauri returns from outer_position()).
+/// Deliberately simple — we don't persist monitor id because monitor ids
+/// change across Windows sessions and aren't reliable keys.
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct PersistedFloatingPosition {
+    x: i32,
+    y: i32,
+    /// Schema version. Bump if the shape ever changes; on mismatch we
+    /// treat the file as absent and fall through to the default position.
+    #[serde(default = "default_schema_v")]
+    v: u32,
+}
+
+fn default_schema_v() -> u32 {
+    1
+}
+
+fn position_file_path() -> anyhow::Result<std::path::PathBuf> {
+    Ok(crate::util::paths::config_dir()?.join("floating_position.json"))
+}
+
+/// Write the current outer_position of the floating window to disk. Best-
+/// effort: any failure is logged by the caller and swallowed so a disk
+/// hiccup never blocks the drag UX.
+fn save_floating_position(w: &tauri::WebviewWindow) -> anyhow::Result<()> {
+    let p = w.outer_position()?;
+    let path = position_file_path()?;
+    let rec = PersistedFloatingPosition {
+        x: p.x,
+        y: p.y,
+        v: 1,
+    };
+    let json = serde_json::to_string(&rec)?;
+    std::fs::write(&path, json)?;
+    // v0.6.7 diagnostic: log the saved position so the persist-on-drag
+    // path is visible in the log. Without this, a "bar doesn't remember
+    // its position" bug is invisible — we have no signal showing whether
+    // the save fired at all vs. fired with the wrong coords. Cheap
+    // (once per drag-end, not per move event).
+    tracing::info!(x = p.x, y = p.y, "saved floating bar position");
+    Ok(())
+}
+
+/// Load + validate the persisted position, returning Some(position) only
+/// when it fits inside a currently-attached monitor's **taskbar-aware
+/// work area**. None means "no file, bad file, or saved position is now
+/// off-screen or behind the taskbar" — all three cases should fall
+/// through to the Tauri default.
+///
+/// v0.6.7 fix: the first version of this function validated against
+/// each monitor's full screen rect, which accepted saved coords inside
+/// the monitor but under the taskbar. That meant the bar briefly
+/// appeared in taskbar-occluded space at startup and then snapped out
+/// of it once the frontend's first onMoved fired. Now we query the
+/// real Windows work-area for each attached monitor (same rect
+/// `clamp_to_work_area` uses during normal drag) and reject any saved
+/// position that lands outside that rectangle.
+fn load_valid_floating_position(
+    w: &tauri::WebviewWindow,
+) -> anyhow::Result<Option<(i32, i32)>> {
+    let path = position_file_path()?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let json = std::fs::read_to_string(&path)?;
+    let rec: PersistedFloatingPosition = match serde_json::from_str(&json) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(?e, "floating_position.json malformed; ignoring");
+            return Ok(None);
+        }
+    };
+    if rec.v != 1 {
+        return Ok(None);
+    }
+    // Bar size bounds for the intersects-any-monitor check. We use the
+    // configured size from tauri.conf.json (520×64) rather than the live
+    // window's size, because the live size may not be set yet when this
+    // runs at startup.
+    let bar_w: i32 = 520;
+    let bar_h: i32 = 64;
+    // The saved coords must land inside at least one monitor's **work
+    // area**, with enough room for the whole bar. A small slack (32px on
+    // each side) tolerates near-edge drops without rejecting them.
+    let slack: i32 = 32;
+    for monitor in w.available_monitors().unwrap_or_default() {
+        let (mx, my, mr, mb) = work_area_from_monitor(&monitor);
+        if rec.x + bar_w - slack >= mx
+            && rec.x + slack <= mr
+            && rec.y + bar_h - slack >= my
+            && rec.y + slack <= mb
+        {
+            return Ok(Some((rec.x, rec.y)));
+        }
+    }
+    tracing::info!(
+        saved_x = rec.x,
+        saved_y = rec.y,
+        "saved floating position is outside all current monitor work areas; falling back to default"
+    );
+    Ok(None)
+}
+
+/// Taskbar-aware work area (`rcWork`) for a given monitor. Uses the
+/// monitor's centre-point to look up its HMONITOR handle via
+/// `MonitorFromPoint`, then queries `GetMonitorInfoW`. Falls back to
+/// the full monitor rect only if both calls fail (rare, e.g. the
+/// monitor was disconnected between enumeration and this lookup).
+#[cfg(windows)]
+fn work_area_from_monitor(monitor: &tauri::Monitor) -> (i32, i32, i32, i32) {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    };
+    let mp = monitor.position();
+    let ms = monitor.size();
+    let full_rect = (mp.x, mp.y, mp.x + ms.width as i32, mp.y + ms.height as i32);
+    // Centre-point of the monitor — an unambiguous coordinate for
+    // MonitorFromPoint to resolve to this specific monitor's HMONITOR.
+    let centre = POINT {
+        x: mp.x + (ms.width as i32) / 2,
+        y: mp.y + (ms.height as i32) / 2,
+    };
+    unsafe {
+        let hmon = MonitorFromPoint(centre, MONITOR_DEFAULTTONEAREST);
+        if hmon.is_invalid() {
+            return full_rect;
+        }
+        let mut info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if GetMonitorInfoW(hmon, &mut info).as_bool() {
+            (
+                info.rcWork.left,
+                info.rcWork.top,
+                info.rcWork.right,
+                info.rcWork.bottom,
+            )
+        } else {
+            full_rect
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn work_area_from_monitor(monitor: &tauri::Monitor) -> (i32, i32, i32, i32) {
+    // Non-Windows: no standard work-area query. We only ship on Windows
+    // so this path exists for compile-on-macOS/linux in CI. Falls back
+    // to the full monitor rect.
+    let p = monitor.position();
+    let s = monitor.size();
+    (p.x, p.y, p.x + s.width as i32, p.y + s.height as i32)
+}
+
+/// Remove the saved position file so the next launch uses the default.
+/// Best-effort.
+fn clear_saved_floating_position() {
+    if let Ok(path) = position_file_path() {
+        if path.exists() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+/// Public restore entry. Called from main.rs during the setup hook,
+/// before `w.show()`, so the bar appears directly at the saved position
+/// with no visible snap. Returns Ok even when there's nothing to
+/// restore — the caller just moves on.
+///
+/// Two-step:
+///   1. Apply the saved position if valid (validation now uses the
+///      taskbar-aware work area — see `load_valid_floating_position`).
+///   2. Run `clamp_to_work_area` unconditionally afterwards. On the
+///      restore-applied path this is a no-op because the validator
+///      already enforced the work-area bounds; on the no-restore
+///      path (first launch, stale save, monitor change) it ensures
+///      the default Tauri position is clamped too. Either way the
+///      bar is guaranteed to be inside a visible, non-taskbar-occluded
+///      rectangle before `w.show()` is called by the caller.
+pub fn restore_floating_position(w: &tauri::WebviewWindow) -> anyhow::Result<()> {
+    // v0.6.7 diagnostic: log before + after so the full restore + clamp
+    // sequence is visible. Helps diagnose "the bar doesn't remember its
+    // position" when the save path IS working (file exists with the
+    // right coords) but some later show/clamp is stomping the restore.
+    let before = w.outer_position().ok();
+    if let Some((x, y)) = load_valid_floating_position(w)? {
+        tracing::info!(
+            saved_x = x,
+            saved_y = y,
+            before_x = before.as_ref().map(|p| p.x),
+            before_y = before.as_ref().map(|p| p.y),
+            "restoring floating bar position from previous session"
+        );
+        w.set_position(tauri::PhysicalPosition::new(x, y))?;
+    } else {
+        tracing::info!(
+            before_x = before.as_ref().map(|p| p.x),
+            before_y = before.as_ref().map(|p| p.y),
+            "no saved floating position to restore; using tauri config default"
+        );
+    }
+    // Unconditional pre-show clamp: guarantees the first paint is inside
+    // the taskbar-aware work area whether we restored a saved position,
+    // fell back to the Tauri-config default, or restored a saved
+    // position that just happened to be right at a work-area edge.
+    if let Err(e) = clamp_to_work_area(w) {
+        tracing::warn!(?e, "pre-show clamp in restore_floating_position failed");
+    }
+    let after = w.outer_position().ok();
+    tracing::info!(
+        after_x = after.as_ref().map(|p| p.x),
+        after_y = after.as_ref().map(|p| p.y),
+        "floating bar position after restore + pre-show clamp"
+    );
     Ok(())
 }

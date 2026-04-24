@@ -94,7 +94,7 @@ export function ShortcutsSettings() {
     conflicts.find((c) => c.slot_a === id || c.slot_b === id);
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
         title="Shortcuts"
         subtitle="Global keybindings. Press any key combination in any app to trigger."

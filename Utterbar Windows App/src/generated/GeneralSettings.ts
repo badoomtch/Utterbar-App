@@ -50,4 +50,14 @@ reduce_transparency: boolean, notifications_enabled: boolean, bar_size: BarSize,
  * and one-click unsubscribe lives on the server too. Serde-defaulted so
  * older settings.json files upgrade cleanly.
  */
-releases_email: string | null, custom_accent_hex: string | null, };
+releases_email: string | null, 
+/**
+ * Hex string (e.g. `"#22D3EE"`) backing the `Accent::Custom` variant.
+ * The frontend's theme applier reads this when `accent == Custom` and
+ * sets `--accent` / `--accent-2` / `--accent-3` from it. Stored
+ * regardless of current tier so a Free user who ever had Pro gets
+ * their colour back when they re-activate. Validated loosely — we
+ * accept any 7-char `#RRGGBB` string and fall back to cyan at render
+ * time if it's missing or malformed.
+ */
+custom_accent_hex: string | null, };

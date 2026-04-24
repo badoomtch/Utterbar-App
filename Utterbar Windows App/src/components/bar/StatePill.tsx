@@ -53,7 +53,13 @@ function describe(phase: DictationPhase) {
     case 'idle':
       return { label: 'Ready', tone: 'muted' as const };
     case 'warming':
-      return { label: 'Warming', tone: 'muted' as const };
+      // v0.6.7: `Warming` was the previous copy but read as too generic —
+      // users saw `Processing` then `Warming` and assumed both meant the
+      // same "thinking" state. The Rust side now only emits this phase on a
+      // genuine cold-load, so the copy explicitly says so and uses the
+      // accent tone (not muted) to signal "something is happening, just
+      // longer than usual" rather than "idle".
+      return { label: 'Initialising model', tone: 'accent' as const };
     case 'listening':
       return { label: 'Recording', tone: 'accent' as const };
     case 'processing':
@@ -64,6 +70,11 @@ function describe(phase: DictationPhase) {
       return { label: 'Error', tone: 'error' as const };
     case 'cancelled':
       return { label: 'Cancelled', tone: 'muted' as const };
+    case 'no_audio':
+      // Muted tone — silence is a non-event, not a failure. The user
+      // tapped the hotkey but nothing usable came out; we want the
+      // message legible, not alarming.
+      return { label: 'No audio detected', tone: 'muted' as const };
   }
 }
 

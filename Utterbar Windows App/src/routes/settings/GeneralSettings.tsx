@@ -89,7 +89,7 @@ export function GeneralSettings() {
       : '#22D3EE';
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader title="General" />
       <div className="mt-6 space-y-4">
         <Card title="Startup">

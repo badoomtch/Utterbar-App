@@ -38,11 +38,22 @@ export function Toggle({
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
+      {/*
+        Knob geometry — the ON-state translate was visibly wrong in v0.6.x:
+        the knob clipped past the right edge of the track.
+        Track:  w-10 = 40px, with a 1px border each side → 38px inner.
+        Knob:   w-4  = 16px.
+        OFF translates by 3px from the left edge (leaves a 3px inset).
+        ON must translate by (inner - knob - inset) = 38 - 16 - 3 = 19px
+        to sit flush with the right edge with the SAME 3px inset.
+        The old value (21px) overshoots by 2px and collides with the
+        right border, producing the visible clip the user flagged.
+      */}
       <span
         className={cn(
           'pointer-events-none inline-block h-4 w-4 rounded-full transition-all duration-180',
           checked
-            ? 'translate-x-[21px] bg-[#06121A] shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
+            ? 'translate-x-[19px] bg-[#06121A] shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
             : 'translate-x-[3px] bg-fg-dim',
         )}
       />

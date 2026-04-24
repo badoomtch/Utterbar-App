@@ -85,7 +85,22 @@ pub async fn start_recording(
     state: State<'_, Arc<AppState>>,
     device_id: Option<String>,
 ) -> CmdResult<()> {
-    tracing::info!(?device_id, "dictation::start_recording enter");
+    // Log the guard state on every entry. The flags are the canonical
+    // source of "is a capture/transcribe actually in-flight?" — visualising
+    // their value at entry makes stuck-state bugs diagnosable from a log
+    // tail alone rather than needing a live debugger.
+    let rec_flag = state
+        .recording_in_progress
+        .load(std::sync::atomic::Ordering::Acquire);
+    let trx_flag = state
+        .transcribe_in_progress
+        .load(std::sync::atomic::Ordering::Acquire);
+    tracing::info!(
+        ?device_id,
+        recording_in_progress = rec_flag,
+        transcribe_in_progress = trx_flag,
+        "dictation::start_recording enter"
+    );
 
     // Re-entry guard. Before v0.6.2, a single hotkey press could fire three
     // concurrent invocations (one per webview receiving the broadcast
@@ -119,7 +134,29 @@ pub async fn start_recording(
         // Probe the audio service: is there genuinely a live capture?
         let has_live_capture = state.audio.current().await.is_some();
         if has_live_capture {
-            tracing::warn!("start_recording rejected: another start is already in progress");
+            // Re-emit the authoritative Listening phase. When the frontend's
+            // dictation store has desynced from Rust (observed 2026-04-24:
+            // phase store was stuck at idle/processing/success while the
+            // capture was still running), the UI thinks it isn't recording
+            // and every hotkey press routes to start — all of which we
+            // reject. Pushing a fresh `Listening` phase resets the frontend
+            // so the user's NEXT press hits the stop branch correctly.
+            // We don't persist the original recording_started_at_ms, so the
+            // re-emitted Listening phase carries the current wallclock.
+            // This is strictly a UI resync path — the user has already
+            // been recording for some time, but we don't have the exact
+            // start timestamp handy. The duration counter in FloatingBar
+            // resets, which is a small UX compromise vs. staying wedged.
+            tracing::warn!(
+                "start_recording rejected: another start is already in progress — re-emitting Listening phase to re-sync frontend"
+            );
+            set_phase(
+                &handle,
+                DictationPhase::Listening {
+                    started_at_ms: now_ms(),
+                },
+            )
+            .await;
             emit_busy(&handle);
             return Err(OrliqError::User {
                 message: "recording already in progress".into(),
@@ -318,13 +355,58 @@ fn rollback_start_sideeffects(state: &AppState, media_paused: bool, conferencing
     }
 }
 
-/// Schedule a return-to-idle phase transition after `delay_ms`. Used by the error and
-/// cancel paths so the UI briefly shows the transient state before falling back to Idle.
+/// Schedule a return-to-idle phase transition after `delay_ms`, but only
+/// if the current phase is still a **terminal** one (success / error /
+/// cancelled / no_audio). If the user has already started a new
+/// recording before the timer fires, the current phase will be
+/// `Listening` (or `Warming` / `Processing`) and we leave it alone.
+///
+/// v0.6.7 bugfix: previously this fired `set_phase(Idle)`
+/// unconditionally, which caused a 1 in ~5 "the app stopped my
+/// recording" failure mode. Timeline observed in the log:
+///   t=0.000 stop_recording → set_phase=success, schedule_idle(1200ms)
+///   t=1.000 user re-presses → start_recording → set_phase=listening
+///   t=1.200 stale timer fires → set_phase=idle ← WRONG
+///   t=2.200 user presses again → frontend reads phase=idle → start_recording
+///                               → Rust rejects (capture still armed)
+///                               → self-heal stop_recording fires
+///                               → real recording aborted mid-way
+///
+/// Fixing at the Idle emit is the right layer: the stale timer is the
+/// only code path that transitions AWAY from an active phase without a
+/// corresponding command-level trigger. Checking the current phase at
+/// fire time catches every race with `stop → success → schedule_idle →
+/// start` sequences, regardless of how tight the user's rhythm is.
 fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
     let handle = handle.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-        set_phase(&handle, DictationPhase::Idle).await;
+        // Only decay to Idle if the phase is still the one we scheduled
+        // from. If a new recording has begun (Listening / Warming /
+        // Processing) the timer is stale and must not clobber it.
+        let current = phase_cell().read().await.clone();
+        match current {
+            DictationPhase::Success
+            | DictationPhase::Error { .. }
+            | DictationPhase::Cancelled
+            | DictationPhase::NoAudio => {
+                set_phase(&handle, DictationPhase::Idle).await;
+            }
+            DictationPhase::Idle => {
+                // Already idle (e.g. a previous scheduled timer beat us).
+                // No-op.
+            }
+            DictationPhase::Listening { .. }
+            | DictationPhase::Warming { .. }
+            | DictationPhase::Processing => {
+                // Active phase started between the scheduling and now.
+                // Leaving it alone is the whole point of this guard.
+                tracing::info!(
+                    ?current,
+                    "schedule_idle: current phase is active — skipping stale Idle emit"
+                );
+            }
+        }
     });
 }
 
@@ -333,7 +415,17 @@ pub async fn stop_recording(
     handle: AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> CmdResult<HistoryEntry> {
-    tracing::info!("dictation::stop_recording enter");
+    let rec_flag = state
+        .recording_in_progress
+        .load(std::sync::atomic::Ordering::Acquire);
+    let trx_flag = state
+        .transcribe_in_progress
+        .load(std::sync::atomic::Ordering::Acquire);
+    tracing::info!(
+        recording_in_progress = rec_flag,
+        transcribe_in_progress = trx_flag,
+        "dictation::stop_recording enter"
+    );
     let final_ = state.audio.stop_capture().await;
     let Some(mut final_) = final_ else {
         tracing::warn!("stop_recording called with no active recording");
@@ -363,7 +455,61 @@ pub async fn stop_recording(
         duration_ms = final_.duration_ms,
         "audio captured"
     );
-    set_phase(&handle, DictationPhase::Processing).await;
+
+    // v0.6.7 cold-load phase: decide Warming vs Processing *once*, up-front,
+    // and emit exactly that phase — not Processing-then-Warming-then-Processing.
+    //
+    // The earlier (v0.6.7 initial) fix emitted Processing unconditionally
+    // here and only flipped to Warming later once we'd resolved the model id
+    // from settings. On a cold load the audio-preprocessing block between
+    // the two set_phase calls was fast-but-not-instant (settings snapshot +
+    // noise suppress + silence trim + normalise over ~100k samples), which
+    // meant the user saw Processing flash for a moment before the
+    // Initialising-model label appeared. On subsequent warm dictations
+    // they'd see Processing → (nothing) → Processing which was harmless
+    // but redundant emits.
+    //
+    // Fix: probe the orchestrator BEFORE the Processing emit — using the
+    // pre-resolved `default_asr_model_id` from an early settings snapshot
+    // — so the FIRST phase the user sees after "audio captured" is the
+    // correct one. A second, redundant Processing emit is skipped on the
+    // cold path (the `was_cold` branch below handles it) and omitted
+    // entirely on the warm path (we already set Processing here).
+    //
+    // Any divergence between `default_asr_model_id` resolved here and the
+    // `model_id` resolved later via mode + vocabulary lookup would mean
+    // the probe raced the real target. The mode-level `asr_model_id`
+    // override was removed in v0.6.6, so the two paths now use the same
+    // global setting — they cannot diverge.
+    let early_target_model_id = state
+        .settings
+        .snapshot()
+        .await
+        .models
+        .default_asr_model_id
+        .clone()
+        .unwrap_or_else(|| "stub".into());
+    let was_cold = state
+        .inference
+        .loaded_model_id()
+        .await
+        .as_deref()
+        != Some(early_target_model_id.as_str());
+    if was_cold {
+        tracing::info!(
+            model_id = %early_target_model_id,
+            "cold-load detected at stop_recording entry — emitting Warming, skipping initial Processing"
+        );
+        set_phase(
+            &handle,
+            DictationPhase::Warming {
+                model_id: early_target_model_id.clone(),
+            },
+        )
+        .await;
+    } else {
+        set_phase(&handle, DictationPhase::Processing).await;
+    }
 
     // Optional pre-ASR conditioning. All three passes are cheap (~O(n)) so we apply them
     // inline rather than spawning a worker. Order matters: noise suppress first (we want
@@ -410,10 +556,16 @@ pub async fn stop_recording(
             message: "active mode not found".into(),
         })?;
 
-    let model_id = mode
-        .asr_model_id
+    // v0.6.6: globals are authoritative. Previously `mode.asr_model_id`
+    // could override the default, which meant the per-mode picker silently
+    // disagreed with the global Models setting. The field is still in the
+    // persisted Mode struct for backwards compatibility with older DB rows
+    // — it's just ignored at runtime. The UI's per-mode model picker has
+    // been hidden. Users who want a different model change it globally.
+    let model_id = settings
+        .models
+        .default_asr_model_id
         .clone()
-        .or(settings.models.default_asr_model_id.clone())
         .unwrap_or_else(|| "stub".into());
 
     let vocab_hints = state
@@ -454,6 +606,31 @@ pub async fn stop_recording(
 
     let started = now_ms();
     tracing::info!(%model_id, mode_id = %mode.id, "inference.transcribe begin");
+
+    // v0.6.7 cold-load: the Warming vs Processing decision was made up-front
+    // at the top of stop_recording (see `was_cold` / `early_target_model_id`
+    // above). `was_cold` came from the orchestrator's `loaded_model_id` probe
+    // against `default_asr_model_id` from an early settings snapshot. The
+    // mode-level `asr_model_id` override was removed in v0.6.6, so that
+    // early probe and the final `model_id` resolved from mode + vocab are
+    // the same value — no divergence.
+    //
+    // All that's left on the cold path is to run `ensure_loaded` explicitly
+    // before transcribe, then snap the phase to Processing the instant the
+    // native warm finishes. `transcribe` does ensure_loaded internally too,
+    // but that path doesn't give us a UI hook between warm-start and
+    // inference-start — so we call it here.
+    //
+    // Debug assertion: if these ever diverge (e.g. a future mode-specific
+    // model override is re-introduced), the cold-load probe was wrong.
+    // A release mismatch is still safe — `transcribe` re-runs
+    // `ensure_loaded` and the worst case is a one-dictation phase
+    // mislabel, not a crash.
+    debug_assert_eq!(
+        model_id, early_target_model_id,
+        "cold-load probe model id must match the final transcribe target"
+    );
+
     // Set the transcribe-in-flight guard. `start_recording` rejects
     // while this is true so a new recording can't race the current
     // transcribe's write lock on the inference orchestrator.
@@ -465,6 +642,19 @@ pub async fn stop_recording(
     state
         .transcribe_started_at_ms
         .store(now_ms(), std::sync::atomic::Ordering::Release);
+
+    if was_cold {
+        if let Err(e) = state.inference.ensure_loaded(&model_id).await {
+            tracing::error!(%model_id, error = %e, "cold ensure_loaded failed");
+            // Fall through — `transcribe` below will try again and surface
+            // the same error via its own error path. We don't abort here
+            // to keep one unified failure handler.
+        } else {
+            // Warm finished — snap from Warming to Processing so the bar
+            // reads correctly for the final inference stage.
+            set_phase(&handle, DictationPhase::Processing).await;
+        }
+    }
     let asr_result = state
         .inference
         .transcribe(
@@ -527,14 +717,17 @@ pub async fn stop_recording(
         .apply_replacements(&asr.text)
         .unwrap_or(asr.text.clone());
 
-    // Capture context for post-processing and history — gated by both the mode's rules
-    // and the user's global privacy toggles.
-    let include_app =
-        mode.context_rules.use_active_app && settings.privacy.allow_context_active_app;
-    let include_selection =
-        mode.context_rules.use_selection && settings.privacy.allow_context_selection;
-    let include_clipboard =
-        mode.context_rules.use_clipboard && settings.privacy.allow_context_clipboard;
+    // Capture context for post-processing and history. v0.6.6: globals are
+    // authoritative — the mode-level `context_rules` toggles are ignored.
+    // Previously these were ANDed with the privacy globals, which meant
+    // toggling a mode context flag silently did nothing when the
+    // corresponding global was off, and surfaced a confusing "why isn't
+    // clipboard context working in this mode" question. Privacy alone
+    // controls context now. The mode struct still carries `context_rules`
+    // on disk for back-compat with older DB rows; the field is unread.
+    let include_app = settings.privacy.allow_context_active_app;
+    let include_selection = settings.privacy.allow_context_selection;
+    let include_clipboard = settings.privacy.allow_context_clipboard;
     let ctx_snapshot = if include_app || include_selection || include_clipboard {
         // The context snapshot invokes Win32 + (for selection) the
         // dedicated UIA thread. The UIA path blocks on a reply channel
@@ -601,6 +794,66 @@ pub async fn stop_recording(
     // synthesised keypresses below will clear it. The Enter keystroke fires after the
     // paste has landed so Teams / Slack / Discord submit the line.
     let auto_send = settings.text_output.shift_to_auto_send && state.text_inject.shift_is_held();
+
+    // No-audio-detected gate. Two contributors put empty strings on this
+    // path:
+    //   • sherpa_parakeet's hallucination filter (see sherpa_parakeet.rs)
+    //     returns "" on a quiet clip that Parakeet-TDT filled with a
+    //     fabricated filler token.
+    //   • Genuine silence clips where the model simply had nothing to
+    //     produce.
+    // Either way we have no usable speech. Previously we fell through to
+    // text_inject with an empty `processed`, which paste-injected nothing
+    // but still emitted Success + wrote a history row + played the success
+    // cue. That reads to the user as "it worked, but nothing came out" —
+    // confusing and wrong. Replace that with a NoAudio phase, skip
+    // delivery + history + analytics, but still resume paused media /
+    // ducking so we don't leave the user silent.
+    let is_silence = processed.trim().is_empty();
+    if is_silence {
+        tracing::info!(
+            asr_chars = asr.text.len(),
+            raw_chars = raw.len(),
+            processed_chars = processed.len(),
+            "no-audio: skipping inject/history, emitting NoAudio phase"
+        );
+        {
+            let media = state.media.clone();
+            tokio::task::spawn_blocking(move || media.resume_paused());
+        }
+        {
+            let ducking = state.ducking.clone();
+            tokio::task::spawn_blocking(move || ducking.restore());
+        }
+        set_phase(&handle, DictationPhase::NoAudio).await;
+        // Longer settle than Success (1.2s) — the message is the whole
+        // point so we want the user to actually read it before the bar
+        // decays back to idle.
+        schedule_idle(&handle, 1800);
+        // Return a synthetic history-shaped Ok so callers that inspect
+        // the result don't error. The entry is NOT persisted; it's a
+        // marker value only.
+        return Ok(HistoryEntry {
+            id: String::new(),
+            created_at: now_ms(),
+            mode_id: Some(mode.id.clone()),
+            mode_name_snapshot: mode.name.clone(),
+            asr_model_id: model_id,
+            asr_model_version: asr.model_version,
+            audio_path: recorded_path,
+            audio_duration_ms: final_.duration_ms as i64,
+            raw_text: String::new(),
+            processed_text: String::new(),
+            language: asr.language,
+            processing_ms: now_ms() - started,
+            status: HistoryStatus::Success,
+            error_message: None,
+            app_exe: None,
+            app_title: None,
+            context_payload: None,
+            word_timings: None,
+        });
+    }
 
     // Attempt text delivery.
     let strategy = if settings.text_output.paste_automatically {
@@ -710,8 +963,34 @@ pub async fn get_phase() -> CmdResult<DictationPhase> {
 }
 
 async fn set_phase(handle: &AppHandle, phase: DictationPhase) {
+    // Log every phase transition. The frontend's zustand dictation store
+    // is driven entirely by the `dictation:phase` event emitted here; when
+    // the store falls out of sync with Rust (observed 2026-04-24T17:59 —
+    // see stuck-hotkey investigation), the log is the only window into
+    // what Rust THOUGHT the phase was vs. what the UI actually rendered.
+    // Using a short discriminant rather than the full JSON so the signal
+    // stays high in a busy log.
+    let kind = match &phase {
+        DictationPhase::Idle => "idle",
+        DictationPhase::Warming { .. } => "warming",
+        DictationPhase::Listening { .. } => "listening",
+        DictationPhase::Processing => "processing",
+        DictationPhase::Success => "success",
+        DictationPhase::Error { .. } => "error",
+        DictationPhase::Cancelled => "cancelled",
+        DictationPhase::NoAudio => "no_audio",
+    };
+    tracing::info!(phase = %kind, "set_phase");
     *phase_cell().write().await = phase.clone();
-    let _ = handle.emit(EVT_DICTATION_PHASE, &phase);
+    let emit_res = handle.emit(EVT_DICTATION_PHASE, &phase);
+    if let Err(e) = &emit_res {
+        // `emit` failures are silent today — they swallow the error and
+        // the frontend never learns about the phase change. If that ever
+        // starts happening (e.g. a webview was destroyed mid-dictation),
+        // the log tells us so we don't spend another session wondering
+        // why the UI disagrees with Rust.
+        tracing::error!(error = ?e, phase = %kind, "phase emit failed");
+    }
     if let DictationPhase::Error { message } = &phase {
         let _ = handle.emit(EVT_DICTATION_ERROR, message.clone());
     }

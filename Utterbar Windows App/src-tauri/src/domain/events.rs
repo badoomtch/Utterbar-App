@@ -35,6 +35,13 @@ pub enum DictationPhase {
     Success,
     Error { message: String },
     Cancelled,
+    /// The capture completed but produced no usable speech — either silence
+    /// the gate caught before ASR, or the ASR returned an empty / all-filler
+    /// string we declined to inject. Distinct from `Error` because it's not
+    /// a failure to handle, it's a non-event — the bar shows a neutral
+    /// "No audio detected" message and settles back to idle without writing
+    /// a history row or firing the success cue.
+    NoAudio,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

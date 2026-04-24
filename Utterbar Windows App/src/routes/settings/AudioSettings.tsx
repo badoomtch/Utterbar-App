@@ -226,7 +226,7 @@ export function AudioSettings() {
   ];
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
+    <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader title="Audio" subtitle="Input devices, preprocessing, and mic testing." />
       <div className="mt-6 space-y-4">
         <Card
