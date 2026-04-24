@@ -94,9 +94,18 @@ pub async fn start_recording(
     // corrupting the heap (STATUS_HEAP_CORRUPTION, 0xC0000374). The
     // frontend fan-out fix gates the broadcast; this CAS is defence in
     // depth so a future frontend regression can't re-introduce the same
-    // crash. A concurrent second call returns a user-level error (the UI
-    // treats it as "still recording, ignore") — never continues into the
-    // capture arming path.
+    // crash.
+    //
+    // v0.6.3 self-heal: if the flag is stuck true but the audio service
+    // has no active capture, the guard has desynced from reality — most
+    // likely because an earlier transcribe returned an error that
+    // short-circuited the normal `stop_recording → clear flag` path,
+    // or because a dropped dictation-phase event left the frontend
+    // thinking it was idle while the Rust flag was still set. Without
+    // the self-heal, the user's hotkey silently does nothing until
+    // they restart the app. With it, we detect the stale flag, clear
+    // it, log a warning (so a real regression is still visible in the
+    // log), and proceed with the start as normal.
     if state
         .recording_in_progress
         .compare_exchange(
@@ -107,10 +116,21 @@ pub async fn start_recording(
         )
         .is_err()
     {
-        tracing::warn!("start_recording rejected: another start is already in progress");
-        return Err(OrliqError::User {
-            message: "recording already in progress".into(),
-        });
+        // Probe the audio service: is there genuinely a live capture?
+        let has_live_capture = state.audio.current().await.is_some();
+        if has_live_capture {
+            tracing::warn!("start_recording rejected: another start is already in progress");
+            return Err(OrliqError::User {
+                message: "recording already in progress".into(),
+            });
+        }
+        // Flag was true but no capture is running — stale. Clear it and
+        // fall through. We deliberately don't re-CAS here: the flag is
+        // already true from our perspective, so we just keep it that
+        // way for the rest of this invocation.
+        tracing::warn!(
+            "start_recording: recording_in_progress flag was stuck true with no active capture — clearing as stale and proceeding"
+        );
     }
 
     let settings = state.settings.snapshot().await;

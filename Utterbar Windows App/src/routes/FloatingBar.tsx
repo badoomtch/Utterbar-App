@@ -534,31 +534,24 @@ export function FloatingBar() {
           // Height scales with size preference. Standard is 52px (prototype
           // default). Compact drops to 44px — a real ~15% size step that the
           // user feels as "noticeably smaller", not just a padding tweak.
-          // Everything below (mini-mark, wordmark, buttons, min-widths) has
-          // a matching compact scale so the pill keeps its proportions.
           'relative mt-0.5 flex items-center overflow-hidden rounded-full border-2',
           isCompact ? 'h-[44px]' : 'h-[52px]',
-          // Padding switches to symmetric + `justify-center` while
-          // collapsed so the logo + wordmark sit dead-centre inside the
-          // pill. Expanded state goes back to the asymmetric padding the
-          // action cluster needs (pl small, pr larger for the button row).
-          // Collapsed compact is the smallest visual state — its padding is
-          // tightened from px-3 to px-2 so the wordmark doesn't float in a
-          // sea of gradient. Standard keeps its roomier px-4 for weight.
+          // Collapsed: the pill sizes to fit its contents (logo + wordmark +
+          // padding). No min-w; framer's `layout` transitions width
+          // smoothly and the content decides how wide the closed state is.
+          // Previously we forced min-w-[210px] which left the pair floating
+          // in empty gradient with huge margins on either side.
+          // Expanded: enough min-w that the full action cluster
+          // (timer + wave + 4 buttons on listening, StatePill + 3 buttons
+          // otherwise) has breathing room without the pill growing
+          // uncontrollably wide.
           expanded
             ? isCompact
-              ? 'pl-1.5 pr-1 gap-1.5'
-              : 'pl-3 pr-2 gap-3'
+              ? 'pl-1.5 pr-1 gap-2 min-w-[340px]'
+              : 'pl-3 pr-2 gap-2.5 min-w-[460px]'
             : isCompact
-              ? 'justify-center px-2 gap-1.5'
-              : 'justify-center px-4 gap-3',
-          expanded
-            ? isCompact
-              ? 'min-w-[360px]'
-              : 'min-w-[500px]'
-            : isCompact
-              ? 'min-w-[156px]'
-              : 'min-w-[210px]',
+              ? 'px-2 gap-1.5'
+              : 'px-3 gap-2.5',
         )}
       >
         {/* LEFT — always visible. Waveform-only glyph (the pill body + hole-
@@ -605,39 +598,31 @@ export function FloatingBar() {
 
         {/* RIGHT — expanded content. AnimatePresence gates mount; the outer
             motion.div's `layout` tween handles width in a fixed 280ms
-            window. The inner timings are deliberately nested inside that
-            window:
-              - Exit (close): 180ms — finishes while the pill is still
-                ~65% of the way through its width closure, so the
-                overflow-hidden mask never catches icons that are still
-                fully opaque. The eye reads a single smooth close.
-              - Enter (open): starts 80ms after the expanded state flips
-                (via `delay`), then runs 200ms — so the pill widens first
-                and icons fade in against the already-growing pill rather
-                than appearing in a narrow stub. Total enter completes
-                just inside the 280ms layout window.
-            `mode="wait"` is intentionally NOT used here: we want the
-            exit animation to run concurrently with the layout closure,
-            not serially before it, otherwise the two finish in sequence
-            and read as two separate stages. */}
+            window. The inner tween runs SYNCHRONOUSLY with the layout
+            rather than nesting inside it: a pure opacity fade with no
+            delay / scale / translate, same 280ms duration, same easing.
+            That way the pill width and the content opacity read as a
+            SINGLE motion — previously the content faded in a separate
+            short burst (180ms exit, 200ms enter with 80ms delay) while
+            the pill resized on its own timeline, which the eye still
+            picked up as two sequential stages no matter how short.
+            Matching the timelines is the only way to produce one
+            cohesive motion. */}
         <AnimatePresence initial={false}>
           {expanded && (
             <motion.div
               key={`expanded-${phase.kind === 'listening' ? 'rec' : 'idle'}`}
-              initial={{ opacity: 0, x: 8, scale: 0.97 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 4, scale: 0.97 }}
-              transition={{
-                opacity: { duration: 0.2, delay: 0.08, ease: [0.22, 1, 0.36, 1] },
-                x:       { duration: 0.2, delay: 0.08, ease: [0.22, 1, 0.36, 1] },
-                scale:   { duration: 0.2, delay: 0.08, ease: [0.22, 1, 0.36, 1] },
-                // Exit is unconditionally fast + no delay so the content
-                // is gone before the outer pill finishes closing, and the
-                // scale/x on exit is deliberately subtle so icons read as
-                // fading into the pill rather than flying off.
-                exit: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
-              }}
-              className="flex flex-1 items-center justify-end gap-2 overflow-hidden whitespace-nowrap pl-1"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              // `min-w-0` + `overflow-hidden` let the content clip cleanly
+              // as the pill closes. No `flex-1` or `justify-end` — those
+              // were the source of the empty gap between "Utterbar" and
+              // the recording cluster on the expanded state: flex-1 pushed
+              // the action cluster to the right edge, justify-end kept it
+              // there, and the empties between read as wasted real estate.
+              className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap"
             >
               {phase.kind === 'listening' ? (
                 <>

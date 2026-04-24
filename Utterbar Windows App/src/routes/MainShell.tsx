@@ -136,7 +136,18 @@ export function MainShell() {
           <NavGroup label="Settings" items={NAV_SETTINGS} />
         </nav>
 
-        <div className="px-5 py-3 space-y-2">
+        {/* Footer — TierLine + version + "local only" strap.
+            `shrink-0` is load-bearing: without it, flexbox can shrink
+            this block to zero on shorter windows now that the aside is
+            `overflow-hidden` (v0.6.2 triple-scrollbar fix). The version
+            number went missing on shorter viewports because of that
+            interaction. Pinning the footer to its intrinsic height
+            keeps it visible regardless of nav overflow.
+            Bottom padding is generous (pb-5) so the line sits a little
+            off the window edge at any size — on shorter viewports the
+            nav-scroll ends right up against the footer and pb-3 read
+            as the version was glued to the edge. */}
+        <div className="shrink-0 px-5 pt-3 pb-5 space-y-2">
           <TierLine />
           <div className="ub-eyebrow font-mono">
             {appVersion ? `v${appVersion}` : 'v…'} · local only
