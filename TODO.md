@@ -15,9 +15,12 @@ is the next step. Testing + your sign-off before publishing anywhere.
 
 **Website:** No changes deployed yet. A full commit-ready payload sits
 in the tree: two hashed-token migrations, `/api/pricing`, `/api/updater/check`,
-staged-rotation email flow, admin Blade form required-SHA fix, 58 PHP
-tests passing. Deploy script at `Utterbar Website/scripts/deploy-website.ps1`
-ready to run with `$env:CLOUDWAYS_PASSWORD`.
+staged-rotation email flow, admin Blade form required-SHA fix. 58 PHP
+tests were green on Jay's machine on 2026-04-24 (PHP 8.2 + phpunit 11,
+in-memory SQLite) — that is a single-machine-single-point-in-time
+result, not CI-verified. **Re-run the tests before deploy.** Deploy
+script at `Utterbar Website/scripts/deploy-website.ps1` ready to run
+with `$env:CLOUDWAYS_PASSWORD`.
 
 **Versions in-tree:**
 - App: `0.6.4`
@@ -68,7 +71,7 @@ be committed as part of the v0.6.4 commit that is about to go.
 | `/api/updater/check` endpoint | committed |
 | Release publish validation: SHA-256 required, strict X.Y.Z version | committed |
 | Staged token rotation (failed email send keeps old unsubscribe link alive) | committed |
-| 58 PHP tests — all passing locally on PHP 8.2 + phpunit 11 | run + green |
+| 58 PHP tests — last seen green on Jay's machine 2026-04-24; re-run before deploy | one-machine-green, no CI |
 | `deploy-website.ps1` for pscp/plink push to Cloudways | committed |
 
 ### Monorepo
@@ -147,7 +150,7 @@ None of these need to ship with v0.6.4:
 - **Monorepo:** `c:\Users\jaypa\Documents\GitHub\Utterbar\` is a single git repo. `Utterbar Windows App/` and `Utterbar Website/` sit inside. Remote: `badoomtch/Utterbar-App` private.
 - **App version ≠ website version.** The website deploys continuously; only the desktop installer has a semver.
 - **The user (Jay) tests every app build before we ship.** No installer goes to R2 until Jay explicitly approves.
-- **PHP tests run locally** via the composer/php install I set up. 58 tests. Run `php artisan test --filter="SignInTokenTest|UpdateSubscriberTokenTest|ApiContractTest|ReleasePublishValidationTest|UnsubscribeRotationTest"` to re-verify.
+- **PHP tests — where they run:** 58 tests (SignInTokenTest, UpdateSubscriberTokenTest, ApiContractTest, ReleasePublishValidationTest, UnsubscribeRotationTest) passed on Jay's dev machine on 2026-04-24 via the php 8.2.30 + composer install at `%USERPROFILE%\bin` + `%LOCALAPPDATA%\Microsoft\WinGet\Packages\PHP.PHP.8.2_*`. That install is NOT portable — a fresh shell / sibling tool / CI runner will not have php on PATH until those installs are reproduced (`winget install PHP.PHP.8.2` + the composer shim). **Not validated in CI.** Treat the "58 passing" claim as "passed on one machine at one point". Re-run before deploying the website.
 - **Memory files** under `.claude/projects/.../memory/` reflect this session's decisions. Key ones: `feedback_versioning.md` (app vs website), `project_v061_investigation.md` (crash history), `reference_release_runbook.md` (release ritual pointer).
 
 ---

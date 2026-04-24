@@ -20,14 +20,21 @@ Utterbar is a Windows-first, local-only dictation app. Press `Ctrl+Space`, speak
 Today:
 
 ```
-Utterbar/                        ← monorepo root (no git yet)
+Utterbar/                        ← monorepo root, single git repo
+├── .git/                        ← remote: badoomtch/Utterbar-App (private)
 ├── CLAUDE.md                    ← rules (read first)
 ├── MONOREPO.md                  ← this file (deep reference)
-├── Utterbar Windows App/        ← desktop app — Tauri v2 + React + Rust (git)
-└── Utterbar Website/            ← Laravel 12 marketing + billing + admin (no git)
+├── RELEASE_RUNBOOK.md           ← enforced release ritual
+├── TODO.md                      ← live work tracker
+├── Utterbar Windows App/        ← desktop app — Tauri v2 + React + Rust
+└── Utterbar Website/            ← Laravel 12 marketing + billing + admin
 ```
 
-Planned: single `git init` at the root, both sub-projects as top-level directories, one CI workflow. Until that happens, only the Windows App is a git repo; the website is deploy-from-laptop over `pscp`/`plink`.
+The monorepo was consolidated in commit `3d7d4f7` (moving the old
+`Utterbar Windows App/.git` up a level). v0.6.0 and v0.6.1 tags
+preserved. Website deploy is still out-of-band via `pscp` to Cloudways
+— Cloudways has no git-based deploy, so `Utterbar Website/scripts/deploy-website.ps1`
+is the ritual.
 
 ---
 
@@ -304,25 +311,21 @@ Called by `Utterbar Windows App/scripts/publish-release.sh` to publish a release
 
 Body + responses documented in [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md).
 
-### 4.3 Pricing API — app → website (BROKEN)
+### 4.3 Pricing API — app → website (IN CODE, NOT DEPLOYED)
 
 App GETs `https://utterbar.com/api/pricing` from [pricing.rs](Utterbar%20Windows%20App/src-tauri/src/commands/pricing.rs). Expected shape:
 ```json
 { "amount_usd": 39.99, "currency": "GBP", "period": "one_time", "display": "£39.99" }
 ```
-**Route does not exist on the website.** App always falls back. Two fixes needed:
-1. Add the route to [routes/web.php](Utterbar%20Website/routes/web.php) + a controller action that reads from config or Stripe.
-2. Update the app's fallback amount/currency/display from `$29 USD` to `£39.99 GBP`.
+**Status:** implemented server-side in [PricingApiController.php](Utterbar%20Website/app/Http/Controllers/Api/PricingApiController.php), wired in [routes/web.php](Utterbar%20Website/routes/web.php) at `Route::get('/api/pricing', …)` with a 60/min throttle. App-side fallback is corrected to `£39.99 GBP` in both pricing.rs and useProPrice.ts. **Still needs a Cloudways deploy** to go live — run `Utterbar Website/scripts/deploy-website.ps1`.
 
-### 4.4 Updater API — app → website (BROKEN)
+### 4.4 Updater API — app → website (IN CODE, NOT DEPLOYED)
 
 App GETs `$UTTERBAR_LICENCE_BASE_URL/api/updater/check?current=<v>&channel=stable` from [updater.rs](Utterbar%20Windows%20App/src-tauri/src/commands/updater.rs). Expected shape:
 ```json
-{ "available": "0.6.1", "download_url": "https://dl.utterbar.com/releases/0.6.1/Utterbar-Setup-0.6.1.exe", "sha256": "...", "notes_markdown": "..." }
+{ "available": true, "version": "0.6.4", "download_url": "https://dl.utterbar.com/releases/0.6.4/Utterbar-Setup-0.6.4.exe", "sha256": "...", "notes_markdown": "...", "size_bytes": 11014909 }
 ```
-**Route does not exist.** All of `/api/updater/check`, `/api/updates/check`, `/api/update/check`, `/api/version/check` 404. Users on v0.6.0 cannot auto-upgrade to v0.6.1 — they see no toast; the check call returns 404 HTML, the client parses "no update," they stay on 0.6.0.
-
-**Fix:** add a controller that queries the `releases` table for the latest stable > `current`, returns the metadata; 204 if current is newest.
+**Status:** implemented server-side in [UpdaterApiController.php](Utterbar%20Website/app/Http/Controllers/Api/UpdaterApiController.php), wired in [routes/web.php](Utterbar%20Website/routes/web.php) at `Route::get('/api/updater/check', …)`. Queries the `releases` table for the newest eligible row (valid X.Y.Z version, valid SHA-256, non-empty r2_key), returns `available: false` otherwise. **Still needs a Cloudways deploy** to go live.
 
 ### 4.5 Stripe webhook — Stripe → website
 
@@ -449,7 +452,7 @@ Client side ([updater.rs](Utterbar%20Windows%20App/src-tauri/src/commands/update
 2. `UpdateToast` renders bottom-right of MainShell when newer available.
 3. `install_update()` — downloads `download_url` to `%TEMP%\`, verifies SHA-256 against server value, runs installer silently (`/S` flag on NSIS), relaunches.
 
-**Server side: not built.** See §4.4.
+**Server side:** implemented in `UpdaterApiController.php`; see §4.4. Not yet deployed to Cloudways at time of writing (run `deploy-website.ps1`).
 
 ---
 

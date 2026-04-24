@@ -66,20 +66,38 @@ fi
 echo "  200 OK"
 
 echo "→ publishing metadata to $UTTERBAR_API_BASE…"
+# Include `r2_key` explicitly so the server doesn't fall back to its
+# legacy default of `releases/{version}/Utterbar-Setup.exe` (unversioned).
+# The admin API then verifies that KEY exists in R2 — which matches the
+# key we just uploaded to above ($KEY). Without this, the server
+# defaulted to the legacy key, saw no file there, and returned
+# `file_not_in_bucket` every time.
 PAYLOAD=$(jq -n \
     --arg v "$VERSION" \
     --arg ch "$CHANNEL" \
+    --arg r2 "$KEY" \
     --arg sha "$SHA" \
     --arg notes "$NOTES" \
     --arg tag "$TAG" \
     --argjson ann "$ANNOUNCE" \
-    '{version:$v, channel:$ch, sha256:$sha, notes_markdown:$notes, announce:$ann} + (if $tag == "" then {} else {tag:$tag} end)')
+    '{version:$v, channel:$ch, r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:$ann} + (if $tag == "" then {} else {tag:$tag} end)')
+
+# Write the payload to a temp file and curl via --data-binary @<file>
+# instead of -d "$PAYLOAD". The inline -d form mangles multiline JSON
+# on Windows git-bash (bash on MSYS reinterprets embedded newlines in
+# a way curl's arg parsing can't recover from), producing a request
+# body that the server rejects as "missing version" or similar even
+# though jq generated a valid JSON blob. The temp-file form bypasses
+# bash's word splitting entirely.
+TMP_PAYLOAD=$(mktemp)
+trap 'rm -f "$TMP_PAYLOAD"' EXIT
+printf '%s' "$PAYLOAD" > "$TMP_PAYLOAD"
 
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$UTTERBAR_API_BASE/api/admin/releases" \
     -H "Authorization: Bearer $UTTERBAR_ADMIN_API_TOKEN" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -d "$PAYLOAD")
+    --data-binary "@$TMP_PAYLOAD")
 
 BODY=$(echo "$RESP" | head -n -1)
 CODE=$(echo "$RESP" | tail -n 1)

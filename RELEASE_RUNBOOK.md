@@ -190,7 +190,7 @@ These are non-negotiable. Skipping them is how v0.6.1 shipped with a broken upda
 - [ ] `curl -sI https://dl.utterbar.com/releases/<version>/Utterbar-Setup-<version>.exe` → HTTP 200 with matching content-length.
 - [ ] Open `https://utterbar.com/download` in a fresh incognito browser — the new version is displayed with the `latest` pill, SHA-256 matches what `publish-release.sh` computed, "Download" button points at the versioned URL.
 - [ ] Open `https://utterbar.com/changelog` (or `/releases` depending on what's wired up) — the new version's notes render correctly with the same markdown you wrote in §3.
-- [ ] `curl "$UTTERBAR_API_BASE/api/updater/check?current=<previous-version>&channel=stable"` should return the new version's metadata. **As of 2026-04-23 this route does not exist server-side** (known drift). If it still returns 404, flag it in the release notes ("Auto-update for users on <previous> still pending server-side endpoint — manual download required") and file a follow-up web task. Don't silently ship an updater that doesn't work.
+- [ ] `curl "$UTTERBAR_API_BASE/api/updater/check?current=<previous-version>&channel=stable"` should return the new version's metadata. The route IS implemented in `UpdaterApiController.php`; if it returns 404 on the live site it means the website hasn't been deployed yet — run `Utterbar Website/scripts/deploy-website.ps1` first, then retry. If it returns a 200 with `available: false` unexpectedly, check the `sha256` + `r2_key` on the admin release row; the read-time filter rejects rows with malformed either field.
 - [ ] Run the OLD version (e.g. from the previous installer) on a clean machine, let it idle for ~60 s → the `UpdateToast` should appear. If not, same reason as above.
 
 ---
