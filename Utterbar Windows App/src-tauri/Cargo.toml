@@ -1,6 +1,6 @@
 [package]
 name = "utterbar"
-version = "0.6.3"
+version = "0.6.4"
 edition = "2021"
 description = "Utterbar — local-only dictation for Windows"
 authors = ["Utterbar"]
@@ -25,6 +25,12 @@ tauri-plugin-deep-link = "2"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 futures = "0.3"
+# Cross-thread request/reply for the dedicated COM-owning UIA thread
+# (see platform::windows::uia_thread). Used in the narrow window between
+# a tokio spawn_blocking call and the UIA worker; tokio's own channels
+# would do but `recv_timeout` is nicer for our pattern and the extra
+# dep is tiny.
+crossbeam-channel = "0.5"
 
 # Logging
 tracing = "0.1"

@@ -536,7 +536,18 @@ pub async fn stop_recording(
     let include_clipboard =
         mode.context_rules.use_clipboard && settings.privacy.allow_context_clipboard;
     let ctx_snapshot = if include_app || include_selection || include_clipboard {
-        let s = state.context.snapshot(include_selection, include_clipboard);
+        // The context snapshot invokes Win32 + (for selection) the
+        // dedicated UIA thread. The UIA path blocks on a reply channel
+        // with a 200ms timeout, so we must not run this on the tokio
+        // async runtime — spawn_blocking moves it to the blocking pool.
+        // Also shields the async path from any panic in the Win32 FFI,
+        // which would otherwise poison the whole task set.
+        let ctx_svc = state.context.clone();
+        let s = tokio::task::spawn_blocking(move || {
+            ctx_svc.snapshot(include_selection, include_clipboard)
+        })
+        .await
+        .unwrap_or_default();
         crate::services::llm::ProcContext {
             app_exe: if include_app { s.exe.clone() } else { None },
             app_title: if include_app { s.title.clone() } else { None },

@@ -1,23 +1,21 @@
 //! Active-window + selection + clipboard readers for Windows.
+//!
+//! Selection reading (UIA) is delegated to a dedicated OS thread in
+//! `super::uia_thread`. See that module for the full rationale — the
+//! short version is that UIA is an STA-COM API and calling it from
+//! tokio workers that may have previously been used by other COM
+//! callers (WASAPI, audio ducking) was the root cause of the
+//! STATUS_HEAP_CORRUPTION crashes observed through v0.6.3.
 
-use windows::core::Interface;
 use windows::Win32::Foundation::{HWND, MAX_PATH};
-use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
-};
 use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
-use windows::Win32::UI::Accessibility::{
-    CUIAutomation, IUIAutomation, IUIAutomationTextPattern, UIA_TextPatternId,
-};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
     GetWindowThreadProcessId,
 };
 
 use crate::services::context::ActiveAppContext;
-
-const MAX_SELECTION_CHARS: usize = 4_000;
 
 pub fn snapshot(include_selection: bool, include_clipboard: bool) -> ActiveAppContext {
     let hwnd = unsafe { GetForegroundWindow() };
@@ -29,8 +27,12 @@ pub fn snapshot(include_selection: bool, include_clipboard: bool) -> ActiveAppCo
     let class = read_window_class(hwnd);
     let exe = read_window_exe(hwnd);
 
+    // Route selection reads through the dedicated UIA thread. Blocks
+    // the current (spawn_blocking) thread briefly while the UIA thread
+    // services the request; must never be invoked from an async
+    // context directly.
     let selection = if include_selection {
-        read_selection_uia(hwnd)
+        super::uia_thread::snapshot_selection(hwnd)
     } else {
         None
     };
@@ -87,59 +89,6 @@ fn read_window_exe(hwnd: HWND) -> Option<String> {
         }
         let path = String::from_utf16_lossy(&buf[..n as usize]);
         path.split(['/', '\\']).next_back().map(|s| s.to_string())
-    }
-}
-
-/// Walk the UIA tree under the foreground window, looking for a focused element that
-/// exposes `TextPattern`. When found, read its currently selected range(s) and return
-/// their concatenated text. Returns None when no selection can be retrieved — callers
-/// must NEVER treat that as an error; it just means we don't have a selection to offer.
-fn read_selection_uia(hwnd: HWND) -> Option<String> {
-    unsafe {
-        // Each call initialises its own STA; safe to call repeatedly.
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-        let automation: IUIAutomation =
-            CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok()?;
-
-        // Prefer the focused element (more accurate than the root); fall back to the
-        // element at the foreground window handle.
-        let element = automation
-            .GetFocusedElement()
-            .ok()
-            .or_else(|| automation.ElementFromHandle(hwnd).ok())?;
-
-        let pattern_unk = element.GetCurrentPattern(UIA_TextPatternId).ok()?;
-        let text_pattern: IUIAutomationTextPattern = pattern_unk.cast().ok()?;
-        let selection = text_pattern.GetSelection().ok()?;
-        let len = selection.Length().ok()?;
-        if len == 0 {
-            return None;
-        }
-
-        let mut out = String::new();
-        for i in 0..len {
-            let range = selection.GetElement(i).ok()?;
-            let bstr = range.GetText(MAX_SELECTION_CHARS as i32).ok()?;
-            out.push_str(&bstr.to_string());
-            if out.chars().count() >= MAX_SELECTION_CHARS {
-                break;
-            }
-        }
-        let trimmed = out.trim();
-        if trimmed.is_empty() {
-            None
-        } else if trimmed.chars().count() > MAX_SELECTION_CHARS {
-            Some(
-                trimmed
-                    .chars()
-                    .take(MAX_SELECTION_CHARS)
-                    .collect::<String>()
-                    + "…",
-            )
-        } else {
-            Some(trimmed.to_string())
-        }
     }
 }
 

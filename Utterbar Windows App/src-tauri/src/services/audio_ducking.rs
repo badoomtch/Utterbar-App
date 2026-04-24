@@ -99,21 +99,48 @@ mod windows_impl {
         OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
     };
 
-    /// Small RAII guard so failures mid-function still balance CoUninitialize.
-    struct ComGuard;
+    /// Small RAII guard that balances CoInitializeEx on this thread. The
+    /// tracked field records whether this guard's own CoInitializeEx
+    /// actually added to the thread's init count — `S_OK` and `S_FALSE`
+    /// both count as initialised-by-us (both require a matching
+    /// CoUninitialize), but `RPC_E_CHANGED_MODE` means the thread was
+    /// already initialised into a DIFFERENT apartment model and our
+    /// call did NOT add to the count. In that case we MUST NOT call
+    /// CoUninitialize on Drop — doing so would over-release the count
+    /// and destroy COM on this thread for whoever initialised it first.
+    ///
+    /// Before v0.6.4 this Drop was unconditional, which on tokio
+    /// workers that had previously been CoInitialized by the UIA code
+    /// path (since moved to a dedicated thread in `uia_thread.rs`)
+    /// could over-release and destabilise the ORT / DirectML
+    /// allocator state for other tasks — one of the contributing
+    /// causes of the STATUS_HEAP_CORRUPTION crashes.
+    struct ComGuard {
+        initialised_here: bool,
+    }
     impl ComGuard {
         fn new() -> Self {
-            // Safe even if COM is already initialised on this thread — returns an HRESULT
-            // we can ignore. Matches the pattern used in services/audio/loopback.rs.
-            unsafe {
-                let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+            // S_OK = apartment entered for the first time on this thread.
+            // S_FALSE = already initialised (same mode); counts as our
+            //           contribution and must be balanced.
+            // Anything else (notably RPC_E_CHANGED_MODE, 0x80010106) =
+            // we did NOT add to the count; Drop must NOT CoUninitialize.
+            let initialised_here = hr.is_ok(); // is_ok() covers S_OK + S_FALSE
+            if !initialised_here {
+                tracing::warn!(
+                    ?hr,
+                    "audio_ducking: CoInitializeEx returned a non-ok HRESULT — skipping CoUninitialize on drop to avoid over-releasing the apartment init count"
+                );
             }
-            ComGuard
+            ComGuard { initialised_here }
         }
     }
     impl Drop for ComGuard {
         fn drop(&mut self) {
-            unsafe { CoUninitialize() };
+            if self.initialised_here {
+                unsafe { CoUninitialize() };
+            }
         }
     }
 

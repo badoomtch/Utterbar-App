@@ -50,16 +50,70 @@ export function FloatingBar() {
   // try again" cue instead of the hotkey silently doing nothing.
   const [busyFlash, setBusyFlash] = useState(false);
   const busyFlashTimerRef = useRef<number | undefined>(undefined);
+  // Drag-termination detection.
+  //
+  // Before v0.6.4 this used a global `pointerup` listener to clear
+  // `dragging`. That was wrong: Tauri's `startDragging()` hands the
+  // window move to the OS immediately, and the OS's window-move loop
+  // synthesises a pointerup on the webview the moment it takes over —
+  // which fired our clear immediately after drag-start, killing the
+  // accent border within a frame. The user saw a flash, not a
+  // sustained highlight.
+  //
+  // The reliable "drag ended" signal is a **silence window** after
+  // `onMoved` events stop arriving from the Tauri window. We debounce:
+  // every onMoved re-arms a 220 ms timer, and when the timer fires
+  // (no more moves for 220 ms) we clear `dragging`. If the user drags
+  // continuously, `dragging` stays true. If they release, moves stop
+  // within a frame and `dragging` clears ~220 ms later — smooth,
+  // deterministic, and never clears mid-drag.
+  //
+  // Safety nets:
+  //   • A hard fallback timer (2.5 s) clears `dragging` even if onMoved
+  //     never fires — some window managers don't emit moves for a zero-
+  //     distance click-and-hold, so a stuck drag-lift is possible
+  //     without this floor.
+  //   • Window `blur` still clears — if the OS moves focus away during
+  //     a drag something's wrong and we'd rather reset than stick.
   useEffect(() => {
     if (!dragging) return;
-    const clear = () => setDragging(false);
-    window.addEventListener('pointerup', clear);
-    window.addEventListener('pointercancel', clear);
-    window.addEventListener('blur', clear);
+    let moveTimer: number | undefined;
+    let hardFallback: number | undefined;
+    let unlistenMoved: (() => void) | undefined;
+    let cancelled = false;
+
+    const scheduleClear = () => {
+      if (moveTimer !== undefined) window.clearTimeout(moveTimer);
+      moveTimer = window.setTimeout(() => {
+        if (!cancelled) setDragging(false);
+      }, 220);
+    };
+
+    // Initial timer so zero-move click-and-hold eventually releases.
+    scheduleClear();
+    hardFallback = window.setTimeout(() => {
+      if (!cancelled) setDragging(false);
+    }, 2500);
+
+    void getCurrentWindow()
+      .onMoved(() => {
+        scheduleClear();
+      })
+      .then((u) => {
+        if (cancelled) u();
+        else unlistenMoved = u;
+      })
+      .catch(() => undefined);
+
+    const onBlur = () => setDragging(false);
+    window.addEventListener('blur', onBlur);
+
     return () => {
-      window.removeEventListener('pointerup', clear);
-      window.removeEventListener('pointercancel', clear);
-      window.removeEventListener('blur', clear);
+      cancelled = true;
+      if (moveTimer !== undefined) window.clearTimeout(moveTimer);
+      if (hardFallback !== undefined) window.clearTimeout(hardFallback);
+      unlistenMoved?.();
+      window.removeEventListener('blur', onBlur);
     };
   }, [dragging]);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -466,7 +520,11 @@ export function FloatingBar() {
         onMouseLeave={() => setHoveredDelayed(false)}
         onPointerLeave={() => setHoveredDelayed(false)}
         onPointerDown={onDragPointerDown}
-        onPointerUp={() => setDragging(false)}
+        // `onPointerUp` NOT wired here — Tauri's startDragging()
+        // synthesises a pointerup on the webview the instant the OS
+        // takes over the window move, which would clear the drag state
+        // mid-drag. Termination is handled by the debounced onMoved
+        // listener in the drag effect above.
         initial={{ scale: 0.96, opacity: 0, y: -12 }}
         animate={{
           // Drag-lift: pill scales up noticeably while dragging (1.05 —
@@ -578,21 +636,24 @@ export function FloatingBar() {
           // Height scales with size preference. Standard is 52px (prototype
           // default). Compact drops to 44px — a real ~15% size step that the
           // user feels as "noticeably smaller", not just a padding tweak.
+          //
+          // Layout strategy:
+          //   - Collapsed: pill sizes to fit logo + wordmark, no min-w.
+          //     `gap-2.5` spaces logo and wordmark.
+          //   - Expanded: `justify-between` pushes the left cluster
+          //     (logo+wordmark) to the left edge and the right cluster
+          //     (actions) to the right edge, with a flexible drag-handle
+          //     region in the middle. The user can grab that middle area
+          //     to move the window without accidentally hitting a button.
+          //     min-w keeps the pill wide enough that the drag region
+          //     never collapses to zero even with a minimal action
+          //     cluster (idle state: StatePill + 3 buttons).
           'relative mt-0.5 flex items-center overflow-hidden rounded-full border-2',
           isCompact ? 'h-[44px]' : 'h-[52px]',
-          // Collapsed: the pill sizes to fit its contents (logo + wordmark +
-          // padding). No min-w; framer's `layout` transitions width
-          // smoothly and the content decides how wide the closed state is.
-          // Previously we forced min-w-[210px] which left the pair floating
-          // in empty gradient with huge margins on either side.
-          // Expanded: enough min-w that the full action cluster
-          // (timer + wave + 4 buttons on listening, StatePill + 3 buttons
-          // otherwise) has breathing room without the pill growing
-          // uncontrollably wide.
           expanded
             ? isCompact
-              ? 'pl-1.5 pr-1 gap-2 min-w-[340px]'
-              : 'pl-3 pr-2 gap-2.5 min-w-[460px]'
+              ? 'pl-1.5 pr-1 gap-2 min-w-[400px] justify-between'
+              : 'pl-3 pr-2 gap-2.5 min-w-[540px] justify-between'
             : isCompact
               ? 'px-2 gap-1.5'
               : 'px-3 gap-2.5',

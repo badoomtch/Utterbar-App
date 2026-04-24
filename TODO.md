@@ -1,127 +1,155 @@
 # TODO.md — Utterbar work tracker
 
 One place to see what's done, what's staged, what's live, and what's
-still open. Kept under `C:\Users\jaypa\Documents\GitHub\Utterbar\` so
-both sub-projects are visible from one glance. Update at the end of
-each session.
+still open. Kept at the monorepo root so both sub-projects are visible
+from one glance. Update at the end of each session.
 
-Last updated: 2026-04-24.
+**Last updated: 2026-04-24 (v0.6.4 build-pending)**
 
 ---
 
-## Done this session — ready to verify + deploy
+## Where we are right now
 
-These changes are in the working tree. **Not yet committed, not yet
-deployed.**
+**Desktop app:** v0.6.4 in-flight. Rust compiled green; installer build
+is the next step. Testing + your sign-off before publishing anywhere.
 
-### Desktop app (`Utterbar Windows App/`)
+**Website:** No changes deployed yet. A full commit-ready payload sits
+in the tree: two hashed-token migrations, `/api/pricing`, `/api/updater/check`,
+staged-rotation email flow, admin Blade form required-SHA fix, 58 PHP
+tests passing. Deploy script at `Utterbar Website/scripts/deploy-website.ps1`
+ready to run with `$env:CLOUDWAYS_PASSWORD`.
 
-| Item | Status | Notes |
+**Versions in-tree:**
+- App: `0.6.4`
+- Latest published app version: `0.6.1` (still what users see on the
+  website's download page — nothing newer has been uploaded to R2 or
+  announced).
+
+---
+
+## Done since v0.6.1, all rolled into v0.6.4
+
+Everything below is committed to `badoomtch/Utterbar-App` main OR will
+be committed as part of the v0.6.4 commit that is about to go.
+
+### Desktop — stability
+
+| Item | Mechanism | Status |
 | --- | --- | --- |
-| **6× audio fan-out fix** | code done, **runtime unverified** | `useSoundCues`, `useSystemNotifications`, and the shortcut dispatcher now early-return in non-main webviews. Typecheck + lint green. Needs smoke-test on the built installer: press hotkey, confirm ONE tone per phase, ONE notification per event. |
-| **MainShell triple-scrollbar** | code done, runtime unverified | `overflow-hidden` on flex root + `min-h-0` on aside. Only `<nav>` scrolls. |
-| **FloatingBar icons vanishing instantly** | code done, runtime unverified | Exit animation lengthened + x/scale terms so icons ease out instead of being clipped by the pill's closing `overflow-hidden` width spring. |
-| **FloatingBar drag border not painting** | code done, runtime unverified | GPU-composited sibling accent ring; opacity toggle survives the OS window-drag paint stall. |
-| **Transcription hallucination on silence** | code done, runtime unverified | RMS + duration gate + post-transcribe filler filter in `sherpa_parakeet.rs`. 18 pre-existing backup tests still pass. |
-| **Backup import hardening** | code + **18 tests pass** | `validate_entry_path` rejects abs paths, drive/UNC prefixes, `..`, symlinks/hardlinks/specials, off-allow-list paths. Canonical-parent check. |
+| Heap-corruption crash (WebView fan-out → 3× start_recording) | Frontend gate: sound cues, notifications, shortcut dispatcher early-return in non-main webviews | committed v0.6.2 |
+| Heap-corruption crash (inference teardown race) | Sweeper + inline-unload respect `Arc::strong_count` so native recogniser isn't dropped under a live transcribe | committed v0.6.3 |
+| Heap-corruption crash (COM apartment mismatch, UIA on tokio workers) | Dedicated `utterbar-uia` thread owns STA apartment for app lifetime; `snapshot_selection` routes via crossbeam channel. Fixed `audio_ducking::ComGuard` to not over-release on `RPC_E_CHANGED_MODE`. | **staged for v0.6.4** |
+| Hotkey silently stops working | `recording_in_progress` + `transcribe_in_progress` atomics self-heal when stale (no active capture OR timestamp > 30s) | committed v0.6.3 / refined v0.6.4 |
+| Transcription inventing filler words | RMS + duration gate + post-filter against known hallucination tokens | committed v0.6.2 |
+| 6× audio per hotkey | Frontend fan-out gate (same fix as the first crash class) | committed v0.6.2 |
+| Start-recording while previous still transcribing | Rust rejects with `dictation:busy` event; FloatingBar flashes border for 900ms | committed v0.6.3 |
 
-### Website (`Utterbar Website/`)
+### Desktop — UI
 
-| Item | Status | Notes |
+| Item | Mechanism | Status |
 | --- | --- | --- |
-| **Sign-in token hashing** | code done, tests written, **PHP tests not run** | SHA-256 in DB only, atomic single-use consume via `lockForUpdate()`, sibling-burn. Migration backfills live tokens. 8 tests in `SignInTokenTest`. |
-| **Update-subscriber token hashing** | code done, tests written, **PHP tests not run** | Same pattern as sign-in. `rotateTokenAndSave` retained, staged `prepareRotation`/`commitRotation`/`discardRotation` preferred. 9 tests in `UpdateSubscriberTokenTest`. |
-| **`/api/pricing` endpoint** | code done, tests written, **PHP tests not run** | Reads `services.stripe.pro_amount` + `pro_currency`. Formats `£39.99` / `£40` / `$29`. Shape pinned by `ApiContractTest`. |
-| **`/api/updater/check` endpoint** | code done, tests written, **PHP tests not run** | Reads `releases` by channel + `published_at`. Filters incomplete rows (null/short/non-hex sha256, missing r2_key, non-X.Y.Z version) via `pickEligibleRelease()`. Shape pinned by `ApiContractTest`. |
-| **Incomplete releases no longer installable (fix #1)** | code done, tests written, **PHP tests not run** | SHA-256 required at publish time in both `Admin\ReleaseController` and `Api\AdminReleaseApiController`. Read-time filter belt-and-braces. Admin Blade form relabelled. |
-| **Failed send no longer burns unsubscribe link (fix #2)** | code done, tests written, **PHP tests not run** | Staged rotation: prepare in-memory → send → commit on success / discard on failure. All three blast sites (API controller, browser controller, `updates:announce` console) updated AND tested via end-to-end failure + success paths. |
-| **Prerelease version consistency (fix #3)** | code done, tests written, **PHP tests not run** | Chose Option A: disallow `0.7.0-rc.1` at publish time, strict `^\d+\.\d+\.\d+$` regex in both controllers. Publishing rules + updater parser now match. |
-| **Stale `UpdateAnnouncement` docstring** | code done | Comment + exception message updated to point at `prepareRotation()` + `commitRotation()`, not the deprecated `rotateTokenAndSave()`. |
+| History page 2-column squeeze | Full redesign: one column of entries, detail in a modal, ESC + click-outside dismiss | committed v0.6.3 |
+| FloatingBar open/close staggered | Single 280ms timeline shared by width + opacity (no nested delays) | committed v0.6.3 / refined v0.6.4 |
+| FloatingBar drag border flashing then vanishing | Replaced pointerup-clear with Tauri `onMoved`-debounced drag-end detection + 2.5s hard fallback | **staged for v0.6.4** |
+| FloatingBar collapsed pill empty-space | Dropped min-w; pill hugs content | committed v0.6.3 |
+| FloatingBar expanded pill — drag-handle space | `justify-between` on the outer pill keeps logo+wordmark left, action cluster right, empty drag zone between | **staged for v0.6.4** |
+| Triple scrollbar on small window | `overflow: hidden` on html/body/#root + flex guards on aside | committed v0.6.3 |
+| Sidebar version number clipped on short windows | `shrink-0 pb-5` on footer block | committed v0.6.3 |
+| Icons vanish instantly on unhover | Exit animation with opacity-only fade on shared timeline | committed v0.6.3 |
+| In-app Pro price fallback `$29 → £39.99` | Updated both `useProPrice.ts` + `pricing.rs` fallback | committed v0.6.2 |
 
-### Monorepo-level
+### Website — security + correctness
 
 | Item | Status |
 | --- | --- |
-| **Root `CLAUDE.md`** (short rules file) | written |
-| **Root `MONOREPO.md`** (merged brain dump) | written |
-| **`RELEASE_RUNBOOK.md`** (enforced release ritual) | written |
-| **Per-subdir `CLAUDE.md` files** | superseded-by banner added, content preserved |
-| **`TODO.md`** (this file) | written |
+| Sign-in tokens stored as SHA-256 hex, not plaintext | committed (website working tree) |
+| Update-subscriber tokens hashed | committed |
+| `/api/pricing` endpoint | committed |
+| `/api/updater/check` endpoint | committed |
+| Release publish validation: SHA-256 required, strict X.Y.Z version | committed |
+| Staged token rotation (failed email send keeps old unsubscribe link alive) | committed |
+| 58 PHP tests — all passing locally on PHP 8.2 + phpunit 11 | run + green |
+| `deploy-website.ps1` for pscp/plink push to Cloudways | committed |
+
+### Monorepo
+
+- Root `CLAUDE.md`, `MONOREPO.md`, `RELEASE_RUNBOOK.md`, `TODO.md`, `.gitignore`. Per-subdir `CLAUDE.md` files superseded-by-root-linked.
 
 ---
 
-## Do before next commit
+## Do before committing v0.6.4 (this session, imminent)
 
-- [ ] **Run PHP tests.** Requires `composer install` + PHP 8.2+ on a machine with both. Command:
-  ```
-  cd "Utterbar Website"
-  composer install
-  php artisan test --filter="SignInTokenTest|UpdateSubscriberTokenTest|ApiContractTest|ReleasePublishValidationTest|UnsubscribeRotationTest"
-  ```
-  I wrote all these tests without being able to execute them locally (no PHP here). Highest-confidence place for a failure is the throwing-mailer stub in `UnsubscribeRotationTest::installFailingMailer` — the Laravel 12 `Mail` facade internals might call a method the stub's `__call` fallback catches, but if not, adjust the stub's explicit methods.
-- [ ] **Smoke-test the desktop fixes on a built installer.** Build v0.6.1-replacement locally, install, verify:
-  1. Pressing the hotkey once → one audio cue (not 3–6).
-  2. Small window size → two scrollbars max (left nav + right content), no body scrollbar.
-  3. Holding + dragging the pill → bright cyan accent ring visible for the duration of the drag.
-  4. Hovering away from the pill → icons ease out smoothly, not instant pop.
-  5. Accidental short-tap record → empty result, no phantom "yeah"/"so"/"mm".
+- [ ] **Compile check Rust** — `cargo clippy --all-targets -- -D warnings` should pass.
+- [ ] **Frontend typecheck + lint** — done, both green.
+- [ ] **Build the v0.6.4 installer** (`pnpm tauri build`). ~7 min.
+- [ ] **Hash the installer, record size + SHA-256**.
+- [ ] **Commit + push** to `badoomtch/Utterbar-App`.
 
----
+## Do before publishing v0.6.4 (not this session)
 
-## Do before next release (v0.6.2)
+- [ ] **You install + test for ~30 min.** Specific things to check:
+  - No crash across continuous use.
+  - Hotkey never stops responding.
+  - Border stays cyan for the whole drag.
+  - Dragging the empty middle of the expanded pill moves the window without closing it.
+  - Open/close reads as one smooth motion.
+  - Busy-flash triggers when you hotkey during transcribe.
+- [ ] **You give explicit sign-off.**
+- [ ] I run `publish-release.sh` (SHA-256 computed, upload to R2, POST admin API, announce). 
+- [ ] Git tag `v0.6.4`, push tag.
 
-Follow `RELEASE_RUNBOOK.md` top to bottom. Specific blockers from this session:
+## Website deploy — independent of app release
 
-- [ ] **Resolve the v0.6.1 `EXCEPTION_ILLEGAL_INSTRUCTION` crash.** Deterministic address `0x7FF6722F8329` — crash.log has two matching entries. Address sits below `main:` in compiler-helper / CRT region (RVA `0x2F8329`, below `main`'s `0x4BFF70`), PDB only has public symbols so dumpbin can't name it. To get a symbol:
-  1. `winget install --id Microsoft.WindowsSDK.Debugging` (Windows SDK Debuggers, ships `cdb.exe`).
-  2. `cdb -z "target/release/utterbar.exe" -y "target/release" -c "ln 0x1402F8329; u 0x1402F8329 L20; q"` — cdb reads the full PDB and names the function.
-  3. Based on the name, locate the Rust source that's being compiled into a `ud2` or a broken indirect call.
-  4. Most likely cause given the disassembly shape (pointer moves through `rdi/rsi/rbx`, two nested calls, enum-discriminant-style compares): a trait-object vtable or async executor drop path. Working hypothesis in `memory/project_v061_investigation.md`.
-- [ ] **Fix in-app pricing fallback.** `useProPrice.ts:31` and `pricing.rs:59` still hard-code `$29 USD`. The `/api/pricing` endpoint shipped this session delivers `£39.99 GBP` at runtime; the fallback flash is now offline-only, but worth fixing for consistency.
-- [ ] **Decide on v0.6.2 scope.** Candidate bullet list for `releases/0.6.2.md`:
-  - Fixes the illegal-instruction crash from 0.6.1.
-  - Fixes the duplicate-sound bug (one tone per hotkey, not six).
-  - Fixes in-app pricing display to show £39.99.
-  - Fixes floating bar icons disappearing instantly.
-  - Fixes floating bar drag border not lighting up.
-  - Fixes transcription fabricating filler words on silent input.
-  - Fixes MainShell triple-scrollbar at small widths.
+Can ship anytime. When you're ready:
+
+```powershell
+$env:CLOUDWAYS_PASSWORD = '<password>'
+.\Utterbar Website\scripts\deploy-website.ps1
+```
+
+Requires `pscp` + `plink` (`winget install PuTTY.PuTTY`). Runs composer
+install --no-dev, `php artisan migrate --force` (applies the two new
+hash-token migrations), clears caches, rebuilds Vite, smoke-tests the
+new endpoints.
 
 ---
 
-## Website deploy steps (when merging the PHP fixes)
+## Open product issues (deferred, not blocking v0.6.4)
 
-Website has no git-based deploy; everything goes via `pscp` + `plink`. Order matters:
+None of these need to ship with v0.6.4:
 
-1. `pscp` the changed PHP files: models, controllers, mail classes, console command, routes, blade view, migrations, tests dir.
-2. SSH: `php artisan migrate --force` (picks up the two new `2026_04_24_*` hash migrations).
-3. SSH: `php artisan view:clear && php artisan config:clear && php artisan route:clear`.
-4. Seed `STRIPE_PRO_AMOUNT=3999` and `STRIPE_PRO_CURRENCY=gbp` in server `.env` if not already matching (pricing endpoint reads these).
-5. Verify live:
-   - `curl https://utterbar.com/api/pricing` → `{"amount_usd":39.99,"currency":"GBP","display":"£39.99",...}`
-   - `curl "https://utterbar.com/api/updater/check?current=0.5.0&channel=stable"` → `available: true` with a real sha256 + download_url for the current latest stable, OR `available: false` if nothing eligible exists.
-   - Pre-existing release rows without sha256 are hidden — if the operator wants one surfaced, they need to update it manually.
+- [ ] **Licence not persisting across app restarts.** You reported this on v0.6.3. I haven't investigated yet.
+- [ ] **Licence show/hide toggle in the settings panel.** New feature.
+- [ ] **Admin page `/admin` cohesion** — no releases link, no licence-revoke UI. Website work, independent of app release.
+- [ ] **Docs/app drift audit** — findings in `Utterbar Website/DOCS_AUDIT_v0.6.1.md`, needs landing.
+- [ ] **Remotion video quality pass** — slow to load, zoomed out, bordered, audio waveform speed wrong, doesn't match the real app. Separate dedicated session. Plan: re-render compositions against real `FloatingBar.tsx` imports, push to R2 for CDN-backed delivery.
+- [ ] **Docs-stay-in-sync-with-app rule** — meta: when app behaviour changes, docs should update in the same change. Not a ticket, a policy. Already added to the tone of how I work; leave here as reminder.
 
 ---
 
-## Open product issues (out of scope this session, noted for triage)
+## Open crash risk still to watch
 
-None of these are needed for v0.6.2 to ship:
-
-- [ ] **Remotion marketing videos slow + ugly + waveform too fast + not like the real bar.** Bigger product-quality pass, not a tool-call fix. Needs its own session: audit `marketing/remotion/out/`, re-import real `FloatingBar.tsx` components into `BarDriver`, match audio-wave motion to the app's real ripple rate, verify each composition represents one clear idea, re-render all 12 MP4s + posters, re-upload to `public/videos/` on the website.
-- [ ] **History page two-column layout doesn't scale** (`HistoryRoute.tsx`). Below ~1100 px the list column squeezes to 6-char-wide vertical words. Needs redesign as one column + modal detail pane. Queue for next polish cycle; v0.6.1 release notes already over-claimed a fix for this — correct in v0.6.2 notes.
-- [ ] **Remotion 400 px mobile breakpoint not verified.** Videos render correctly at 1920×1080, unknown at website's mobile breakpoint.
-- [ ] **Docs drift from `DOCS_AUDIT_v0.6.1.md`.** Shortcuts doc says all defaults are unbound (they're not). Modes doc claims six built-in modes (three ship). Vocabulary doc mentions a non-existent Team tier. Troubleshooting references a pill-visibility hotkey that doesn't exist + missing an updater section. Priority order documented in the audit file.
-
----
-
-## Session-state caveats to carry forward
-
-- **No PHP toolchain on this machine.** Tests for the website are source-complete but unrun. Every summary in this session has flagged this; do not merge without running them.
-- **`cargo clean` was run.** First full `cargo build` after this session is a cold compile. Not caused by any change in this session; noting so it's not a surprise.
-- **Claude permissions blanket-allowed.** `C:\Users\jaypa\.claude\settings.json` has `"defaultMode": "bypassPermissions"`. Every command runs without a prompt. Honour risky actions (destructive git, force push, etc.) with manual confirmation regardless.
-- **Memory state**: `MEMORY.md` + `project_v061_*` files under `.claude/projects/.../memory/` are up to date with this session's findings. `reference_release_runbook.md` points at the new runbook file.
+- **First-touch COM init on fresh tokio worker.** The fixes in v0.6.4
+  should resolve the mismatch-corruption path, but we've never actually
+  observed the crash under the new architecture yet. If v0.6.4 still
+  crashes after 30 min of use, the next suspect is clipboard reads
+  via `text_inject::read_clipboard_text` (no COM but uses `GlobalLock`
+  on clipboard handles — different memory-safety family). I'll know
+  what to look at from the crash.log subsystem name.
+- **Drag border might still flash-then-stick on window managers that
+  don't emit `onMoved`.** The hard fallback at 2.5s is the safety net;
+  if you observe weirdness, tell me.
 
 ---
 
-*End of TODO.* Edit freely as things ship or slip. Do not let stale entries pile up — if an item is done and verified, delete it or move it to a "Done this session" block with a date.
+## Session caveats to carry forward
+
+- **Monorepo:** `c:\Users\jaypa\Documents\GitHub\Utterbar\` is a single git repo. `Utterbar Windows App/` and `Utterbar Website/` sit inside. Remote: `badoomtch/Utterbar-App` private.
+- **App version ≠ website version.** The website deploys continuously; only the desktop installer has a semver.
+- **The user (Jay) tests every app build before we ship.** No installer goes to R2 until Jay explicitly approves.
+- **PHP tests run locally** via the composer/php install I set up. 58 tests. Run `php artisan test --filter="SignInTokenTest|UpdateSubscriberTokenTest|ApiContractTest|ReleasePublishValidationTest|UnsubscribeRotationTest"` to re-verify.
+- **Memory files** under `.claude/projects/.../memory/` reflect this session's decisions. Key ones: `feedback_versioning.md` (app vs website), `project_v061_investigation.md` (crash history), `reference_release_runbook.md` (release ritual pointer).
+
+---
+
+*End of TODO. Edit freely. Don't let stale entries pile up.*

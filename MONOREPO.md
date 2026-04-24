@@ -660,33 +660,43 @@ Not blocking; land in priority order from the audit doc.
 
 ---
 
-## 12. Current state (2026-04-23)
+## 12. Current state (2026-04-24)
 
-- Latest shipped version: **v0.6.1** (stable, tag=latest).
+### Desktop app
+- **In-tree version:** `v0.6.4`. Built but not yet shipped.
+- **Last publicly-shipped version:** `v0.6.1` (still on `/download`).
+- Everything between those — v0.6.2 and v0.6.3 — was built locally but
+  never uploaded to R2 / POSTed to admin API / announced. All their
+  fixes are rolled into v0.6.4's release notes.
+
+### Website
+- `/api/pricing` + `/api/updater/check`: **code committed, not deployed**.
+- Sign-in + update-subscriber token-hashing migrations: **code committed, not applied in prod DB**.
+- 58 PHP tests: green locally.
+- Cloudways deploy: run `Utterbar Website/scripts/deploy-website.ps1` with `$env:CLOUDWAYS_PASSWORD` set.
+
+### Environment
 - Stripe: **live mode**, £39.99 GBP, Stripe Tax on, adaptive pricing on.
 - Ed25519 keypair: **sandbox** still in use. Rotate at v0.7.
-- Auto-updater endpoint: **not built server-side** (known drift).
-- Pricing API endpoint: **not built server-side** (known drift). App always falls back to `$29` (also wrong — should be `£39.99`).
-- Remotion: all 12 MP4s + 12 posters + 5 stills rendered and consumed from `public/`. Pixel-parity stills pending Jay sign-off.
-- Test licences in DB: id=1 (`UB-B31Q-PMXB-174D-SPQK-7B4F`, `jayparry1@gmail.com`, sandbox) + id=2+ smoke tests.
+- R2 CDN: `dl.utterbar.com` — hosts installers at `releases/<v>/Utterbar-Setup-<v>.exe` (+ legacy `Utterbar-Setup.exe` alias).
 - Admin notify: `hello@utterbar.com`.
-- Latest app-repo commits: `c764b05` (v0.6.1) → `c394161` (marketing) → `3914e9f` (fmt) → `76d200c` (clippy).
+- Latest git commits on `badoomtch/Utterbar-App` main (at session start): `3fa393e` (v0.6.3 guards) → `794502a` (layout + self-heal) → ... → v0.6.4 staged.
 
 ---
 
 ## 13. Queue for next Claude in line
 
-Ranked by user-impact:
+Ranked by user-impact, current priorities:
 
-1. **Build the `/api/updater/check` endpoint** on the website. Users on v0.6.0 can't auto-upgrade until this ships. §4.4.
-2. **Fix the in-app pricing fallback** to `£39.99 GBP` in useProPrice.ts, pricing.rs, and the release-notes boilerplate. §10.1.
-3. **Build the `/api/pricing` endpoint** on the website so the app can fetch the live price instead of falling back. §4.3.
-4. **Investigate 4.9 GB idle RAM.** §10.6.
-5. **Drop the legacy R2 key** from the admin API `file_not_in_bucket` check, then drop the double-upload from `publish-release.sh`. §10.4.
-6. **Patch `publish-release.sh` curl** to `--data-binary @file`. §10.5.
-7. **Redesign History page** as single-column + modal detail. §10.7.
-8. **Sign off Remotion parity stills** with Jay; after that, the Remotion refactor is done.
-9. **Land docs audit fixes** from [DOCS_AUDIT_v0.6.1.md](Utterbar%20Website/DOCS_AUDIT_v0.6.1.md) in priority order: shortcuts → modes → vocabulary → troubleshooting → FAQ.
+1. **Verify v0.6.4 doesn't crash.** Jay tests ~30 min post-install. If it still crashes, read `%APPDATA%\Utterbar\logs\crash.log` — if a new subsystem name appears in the surrounding log lines, that's the next thing to fix.
+2. **Publish v0.6.4 to R2 + admin API** once Jay signs off. `publish-release.sh` flow.
+3. **Deploy the website** via `deploy-website.ps1`. Independent of app release — can run before or after v0.6.4 publish.
+4. **Licence not persisting across app restarts.** Real bug Jay reported; deferred from v0.6.4 to keep scope manageable.
+5. **Admin dashboard cohesion** — no releases link from `/admin`, no licence-revoke UI. Website-only, ships whenever.
+6. **Docs audit fixes** from [DOCS_AUDIT_v0.6.1.md](Utterbar%20Website/DOCS_AUDIT_v0.6.1.md) — shortcuts / modes / vocabulary / troubleshooting doc pages drifted from app reality.
+7. **Remotion video quality pass** — current renders are slow, zoomed-out, bordered, waveform speed wrong. Separate dedicated session. Consider R2-backed CDN delivery.
+8. **Patch `publish-release.sh` curl** to `--data-binary @file` (fix committed-script quoting bug).
+9. **Drop the legacy R2 key** from the admin API `file_not_in_bucket` check, then drop the double-upload from `publish-release.sh`.
 
 ---
 
