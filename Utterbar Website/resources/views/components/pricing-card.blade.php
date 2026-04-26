@@ -1,7 +1,7 @@
-@props(['name' => '', 'price' => '', 'period' => '', 'blurb' => '', 'features' => [], 'highlight' => false, 'cta' => 'Join the waitlist', 'ctaHref' => null])
+@props(['name' => '', 'price' => '', 'period' => '', 'blurb' => '', 'features' => [], 'highlight' => false, 'cta' => 'See pricing', 'ctaHref' => null])
 
 @php
-    $ctaHref = $ctaHref ?? route('waitlist');
+    $ctaHref = $ctaHref ?? route('pricing');
     $ring = $highlight ? 'ring-2' : '';
 @endphp
 

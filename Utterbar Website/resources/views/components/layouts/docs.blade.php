@@ -8,9 +8,33 @@
         ['Troubleshooting',  route('docs.troubleshooting')],
         ['FAQ',              route('docs.faq')],
     ];
+
+    // BreadcrumbList schema. Helps Google render the docs hierarchy in
+    // SERPs as a breadcrumb trail. Two-level: Home → Docs → {current}.
+    $crumbs = [
+        ['name' => 'Home',     'item' => url('/')],
+        ['name' => 'Docs',     'item' => route('docs.index')],
+    ];
+    if (! request()->routeIs('docs.index') && isset($title)) {
+        $crumbs[] = ['name' => $title, 'item' => url()->current()];
+    }
+    $breadcrumbSchema = [
+        '@context'        => 'https://schema.org',
+        '@type'           => 'BreadcrumbList',
+        'itemListElement' => collect($crumbs)->values()->map(fn ($c, $i) => [
+            '@type'    => 'ListItem',
+            'position' => $i + 1,
+            'name'     => $c['name'],
+            'item'     => $c['item'],
+        ])->all(),
+    ];
 @endphp
 
-<x-layouts.app :title="$title ?? 'Docs'">
+<x-layouts.app :title="$title ?? 'Docs'" :description="$description ?? null">
+    @push('head')
+        <script type="application/ld+json">{!! json_encode($breadcrumbSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    @endpush
+
     <div class="ub-container pt-12 md:pt-16 pb-20 md:pb-24">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-16">
             <aside class="md:col-span-3 md:sticky md:top-28 self-start">
@@ -34,9 +58,9 @@
 
                 <div class="mt-10 relative" style="padding-left: 1rem;">
                     <div class="absolute top-0 bottom-0 left-0 w-[2px]" style="background: var(--accent); box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 45%, transparent);"></div>
-                    <p class="ub-eyebrow mb-2">v{{ config('site.version') }} &middot; preview</p>
+                    <p class="ub-eyebrow mb-2">v{{ config('site.version') }}</p>
                     <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
-                        Full docs land with 1.0. These pages are the shape of things to come.
+                        Live docs for the current shipping build. Updated with each release.
                     </p>
                 </div>
             </aside>

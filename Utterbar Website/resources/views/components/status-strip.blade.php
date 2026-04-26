@@ -6,11 +6,11 @@
             ['kind' => 'led'],
             ['kind' => 'text', 'label' => 'LOCAL'],
             ['kind' => 'sep'],
-            ['kind' => 'text', 'label' => 'parakeet-tdt-0.6b-v2-int8'],
+            ['kind' => 'text', 'label' => 'parakeet-tdt-0.6b-v3-int8'],
             ['kind' => 'sep'],
             ['kind' => 'text', 'label' => '<250ms latency'],
             ['kind' => 'sep'],
-            ['kind' => 'text', 'label' => 'v' . config('site.version') . ' preview'],
+            ['kind' => 'text', 'label' => 'v' . config('site.version')],
         ];
     }
 @endphp

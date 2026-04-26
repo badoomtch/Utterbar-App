@@ -8,7 +8,7 @@
         ],
         'Next' => [
             ['title' => 'macOS build',                    'desc' => 'Second-class port once Windows 1.0 ships. Mac already has decent local-only options meanwhile.'],
-            ['title' => 'File transcription batch mode',  'desc' => 'Drop a folder, walk away, come back to a pile of .srt files.'],
+            ['title' => 'File transcription batch mode',  'desc' => 'Drop a folder, walk away, come back to transcripts for every file inside.'],
             ['title' => 'Custom model imports',           'desc' => 'Drop a sherpa-onnx tarball, get a new model. Today the catalogue is fixed.'],
             ['title' => 'Multilingual Parakeet',          'desc' => 'The 0.6B v2 models in the catalogue are English-only. Multilingual variants come next.'],
         ],

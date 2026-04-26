@@ -256,17 +256,40 @@ if (-not $DryRun) {
 }
 
 # -----------------------------------------------------------------
-# 6. Rebuild the Vite manifest — needed so the updated CSS lands.
+# 6. Build Vite assets locally and upload. Cloudways ships Node 18,
+#    which Tailwind v4 refuses to work with. Building locally on the
+#    operator's machine dodges the "install Node 22 on the droplet"
+#    dance entirely - node_modules stays off the server, and we only
+#    ship the compiled public/build directory.
 # -----------------------------------------------------------------
 Write-Output ""
-Write-Output "=== Rebuilding Vite manifest remotely ==="
+Write-Output "=== Building Vite assets locally ==="
 if (-not $DryRun) {
-    # Cloudways's default Node is too old for Tailwind v4 — use the
-    # pre-installed ~/tmp/node22 if it's there, otherwise bail loud so
-    # the operator knows to install it.
-    $nodeCmd = 'if [ -d $HOME/tmp/node22 ]; then PATH=$HOME/tmp/node22/bin:$PATH HOME=$HOME/tmp/npmhome npm run build; else echo "ERR: ~/tmp/node22 missing — install Node 22 on the droplet first" >&2; exit 1; fi'
-    & plink -pw $pass -batch $HostName "cd $RemotePath && $nodeCmd"
-    if ($LASTEXITCODE -ne 0) { throw "vite build failed" }
+    $localBuild = Join-Path $websiteRoot 'public\build'
+
+    # npm install first if node_modules is missing.
+    if (-not (Test-Path (Join-Path $websiteRoot 'node_modules'))) {
+        Write-Output "  node_modules missing - running npm install..."
+        Push-Location $websiteRoot
+        try { & npm install --silent } finally { Pop-Location }
+        if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+    }
+
+    Push-Location $websiteRoot
+    try {
+        & npm run build
+        if ($LASTEXITCODE -ne 0) { throw "local vite build failed" }
+    } finally { Pop-Location }
+
+    if (-not (Test-Path $localBuild)) { throw "vite build finished but public/build is missing" }
+
+    Write-Output ""
+    Write-Output "=== Uploading public/build to server ==="
+    # Wipe old build remotely so stale hashed-filename assets don't linger.
+    & plink -pw $pass -batch $HostName "rm -rf $RemotePath/public/build"
+    if ($LASTEXITCODE -ne 0) { throw "remote public/build wipe failed" }
+    & pscp -pw $pass -batch -r -q $localBuild "${HostName}:$RemotePath/public/"
+    if ($LASTEXITCODE -ne 0) { throw "pscp upload of public/build failed" }
 }
 
 # -----------------------------------------------------------------

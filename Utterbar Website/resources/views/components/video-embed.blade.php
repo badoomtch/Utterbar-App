@@ -57,12 +57,14 @@
             src="{{ $video }}"
             poster="{{ $poster }}"
             muted
+            autoplay
             @if ($loops) loop @endif
             playsinline
-            preload="none"
+            disablepictureinpicture
+            disableremoteplayback
+            controlslist="nodownload noplaybackrate nofullscreen noremoteplayback"
+            preload="metadata"
             aria-label="{{ $alt }}"
-            @mouseenter="playIfReady()"
-            @mouseleave="pauseIfLoop()"
             style="display: block; width: 100%; height: 100%; object-fit: cover;"
         ></video>
     </template>

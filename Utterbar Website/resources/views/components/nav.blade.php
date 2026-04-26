@@ -4,6 +4,7 @@
         ['label' => 'How it works', 'href' => route('how-it-works')],
         ['label' => 'Privacy', 'href' => route('privacy')],
         ['label' => 'Pricing', 'href' => route('pricing')],
+        ['label' => 'Compare', 'href' => route('compare.index')],
         ['label' => 'Docs', 'href' => route('docs.index')],
     ];
 @endphp

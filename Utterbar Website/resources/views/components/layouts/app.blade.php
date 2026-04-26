@@ -14,7 +14,25 @@
         $pageTitle = $t ? "$t — " . config('site.name') : config('site.name') . ' — ' . config('site.tagline');
         $desc = $description ?? config('site.description');
         $canonical = url()->current();
-        $ogImage = isset($ogImage) ? url($ogImage) : url('/og/og-default.png?v=1');
+
+        // Per-page OG image. If a page passes its own `$ogImage`, honour
+        // it. Otherwise generate one with the page's title + tagline so
+        // every shareable URL gets a card that reflects its content.
+        // Uses the title for the kicker line (matches what's on the
+        // page H1 area) and a short tagline beneath. Falls back to the
+        // static og-default.png if anything blows up server-side.
+        if (isset($ogImage)) {
+            $ogImage = url($ogImage);
+        } else {
+            $ogKicker = $t ?: 'Local dictation for Windows';
+            // Title line: first sentence of the description so the
+            // visual matches the OG card preview text closely.
+            $ogTitle = (string) (strtok((string) $desc, '.') ?: 'Stays on your PC. Free forever.');
+            $ogImage = route('og.image', [
+                'title'  => $ogTitle,
+                'kicker' => $ogKicker,
+            ]);
+        }
         $ogType = $ogType ?? 'website';
         $noIndex = $noIndex ?? false;
     @endphp
@@ -98,6 +116,30 @@
 
     {{-- instant.page — pre-fetches links on hover so clicks feel immediate --}}
     <script src="//instant.page/5.2.0" type="module" integrity="sha384-jnZyxPjiipYXnSU0ygqeac2q7CVYMbh84q0uHVRRxEtvFPiQYbXWUorga2aqZJ0z"></script>
+
+    {{-- Google tag (gtag.js). G-5PQ5CNPQ38 is the Utterbar GA4 property.
+         Loaded last in <head> so the rest of page fetch isn't gated on the
+         async GTM bundle. Production-only AND consent-gated — fires only
+         when the visitor has actively granted consent via the banner. PECR
+         requires opt-in BEFORE non-essential cookies are set; an unset or
+         "essential" cookie means we never load the GA bundle at all.
+
+         Cookie shape lives in components/cookie-consent.blade.php. Reading
+         $_COOKIE here (not Cookie::get) because Laravel's encrypted-cookie
+         middleware strips the value at this point in the head — we want
+         the raw client-side string so the gate matches what the JS sets. --}}
+    @production
+        @php($consent = isset($_COOKIE['utterbar_consent']) ? (string) $_COOKIE['utterbar_consent'] : null)
+        @if ($consent === 'granted')
+            <script async src="https://www.googletagmanager.com/gtag/js?id=G-5PQ5CNPQ38"></script>
+            <script>
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-5PQ5CNPQ38');
+            </script>
+        @endif
+    @endproduction
 </head>
 <body class="min-h-screen antialiased">
     <a href="#main" class="ub-skip">Skip to content</a>
@@ -109,6 +151,8 @@
     </main>
 
     <x-footer />
+
+    <x-cookie-consent />
 
     @stack('scripts')
 </body>

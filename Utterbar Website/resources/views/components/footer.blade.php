@@ -5,6 +5,7 @@
             ['How it works', route('how-it-works')],
             ['Privacy', route('privacy')],
             ['Pricing', route('pricing')],
+            ['Compare', route('compare.index')],
             ['Changelog', route('changelog')],
             ['Roadmap', route('roadmap')],
         ],
@@ -15,13 +16,22 @@
             ['Shortcuts', route('docs.shortcuts')],
             ['Troubleshooting', route('docs.troubleshooting')],
         ],
+        // Sign-in deliberately omitted: it's an auth surface, not a marketing
+        // page, and putting it on every public page wasted internal link
+        // weight on a noindex'd URL. Customers reach it via the licence email
+        // or the in-app account link. EULA also omitted while it remains a
+        // placeholder pending the 1.0 installer.
         'Company' => [
             ['Press', route('press')],
             ['Contact', route('contact')],
-            ['Sign in', route('sign-in.show')],
             ['Privacy policy', route('legal.privacy')],
             ['Terms', route('legal.terms')],
-            ['EULA', route('legal.eula')],
+            // "Cookies" reopens the consent banner. Implemented as a
+            // <button> via JS rather than a route — the consent state
+            // is purely client-side, so revisiting it doesn't need a
+            // server round-trip. The handler is defined in
+            // components/cookie-consent.blade.php.
+            ['Cookies', '#', ['onclick' => 'utterbarRevisitCookieConsent(); return false;']],
         ],
     ];
 @endphp
@@ -74,8 +84,16 @@
                 <div>
                     <p class="ub-eyebrow mb-5">{{ $title }}</p>
                     <ul class="space-y-3">
-                        @foreach ($items as [$label, $href])
-                            <li><a href="{{ $href }}" class="ub-footer-link">{{ $label }}</a></li>
+                        @foreach ($items as $item)
+                            @php
+                                [$label, $href] = $item;
+                                // Optional third element: extra HTML attribute map for
+                                // links that need a JS handler (e.g. Cookies → reopen
+                                // consent banner). Standard links pass two elements.
+                                $extra = $item[2] ?? [];
+                                $attrs = collect($extra)->map(fn ($v, $k) => $k . '="' . e($v) . '"')->implode(' ');
+                            @endphp
+                            <li><a href="{{ $href }}" class="ub-footer-link" {!! $attrs !!}>{{ $label }}</a></li>
                         @endforeach
                     </ul>
                 </div>

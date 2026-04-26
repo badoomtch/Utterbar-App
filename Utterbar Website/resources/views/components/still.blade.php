@@ -29,5 +29,5 @@
     loading="{{ $loading }}"
     decoding="async"
     class="{{ $wrapperClass }}"
-    style="display: block; width: 100%; height: auto; background: var(--bg-1); border: 1px solid var(--border); {{ $style }}"
+    style="display: block; width: 100%; height: auto; {{ $style }}"
 />

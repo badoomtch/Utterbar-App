@@ -28,14 +28,19 @@ Alpine.data('ubVideoEmbed', () => ({
 
             this.observer = new IntersectionObserver((entries) => {
                 entries.forEach((e) => {
-                    if (e.isIntersecting && e.intersectionRatio >= 0.5) {
-                        // Only autoplay if loop — non-loop beats should start on interaction
-                        if (v.loop) v.play().catch(() => {});
+                    if (e.isIntersecting && e.intersectionRatio >= 0.35) {
+                        // Autoplay any video that scrolls into view. Previously
+                        // non-loop videos needed hover to start, which meant the
+                        // features page looked empty to anyone who didn't hover
+                        // over the card. Modern convention is muted-autoplay on
+                        // visibility; looped vs one-shot is a property of the
+                        // asset, not a UX gate.
+                        v.play().catch(() => {});
                     } else {
                         v.pause();
                     }
                 });
-            }, { threshold: [0, 0.5, 1] });
+            }, { threshold: [0, 0.35, 1] });
             this.observer.observe(this.$el);
         });
     },
