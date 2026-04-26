@@ -24,7 +24,6 @@ class AdminController extends Controller
             'webhook_total'     => DB::table('stripe_webhook_events')->count(),
             'webhook_errors'    => DB::table('stripe_webhook_events')->whereNotNull('error')->count(),
             'contact_total'     => DB::table('contact_messages')->count(),
-            'waitlist_total'    => DB::table('waitlist_entries')->count(),
         ];
 
         // Revenue: count active + refunded separately for quick eyeball.

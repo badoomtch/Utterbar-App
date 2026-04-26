@@ -122,6 +122,15 @@ class StripeWebhookController extends Controller
 
         $expectedSku = config('services.licence.sku_string', 'utterbar-pro-lifetime');
         $sku = $session->metadata->sku ?? null;
+
+        // Tip checkouts — record a row in `tips` and bail out before
+        // the licence-minting path. Idempotent on stripe_session_id so
+        // a webhook retry collapses to one row.
+        if ($sku === 'utterbar-tip') {
+            $this->recordTip($session);
+            return;
+        }
+
         if ($sku !== $expectedSku) {
             Log::info('checkout.session.completed ignored: SKU mismatch', [
                 'session' => $session->id, 'sku' => $sku, 'expected' => $expectedSku,
@@ -215,5 +224,48 @@ class StripeWebhookController extends Controller
         $licence->save();
 
         Log::warning('licence frozen due to chargeback', ['licence_id' => $licence->id]);
+    }
+
+    /**
+     * Record a "Tip the developer" checkout. Idempotent on
+     * stripe_session_id; a duplicate webhook retry inserts nothing.
+     * Stripe's session object is the source of all values; we just
+     * mirror what we need for the admin dashboard.
+     */
+    private function recordTip(object $session): void
+    {
+        $sessionId = (string) $session->id;
+        if (\App\Models\Tip::where('stripe_session_id', $sessionId)->exists()) {
+            Log::info('tip already recorded', ['session' => $sessionId]);
+            return;
+        }
+
+        $amountTotal = (int) ($session->amount_total ?? 0);
+        $currency = strtolower((string) ($session->currency ?? 'gbp'));
+        $email = $session->customer_details->email ?? $session->customer_email ?? null;
+        $country = null;
+        if (isset($session->customer_details->address->country)) {
+            $country = strtoupper((string) $session->customer_details->address->country);
+            if (strlen($country) !== 2) {
+                $country = null;
+            }
+        }
+        $pi = is_string($session->payment_intent) ? $session->payment_intent : null;
+
+        \App\Models\Tip::create([
+            'stripe_session_id'        => $sessionId,
+            'stripe_payment_intent_id' => $pi,
+            'amount_pence'             => $amountTotal,
+            'currency'                 => $currency,
+            'email'                    => $email,
+            'country'                  => $country,
+            'paid_at'                  => now(),
+        ]);
+
+        Log::info('tip recorded', [
+            'session' => $sessionId,
+            'amount'  => $amountTotal,
+            'currency' => $currency,
+        ]);
     }
 }
