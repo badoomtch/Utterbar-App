@@ -1,4 +1,4 @@
-<x-layouts.docs title="Vocabulary">
+<x-layouts.docs title="Vocabulary" description="Teach Utterbar your custom words and replacements so names, acronyms, and product terms come out right every time — applied locally, on-device.">
     <h1 class="ub-docs-h1">Teach it your <x-hl>words</x-hl>.</h1>
     <p class="ub-lead mt-6">Teach Utterbar names, acronyms, and product terms. Fix recurring mis-transcriptions with literal or regex replacements.</p>
 
@@ -9,14 +9,13 @@
         </div>
         <div>
             <h2 class="text-2xl">Replacements</h2>
-            <p class="mt-3" style="color: var(--muted);">Run after transcription, before output. Two modes: literal string replace and regex. Per-mode when you want, global when you don't.</p>
+            <p class="mt-3" style="color: var(--muted);">Run after transcription, before output. Two kinds: literal string replace and regex. Applied globally to every mode.</p>
         </div>
         <div>
             <h2 class="text-2xl">Limits</h2>
             <ul class="mt-3 text-sm space-y-2" style="color: var(--muted);">
                 <li>Free: 50 vocabulary words, 25 replacements.</li>
                 <li>Pro: unlimited.</li>
-                <li>Team: shared lists across the team.</li>
             </ul>
         </div>
     </div>

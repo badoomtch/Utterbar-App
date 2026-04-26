@@ -1,6 +1,6 @@
-<x-layouts.docs title="Shortcuts">
+<x-layouts.docs title="Shortcuts" description="Every Utterbar hotkey and how to rebind it: toggle, push-to-talk, hold-to-talk, cancel, cycle mode, settings, history.">
     <h1 class="ub-docs-h1">Every <x-hl>hotkey</x-hl>, your way.</h1>
-    <p class="ub-lead mt-6">Seven hotkey slots. One default binding. The rest are unbound on install &mdash; pick what your fingers already know.</p>
+    <p class="ub-lead mt-6">Seven hotkey slots, all bound out of the box. Keep the defaults, rebind any of them from Settings &rarr; Shortcuts.</p>
 
     <div class="mt-10 ub-card p-0 overflow-hidden">
         <table class="w-full text-sm">
@@ -13,22 +13,18 @@
             </thead>
             <tbody>
                 @foreach ([
-                    ['ToggleRecording', ['Ctrl','Space'], 'Toggle'],
-                    ['PushToTalk',      null,            'PushToTalk'],
-                    ['HoldToTalk',      null,            'HoldToTalk'],
-                    ['CancelRecording', null,            'Toggle'],
-                    ['CycleMode',       null,            'Toggle'],
-                    ['OpenSettings',    null,            'Toggle'],
-                    ['OpenHistory',     null,            'Toggle'],
+                    ['ToggleRecording', ['Ctrl','Space'],             'Toggle'],
+                    ['PushToTalk',      ['Ctrl','Alt','Space'],       'PushToTalk'],
+                    ['HoldToTalk',      ['F6'],                       'HoldToTalk'],
+                    ['CancelRecording', ['Ctrl','Alt','X'],           'Toggle'],
+                    ['CycleMode',       ['Ctrl','Alt','M'],           'Toggle'],
+                    ['OpenSettings',    ['Ctrl','Alt',','],           'Toggle'],
+                    ['OpenHistory',     ['Ctrl','Alt','H'],           'Toggle'],
                 ] as [$slot, $keys, $style])
                     <tr class="border-t" style="border-color: var(--border);">
                         <td class="p-3 align-middle font-mono text-xs" style="color: var(--fg-hi);">{{ $slot }}</td>
                         <td class="p-3 align-middle">
-                            @if ($keys)
-                                <x-kbd-chip :keys="$keys" />
-                            @else
-                                <span class="font-mono text-xs" style="color: var(--muted);">unbound</span>
-                            @endif
+                            <x-kbd-chip :keys="$keys" />
                         </td>
                         <td class="p-3 align-middle" style="color: var(--muted);">{{ $style }}</td>
                     </tr>

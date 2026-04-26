@@ -1,7 +1,9 @@
 <x-layouts.app title="Admin · New release" :no-index="true">
     <section class="pt-16 md:pt-20 pb-20">
         <div class="ub-container">
-            <div class="max-w-3xl mx-auto">
+            <div class="max-w-5xl mx-auto">
+
+                <x-admin-nav active="releases" />
 
                 <div class="mb-8">
                     <h1 class="ub-fg-hi" style="font-size: clamp(2rem, 4vw, 2.75rem); letter-spacing: -0.035em; line-height: 1.05;">
@@ -9,7 +11,6 @@
                     </h1>
                     <p class="mt-3 text-sm" style="color: var(--muted);">
                         Upload the installer to R2 first, then create the release record here.
-                        <a href="{{ route('admin.releases.index') }}" style="color: var(--accent);">&larr; back to releases</a>
                     </p>
                 </div>
 

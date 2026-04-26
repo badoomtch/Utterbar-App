@@ -7,17 +7,15 @@
         <div class="ub-container">
             <div class="max-w-6xl mx-auto">
 
+                <x-admin-nav active="dashboard" />
+
                 <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
                     <div>
                         <h1 class="ub-fg-hi" style="font-size: clamp(2rem, 4vw, 2.75rem); letter-spacing: -0.035em; line-height: 1.05;">
                             Admin.
                         </h1>
                         <p class="mt-3 text-sm" style="color: var(--muted);">
-                            Read-only overview. Destructive actions via artisan:
-                            <span class="font-mono" style="color: var(--fg-hi);">licence:revoke</span>,
-                            <span class="font-mono" style="color: var(--fg-hi);">licence:unrevoke</span>,
-                            <span class="font-mono" style="color: var(--fg-hi);">licence:list</span>,
-                            <span class="font-mono" style="color: var(--fg-hi);">licence:resend</span>.
+                            Snapshot of everything that matters. Use the nav above to drill in.
                         </p>
                     </div>
                 </div>

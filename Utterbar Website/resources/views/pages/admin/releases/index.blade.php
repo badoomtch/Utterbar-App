@@ -3,7 +3,9 @@
 <x-layouts.app title="Admin · Releases" :no-index="true">
     <section class="pt-16 md:pt-20 pb-20">
         <div class="ub-container">
-            <div class="max-w-5xl mx-auto">
+            <div class="max-w-6xl mx-auto">
+
+                <x-admin-nav active="releases" />
 
                 <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
                     <div>
@@ -12,7 +14,6 @@
                         </h1>
                         <p class="mt-3 text-sm" style="color: var(--muted);">
                             Published builds. Listed newest first.
-                            <a href="{{ route('admin') }}" style="color: var(--accent);">Back to admin &rarr;</a>
                         </p>
                     </div>
                     <a href="{{ route('admin.releases.create') }}" class="ub-btn ub-btn-cta">

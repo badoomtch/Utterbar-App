@@ -3,7 +3,6 @@
 namespace App\Services\Notify;
 
 use App\Models\Licence;
-use App\Models\WaitlistEntry;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -41,25 +40,7 @@ BODY;
         self::send($subject, $body, replyTo: $licence->email);
     }
 
-    public static function newWaitlist(WaitlistEntry $entry, int $totalOnList): void
-    {
-        $subject = "[Utterbar] Waitlist signup · {$entry->email}";
-        $useCase = trim((string) ($entry->use_case ?? '')) ?: '(none)';
-        $body = <<<BODY
-Someone just joined the waitlist.
-
-Email:     {$entry->email}
-Use case:  {$useCase}
-IP:        {$entry->ip}
-Total on list:  {$totalOnList}
-
-Admin: https://utterbar.com/admin
-BODY;
-
-        self::send($subject, $body, replyTo: $entry->email);
-    }
-
-    /* ───── internals ───── */
+    /* internals */
 
     private static function send(string $subject, string $body, ?string $replyTo = null): void
     {

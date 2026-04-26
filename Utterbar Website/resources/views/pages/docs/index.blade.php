@@ -1,7 +1,7 @@
-<x-layouts.docs title="Docs">
+<x-layouts.docs title="Docs" description="The Utterbar docs — getting started, modes, vocabulary, shortcuts, privacy controls, troubleshooting, FAQ. Everything you need to dictate well on Windows.">
     <h1 class="ub-docs-h1"><x-wordmark /> <x-hl>docs</x-hl>.</h1>
     <p class="ub-lead mt-6">
-        Real docs land with 1.0. Until then, here&rsquo;s the shape of what will be there. Pick a section.
+        Everything you need to dictate well on Windows. Updated alongside each release.
     </p>
 
     <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -10,7 +10,7 @@
             ['Modes', 'How modes bundle a model, prompt, and formatting rules.', route('docs.modes'), 'layers'],
             ['Vocabulary', 'Teach Utterbar your names, acronyms, and product terms.', route('docs.vocabulary'), 'book-open'],
             ['Shortcuts', 'Every hotkey and how to remap them.', route('docs.shortcuts'), 'keyboard'],
-            ['Privacy controls', 'Per-mode toggles for clipboard, selection, active-app context.', route('docs.privacy-controls'), 'lock'],
+            ['Privacy controls', 'Global toggles for clipboard, selection, and active-app context.', route('docs.privacy-controls'), 'lock'],
             ['Troubleshooting', 'When transcription goes quiet, slow, or weird.', route('docs.troubleshooting'), 'alert-circle'],
             ['FAQ', 'The questions we always get.', route('docs.faq'), 'info'],
         ] as [$title, $body, $href, $icon])

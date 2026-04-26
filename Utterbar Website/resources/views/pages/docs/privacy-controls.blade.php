@@ -1,6 +1,6 @@
-<x-layouts.docs title="Privacy controls">
+<x-layouts.docs title="Privacy controls" description="Three global switches — clipboard, selection, active-app — that govern what context Utterbar may read. All off by default, all stay local.">
     <h1 class="ub-docs-h1">Three <x-hl>switches</x-hl>, all off.</h1>
-    <p class="ub-lead mt-6">Turn them on per-mode when you want Utterbar to know what you were looking at when you spoke.</p>
+    <p class="ub-lead mt-6">Flip them on in Settings &rarr; Privacy when you want Utterbar to know what you were looking at when you spoke. One switch per source, applied globally.</p>
 
     <div class="mt-10 space-y-6">
         @foreach ([

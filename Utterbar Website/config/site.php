@@ -4,7 +4,7 @@ return [
     'name'     => 'Utterbar',
     'tagline'  => 'Dictation that stays on your PC.',
     'domain'   => 'utterbar.com',
-    'version'  => '0.3.5',
+    'version'  => '0.7.2',
 
     'email' => [
         'contact' => 'hello@utterbar.com',

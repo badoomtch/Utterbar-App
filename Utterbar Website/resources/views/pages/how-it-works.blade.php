@@ -40,11 +40,11 @@
         </div>
     </section>
 
-    {{-- Full walkthrough --}}
+    {{-- The moment, close-framed. --}}
     <section class="py-12 md:py-16">
         <div class="ub-container">
-            <div class="max-w-5xl mx-auto">
-                <x-video-embed id="how-it-works-walkthrough" />
+            <div class="max-w-3xl mx-auto">
+                <x-video-embed id="feature-press-speak-done" />
             </div>
         </div>
     </section>

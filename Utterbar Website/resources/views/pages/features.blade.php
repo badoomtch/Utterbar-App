@@ -7,13 +7,13 @@
             'title' => 'Press. Speak. Done.',
             'body'  => 'One hotkey. Hold it, talk, let go. Your words land in whatever app is focused. That is the whole interface.',
             'wins'  => ['No dialogs', 'Works over any open window', 'No copy-paste dance'],
-            'video' => null,  // Loop used in the hero strip above the cards
+            'video' => 'feature-press-speak-done',
         ],
         [
             'title' => 'Local means local.',
             'body'  => 'Your voice is transcribed on your own machine. It does not leave. Not for &ldquo;processing&rdquo;, not for &ldquo;analytics&rdquo;, not for anything. Nothing can leak because nothing goes anywhere.',
             'wins'  => ['No cloud', 'No account', 'No telemetry'],
-            'video' => null,  // feature-local-privacy lives on the /privacy page
+            'video' => 'feature-local-privacy',
         ],
         [
             'title' => 'Works in every Windows app.',
@@ -23,8 +23,8 @@
         ],
         [
             'title' => 'Modes that match the job.',
-            'body'  => 'Dictate into an email, you get an email. Into meeting notes, you get verbatim capture with line breaks. Switch mode in a click or by hotkey &mdash; one per job, one keystroke.',
-            'wins'  => ['Built-in modes for the common jobs', 'Switch in a click or by hotkey', 'Unlimited custom modes on Pro'],
+            'body'  => 'Dictate a casual message, get a casual message. Into meeting notes, you get verbatim capture with line breaks. Switch mode in a click or by hotkey &mdash; one per job, one keystroke.',
+            'wins'  => ['Three built-in modes', 'Switch in a click or by hotkey', 'Unlimited custom modes on Pro'],
             'video' => 'feature-modes',
         ],
         [
@@ -36,13 +36,13 @@
         [
             'title' => 'Learns your names.',
             'body'  => 'Add the words it keeps getting wrong. Names, acronyms, product terms. They stop being &ldquo;J parrie&rdquo; and start being whatever you actually said.',
-            'wins'  => ['Custom vocabulary', 'Literal + pattern replacements', 'Per-mode or global'],
+            'wins'  => ['Custom vocabulary', 'Literal + pattern replacements', 'Applied globally'],
             'video' => 'feature-vocabulary',
         ],
         [
             'title' => 'Transcribes files, too.',
             'body'  => 'Drop in recordings &mdash; a meeting, a podcast interview, an old lecture &mdash; and get clean text, subtitles, or captions out the other side. Same local pipeline, same privacy guarantees.',
-            'wins'  => ['Common audio and video formats', 'Export to .txt / .srt / .vtt', 'Pro only'],
+            'wins'  => ['Common audio and video formats', 'Plain-text transcript next to your file', 'Pro only'],
             'video' => 'feature-file-transcription',
         ],
         [
@@ -72,24 +72,6 @@
                 <p class="ub-lead mt-8 max-w-xl">
                     Nine things worth paying attention to. Everything else gets out of the way.
                 </p>
-            </div>
-        </div>
-    </section>
-
-    {{-- Static hero: Vocabulary screenshot --}}
-    <section class="pt-4 pb-12 md:pb-16">
-        <div class="ub-container">
-            <div class="max-w-5xl">
-                <x-still id="press-04-vocabulary" />
-            </div>
-        </div>
-    </section>
-
-    {{-- Loop strip: Press. Speak. Done. --}}
-    <section class="py-10 md:py-14">
-        <div class="ub-container">
-            <div class="max-w-3xl mx-auto">
-                <x-video-embed id="feature-press-speak-done" />
             </div>
         </div>
     </section>

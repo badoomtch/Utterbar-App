@@ -1,4 +1,8 @@
-<x-layouts.app title="EULA">
+{{-- noIndex while this page is a placeholder. The real EULA ships inside
+     the 1.0 installer; until then, the page is here for buyers who want
+     to read the licence terms before purchase, but we don't want it
+     indexed as canonical legal text. Re-index when the full EULA lands. --}}
+<x-layouts.app title="EULA" :noIndex="true">
     <x-section eyebrow="Legal" title="End-user licence agreement">
         <article class="max-w-3xl space-y-5 leading-relaxed" style="color: var(--fg);">
             <p class="font-mono text-sm" style="color: var(--muted);">Last updated: {{ date('j F Y') }} · Placeholder — full EULA ships inside the 1.0 installer.</p>

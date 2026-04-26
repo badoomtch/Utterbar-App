@@ -9,8 +9,7 @@
     $recommended = [
         '8 GB RAM or more',
         'DirectX 12-capable GPU (any vendor) for GPU acceleration',
-        'NVIDIA CUDA-capable card for the fp16 model (Pro only)',
-        'Additional 1.5 GB disk space for the Pro model',
+        'Additional 1 GB disk space for the larger Whisper model (Pro)',
     ];
 
     $otherPlatforms = [
@@ -46,7 +45,7 @@
                 <p class="ub-lead mt-8 max-w-xl">
                     Windows-native. Local-only. Small installer.
                     @if (!$latest)
-                        The public 1.0 build drops when it&rsquo;s worth installing &mdash; waitlist members see it first.
+                        No build is listed just now &mdash; check back shortly.
                     @endif
                 </p>
             </div>
@@ -82,13 +81,13 @@
 
                         <div class="mt-8">
                             @if ($latest)
-                                <a href="{{ $latest->downloadUrl() }}" class="ub-btn ub-btn-cta">
+                                <a href="{{ route('download.latest') }}" class="ub-btn ub-btn-cta">
                                     Download Utterbar v{{ $latest->version }}
                                 </a>
                             @else
-                                <a href="{{ route('waitlist') }}" class="ub-btn ub-btn-cta">
-                                    Get Utterbar for Windows
-                                </a>
+                                <span class="ub-btn ub-btn-ghost" style="opacity: 0.6; cursor: not-allowed;">
+                                    No build available right now
+                                </span>
                             @endif
                         </div>
 
@@ -113,7 +112,7 @@
                                 Windows installer (.exe)
                             </p>
                             <p class="mt-6 text-sm" style="color: var(--muted); line-height: 1.55;">
-                                Pre-release. The public 1.0 build drops when it&rsquo;s worth installing &mdash; waitlist members see it first.
+                                No build is listed just now &mdash; check back shortly.
                             </p>
                         @endif
                     </div>
@@ -178,6 +177,16 @@
         </div>
     </section>
 
+    {{-- Tip jar — quiet support surface for free users. Auto-hides if
+         Stripe tipping isn't configured. --}}
+    <section class="pb-20 md:pb-24">
+        <div class="ub-container">
+            <div class="max-w-5xl">
+                <x-tip-jar />
+            </div>
+        </div>
+    </section>
+
     {{-- Changelog --}}
     @if ($releasesList->isNotEmpty())
     <section class="py-24 md:py-32 border-t" style="border-color: var(--border);">
@@ -209,7 +218,7 @@
                             <p class="mt-3 font-mono text-xs" style="color: var(--muted); letter-spacing: 0.04em;">
                                 {{ $r->published_at?->format('F Y') }}
                             </p>
-                            <a href="{{ $r->downloadUrl() }}"
+                            <a href="{{ route('download.version', ['version' => $r->version]) }}"
                                class="inline-flex items-center mt-4 text-xs font-mono"
                                style="color: var(--accent); letter-spacing: 0.04em;">
                                 Download &rarr;
@@ -217,7 +226,7 @@
                         </div>
                         <div class="col-span-12 md:col-span-9">
                             <div class="ub-markdown" style="color: var(--fg); line-height: 1.65; font-size: 1rem;">
-                                {!! \Illuminate\Support\Str::markdown($r->notes_markdown) !!}
+                                {!! \App\Support\Markdown::renderEmbedded($r->notes_markdown) !!}
                             </div>
                         </div>
                     </article>
@@ -228,7 +237,7 @@
     @endif
 
     <x-prompt-cta
-        :heading="'Get the first build.'"
-        :sub="'Waitlist members see the public 1.0 release before anyone else. One email when it drops.'"
+        :heading="'Want the changelog in your inbox?'"
+        :sub="'Drop your email and I&rsquo;ll send release notes when new builds ship. No marketing, just the changelog.'"
     />
 </x-layouts.app>

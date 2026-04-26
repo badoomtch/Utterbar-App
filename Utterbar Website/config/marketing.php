@@ -1,18 +1,13 @@
 <?php
 
 /**
- * Mirror of marketing/remotion/asset-manifest.json from the Orliq repo.
+ * Mirror of marketing/remotion/asset-manifest.json.
  *
  * The source of truth is that JSON file — this is a PHP copy so Blade
- * components can reference it without touching the other repo. When the
- * Remotion pipeline re-renders, the Orliq-side sync script pushes the new
- * blobs to R2 at the same keys, and (if a duration / alt / dimension
- * changes) we update this file by hand.
- *
- * CDN contract (matches Orliq/RELEASE.md + the R2 bucket layout):
- *   videos → https://dl.utterbar.com/marketing/videos/<id>.mp4
- *   posters → https://dl.utterbar.com/marketing/posters/<id>-poster.png
- *   stills → https://dl.utterbar.com/marketing/stills/<id>.png
+ * components can reference it without reaching into the desktop repo.
+ * When the Remotion pipeline re-renders and dimensions / durations /
+ * alt text change, update both. 2026-04-24 regenerate moved all videos
+ * to 1440x900 and all stills to 2200x1400.
  */
 
 return [
@@ -22,99 +17,83 @@ return [
 
     'videos' => [
         'hero-pill-loop' => [
-            'title'            => 'Floating bar — idle to listening loop',
-            'duration_seconds' => 6,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => "Utterbar's floating bar pill cycling through idle, warming, listening, and processing states.",
+            'title'            => 'Floating bar — idle to inserted loop',
+            'duration_seconds' => 5,
+            'width'            => 1600,
+            'height'           => 520,
+            'alt'              => "Utterbar's floating bar cycling from idle through listening, processing, and 'Inserted'.",
             'loops'            => true,
-        ],
-        'how-it-works-walkthrough' => [
-            'title'            => 'How it works — press, speak, land in app',
-            'duration_seconds' => 12,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Three-beat walkthrough: pressing the shortcut, speaking into the floating bar, the transcript appearing inside Slack.',
-            'loops'            => false,
         ],
         'feature-press-speak-done' => [
             'title'            => 'Press. Speak. Done.',
-            'duration_seconds' => 5,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => "Tight state cycle on the floating bar under the tagline 'Press. Speak. Done.'",
+            'duration_seconds' => 4,
+            'width'            => 1600,
+            'height'           => 520,
+            'alt'              => 'Close-framed loop of the pill moving from Ready to Inserted.',
             'loops'            => true,
         ],
         'feature-works-anywhere' => [
-            'title'            => 'Works in every app',
-            'duration_seconds' => 10,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Utterbar dictating into Gmail, Slack, and Obsidian in sequence — the same pill, three different host apps.',
+            'title'            => 'Types wherever your cursor is',
+            'duration_seconds' => 7,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => 'The pill above a plain text field; text streams into the field as the user dictates.',
             'loops'            => false,
         ],
         'feature-modes' => [
-            'title'            => 'Modes — one dictation, four voices',
-            'duration_seconds' => 8,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Raw transcript at the top, three mode panels (Voice-to-text, Message, Meeting) staggering in below.',
+            'title'            => 'Modes — one voice, three shapes',
+            'duration_seconds' => 7,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => 'A raw transcript at the top; Voice-to-text, Message, and Meeting panels populate below it.',
             'loops'            => false,
         ],
         'feature-system-audio' => [
-            'title'            => 'System audio capture',
-            'duration_seconds' => 7,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'A mock video-call window alongside the floating bar sourcing system audio, live transcript filling in beside it.',
+            'title'            => 'Transcribe what your PC is playing',
+            'duration_seconds' => 6,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => 'Audio source selector switching from Microphone to System audio; live transcript fills below.',
             'loops'            => false,
         ],
         'feature-vocabulary' => [
-            'title'            => 'Custom vocabulary + text replacements',
-            'duration_seconds' => 8,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Vocabulary grid with custom words and replacements, plus a before-and-after sample sentence at the bottom.',
+            'title'            => 'Custom vocabulary + replacements',
+            'duration_seconds' => 7,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => 'Custom words and replacements populate; a sentence types, rewrites itself with the replacements firing.',
             'loops'            => false,
         ],
         'feature-local-privacy' => [
-            'title'            => 'Everything stays on your machine',
-            'duration_seconds' => 8,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Diagram: microphone to local Parakeet ASR to app, with the cloud path crossed out.',
+            'title'            => 'Local by default',
+            'duration_seconds' => 6,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => 'The real Privacy settings — three context toggles all off, plus the on-disk paths where data lives.',
             'loops'            => false,
         ],
         'feature-file-transcription' => [
-            'title'            => 'Batch file transcription (Pro)',
-            'duration_seconds' => 8,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Files route with a dashed dropzone and a queue of three jobs running through to done.',
+            'title'            => 'Batch file transcription',
+            'duration_seconds' => 7,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => 'Files dropzone with a queue of three jobs moving through queued, running, and done.',
             'loops'            => false,
         ],
         'feature-history-retranscribe' => [
             'title'            => 'Reprocess any past dictation',
-            'duration_seconds' => 9,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'History detail pane re-running a transcript through Meeting mode; the processed block rewrites itself into bullet points.',
+            'duration_seconds' => 7.5,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => "A history entry's processed output re-runs through Meeting mode and rewrites into bullet points.",
             'loops'            => false,
         ],
         'feature-customise-bar' => [
-            'title'            => 'Make it look like your desk',
-            'duration_seconds' => 8,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Floating bar flipping between Obsidian+Cyan, Graphite+Amber, and Paper+Violet themes.',
-            'loops'            => false,
-        ],
-        'onboarding-walkthrough' => [
-            'title'            => 'Set up in under two minutes',
-            'duration_seconds' => 12,
-            'width'            => 1920,
-            'height'           => 1080,
-            'alt'              => 'Onboarding window stepping through Welcome, privacy promise, and the first-dictation ready state.',
+            'title'            => 'Make the bar yours',
+            'duration_seconds' => 6,
+            'width'            => 1600,
+            'height'           => 520,
+            'alt'              => "A row of six accent swatches cycles, and the pill's LED + waveform change colour to match.",
             'loops'            => false,
         ],
     ],
@@ -122,33 +101,33 @@ return [
     'stills' => [
         'press-01-floating-bar-idle' => [
             'title'  => 'Floating bar — idle',
-            'width'  => 2560,
-            'height' => 1600,
-            'alt'    => "Utterbar's floating pill in its idle Ready state, centred on a dark canvas.",
+            'width'  => 2200,
+            'height' => 1400,
+            'alt'    => "Utterbar's floating pill in its idle Ready state, close-framed on a dark canvas.",
         ],
         'press-02-floating-bar-listening' => [
             'title'  => 'Floating bar — listening',
-            'width'  => 2560,
-            'height' => 1600,
-            'alt'    => "Utterbar's floating pill mid-recording: red ripple, 00:04 timer, seven-bar speech wave.",
+            'width'  => 2200,
+            'height' => 1400,
+            'alt'    => "Utterbar's floating pill mid-recording: 00:04 timer, seven-bar speech wave.",
         ],
         'press-03-main-shell-dashboard' => [
             'title'  => 'Main app — Dashboard',
-            'width'  => 2560,
-            'height' => 1600,
-            'alt'    => 'Utterbar main window on the Dashboard route, showing session metrics and recent activity.',
+            'width'  => 2200,
+            'height' => 1180,
+            'alt'    => 'Dashboard metrics and recent-activity card from the main Utterbar window.',
         ],
         'press-04-vocabulary' => [
             'title'  => 'Main app — Vocabulary',
-            'width'  => 2560,
-            'height' => 1600,
-            'alt'    => 'Vocabulary route with custom words and text replacements populated.',
+            'width'  => 2200,
+            'height' => 1280,
+            'alt'    => 'Vocabulary and replacements cards from the main Utterbar window.',
         ],
         'press-05-file-transcription' => [
             'title'  => 'Main app — Files',
-            'width'  => 2560,
-            'height' => 1600,
-            'alt'    => 'Files route with dropzone and four queued / running / done jobs.',
+            'width'  => 2200,
+            'height' => 1380,
+            'alt'    => 'Files dropzone with a three-job queue.',
         ],
     ],
 ];

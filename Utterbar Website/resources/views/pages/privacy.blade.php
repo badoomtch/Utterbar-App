@@ -13,15 +13,16 @@
     ];
 @endphp
 
-<x-layouts.app title="Privacy" description="Utterbar's privacy promise: zero cloud processing, no account, no telemetry. Your voice is transcribed on your PC and never leaves it. Verifiable.">
+<x-layouts.app title="Privacy promise" description="Utterbar's privacy promise: zero cloud processing, no account, no telemetry. Your voice is transcribed on your PC and never leaves it. The full legal policy is at /legal/privacy.">
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">
             <div class="max-w-4xl">
-                <h1 class="ub-fg-hi" style="font-size: clamp(2.75rem, 6vw, 5rem); letter-spacing: -0.04em; line-height: 1.05;">
+                <p class="ub-eyebrow" style="color: var(--accent);">The promise</p>
+                <h1 class="ub-fg-hi mt-3" style="font-size: clamp(2.75rem, 6vw, 5rem); letter-spacing: -0.04em; line-height: 1.05;">
                     Your voice <x-hl>never</x-hl> leaves.
                 </h1>
                 <p class="ub-lead mt-8 max-w-xl">
-                    Not &lsquo;encrypted in transit&rsquo;. Not &lsquo;processed on secure servers&rsquo;. It just doesn&rsquo;t go anywhere. This is the essay version; the legal page lives under /legal/privacy.
+                    Not &lsquo;encrypted in transit&rsquo;. Not &lsquo;processed on secure servers&rsquo;. It just doesn&rsquo;t go anywhere. This is the plain-English promise &mdash; the formal UK GDPR policy is at <a href="{{ route('legal.privacy') }}" style="color: var(--accent);">/legal/privacy</a>.
                 </p>
             </div>
         </div>

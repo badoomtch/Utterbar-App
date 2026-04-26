@@ -1,9 +1,11 @@
 @php
     $freeFeatures = [
         'Unlimited dictation, any length',
-        'Parakeet TDT 0.6B v2 (int8, ~460 MB) &mdash; CPU-capable',
+        'Parakeet v3 (English, compact) &mdash; ~460 MB, runs on any modern CPU',
+        'Whisper base (multilingual, ~99 languages) &mdash; ~145 MB',
+        'Zipformer (English, lightweight) &mdash; ~220 MB, smallest footprint',
         'All seven hotkey slots',
-        'All six built-in modes',
+        'All three built-in modes',
         'Microphone, system-audio (WASAPI loopback), mixed',
         '50 vocabulary words + 25 replacements',
         'History (last 100 transcriptions)',
@@ -13,12 +15,14 @@
 
     $proFeatures = [
         'Everything in Free',
-        'Parakeet fp16 (~1.16 GB) &mdash; GPU-only, instant',
+        'Whisper small (multilingual, high accuracy) &mdash; ~610 MB, stronger non-English transcription',
         'Unlimited custom modes',
         'Unlimited vocabulary + replacements',
-        'File transcription (WAV, MP3, AAC, MP4, MKV, Ogg, FLAC &rarr; .txt / .srt / .vtt)',
+        'File transcription (WAV, MP3, M4A, FLAC, OGG, MP4, MOV, MKV &rarr; plain-text transcript)',
+        'Batch transcription &mdash; drop a folder, walk away',
         'Full history + audio retention (1&ndash;90 day slider)',
         'Re-transcribe any recording with any mode',
+        'Tip-jar isn&rsquo;t shown to Pro users (you&rsquo;ve already paid)',
         'Priority support',
     ];
 
@@ -43,7 +47,7 @@
             '@context'    => 'https://schema.org',
             '@type'       => 'Product',
             'name'        => 'Utterbar Pro',
-            'description' => 'Lifetime Pro licence for Utterbar. Unlocks unlimited custom modes, unlimited vocabulary, file transcription, full audio history, and the fp16 GPU model.',
+            'description' => 'Lifetime Pro licence for Utterbar. Unlocks unlimited custom modes, unlimited vocabulary, file transcription, full audio history, and Whisper small for higher-accuracy multilingual transcription.',
             'brand'       => ['@type' => 'Brand', 'name' => 'Utterbar'],
             'url'         => url('/pricing'),
             'image'       => url('/og/og-default.png'),
@@ -167,7 +171,7 @@
                                 </button>
                                 <p x-show="err" x-text="err" class="mt-3 text-sm text-center" style="color: var(--danger);"></p>
                             @else
-                                <a href="{{ route('waitlist') }}" class="ub-btn ub-btn-cta w-full">Get launch pricing by email</a>
+                                <a href="{{ route('contact') }}" class="ub-btn ub-btn-cta w-full">Contact us</a>
                             @endif
                         </div>
                     </div>
@@ -177,6 +181,14 @@
             <p class="mt-6 text-center font-mono text-xs max-w-xl mx-auto" style="color: var(--muted);">
                 Lifetime licence &middot; three devices &middot; refund within 14 days, no questions.
             </p>
+
+            {{-- Tip jar for the Free tier — sits below the pricing tiles
+                 so anyone choosing Free still has a visible way to chip
+                 in. Same component as home + download. Auto-hides when
+                 STRIPE_TIP_PRICE_ID isn't set. --}}
+            <div class="mt-12 max-w-3xl mx-auto">
+                <x-tip-jar />
+            </div>
         </div>
     </section>
 
@@ -189,11 +201,14 @@
                     File transcription, the whole thing.
                 </h2>
                 <p class="ub-lead mt-5">
-                    Drop in meetings, podcasts, old lectures. Same local pipeline, same privacy guarantees. Export to .txt, .srt, or .vtt.
+                    Drop in meetings, podcasts, old lectures. Same local pipeline, same privacy guarantees. The transcript lands as a plain-text file next to the source.
                 </p>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-                <x-still id="press-05-file-transcription" />
+            {{-- Single video, full width within the wider container.
+                 Previous layout had a still and the same video side by
+                 side which made both small and unreadable; the still
+                 didn't add anything the video doesn't already show. --}}
+            <div class="max-w-4xl mx-auto">
                 <x-video-embed id="feature-file-transcription" />
             </div>
         </div>
@@ -206,9 +221,7 @@
     </x-section>
 
     <x-prompt-cta
-        label="waiting on:"
-        target="pro/launch-pricing"
-        :heading="'Pro launch pricing, direct to your inbox.'"
-        :sub="'I&rsquo;ll email the number the day before it goes live. Waitlist members get a real discount on day one &mdash; not a fake &ldquo;limited time&rdquo; one.'"
+        :heading="'Changelog in your inbox.'"
+        :sub="'Drop your email if you&rsquo;d like release notes and the odd behind-the-scenes note. One-click unsubscribe, no marketing.'"
     />
 </x-layouts.app>

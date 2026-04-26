@@ -1,5 +1,12 @@
 # https://utterbar.com/robots.txt
-# Crawlers welcome on everything public; private surfaces are blocked.
+# All crawlers welcome — including AI crawlers. Being indexed in
+# AI-powered search and assistants is a discovery channel for a
+# Windows-only tool with a small marketing budget. Trade-off accepted.
+#
+# If Cloudflare's "Managed robots.txt" is on, it prepends a block of
+# AI-bot Disallow rules above this file at the live URL — that defeats
+# the policy below. Disable Cloudflare's managed robots.txt at:
+#   Cloudflare dashboard → utterbar.com → Bots → AI Audit / Manage robots.txt
 
 User-agent: *
 Disallow: /admin
@@ -11,6 +18,7 @@ Disallow: /sign-in/
 Disallow: /sign-out
 Disallow: /api/
 Disallow: /thanks
+Disallow: /tip/
 Disallow: /updates/confirm
 Disallow: /updates/unsubscribe
 

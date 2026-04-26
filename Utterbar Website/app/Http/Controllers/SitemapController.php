@@ -3,80 +3,84 @@
 namespace App\Http\Controllers;
 
 use App\Models\Release;
+use App\Support\BlogPost;
 use Illuminate\Http\Response;
 
 /**
  * GET /sitemap.xml
  *
- * Static marketing pages + docs + legal, plus dynamic entries for every
- * published stable release (so the changelog gets crawled and older versions
- * remain indexable).
+ * Marketing pages, docs, and legal pages that are real public destinations.
  *
  * Pages that sit behind auth (/account, /admin, /sign-in/*) or are
  * transactional (/thanks, /updates/confirm, /updates/unsubscribe) are
  * deliberately omitted — they're also blocked in robots.txt.
+ *
+ * Notable absences and why:
+ *   • /legal/eula — placeholder text; excluded until the full EULA ships
+ *     with 1.0. Tagged noindex on the page itself for the same reason.
+ *   • Release fragment URLs (/download#v0.7.0) — fragments aren't
+ *     separate pages to a crawler. /download has a fresh `lastmod`
+ *     pointing at the latest release; that's all crawlers can use.
  */
 class SitemapController extends Controller
 {
     public function index(): Response
     {
-        $now  = now()->toIso8601String();
+        $now = now()->toIso8601String();
 
-        $entries = [];
+        // /download lastmod = the latest stable release's published_at.
+        // That's what a crawler should re-fetch when a new version ships.
+        $latest = Release::stable()->orderByDesc('published_at')->first();
+        $downloadLastmod = $latest
+            ? ($latest->published_at ?? $latest->created_at)->toIso8601String()
+            : $now;
 
-        // Static marketing + docs + legal pages.
-        $static = [
-            ['path' => '/',                       'priority' => '1.0', 'changefreq' => 'weekly'],
-            ['path' => '/features',               'priority' => '0.9', 'changefreq' => 'monthly'],
-            ['path' => '/how-it-works',           'priority' => '0.9', 'changefreq' => 'monthly'],
-            ['path' => '/pricing',                'priority' => '0.9', 'changefreq' => 'monthly'],
-            ['path' => '/download',               'priority' => '1.0', 'changefreq' => 'weekly'],
-            ['path' => '/privacy',                'priority' => '0.8', 'changefreq' => 'monthly'],
-            ['path' => '/roadmap',                'priority' => '0.6', 'changefreq' => 'monthly'],
-            ['path' => '/changelog',              'priority' => '0.7', 'changefreq' => 'weekly'],
-            ['path' => '/contact',                'priority' => '0.5', 'changefreq' => 'yearly'],
-            ['path' => '/press',                  'priority' => '0.5', 'changefreq' => 'monthly'],
-            ['path' => '/docs',                   'priority' => '0.7', 'changefreq' => 'monthly'],
-            ['path' => '/docs/getting-started',   'priority' => '0.7', 'changefreq' => 'monthly'],
-            ['path' => '/docs/modes',             'priority' => '0.6', 'changefreq' => 'monthly'],
-            ['path' => '/docs/vocabulary',        'priority' => '0.6', 'changefreq' => 'monthly'],
-            ['path' => '/docs/shortcuts',         'priority' => '0.6', 'changefreq' => 'monthly'],
-            ['path' => '/docs/privacy-controls',  'priority' => '0.6', 'changefreq' => 'monthly'],
-            ['path' => '/docs/troubleshooting',   'priority' => '0.6', 'changefreq' => 'monthly'],
-            ['path' => '/docs/faq',               'priority' => '0.7', 'changefreq' => 'monthly'],
-            ['path' => '/legal/privacy',          'priority' => '0.4', 'changefreq' => 'yearly'],
-            ['path' => '/legal/terms',            'priority' => '0.4', 'changefreq' => 'yearly'],
-            ['path' => '/legal/eula',             'priority' => '0.4', 'changefreq' => 'yearly'],
+        $entries = [
+            ['path' => '/',                       'priority' => '1.0', 'changefreq' => 'weekly',  'lastmod' => $now],
+            ['path' => '/features',               'priority' => '0.9', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/how-it-works',           'priority' => '0.9', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/pricing',                'priority' => '0.9', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/download',               'priority' => '1.0', 'changefreq' => 'weekly',  'lastmod' => $downloadLastmod],
+            ['path' => '/privacy',                'priority' => '0.8', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/roadmap',                'priority' => '0.6', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/changelog',              'priority' => '0.7', 'changefreq' => 'weekly',  'lastmod' => $downloadLastmod],
+            ['path' => '/contact',                'priority' => '0.5', 'changefreq' => 'yearly',  'lastmod' => $now],
+            ['path' => '/press',                  'priority' => '0.5', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/compare',                'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/compare/wispr-flow',     'priority' => '0.8', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/what-is-local-dictation','priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs',                   'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs/getting-started',   'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs/modes',             'priority' => '0.6', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs/vocabulary',        'priority' => '0.6', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs/shortcuts',         'priority' => '0.6', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs/privacy-controls',  'priority' => '0.6', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs/troubleshooting',   'priority' => '0.6', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/docs/faq',               'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/legal/privacy',          'priority' => '0.4', 'changefreq' => 'yearly',  'lastmod' => $now],
+            ['path' => '/legal/terms',            'priority' => '0.4', 'changefreq' => 'yearly',  'lastmod' => $now],
+            ['path' => '/blog',                   'priority' => '0.6', 'changefreq' => 'weekly',  'lastmod' => $now],
         ];
 
-        foreach ($static as $s) {
+        // Blog posts — added at the bottom so the static list above stays
+        // easy to read. Each post's lastmod is its publish date.
+        foreach (BlogPost::all() as $post) {
             $entries[] = [
-                'loc'        => url($s['path']),
-                'lastmod'    => $now,
-                'changefreq' => $s['changefreq'],
-                'priority'   => $s['priority'],
+                'path'       => '/blog/' . $post->slug,
+                'priority'   => '0.6',
+                'changefreq' => 'monthly',
+                'lastmod'    => $post->publishedAt()->toIso8601String(),
             ];
         }
-
-        // Every stable release gets included so search engines can see the
-        // changelog + indexable versioned release metadata.
-        Release::stable()->orderByDesc('published_at')->get()->each(function (Release $r) use (&$entries) {
-            $entries[] = [
-                'loc'        => url('/download') . '#v' . $r->version,
-                'lastmod'    => ($r->published_at ?? $r->created_at)->toIso8601String(),
-                'changefreq' => 'yearly',
-                'priority'   => '0.5',
-            ];
-        });
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
         foreach ($entries as $e) {
             $xml .= "  <url>\n";
-            $xml .= '    <loc>'       . htmlspecialchars($e['loc'],      ENT_XML1) . "</loc>\n";
-            $xml .= '    <lastmod>'   . $e['lastmod']                              . "</lastmod>\n";
-            $xml .= '    <changefreq>'. $e['changefreq']                           . "</changefreq>\n";
-            $xml .= '    <priority>'  . $e['priority']                             . "</priority>\n";
+            $xml .= '    <loc>'       . htmlspecialchars(url($e['path']), ENT_XML1) . "</loc>\n";
+            $xml .= '    <lastmod>'   . $e['lastmod']                               . "</lastmod>\n";
+            $xml .= '    <changefreq>'. $e['changefreq']                            . "</changefreq>\n";
+            $xml .= '    <priority>'  . $e['priority']                              . "</priority>\n";
             $xml .= "  </url>\n";
         }
         $xml .= '</urlset>' . "\n";

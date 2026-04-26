@@ -130,8 +130,8 @@
                         <p class="ub-eyebrow">Before you write</p>
                         <ul class="mt-4 space-y-3">
                             @foreach ([
-                                ['Not on the waitlist yet?', route('waitlist')],
                                 ['Looking for the pricing?',  route('pricing')],
+                                ['Want to download?',          route('download')],
                                 ['Privacy questions?',         route('privacy')],
                                 ['Press enquiry?',             route('press')],
                             ] as [$q, $href])

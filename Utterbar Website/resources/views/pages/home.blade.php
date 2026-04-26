@@ -1,7 +1,7 @@
 @php
     $features = [
         ['num' => '01', 'title' => 'Press, speak, done.',    'body' => 'Hold one key. Talk. Release. Your words land where the cursor is.'],
-        ['num' => '02', 'title' => 'Six modes. One click.',  'body' => 'Email voice, chat voice, meeting voice. The output adapts to the app you\'re in.'],
+        ['num' => '02', 'title' => 'Modes for the job.',     'body' => 'Plain voice-to-text, cleaned-up chat voice, or verbatim meeting capture. Switch mode in a click or a hotkey.'],
         ['num' => '03', 'title' => 'Hears everything.',      'body' => 'Your mic, the audio your PC is playing, or both. No virtual cable to install.'],
         ['num' => '04', 'title' => 'Learns your words.',     'body' => 'Names, acronyms, product terms. Your custom list stops them being mangled.'],
         ['num' => '05', 'title' => 'Mutes your music.',      'body' => 'Whatever is playing pauses the moment you press the hotkey. Resumes on stop.'],
@@ -11,8 +11,8 @@
     $faqs = [
         ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run \u2014 and those are logged so you can read them.'],
         ['q' => 'Which Windows versions work?', 'a' => 'Windows 10 22H2 and Windows 11, x86_64. WebView2 is required (already on Windows 11; auto-bootstrapped on Windows 10).'],
-        ['q' => 'Do I need a GPU?', 'a' => 'No. The default model is an int8 Parakeet build (~460 MB) that runs fine on CPU. If you do have a GPU, Pro unlocks an fp16 build (~1.16 GB) for instant transcription \u2014 DirectML lights up any DX12 card (NVIDIA / AMD / Intel), CUDA is there for NVIDIA-only setups.'],
-        ['q' => 'What languages are supported?', 'a' => 'English only today. The Parakeet TDT 0.6B v2 models in the catalogue are English exports. Multilingual is on the roadmap \u2014 I\'d rather ship one language properly than five badly.'],
+        ['q' => 'Do I need a GPU?', 'a' => 'No. The default Parakeet v3 build runs comfortably on any modern CPU. GPU acceleration (DirectML on any DX12 card, CUDA on NVIDIA) is supported and speeds things up if you have one, but it isn\'t required.'],
+        ['q' => 'What languages are supported?', 'a' => 'English on Parakeet (the default, fastest), plus around 99 languages on Whisper (free for the base model, Pro for the higher-accuracy small build). Auto-detect is on by default; pin a specific language in Settings \u2192 Models for a small speed gain.'],
         ['q' => 'How does it compare to the Mac-native ones?', 'a' => 'Same philosophy, different platform. The Mac alternatives are great if you\'re on Mac. Utterbar is Windows-native from day one \u2014 no Python shim, no Electron wrapper, smaller installer. Different camp, same conviction about local.'],
         ['q' => 'Why not a more common speech model?', 'a' => 'The one I picked is faster and more accurate on English than the common alternatives at the same size. Other models come in later for multilingual support.'],
         ['q' => 'Can I use this in video-call and chat apps?', 'a' => 'Only for typing into the chat box. Utterbar transcribes your voice into text; it won\'t (and will never) inject audio into a call. Your colleagues hear nothing from Utterbar.'],
@@ -24,10 +24,14 @@
 @endphp
 
 @php
+    // Title is the single most important on-page SEO signal for the home
+    // page. Lead with the query buyers actually type ("local dictation
+    // for Windows"), not a tagline. Layout wraps with " — Utterbar".
+    $homeTitle = 'Local dictation for Windows';
     $homeDescription = 'Local-only Windows dictation. Press a hotkey, speak, your words land anywhere. Free forever, no cloud, no account. Pro unlocks power features, £39.99 lifetime.';
 @endphp
 
-<x-layouts.app :description="$homeDescription">
+<x-layouts.app :title="$homeTitle" :description="$homeDescription">
     @php
         $homeSchema = [
             '@context' => 'https://schema.org',
@@ -93,9 +97,13 @@
                     <x-wordmark />
                 </div>
 
-                {{-- Headline --}}
+                {{-- Headline. Keeps the brand voice ("stays on your PC")
+                     while also carrying the primary keyword phrase
+                     ("Local dictation for Windows") for SEO. The H1 is
+                     a single sentence visually but split for emphasis. --}}
                 <h1 class="mt-6" style="font-size: clamp(2.75rem, 6.25vw, 5.25rem); letter-spacing: -0.045em; line-height: 1.0; font-weight: 800;">
-                    <span class="ub-fg-hi">Dictation that stays on your PC.</span>
+                    <span class="ub-fg-hi">Local dictation for Windows.</span>
+                    <span class="block mt-2" style="color: var(--muted); font-weight: 600;">Stays on your PC.</span>
                 </h1>
 
                 {{-- Punchy subhead: cyan full-stops, thin weight --}}
@@ -348,9 +356,9 @@
     <x-section id="how" eyebrow="How it works" title="Three steps. No ceremony.">
         <x-how-it-works-stepper />
 
-        {{-- Full walkthrough video below the stepper --}}
+        {{-- One utterance, three shapes. The stepper teaches the flow; this shows what the modes actually DO with your voice. --}}
         <div class="mt-16 md:mt-20 max-w-5xl mx-auto">
-            <x-video-embed id="how-it-works-walkthrough" />
+            <x-video-embed id="feature-modes" />
         </div>
     </x-section>
 
@@ -366,8 +374,44 @@
                     Dashboard for session metrics, modes you actually use, a vocabulary that learns your names. Dark theme out of the box, native feel throughout.
                 </p>
             </div>
-            <div class="max-w-5xl mx-auto">
+            <div class="max-w-3xl mx-auto">
                 <x-still id="press-03-main-shell-dashboard" />
+            </div>
+        </div>
+    </section>
+
+    {{-- Vocabulary showcase --}}
+    <section class="py-20 md:py-28">
+        <div class="ub-container">
+            <div class="max-w-3xl mb-10 md:mb-12">
+                <p class="ub-eyebrow">Learns your words</p>
+                <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
+                    Names, acronyms, product terms &mdash; <x-hl>fixed</x-hl>.
+                </h2>
+                <p class="ub-lead mt-6 max-w-xl">
+                    Add your custom words and replacements once. Transcripts come out with &ldquo;J parrie&rdquo; as &ldquo;Jay Parry&rdquo; every single time, locally, on-device.
+                </p>
+            </div>
+            <div class="max-w-5xl mx-auto">
+                <x-video-embed id="feature-vocabulary" />
+            </div>
+        </div>
+    </section>
+
+    {{-- Files showcase --}}
+    <section class="py-20 md:py-28">
+        <div class="ub-container">
+            <div class="max-w-3xl mb-10 md:mb-12">
+                <p class="ub-eyebrow">Transcribe files too</p>
+                <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
+                    Drop a meeting in. Get <x-hl>clean text</x-hl> out.
+                </h2>
+                <p class="ub-lead mt-6 max-w-xl">
+                    Existing recordings, podcasts, interviews &mdash; all transcribed on-device to a plain-text file next to the source. Same pipeline as the floating bar, just for files.
+                </p>
+            </div>
+            <div class="max-w-5xl mx-auto">
+                <x-video-embed id="feature-file-transcription" />
             </div>
         </div>
     </section>
@@ -416,7 +460,7 @@
                     </div>
                     <p class="mt-2 font-mono text-xs" style="color: var(--muted);">GBP &middot; lifetime licence &middot; three devices</p>
                     <ul class="mt-6 space-y-2.5">
-                        @foreach (['Everything in Free', 'Unlimited custom modes + vocabulary', 'fp16 GPU model for instant transcription', 'File transcription, full audio history, re-transcribe'] as $f)
+                        @foreach (['Everything in Free', 'Unlimited custom modes + vocabulary', 'Whisper small (multilingual, high accuracy)', 'File transcription, full audio history, re-transcribe'] as $f)
                             <li class="flex items-start gap-2.5 text-sm">
                                 <span class="mt-0.5 shrink-0" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span>
                                 <span style="color: var(--fg);">{{ $f }}</span>
@@ -472,11 +516,10 @@
                         Set up in under <x-hl>two minutes</x-hl>.
                     </h2>
                     <p class="ub-lead mt-6">
-                        Welcome, the privacy promise, first dictation. Then you&rsquo;re done.
+                        Install, pick a mic, press the hotkey. That&rsquo;s it.
                     </p>
                 </div>
-                <x-video-embed id="onboarding-walkthrough" />
-                <div class="mt-12 flex flex-wrap gap-3 justify-center">
+                <div class="mt-6 flex flex-wrap gap-3 justify-center">
                     <a href="{{ route('download') }}" class="ub-btn ub-btn-cta">
                         Download for Windows
                         <x-icon name="arrow-right" size="16" stroke="2" />
@@ -484,6 +527,12 @@
                     <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">
                         See pricing
                     </a>
+                </div>
+
+                {{-- Tip jar — quiet support surface. Auto-hides if Stripe
+                     tipping isn't configured (see config/services.php). --}}
+                <div class="mt-12 max-w-2xl mx-auto">
+                    <x-tip-jar />
                 </div>
             </div>
         </div>
