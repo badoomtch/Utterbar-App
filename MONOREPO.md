@@ -311,21 +311,21 @@ Called by `Utterbar Windows App/scripts/publish-release.sh` to publish a release
 
 Body + responses documented in [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md).
 
-### 4.3 Pricing API — app → website (IN CODE, NOT DEPLOYED)
+### 4.3 Pricing API — app → website (LIVE)
 
-App GETs `https://utterbar.com/api/pricing` from [pricing.rs](Utterbar%20Windows%20App/src-tauri/src/commands/pricing.rs). Expected shape:
+App GETs `https://utterbar.com/api/pricing` from [pricing.rs](Utterbar%20Windows%20App/src-tauri/src/commands/pricing.rs). Shape:
 ```json
 { "amount_usd": 39.99, "currency": "GBP", "period": "one_time", "display": "£39.99" }
 ```
-**Status:** implemented server-side in [PricingApiController.php](Utterbar%20Website/app/Http/Controllers/Api/PricingApiController.php), wired in [routes/web.php](Utterbar%20Website/routes/web.php) at `Route::get('/api/pricing', …)` with a 60/min throttle. App-side fallback is corrected to `£39.99 GBP` in both pricing.rs and useProPrice.ts. **Still needs a Cloudways deploy** to go live — run `Utterbar Website/scripts/deploy-website.ps1`.
+Implementation: [PricingApiController.php](Utterbar%20Website/app/Http/Controllers/Api/PricingApiController.php), wired in [routes/web.php](Utterbar%20Website/routes/web.php) at `Route::get('/api/pricing', …)` with a 60/min throttle. App-side fallback matches (`£39.99 GBP` in both pricing.rs and useProPrice.ts).
 
-### 4.4 Updater API — app → website (IN CODE, NOT DEPLOYED)
+### 4.4 Updater API — app → website (LIVE)
 
-App GETs `$UTTERBAR_LICENCE_BASE_URL/api/updater/check?current=<v>&channel=stable` from [updater.rs](Utterbar%20Windows%20App/src-tauri/src/commands/updater.rs). Expected shape:
+App GETs `$UTTERBAR_LICENCE_BASE_URL/api/updater/check?current=<v>&channel=stable` from [updater.rs](Utterbar%20Windows%20App/src-tauri/src/commands/updater.rs). Shape when an upgrade is available (currently the v0.7.2 row):
 ```json
-{ "available": true, "version": "0.6.4", "download_url": "https://dl.utterbar.com/releases/0.6.4/Utterbar-Setup-0.6.4.exe", "sha256": "...", "notes_markdown": "...", "size_bytes": 11014909 }
+{ "available": true, "version": "0.7.2", "download_url": "https://dl.utterbar.com/releases/0.7.2/Utterbar-Setup-0.7.2.exe", "sha256": "...", "notes_markdown": "...", "size_bytes": 11014909 }
 ```
-**Status:** implemented server-side in [UpdaterApiController.php](Utterbar%20Website/app/Http/Controllers/Api/UpdaterApiController.php), wired in [routes/web.php](Utterbar%20Website/routes/web.php) at `Route::get('/api/updater/check', …)`. Queries the `releases` table for the newest eligible row (valid X.Y.Z version, valid SHA-256, non-empty r2_key), returns `available: false` otherwise. **Still needs a Cloudways deploy** to go live.
+Implementation: [UpdaterApiController.php](Utterbar%20Website/app/Http/Controllers/Api/UpdaterApiController.php), wired in [routes/web.php](Utterbar%20Website/routes/web.php) at `Route::get('/api/updater/check', …)`. Queries the `releases` table for the newest eligible row (valid X.Y.Z version, valid SHA-256, non-empty r2_key), returns `{ "available": false }` otherwise.
 
 ### 4.5 Stripe webhook — Stripe → website
 
@@ -567,19 +567,19 @@ Both app-side fallbacks now return `£39.99 GBP`:
 - [useProPrice.ts](Utterbar%20Windows%20App/src/hooks/useProPrice.ts)
 - [pricing.rs](Utterbar%20Windows%20App/src-tauri/src/commands/pricing.rs)
 
-Will ship in v0.6.5. The old `$29` string in [releases/0.6.1.md](Utterbar%20Windows%20App/releases/0.6.1.md) is historical and intentionally untouched.
+Shipped in v0.7.0. The old `$29` string in [releases/0.6.1.md](Utterbar%20Windows%20App/releases/0.6.1.md) is historical and intentionally untouched.
 
-### 10.2 Pricing API route missing — FIXED (code committed, needs deploy)
+### 10.2 Pricing API route missing — SHIPPED
 
-`/api/pricing` controller + route exist. Not yet deployed to Cloudways — see §4.3.
+`GET /api/pricing` is live and returns `{ amount_usd: 39.99, currency: "GBP", period: "one_time", display: "£39.99" }` from the Stripe-backed price config.
 
-### 10.3 Updater API route missing — FIXED (code committed, needs deploy)
+### 10.3 Updater API route missing — SHIPPED
 
-`/api/updater/check` controller + route exist. Not yet deployed to Cloudways — see §4.4. Still the priority 1 cross-repo item because **v0.6.1 users can't auto-upgrade until the website deploy goes out**.
+`GET /api/updater/check?current=<v>&channel=stable` is live. Returns the latest stable release's version, download URL, SHA-256, and notes when a newer release exists, or `{ available: false }` otherwise.
 
-### 10.4 Installer filename legacy key — FIXED
+### 10.4 Installer filename legacy key — SHIPPED
 
-`publish-release.sh` uploads to the versioned key `releases/<v>/Utterbar-Setup-<v>.exe` and sends `r2_key` explicitly in the POST body. [AdminReleaseApiController.php](Utterbar%20Website/app/Http/Controllers/Api/AdminReleaseApiController.php) now also defaults its own fallback to the versioned path (previously defaulted to the unversioned `Utterbar-Setup.exe`). Needs a Cloudways deploy to take effect on live.
+`publish-release.sh` uploads to the versioned key `releases/<v>/Utterbar-Setup-<v>.exe` and sends `r2_key` explicitly in the POST body. [AdminReleaseApiController.php](Utterbar%20Website/app/Http/Controllers/Api/AdminReleaseApiController.php) defaults its fallback to the versioned path. Legacy `Utterbar-Setup.exe` copies still exist in R2 from earlier releases and can be cleaned up.
 
 ### 10.5 `publish-release.sh` curl quoting — FIXED
 
@@ -608,7 +608,7 @@ Not a minor-release patch — real redesign, queue for next polish cycle.
 
 12 MP4s render correctly at 1920×1080 but not verified at the website's mobile breakpoint. Queue for when the website is ready to consume them.
 
-### 10.9 Tauri v2.10 IPC heap corruption — PATCHED VIA VENDORED RUNTIME IN v0.6.7
+### 10.9 Tauri v2.10 IPC heap corruption — SHIPPED IN v0.7.0 VIA VENDORED RUNTIME
 
 Three symbolicated minidumps from 2026-04-24 testing, all exception code `0xC0000374` (heap corruption), all final frame `ntdll!RtlReportFatalFailure+0x9` at the same address:
 
@@ -645,18 +645,22 @@ The patch is **two lines**: change `Context<T>::main_thread` from `DispatcherMai
 
 **Crash-analyser tooling.** [scripts/analyse-crash.ps1](Utterbar%20Windows%20App/scripts/analyse-crash.ps1) was rewritten in the v0.6.6 session to parse cleanly and symbolicate matching-version dumps. Previous versions had a string-quoting bug that broke on paths with spaces. Usage: `.\scripts\analyse-crash.ps1` (newest dump) or `.\scripts\analyse-crash.ps1 -Dump <path>` or `.\scripts\analyse-crash.ps1 -All`. Output includes `!analyze -v` with the failure bucket.
 
-### 10.10 Licence persistence across app restarts — FIXED (v0.6.5)
+### 10.10 Licence persistence across app restarts — SHIPPED IN v0.7.0
 
-Cache is now loaded synchronously in `LicenceService::new()` rather than deferred to a tokio task, so the tier is correct from the first paint and no longer races the UI mount. See [services/licence/mod.rs:97-139](Utterbar%20Windows%20App/src-tauri/src/services/licence/mod.rs). Needs Jay's test confirmation.
+Dual-cache: Windows Credential Manager + `%APPDATA%\Utterbar\licence.json`. Cache is loaded synchronously in `LicenceService::new()` rather than deferred to a tokio task, so the tier is correct from the first paint and no longer races the UI mount. See [services/licence/mod.rs](Utterbar%20Windows%20App/src-tauri/src/services/licence/mod.rs).
 
-### 10.11 Docs vs code drift (from DOCS_AUDIT_v0.6.1.md)
+### 10.11 Docs vs code drift — RESOLVED 2026-04-24
 
-- `docs/shortcuts.blade.php` claims all bindings are "unbound"; the app ships real defaults (see [DOCS_AUDIT_v0.6.1.md](Utterbar%20Website/DOCS_AUDIT_v0.6.1.md)).
-- `docs/modes.blade.php` claims 6 built-in modes; app ships 3 (`voice-to-text`, `message`, `meeting`).
-- `docs/vocabulary.blade.php` mentions a "Team" tier that doesn't exist.
-- `docs/troubleshooting.blade.php` references a pill-visibility hotkey that doesn't exist; missing a v0.6.1 updater section.
+Website docs were brought into line with v0.7.0 in the post-ship audit:
 
-Not blocking; land in priority order from the audit doc.
+- `docs/shortcuts.blade.php` now shows real defaults for all seven slots.
+- `docs/modes.blade.php` documents the three built-in modes (was six).
+- `docs/vocabulary.blade.php` no longer mentions a Team tier or per-mode replacements.
+- `docs/troubleshooting.blade.php` — "red LED" entry replaced with the v0.7.0 "no audio detected" path; tray label corrected to "Reset Utterbar position".
+- `docs/privacy-controls.blade.php` reframed as global switches (v0.7 removed per-mode context toggles).
+- Pricing, features, home, and the download/waitlist copy were also softened — no more "coming 1.0" language now that the public build has shipped.
+
+`Utterbar Website/DOCS_AUDIT_v0.6.1.md` is now historical — items there are either shipped or tracked in `TODO.md`.
 
 ---
 
@@ -701,26 +705,39 @@ Not blocking; land in priority order from the audit doc.
 
 ---
 
-## 12. Current state (2026-04-24)
+## 12. Current state (2026-04-26, post-v0.7.2 ship)
 
 ### Desktop app
-- **In-tree version:** `v0.6.7`. Runtime patch landed; installer build pending.
-- **Last publicly-shipped version:** `v0.6.1` (still on `/download`).
-- **v0.6.6** built but never publicly shipped — crash reproduced after 1 use of the build, which triggered the v0.6.7 runtime patch work. v0.6.6's user-facing fixes carry forward into v0.6.7.
-- Everything between v0.6.1 and v0.6.7 rolled into [releases/0.6.7.md](Utterbar%20Windows%20App/releases/0.6.7.md).
-- **Crash patched in v0.6.7** via a vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). See §10.9.
-- Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed. Script was rewritten in the v0.6.6 session to parse cleanly.
+- **Last publicly-shipped version:** `v0.7.2` — registered on the website's admin release API on 2026-04-25. Shown on `/download`, returned by `/api/updater/check` for any older client. Release notes: [releases/0.7.2.md](Utterbar%20Windows%20App/releases/0.7.2.md). v0.7.2 is a targeted scroll-fix follow-up to v0.7.1: Settings + Onboarding scroll containers now derive height from the document root rather than `100vh` so the inner scroller sees the real viewport.
+- **v0.7.1 history.** Published, but its R2 object was overwritten with the v0.7.2 scroll-fix binary; v0.7.1 release notes ([releases/0.7.1.md](Utterbar%20Windows%20App/releases/0.7.1.md)) are retained for context.
+- **In-tree version:** `v0.7.3` (manifests bumped — `package.json`, `Cargo.toml`, `tauri.conf.json` all read 0.7.3; release notes drafted at [releases/0.7.3.md](Utterbar%20Windows%20App/releases/0.7.3.md)). **Not yet built / uploaded / registered.** The v0.7.3 work is a pass on the auto-update flow: toast triggers on main-window focus + Settings open + launch, manual "Check now" button drives the same toast, onboarding adds an explicit consent step for update checks. Treat as in-flight until the runbook says otherwise.
+- v0.6.1 was pulled (crashes); v0.6.2–v0.6.9 were internal-only iterations. All their user-facing fixes rolled forward into v0.7.0.
+- **Tauri IPC crash** — patched via vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). See §10.9.
+- Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed.
 
 ### Website
-- `/api/pricing` + `/api/updater/check`: **code committed, not deployed**.
-- Sign-in + update-subscriber token-hashing migrations: **code committed, not applied in prod DB**.
-- 58 PHP tests: green on Jay's dev machine 2026-04-24 (PHP 8.2 + phpunit 11, in-memory SQLite). **One-machine-single-point-in-time** — not CI-verified. Re-run before deploy.
-- Cloudways deploy: run `Utterbar Website/scripts/deploy-website.ps1` with `$env:CLOUDWAYS_PASSWORD` set.
+- Live on Cloudways. All contract endpoints deployed:
+  - `GET /api/pricing` → `£39.99 GBP`.
+  - `GET /api/updater/check?current=<v>` → v0.7.2 upgrade info for older clients.
+  - `POST /api/licence/{fetch,activate,deactivate,heartbeat}` → working.
+  - `POST /api/stripe/webhook` → live; mints licences on `checkout.session.completed`.
+- Sign-in + update-subscriber tokens hashed; staged rotation in place.
+- Release table populated; `/changelog` + `/download` render from it.
+- `config/site.php` `version` is now `0.7.2` (informational — tracks the last shipped app version, not the website). Status-strip "preview" label dropped on 2026-04-26.
+- 58 PHP tests still only one-machine-green, not CI-verified. Re-run before each deploy.
+- Deploy: `Utterbar Website/scripts/deploy-website.ps1` with `$env:CLOUDWAYS_PASSWORD` set.
+
+### In-flight (uncommitted at 2026-04-26)
+- **Waitlist removal.** `WaitlistController`, `WaitlistEntry` model, `WaitlistConfirmation` mailable, `/waitlist` route + page, `waitlist-form` Blade component, and the `2026_04_24_110000_drop_waitlist_entries_table.php` migration are all deleted/staged for deletion. Migration has not yet run on production — the waitlist is dead in-tree, alive on production until deployed.
+- **Admin surface expansion.** New `Admin/ContactController`, `Admin/LicenceController`, `Admin/SubscriberController` with views under `pages/admin/{contacts,licences,subscribers}/` and a new `admin-nav` Blade component. New `LicenceRemint` artisan command.
+- **New marketing pages.** `pages/compare/*` and `pages/what-is-local-dictation.blade.php`.
+- **App auto-update flow rework** as part of the v0.7.3 in-tree work (see Desktop app above) — new `src/state/update.ts` store, modified `MainShell.tsx`, `Onboarding.tsx`, `GeneralSettings.tsx`, `ModelsSettings.tsx`, `UpdateToast.tsx`. Rust-side: `pricing.rs`, `inference/mod.rs`, `licence/verify.rs` modified.
+- **Remotion bundle** — `HowItWorks` and `OnboardingWalkthrough` compositions deleted; new `StatePillStatic.tsx`; manifest + `out/` regenerated.
 
 ### Environment
 - Stripe: **live mode**, £39.99 GBP, Stripe Tax on, adaptive pricing on.
-- Ed25519 keypair: **sandbox** still in use. Rotate at v0.7.
-- R2 CDN: `dl.utterbar.com` — hosts installers at `releases/<v>/Utterbar-Setup-<v>.exe` (+ legacy `Utterbar-Setup.exe` alias).
+- Ed25519 keypair: **sandbox still in use on live**. Rotation flagged in [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md).
+- R2 CDN: `dl.utterbar.com` — installers at `releases/<v>/Utterbar-Setup-<v>.exe` (+ legacy `Utterbar-Setup.exe` alias for the versioned-key validator fix).
 - Admin notify: `hello@utterbar.com`.
 
 ---
@@ -729,16 +746,14 @@ Not blocking; land in priority order from the audit doc.
 
 Ranked by user-impact, current priorities:
 
-1. **Verify v0.6.7 resolves the crash.** Jay tests ~30 min post-install, stress-testing IPC-heavy paths (drag, repeated dictation, multi-window). If crashes recur, read `%APPDATA%\Utterbar\logs\crash.log` and symbolicate the new dump. A v0.6.7 crash would indicate either a second independent bug or that the vendored patch is insufficient.
-2. **Publish v0.6.7 to R2 + admin API** once Jay signs off. `publish-release.sh` flow.
-3. **Deploy the website** via `deploy-website.ps1`. Independent of app release. Unblocks `/api/pricing` + `/api/updater/check` — so v0.6.1 users can actually auto-upgrade.
-4. **File a comment on upstream [tauri#10001](https://github.com/tauri-apps/tauri/issues/10001)** with the four minidumps' symbolicated stacks + the failure bucket. Evidence-only, without revealing proprietary app detail. Non-blocking — helps upstream and future Tauri users.
-5. **Admin dashboard cohesion** — no releases link from `/admin`, no licence-revoke UI. Website-only, ships whenever.
-6. **Docs audit fixes** from [DOCS_AUDIT_v0.6.1.md](Utterbar%20Website/DOCS_AUDIT_v0.6.1.md) — shortcuts / modes / vocabulary / troubleshooting doc pages drifted from app reality.
-7. **Remotion video quality pass** — current renders are slow, zoomed-out, bordered, waveform speed wrong. Separate dedicated session. Consider R2-backed CDN delivery.
-8. **Clean up orphan R2 objects** — legacy `releases/<v>/Utterbar-Setup.exe` copies from pre-v0.6.5 releases. Safe to delete from the bucket once the v0.6.5 website deploy is live.
-9. **4.9 GB idle RAM investigation** (§10.6) — not investigated yet; requires VMMap attach.
-10. **Tauri Rc drop mitigation** (§10.9) — only if v0.6.5 recurs. Fork `tauri-runtime-wry`, defer `DispatcherMainThreadContext::Drop` to main thread.
+1. **Ed25519 key rotation.** Sandbox keypair is still trusted by shipped clients. Plan + execute per [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md). Needs careful roll-out so existing v0.7.0 installs don't silently break.
+2. **Legal pages refresh** — `legal/privacy.blade.php` + `legal/terms.blade.php` still describe the site as storing only waitlist emails. With Stripe live they need a pass to mention purchase records, licence keys, device fingerprints.
+3. **File a comment on upstream [tauri#10001](https://github.com/tauri-apps/tauri/issues/10001)** with the minidumps' symbolicated stacks + failure bucket. Helps upstream.
+4. **Admin dashboard cohesion** — no releases link from `/admin`, no licence-revoke UI. Website-only, ships whenever.
+5. **Remotion video quality pass** — current renders are slow, zoomed-out, bordered, waveform speed wrong. Separate dedicated session. Consider R2-backed CDN delivery.
+6. **Clean up orphan R2 objects** — legacy `releases/<v>/Utterbar-Setup.exe` copies from the double-upload era. Safe to delete from the bucket now the versioned-key validator ships.
+7. **4.9 GB idle RAM investigation** (§10.6) — not investigated yet; requires VMMap attach.
+8. **Waitlist tidy-up** — waitlist form is still embedded site-wide but its value proposition is now "changelog in your inbox". A proper pass would rename the component, drop `showUseCase`, and reword the confirmation email.
 
 ---
 

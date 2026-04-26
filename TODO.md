@@ -4,167 +4,173 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-24 (v0.6.8 build-pending — runtime-level crash patch landed via vendored `tauri-runtime-wry`. Ships every fix since v0.6.1 plus the runtime fix. Jay to verify in extended testing.)**
+**Last updated: 2026-04-26 (post-0.8.0 catalogue refactor).**
 
 ---
 
 ## Where we are right now
 
-**Desktop app:** v0.6.8 in-flight. Rust compiled green; installer build
-is the next step. Testing + your sign-off before publishing anywhere.
+**Last publicly shipped app version: v0.7.8** (file transcription
+review — clickable rows, transcript modal, copy / show in folder /
+delete). Tip jar is live on home + pricing + download. GA4 is
+consent-gated. Per-page OG images, admin tip dashboard, /blog with
+file-backed Markdown posts.
 
-**Website:** No changes deployed yet. A full commit-ready payload sits
-in the tree: two hashed-token migrations, `/api/pricing`, `/api/updater/check`,
-staged-rotation email flow, admin Blade form required-SHA fix. 58 PHP
-tests were green on Jay's machine on 2026-04-24 (PHP 8.2 + phpunit 11,
-in-memory SQLite) — that is a single-machine-single-point-in-time
-result, not CI-verified. **Re-run the tests before deploy.** Deploy
-script at `Utterbar Website/scripts/deploy-website.ps1` ready to run
-with `$env:CLOUDWAYS_PASSWORD`.
+**In-tree app version: v0.8.0** — multi-engine inference scaffolding.
+- New `ModelEngine` enum on `ModelInfo` (Parakeet-TDT / Whisper /
+  Zipformer). Inference layer dispatches on it; only Parakeet is
+  wired today, Whisper + Zipformer return errors so a user can't
+  install one and crash.
+- Catalogue trimmed to two entries: Parakeet v3 int8 (Free,
+  Recommended) and Parakeet v3 fp16 (Pro, GPU-only).
+- Parakeet v2 (int8 + fp16) **dropped entirely**. Settings + DB
+  migrations rewrite any v2 reference to v3 on first run; the v2
+  files on disk are left alone (the user paid the download).
+- Models settings page shows engine label per row.
+- Onboarding: filter is now `!requires_pro` only (no more `-v2-` exclusion).
+- Pricing page reflects Pro = fp16 access, batch transcription,
+  unlimited custom modes etc.
+- Honest copy on /home FAQ: English-only today, Whisper multilingual
+  in v0.8.1 per the three-release roadmap.
 
-**Versions in-tree:**
-- App: `0.6.8` (installer build in progress). Carries forward v0.6.7 (vendored `tauri-runtime-wry` patch + four product-polish items + Codex corrections), plus three post-v0.6.7 fixes: `schedule_idle` phase guard (no more self-stopping recordings), compositor-promoted drag visual (scale + accent border actually visible during native drag), position-persist diagnostics. v0.6.7's installer SHA-256 `B1116304…` is superseded.
-- Latest published app version: `0.6.1` (still what users see on the
-  website's download page — nothing newer has been uploaded to R2 or
-  announced).
+**Roadmap for the rest of 0.8.x:**
+- **v0.8.1**: Whisper engine wired, multilingual support, language
+  picker on Whisper models, onboarding picker gets a multilingual
+  third option.
+- **v0.8.2**: Zipformer engine wired (fast English, smaller).
 
-**v0.6.8 scope notes:**
-- Carries forward v0.6.6's six user-reported fixes (sidebar version, British mode cheque/check, mode/global audit, no-audio-detected, drag border, licence persistence via dual-cache).
-- Carries forward v0.6.6's reliability paths (stuck-hotkey self-heal + Rust phase re-emit) and expanded logging.
-- Carries forward the `clamp_floating_position` sync experiment as belt-and-braces.
-- **Vendored runtime patch.** `tauri-runtime-wry-2.10.1` copied into [src-tauri/vendor/](Utterbar%20Windows%20App/src-tauri/vendor/) with `main_thread` field wrapped in `Arc`. Wired via `[patch.crates-io]`. Two-line change, technically defensible, not a Rc→Arc cargo-cult. Full rationale in `MONOREPO.md §10.9` and the module-level comment in the patched `lib.rs`.
-- **Four minidumps backing the fix** (2026-04-24 UTC 16:24, 16:57, 17:34, 18:28). Two stack patterns (tokio-worker heap corruption + main-thread ud2), both bottomed out at the `Rc<EventLoopRunner>` clone/drop that the patch eliminates.
-- **NEW: product polish pass** (4 items):
-  - **Cold-load status** — Rust detects cold-load via `orchestrator.loaded_model_id()`, emits `DictationPhase::Warming` before `ensure_loaded`, flips to `Processing` after. StatePill renders "Initialising model" in accent tone.
-  - **Collapse animation** — removed the inner `AnimatePresence` wrapper; always-mounted wrapper with state-driven `max-width + opacity` so the outer `layout` animation measures the correct collapsed width from t=0. One motion.
-  - **Vocabulary scalability** — search + A–Z/Recent sort for words, search for replacements, tighter row density. Controls appear only at 10+ entries so small lists stay frictionless.
-  - **Position persistence** — `commands/window.rs::save_floating_position` writes `%APPDATA%\Utterbar\config\floating_position.json` after every drag; `restore_floating_position` validates against current monitor set + applies at startup before first paint.
-- **Maintenance cost:** any Tauri `cargo update` past 2.10.x needs a rebase of the vendored crate. Flagged in `MONOREPO.md §10.9`.
+**Website:** deployed. All cross-side contract endpoints live:
+- `GET /api/pricing` returns `£39.99 GBP`.
+- `GET /api/updater/check?current=<v>` returns the latest stable
+  release row.
+- `POST /api/licence/{fetch,activate,deactivate,heartbeat}` working.
+- Stripe live (Pro checkout + tip jar both go through it).
+- Magic-link sign-in uses SHA-256-hashed tokens.
+- GA4 (`G-5PQ5CNPQ38`) loads only after consent banner accept.
+- Cookie consent banner + footer "Cookies" revisit link.
+- Per-page OG image generator at `/og/image`.
+- Download analytics + tip dashboard at `/admin/{analytics,tips}`.
 
----
-
-## Done since v0.6.1, all rolled into v0.6.8
-
-Everything below is committed to `badoomtch/Utterbar-App` main OR will
-be committed as part of the v0.6.8 commit that is about to go.
-
-### Desktop — stability
-
-| Item | Mechanism | Status |
-| --- | --- | --- |
-| Heap-corruption crash (WebView fan-out → 3× start_recording) | Frontend gate: sound cues, notifications, shortcut dispatcher early-return in non-main webviews | committed v0.6.2 |
-| Heap-corruption crash (inference teardown race) | Sweeper + inline-unload respect `Arc::strong_count` so native recogniser isn't dropped under a live transcribe | committed v0.6.3 |
-| Heap-corruption crash (COM apartment mismatch, UIA on tokio workers) | Dedicated `utterbar-uia` thread owns STA apartment for app lifetime; `snapshot_selection` routes via crossbeam channel. Fixed `audio_ducking::ComGuard` to not over-release on `RPC_E_CHANGED_MODE`. | **staged for v0.6.8** |
-| Hotkey silently stops working | `recording_in_progress` + `transcribe_in_progress` atomics self-heal when stale (no active capture OR timestamp > 30s) | committed v0.6.3 / refined v0.6.8 |
-| Transcription inventing filler words | RMS + duration gate + post-filter against known hallucination tokens | committed v0.6.2 |
-| 6× audio per hotkey | Frontend fan-out gate (same fix as the first crash class) | committed v0.6.2 |
-| Start-recording while previous still transcribing | Rust rejects with `dictation:busy` event; FloatingBar flashes border for 900ms | committed v0.6.3 |
-
-### Desktop — UI
-
-| Item | Mechanism | Status |
-| --- | --- | --- |
-| History page 2-column squeeze | Full redesign: one column of entries, detail in a modal, ESC + click-outside dismiss | committed v0.6.3 |
-| FloatingBar open/close staggered | Single 280ms timeline shared by width + opacity (no nested delays) | committed v0.6.3 / refined v0.6.8 |
-| FloatingBar drag border flashing then vanishing | Replaced pointerup-clear with Tauri `onMoved`-debounced drag-end detection + 2.5s hard fallback | **staged for v0.6.8** |
-| FloatingBar collapsed pill empty-space | Dropped min-w; pill hugs content | committed v0.6.3 |
-| FloatingBar expanded pill — drag-handle space | `justify-between` on the outer pill keeps logo+wordmark left, action cluster right, empty drag zone between | **staged for v0.6.8** |
-| Triple scrollbar on small window | `overflow: hidden` on html/body/#root + flex guards on aside | committed v0.6.3 |
-| Sidebar version number clipped on short windows | `shrink-0 pb-5` on footer block | committed v0.6.3 |
-| Icons vanish instantly on unhover | Exit animation with opacity-only fade on shared timeline | committed v0.6.3 |
-| In-app Pro price fallback `$29 → £39.99` | Updated both `useProPrice.ts` + `pricing.rs` fallback | committed v0.6.2 |
-
-### Website — security + correctness
-
-| Item | Status |
-| --- | --- |
-| Sign-in tokens stored as SHA-256 hex, not plaintext | committed (website working tree) |
-| Update-subscriber tokens hashed | committed |
-| `/api/pricing` endpoint | committed |
-| `/api/updater/check` endpoint | committed |
-| Release publish validation: SHA-256 required, strict X.Y.Z version | committed |
-| Staged token rotation (failed email send keeps old unsubscribe link alive) | committed |
-| 58 PHP tests — last seen green on Jay's machine 2026-04-24; re-run before deploy | one-machine-green, no CI |
-| `deploy-website.ps1` for pscp/plink push to Cloudways | committed |
-
-### Monorepo
-
-- Root `CLAUDE.md`, `MONOREPO.md`, `RELEASE_RUNBOOK.md`, `TODO.md`, `.gitignore`. Per-subdir `CLAUDE.md` files superseded-by-root-linked.
+**Versions in tree (verified):**
+- App `package.json` / `Cargo.toml` / `tauri.conf.json`: `0.8.0`
+  (in-flight at time of writing — about to bump + build + publish).
+- Website `config/site.php`: `0.7.8` (informational; real release
+  data served from the `releases` table).
 
 ---
 
-## Do before committing v0.6.8 (this session, imminent)
+## In-flight (uncommitted) — do NOT count as shipped
 
-- [ ] **Compile check Rust** — `cargo clippy --all-targets -- -D warnings` should pass.
-- [ ] **Frontend typecheck + lint** — done, both green.
-- [ ] **Build the v0.6.8 installer** (`pnpm tauri build`). ~7 min.
-- [ ] **Hash the installer, record size + SHA-256**.
-- [ ] **Commit + push** to `badoomtch/Utterbar-App`.
+Working-copy work staged on disk but not committed. Verified via
+`git status`. Cross-check against shipped release notes before
+claiming any of this is live.
 
-## Do before publishing v0.6.8 (not this session)
+**Website (Laravel):**
+- Waitlist removal: `WaitlistController`, `WaitlistEntry`,
+  `WaitlistConfirmation` mailable, `waitlist-form` Blade component,
+  `/waitlist` route + page, waitlist confirmation email templates,
+  and the `2026_04_24_110000_drop_waitlist_entries_table.php`
+  migration are all deleted/staged for deletion. The migration has
+  not yet run on production.
+- New admin surfaces: `Admin/ContactController`,
+  `Admin/LicenceController`, `Admin/SubscriberController`, plus
+  views under `pages/admin/contacts/`, `pages/admin/licences/`,
+  `pages/admin/subscribers/` and an `admin-nav` component.
+- New artisan command: `LicenceRemint`.
+- New marketing pages: `pages/compare/*` and
+  `pages/what-is-local-dictation.blade.php`.
+- Pricing card / prompt-cta / footer / docs / pages / contact /
+  legal Blade views modified across the board.
+- `config/marketing.php`, `routes/web.php`, `deploy-website.ps1`,
+  `app.js`, `still.blade.php`, `video-embed.blade.php` modified.
 
-- [ ] **You install + test for ~30 min.** Specific things to check:
-  - No crash across continuous use.
-  - Hotkey never stops responding.
-  - Border stays cyan for the whole drag.
-  - Dragging the empty middle of the expanded pill moves the window without closing it.
-  - Open/close reads as one smooth motion.
-  - Busy-flash triggers when you hotkey during transcribe.
-- [ ] **You give explicit sign-off.**
-- [ ] I run `publish-release.sh` (SHA-256 computed, upload to R2, POST admin API, announce). 
-- [ ] Git tag `v0.6.8`, push tag.
-
-## Website deploy — independent of app release
-
-Can ship anytime. When you're ready:
-
-```powershell
-$env:CLOUDWAYS_PASSWORD = '<password>'
-.\Utterbar Website\scripts\deploy-website.ps1
-```
-
-Requires `pscp` + `plink` (`winget install PuTTY.PuTTY`). Runs composer
-install --no-dev, `php artisan migrate --force` (applies the two new
-hash-token migrations), clears caches, rebuilds Vite, smoke-tests the
-new endpoints.
-
----
-
-## Open product issues (deferred, not blocking v0.6.8)
-
-None of these need to ship with v0.6.8:
-
-- [x] **Licence not persisting across app restarts.** Fixed in v0.6.8 — licence cache now loads synchronously in `LicenceService::new()` so the tier is correct from first paint. Needs your test confirmation.
-- [ ] **Licence show/hide toggle in the settings panel.** New feature.
-- [ ] **Admin page `/admin` cohesion** — no releases link, no licence-revoke UI. Website work, independent of app release.
-- [ ] **Docs/app drift audit** — findings in `Utterbar Website/DOCS_AUDIT_v0.6.1.md`, needs landing.
-- [ ] **Remotion video quality pass** — slow to load, zoomed out, bordered, audio waveform speed wrong, doesn't match the real app. Separate dedicated session. Plan: re-render compositions against real `FloatingBar.tsx` imports, push to R2 for CDN-backed delivery.
-- [ ] **Docs-stay-in-sync-with-app rule** — meta: when app behaviour changes, docs should update in the same change. Not a ticket, a policy. Already added to the tone of how I work; leave here as reminder.
+**Desktop app:**
+- v0.7.3 release notes (auto-update flow rework — toast on focus,
+  manual "Check now" wiring, onboarding consent step).
+- Modified: `MainShell.tsx`, `Onboarding.tsx`, `GeneralSettings.tsx`,
+  `ModelsSettings.tsx`, `UpdateToast.tsx`, plus a new
+  `src/state/update.ts` store.
+- Rust-side: `pricing.rs`, `inference/mod.rs`, `licence/verify.rs`
+  modified.
+- Marketing/Remotion bundle: HowItWorks + OnboardingWalkthrough
+  compositions deleted; new `StatePillStatic.tsx`; manifest +
+  rendered `out/` regenerated.
 
 ---
 
-## Open crash risk still to watch
+## Cross-side contract status (verified 2026-04-26)
 
-- **First-touch COM init on fresh tokio worker.** The fixes in v0.6.8
-  should resolve the mismatch-corruption path, but we've never actually
-  observed the crash under the new architecture yet. If v0.6.8 still
-  crashes after 30 min of use, the next suspect is clipboard reads
-  via `text_inject::read_clipboard_text` (no COM but uses `GlobalLock`
-  on clipboard handles — different memory-safety family). I'll know
-  what to look at from the crash.log subsystem name.
-- **Drag border might still flash-then-stick on window managers that
-  don't emit `onMoved`.** The hard fallback at 2.5s is the safety net;
-  if you observe weirdness, tell me.
+Reconfirmed by re-reading the script + release docs (see fault
+line §5 below):
+
+- `Utterbar Windows App/scripts/publish-release.sh` uploads to the
+  versioned R2 key `releases/<v>/Utterbar-Setup-<v>.exe` only — no
+  legacy second-key upload. POST body explicitly includes `r2_key`
+  so the admin API does not fall back to its default. POSTs to
+  `$UTTERBAR_API_BASE/api/admin/releases` via temp-file
+  `--data-binary "@..."` (avoids git-bash multiline JSON mangling).
+- The website-side admin API's `file_not_in_bucket` fallback now
+  defaults to the versioned key (matches what the script uploads).
+- `--announce` triggers email-out to confirmed `update_subscribers`.
+
+If anything in [RELEASE_RUNBOOK.md](RELEASE_RUNBOOK.md) or
+[Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md)
+contradicts the above, fix the docs in the same PR.
+
+---
+
+## Open product issues
+
+- [ ] **Waitlist tidy-up** — code is staged for deletion in-tree
+  but not yet pushed/deployed. Run the drop migration on production
+  after the deploy, then verify `prompt-cta` + footer + admin views
+  no longer reference a waitlist anywhere.
+- [ ] **Legal pages refresh** — `legal/privacy.blade.php` and
+  `legal/terms.blade.php` still describe the site as storing only
+  waitlist emails. With Stripe live they need to mention purchase
+  records, licence keys, and device fingerprints.
+- [ ] **Ed25519 key rotation.** Sandbox keypair still in use on the
+  live site — see [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md).
+  Plan needs to allow existing v0.7.x installs to keep validating.
+- [ ] **Admin dashboard cohesion** — the staged `Admin/*`
+  controllers + views (contacts, licences, subscribers) need a
+  navigation pass once they ship. The `admin-nav` component is the
+  starting point.
+- [ ] **Remotion video quality pass.** Re-render compositions
+  against current `FloatingBar.tsx` imports; consider R2-backed CDN
+  delivery.
+- [ ] **4.9 GB idle RAM** — never investigated. See
+  [MONOREPO.md §10.6](MONOREPO.md).
+
+---
+
+## Open risks to watch
+
+- **v0.7.0 runtime patch maintenance cost.** Any Tauri `cargo
+  update` past 2.10.x requires rebasing the vendored
+  `tauri-runtime-wry` crate. Rationale in
+  [MONOREPO.md §10.9](MONOREPO.md).
+- **First-run model download failure paths.** Unchanged this
+  release; still a plausible support ticket source.
+- **v0.7.3 in-flight onboarding consent step** — defaults to on,
+  but verify the consent toggle actually gates the
+  `/api/updater/check` call before shipping.
 
 ---
 
 ## Session caveats to carry forward
 
-- **Monorepo:** `c:\Users\jaypa\Documents\GitHub\Utterbar\` is a single git repo. `Utterbar Windows App/` and `Utterbar Website/` sit inside. Remote: `badoomtch/Utterbar-App` private.
-- **App version ≠ website version.** The website deploys continuously; only the desktop installer has a semver.
-- **The user (Jay) tests every app build before we ship.** No installer goes to R2 until Jay explicitly approves.
-- **PHP tests — where they run:** 58 tests (SignInTokenTest, UpdateSubscriberTokenTest, ApiContractTest, ReleasePublishValidationTest, UnsubscribeRotationTest) passed on Jay's dev machine on 2026-04-24 via the php 8.2.30 + composer install at `%USERPROFILE%\bin` + `%LOCALAPPDATA%\Microsoft\WinGet\Packages\PHP.PHP.8.2_*`. That install is NOT portable — a fresh shell / sibling tool / CI runner will not have php on PATH until those installs are reproduced (`winget install PHP.PHP.8.2` + the composer shim). **Not validated in CI.** Treat the "58 passing" claim as "passed on one machine at one point". Re-run before deploying the website.
-- **Memory files** under `.claude/projects/.../memory/` reflect this session's decisions. Key ones: `feedback_versioning.md` (app vs website), `project_v061_investigation.md` (crash history), `reference_release_runbook.md` (release ritual pointer).
+- **Monorepo:** `c:\Users\jaypa\Documents\GitHub\Utterbar\` is a
+  single git repo. `Utterbar Windows App/` and `Utterbar Website/`
+  sit inside. Remote: `badoomtch/Utterbar-App` private.
+- **App version ≠ website version.** Website deploys continuously;
+  only the desktop installer has a semver. The
+  `config('site.version')` value is informational and tracks the
+  last shipped app version only.
+- **Jay tests every app build before we ship.** No installer goes
+  to R2 until Jay explicitly approves.
+- **PHP tests are not in CI.** Rerun on the dev machine before
+  deploying the website.
 
 ---
 

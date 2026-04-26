@@ -163,12 +163,12 @@ Flags:
 4. POSTs metadata (`version`, `channel`, `sha256`, `notes_markdown`, `announce`, `tag`) to `$UTTERBAR_API_BASE/api/admin/releases` with bearer-token auth.
 5. Expects `201 Created` with `id`, `download_url`, `size_bytes`, `announced_to`.
 
-### Known drifts and workarounds (as of 2026-04-24)
+### Known drifts and workarounds (as of 2026-04-26)
 
 See [MONOREPO.md §10](MONOREPO.md) for the full list. When fixing drift, **fix it for real** — don't work around it every release.
 
-- **Legacy R2 key.** Admin API's `file_not_in_bucket` check is hardcoded to the legacy `releases/<v>/Utterbar-Setup.exe` (no version suffix). Until fixed web-side, the script uploads to BOTH keys. Don't delete the legacy upload path in `publish-release.sh` yet.
-- **`curl -d "$PAYLOAD"` quoting bug — FIXED.** The committed `publish-release.sh` now uses `--data-binary "@$TMP_PAYLOAD"` with a temp file and explicitly sends `r2_key` in the payload. If you hit a 422 about missing fields, it's not this bug — read the actual server response body before re-running.
+- **R2 key — RESOLVED.** The committed `publish-release.sh` uploads to the versioned key `releases/<v>/Utterbar-Setup-<v>.exe` only and POSTs `r2_key` explicitly. The admin API's `file_not_in_bucket` fallback now defaults to the same versioned path. No second-key upload, no legacy `Utterbar-Setup.exe`. Old R2 objects from the dual-upload era are orphans — safe to delete from the bucket.
+- **`curl -d "$PAYLOAD"` quoting bug — RESOLVED.** The committed `publish-release.sh` uses `--data-binary "@$TMP_PAYLOAD"` with a temp file and explicitly sends `r2_key` in the payload. If you hit a 422 about missing fields, it's not this bug — read the actual server response body before re-running.
 
 ### If publish fails
 
@@ -177,7 +177,7 @@ See [MONOREPO.md §10](MONOREPO.md) for the full list. When fixing drift, **fix 
 | `201 Created` | Everything worked. | Proceed to §6. |
 | `401 Unauthorized` | `UTTERBAR_ADMIN_API_TOKEN` is wrong. | Check `~/.utterbar-deploy/.env`. Fix and re-run (script is idempotent as long as the DB row wasn't created). |
 | `409 version_exists` | A previous attempt partially succeeded. | See "409 recovery" in [RELEASE.md §5](Utterbar%20Windows%20App/RELEASE.md). `DELETE /api/admin/releases/<id>?delete_file=1` then re-run. |
-| `422 file_not_in_bucket` | R2 upload succeeded but admin API is looking at the wrong key. | Check R2 actually has both `Utterbar-Setup.exe` and `Utterbar-Setup-<v>.exe` under `releases/<v>/`. Re-run script if only one is present. |
+| `422 file_not_in_bucket` | R2 upload succeeded but admin API can't find it at the key the script claimed. | Check `releases/<v>/Utterbar-Setup-<v>.exe` exists in R2. The script and the admin API now both use the versioned key — if they've drifted, fix the drift before re-running. |
 | `422 version required` (or similar per-field) | curl quoting bug (§5 drifts). | Re-run with payload written to a temp file and `--data-binary "@$TMPFILE"`. |
 | `503` | Admin API is not configured server-side. | Stop. Server ops issue — contact Jay. |
 
@@ -237,7 +237,7 @@ You find out a shipped build crashes / has a regression / breaks activation. Res
 
 ## 10. What this runbook does NOT cover
 
-- **Ed25519 keypair rotation** — that's [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md). Scheduled for v0.7.
+- **Ed25519 keypair rotation** — that's [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md). v0.7.0 shipped still trusting the sandbox keypair; rotation is outstanding.
 - **Code signing** — we ship unsigned EXEs today. SmartScreen warnings are expected. Cert plan is in [LAUNCH_CHECKLIST.md §A1](Utterbar%20Website/LAUNCH_CHECKLIST.md).
 - **Stripe price changes** — those don't need a new app build. Update `STRIPE_PRO_PRICE_ID` in server `.env`.
 - **Website-only changes** — there's no parallel runbook yet; deploy via `pscp`/`plink` per [MONOREPO.md §2 build commands](MONOREPO.md).
