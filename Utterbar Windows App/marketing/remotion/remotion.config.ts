@@ -18,8 +18,8 @@ Config.setCrf(18);
 // 1920x1080 is the universal web master. Individual compositions can still
 // override via `<Composition width={…} height={…} />` (press stills are 2560x1600).
 Config.setPixelFormat('yuv420p');
-// Avoid noisy stdout during programmatic renders.
-Config.setLogLevel('info');
+// (Config.setLogLevel was removed in Remotion 4.x; pass `--log=info` on the
+// CLI / `logLevel` option to renderMedia if quieter output is needed.)
 
 // --------------------------------------------------------------------------
 // Webpack override — point `@/*` at the real app `src/` and stub Tauri APIs.

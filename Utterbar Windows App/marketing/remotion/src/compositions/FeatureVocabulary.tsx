@@ -1,269 +1,252 @@
 /**
- * feature-vocabulary — 8 s. A single UI moment: the user adds a word
- * to the Custom Words card. No payoff beat, no tagline, no brand reveal
- * — the video is just a piece of the app moving. When it ends the
- * frame sits on the resting state of the card with the new chip in
- * place, so looping reads as "and here's the app with one more word
- * in it" rather than restarting an ad.
+ * feature-vocabulary — 7 s. The vocabulary list populates with four
+ * custom words, then a sentence types itself out with the replacements
+ * hitting live so the viewer can watch "J parrie" turn into "Jay Parry"
+ * as the ASR output gets post-processed.
  *
- * Background is tokens.bg0 (the site's page canvas); the card surface
- * uses bg1 so the comp's outer edges vanish into the site's video
- * section and only the card reads as "the app".
- *
- * Timeline (30 fps):
- *   0.0–0.5  idle — card at rest with 3 existing chips
- *   0.5–1.1  Windows cursor flies in from off-frame to the compose input
- *   1.1      click — cyan pulse ring expands and fades over 400 ms
- *   1.3–2.8  typewriter reveals "Parakeet" in the input with a caret
- *   2.8–3.2  cursor slides to the Add button
- *   3.2      click — cyan pulse
- *   3.4–4.2  "Parakeet" chip pops in with a strong cyan glow
- *   4.2–5.2  glow decays
- *   5.2–5.8  cursor exits off-frame
- *   5.8–8.0  hold on the resulting state (card with 4 chips, no cursor)
- *
- * Legibility floor for the site's 400 px mobile render: title 72 pt,
- * sub 28 pt, chips 30 pt, input text 36 pt. All readable at 4.8× shrink.
+ * Regenerated 2026-04-24 — dropped the outer card and a fictional
+ * "replacements panel", both of which made the composition read as a
+ * diagram rather than the real feature. Now it's two things: the list
+ * (real UI) and one sentence that shows the list working.
  */
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens, fonts } from '../design/tokens';
-import { tween, typewriter, pulse } from '../util/anim';
-import { Cursor, ClickPulse, cursorPath } from '../util/Cursor';
+import { tween, typewriter } from '../util/anim';
 
-// ---- layout ---------------------------------------------------------------
-const CARD_W = 1500;
-const CARD_H = 720;
-const CARD_X = (1920 - CARD_W) / 2; // 210
-const CARD_Y = (1080 - CARD_H) / 2; // 180
-const CARD_PAD = 56;
+const WORDS = [
+  { word: 'Utterbar', hint: 'product name' },
+  { word: 'Parakeet TDT', hint: 'speech model' },
+  { word: 'Jay Parry', hint: 'your name' },
+  { word: 'Cloudways', hint: 'host' },
+];
 
-// Compose-row vertical centre — empirically derived from the typography
-// above it (72 pt heading + 32 gap + 28 pt sub + 32 gap + half of the
-// 104 px tall compose row). If any of those sizes change, update this.
-const COMPOSE_CY = CARD_Y + CARD_PAD + 90 + 32 + 40 + 32 + 52;
+const REPLACEMENTS = [
+  { from: 'J parrie', to: 'Jay Parry' },
+  { from: 'utter bar', to: 'Utterbar' },
+];
 
-// Horizontal cursor targets inside the compose row.
-const INPUT_CX = 900;
-const ADD_BTN_CX = CARD_X + CARD_W - CARD_PAD - 88;
+// The before/after sentence — same shape, typed twice; on the second pass
+// the replacements fire and the sentence reads correctly.
+const BEFORE =
+  "Hi J parrie — the utter bar demo is ready on Cloudways.";
+const AFTER =
+  "Hi Jay Parry — the Utterbar demo is ready on Cloudways.";
 
-// Cursor entry/exit — just past the bottom-right corner so the arrow
-// never clips visibly at the frame edge.
-const CURSOR_OFF_X = 1800;
-const CURSOR_OFF_Y = 1080;
-
-// Existing vocabulary before the user adds "Parakeet".
-const EXISTING_WORDS = ['sherpa-onnx', 'Tauri', 'WASAPI'];
-
-// ---- component ------------------------------------------------------------
 export function FeatureVocabulary() {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const f = (s: number) => Math.round(s * fps);
 
-  // --- beat timing --------------------------------------------------------
-  const cursorInStart = f(0.5);
-  const cursorInEnd = f(1.1);
-  const inputClickAt = f(1.15);
-  const typeStart = f(1.3);
-  const typeEnd = f(2.8);
-  const cursorToAddStart = f(2.8);
-  const cursorToAddEnd = f(3.2);
-  const addClickAt = f(3.25);
-  const chipLandAt = f(3.4);
-  const chipGlowEnd = f(5.2);
-  const cursorOutStart = f(5.2);
-  const cursorOutEnd = f(5.8);
+  // Word cards stagger in 0.5 -> 1.9 s (4 × 0.35 s).
+  const wordEnter = WORDS.map((_, i) => f(0.5 + i * 0.35));
 
-  // --- cursor path --------------------------------------------------------
-  const cursor = cursorPath(frame, [
-    { x: CURSOR_OFF_X, y: CURSOR_OFF_Y, t: cursorInStart },
-    { x: INPUT_CX, y: COMPOSE_CY, t: cursorInEnd },
-    { x: INPUT_CX, y: COMPOSE_CY, t: cursorToAddStart },
-    { x: ADD_BTN_CX, y: COMPOSE_CY, t: cursorToAddEnd },
-    { x: ADD_BTN_CX, y: COMPOSE_CY, t: cursorOutStart },
-    { x: CURSOR_OFF_X, y: CURSOR_OFF_Y, t: cursorOutEnd },
-  ]);
-
-  // Cursor visibility — hidden before it enters and after it exits so the
-  // resting state frames look like a clean screenshot of the app.
-  const cursorVisible = frame >= cursorInStart && frame <= cursorOutEnd + 1;
-
-  // --- typed text + caret -------------------------------------------------
-  const typedText = typewriter('Parakeet', frame, typeStart, typeEnd);
-  const caret = frame >= typeStart && frame < typeEnd && pulse(frame, 16) > 0.5;
-  const inputFocused = frame >= inputClickAt && frame < chipLandAt;
-
-  // --- chip land + glow ---------------------------------------------------
-  const chipOpacity = tween(frame, chipLandAt, chipLandAt + 6, 0, 1);
-  const chipScale = tween(frame, chipLandAt, chipLandAt + f(0.3), 0.7, 1);
-  const chipGlow = tween(frame, chipLandAt, chipGlowEnd, 1, 0);
+  // Before sentence types 2.5 -> 3.8, replacement swap fires at 4.6 (with a
+  // brief cross-tween), after sentence types 4.7 -> 5.6, hold on resting
+  // state 5.6 -> 7.0.
+  const beforeTyped = typewriter(BEFORE, frame, f(2.5), f(3.8));
+  const swap = tween(frame, f(4.4), f(4.8), 0, 1);
+  const afterTyped = typewriter(AFTER, frame, f(4.7), f(5.6));
 
   return (
     <AbsoluteFill style={{ background: tokens.bg0, fontFamily: fonts.sans }}>
-      {/* The Custom Words card */}
+      {/* Left column — vocabulary list. Real styling: tone rows, mono chip
+          for the hint. */}
       <div
         style={{
           position: 'absolute',
-          left: CARD_X,
-          top: CARD_Y,
-          width: CARD_W,
-          height: CARD_H,
-          background: tokens.bg1,
-          borderRadius: 28,
-          padding: CARD_PAD,
-          border: `1px solid ${tokens.border}`,
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 32,
-          // Soft drop-shadow lifts the card off bg-0 without painting a
-          // visible frame — matches the app's card-on-canvas feel.
-          boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+          left: 100,
+          top: 80,
+          width: 560,
         }}
       >
-        {/* Header: title + counter */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <div
-            style={{
-              fontSize: 72,
-              fontWeight: 700,
-              color: tokens.fgHi,
-              letterSpacing: '-0.025em',
-              lineHeight: 1,
-            }}
-          >
-            Custom words
-          </div>
-          <div
-            style={{
-              fontSize: 30,
-              fontFamily: fonts.mono,
-              color: tokens.muted,
-            }}
-          >
-            {frame >= chipLandAt ? EXISTING_WORDS.length + 1 : EXISTING_WORDS.length} / 50
-          </div>
-        </div>
-
-        {/* Sub-copy */}
-        <div style={{ fontSize: 28, color: tokens.muted, lineHeight: 1.4 }}>
-          Brand names, jargon, rare proper nouns — the ASR biases toward these.
-        </div>
-
-        {/* Compose row: + icon, input, Add button */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 20,
-            padding: '22px 28px',
-            background: tokens.bg2,
-            borderRadius: 16,
-            border: `2px solid ${inputFocused ? 'rgba(255,255,255,0.35)' : tokens.borderStrong}`,
-            transition: 'border 120ms linear',
+            fontFamily: fonts.mono,
+            fontSize: 18,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: tokens.muted,
+            marginBottom: 18,
           }}
         >
-          <span
-            style={{
-              fontSize: 36,
-              fontFamily: fonts.mono,
-              color: tokens.muted,
-              lineHeight: 1,
-            }}
-          >
-            +
-          </span>
-          <span
-            style={{
-              fontSize: 36,
-              fontFamily: fonts.mono,
-              color: tokens.fgHi,
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-            }}
-          >
-            {!inputFocused && typedText.length === 0 && (
-              <span style={{ color: tokens.fgDim }}>Add a word…</span>
-            )}
-            {(inputFocused || typedText.length > 0) && typedText}
-            {caret && <span style={{ color: tokens.fgHi, fontWeight: 700 }}>▍</span>}
-          </span>
-          <div
-            style={{
-              padding: '14px 34px',
-              background: tokens.bg1,
-              color: tokens.fgHi,
-              border: `1px solid ${tokens.borderStrong}`,
-              borderRadius: 12,
-              fontSize: 26,
-              fontWeight: 500,
-              fontFamily: fonts.sans,
-              // Faint cyan outline while the cursor is targeting Add —
-              // tells the viewer "this is about to be clicked" without a
-              // full highlight. Gone by the time the chip lands.
-              boxShadow:
-                frame >= cursorToAddEnd - 4 && frame < addClickAt + 6
-                  ? `0 0 0 2px rgba(34, 211, 238, 0.55)`
-                  : 'none',
-            }}
-          >
-            Add
-          </div>
+          Custom vocabulary
+        </div>
+        <div
+          style={{
+            background: tokens.bg1,
+            borderRadius: 18,
+            border: `1px solid ${tokens.border}`,
+            overflow: 'hidden',
+          }}
+        >
+          {WORDS.map((w, i) => {
+            const opacity = tween(frame, wordEnter[i] - 5, wordEnter[i] + 8, 0, 1);
+            const x = tween(frame, wordEnter[i] - 5, wordEnter[i] + 12, -12, 0);
+            return (
+              <div
+                key={w.word}
+                style={{
+                  padding: '18px 22px',
+                  borderTop: i === 0 ? 'none' : `1px solid ${tokens.border}`,
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  opacity,
+                  transform: `translateX(${x}px)`,
+                }}
+              >
+                <span style={{ fontSize: 22, color: tokens.fgHi, fontWeight: 600 }}>
+                  {w.word}
+                </span>
+                <span
+                  style={{
+                    fontFamily: fonts.mono,
+                    fontSize: 17,
+                    color: tokens.muted,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.12em',
+                  }}
+                >
+                  {w.hint}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Chips grid */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-          {EXISTING_WORDS.map((w) => (
-            <div
-              key={w}
-              style={{
-                padding: '14px 28px',
-                background: tokens.bg2,
-                borderRadius: 999,
-                fontSize: 30,
-                fontFamily: fonts.mono,
-                color: tokens.fgHi,
-              }}
-            >
-              {w}
-            </div>
-          ))}
-          {frame >= chipLandAt && (
-            <div
-              style={{
-                padding: '14px 28px',
-                background: tokens.bg2,
-                borderRadius: 999,
-                fontSize: 30,
-                fontFamily: fonts.mono,
-                color: tokens.fgHi,
-                opacity: chipOpacity,
-                transform: `scale(${chipScale})`,
-                transformOrigin: 'left center',
-                boxShadow:
-                  chipGlow > 0
-                    ? `0 0 ${70 * chipGlow}px rgba(34, 211, 238, ${0.95 * chipGlow}), ` +
-                      `0 0 ${28 * chipGlow}px rgba(34, 211, 238, ${0.6 * chipGlow})`
-                    : 'none',
-                border: `2px solid rgba(34, 211, 238, ${chipGlow})`,
-              }}
-            >
-              Parakeet
-            </div>
-          )}
+        {/* Replacements list below. */}
+        <div
+          style={{
+            marginTop: 24,
+            fontFamily: fonts.mono,
+            fontSize: 18,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: tokens.muted,
+            marginBottom: 14,
+          }}
+        >
+          Replacements
+        </div>
+        <div
+          style={{
+            background: tokens.bg1,
+            borderRadius: 18,
+            border: `1px solid ${tokens.border}`,
+            padding: '14px 22px',
+          }}
+        >
+          {REPLACEMENTS.map((r, i) => {
+            const enter = f(1.9 + i * 0.25);
+            const opacity = tween(frame, enter - 5, enter + 8, 0, 1);
+            return (
+              <div
+                key={r.from}
+                style={{
+                  padding: '10px 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  opacity,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: fonts.mono,
+                    fontSize: 16,
+                    color: tokens.fg,
+                    background: tokens.bg2,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                  }}
+                >
+                  {r.from}
+                </span>
+                <span style={{ color: tokens.muted, fontSize: 16 }}>→</span>
+                <span
+                  style={{
+                    fontFamily: fonts.mono,
+                    fontSize: 16,
+                    color: tokens.fgHi,
+                    background: tokens.bg2,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                  }}
+                >
+                  {r.to}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Click pulses — sit under the cursor so the ring expands from
-          beneath the arrow tip. */}
-      <ClickPulse frame={frame} startFrame={inputClickAt} x={INPUT_CX} y={COMPOSE_CY} />
-      <ClickPulse frame={frame} startFrame={addClickAt} x={ADD_BTN_CX} y={COMPOSE_CY} />
+      {/* Right column — the sentence. Before types, fades, After types in. */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 100,
+          top: 160,
+          width: 640,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: fonts.mono,
+            fontSize: 18,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: tokens.muted,
+            marginBottom: 18,
+          }}
+        >
+          What you dictated
+        </div>
 
-      {/* Cursor — only visible while it's on-screen. */}
-      {cursorVisible && <Cursor x={cursor.x} y={cursor.y} />}
+        <div
+          style={{
+            background: tokens.bg1,
+            borderRadius: 20,
+            padding: '32px 32px',
+            border: `1px solid ${tokens.border}`,
+            fontSize: 28,
+            lineHeight: 1.55,
+            color: tokens.fg,
+            fontStyle: 'italic',
+            position: 'relative',
+            minHeight: 340,
+          }}
+        >
+          <div style={{ opacity: 1 - swap }}>
+            &ldquo;{beforeTyped}&rdquo;
+          </div>
+          <div
+            style={{
+              position: 'absolute',
+              top: 32,
+              left: 32,
+              right: 32,
+              opacity: swap,
+            }}
+          >
+            &ldquo;{afterTyped}&rdquo;
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 20,
+            fontFamily: fonts.mono,
+            fontSize: 17,
+            letterSpacing: '0.14em',
+            color: tokens.muted,
+            textTransform: 'uppercase',
+          }}
+        >
+          {frame < f(4.5) ? 'Before your list kicks in' : 'After your list fires'}
+        </div>
+      </div>
     </AbsoluteFill>
   );
 }

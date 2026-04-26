@@ -1,241 +1,235 @@
 /**
- * feature-file-transcription — 8 s. Just the Files route's main card —
- * dropzone at the top, queue of three jobs underneath. No AppShell
- * sidebar, no page header; the site puts the textual copy next to the
- * video so the video shouldn't compete. Jobs stagger in, progress, and
- * flip to done. Ends on all three complete for a clean loop.
+ * feature-file-transcription — 7 s. The Files route's main surface —
+ * dashed dropzone at the top, a short queue below it showing three
+ * jobs moving through queued → running → done.
  *
- * No cursor here — the interaction that matters (dropping files) has
- * already happened; the reveal IS the UI doing its job. Adding a
- * cursor that doesn't click anything would muddy the beat.
+ * Regenerated 2026-04-24. Same concept as before but dropped the outer
+ * AppShell chrome (navigation rail, title bar) — the composition is
+ * bigger with less padding, so the progress bars and job names actually
+ * read at mobile widths.
  */
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens, fonts } from '../design/tokens';
 import { tween } from '../util/anim';
 
-const JOBS = [
-  { name: 'team-standup-2026-04-22.mp3', size: '18.4 MB', duration: 1824 },
-  { name: 'interview-kiran.m4a', size: '42.1 MB', duration: 2736 },
-  { name: 'design-crit-0412.mov', size: '612 MB', duration: 3480 },
+type Status = 'queued' | 'running' | 'done';
+
+const JOBS: { name: string; kind: string; seconds: number }[] = [
+  { name: 'Team standup — 2026-04-18.mp4', kind: 'Video', seconds: 1820 },
+  { name: 'Podcast draft — ep 14.m4a', kind: 'Audio', seconds: 2680 },
+  { name: 'Interview — Jane Doe.wav', kind: 'Audio', seconds: 3140 },
 ];
 
-// ---- layout ---------------------------------------------------------------
-const CARD_W = 1680;
-const CARD_H = 900;
-const CARD_X = (1920 - CARD_W) / 2; // 120
-const CARD_Y = (1080 - CARD_H) / 2; // 90
-const CARD_PAD = 56;
+function statusAt(i: number, frame: number, fps: number): { status: Status; progress: number } {
+  const f = (s: number) => Math.round(s * fps);
+  // Timeline (seconds):
+  // 0.0–0.8  all queued
+  // 0.8–2.5  job 0 running (0→1), jobs 1,2 queued
+  // 2.5–2.6  job 0 done
+  // 2.6–4.2  job 1 running, job 2 queued
+  // 4.2–4.3  job 1 done
+  // 4.3–5.7  job 2 running
+  // 5.7–7.0  all done
+  if (i === 0) {
+    if (frame < f(0.8)) return { status: 'queued', progress: 0 };
+    if (frame < f(2.5)) return { status: 'running', progress: (frame - f(0.8)) / (f(2.5) - f(0.8)) };
+    return { status: 'done', progress: 1 };
+  }
+  if (i === 1) {
+    if (frame < f(2.6)) return { status: 'queued', progress: 0 };
+    if (frame < f(4.2)) return { status: 'running', progress: (frame - f(2.6)) / (f(4.2) - f(2.6)) };
+    return { status: 'done', progress: 1 };
+  }
+  // i === 2
+  if (frame < f(4.3)) return { status: 'queued', progress: 0 };
+  if (frame < f(5.7)) return { status: 'running', progress: (frame - f(4.3)) / (f(5.7) - f(4.3)) };
+  return { status: 'done', progress: 1 };
+}
+
+function Duration({ seconds }: { seconds: number }) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return (
+    <span style={{ fontFamily: fonts.mono, fontSize: 17, color: tokens.muted }}>
+      {m}:{s.toString().padStart(2, '0')}
+    </span>
+  );
+}
+
+function StatusChip({ status }: { status: Status }) {
+  const conf =
+    status === 'running'
+      ? { label: 'Running', color: tokens.accent }
+      : status === 'done'
+        ? { label: 'Done', color: tokens.moss }
+        : { label: 'Queued', color: tokens.muted };
+  return (
+    <span
+      style={{
+        fontFamily: fonts.mono,
+        fontSize: 16,
+        textTransform: 'uppercase',
+        letterSpacing: '0.14em',
+        color: conf.color,
+      }}
+    >
+      ● {conf.label}
+    </span>
+  );
+}
 
 export function FeatureFileTranscription() {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const f = (s: number) => Math.round(s * fps);
 
+  const dropIn = tween(frame, f(0.15), f(0.7), 0, 1);
+  const dropHover = tween(frame, f(0.3), f(0.6), 0, 1);
+
   return (
     <AbsoluteFill style={{ background: tokens.bg0, fontFamily: fonts.sans }}>
+      {/* Header strip */}
       <div
         style={{
           position: 'absolute',
-          left: CARD_X,
-          top: CARD_Y,
-          width: CARD_W,
-          height: CARD_H,
-          background: tokens.bg1,
-          borderRadius: 28,
-          padding: CARD_PAD,
-          border: `1px solid ${tokens.border}`,
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 32,
-          boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+          left: '50%',
+          top: 70,
+          transform: 'translateX(-50%)',
+          textAlign: 'center',
+          opacity: dropIn,
         }}
       >
-        {/* Section header */}
-        <div>
-          <div
-            style={{
-              fontSize: 56,
-              fontWeight: 700,
-              color: tokens.fgHi,
-              letterSpacing: '-0.025em',
-              lineHeight: 1,
-              marginBottom: 14,
-            }}
-          >
-            Files
-          </div>
-          <div style={{ fontSize: 24, color: tokens.muted }}>
-            Drop audio or video — transcripts save next to the original as .utterbar.txt
-          </div>
-        </div>
-
-        {/* Dropzone — big target, matches the app's real dashed-outline
-            variant with accent upload icon. */}
         <div
           style={{
-            border: `3px dashed ${tokens.borderStrong}`,
-            borderRadius: 22,
-            padding: 44,
-            textAlign: 'center',
-            background: 'rgba(255,255,255,0.02)',
+            fontFamily: fonts.mono,
+            fontSize: 18,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: tokens.muted,
           }}
         >
-          <div
-            style={{
-              width: 96,
-              height: 96,
-              borderRadius: 20,
-              background: tokens.bg2,
-              margin: '0 auto 20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: `1px solid ${tokens.border}`,
-            }}
-          >
-            <svg
-              width={44}
-              height={44}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={tokens.accent}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 500, color: tokens.fgHi, letterSpacing: '-0.01em' }}>
-            Drop files here, or click to browse
-          </div>
-          <div style={{ fontSize: 22, color: tokens.muted, marginTop: 12, fontFamily: fonts.mono }}>
-            .mp3 · .wav · .m4a · .flac · .ogg · .mp4 · .mov · .mkv
-          </div>
+          Files
         </div>
+      </div>
 
-        {/* Queue */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
-          <div
-            style={{
-              fontFamily: fonts.mono,
-              fontSize: 20,
-              letterSpacing: '0.14em',
-              textTransform: 'uppercase',
-              color: tokens.muted,
-            }}
-          >
-            Queue · {JOBS.length} files
-          </div>
-          {JOBS.map((job, i) => {
-            // Stagger entry 0.3 s apart; each job runs 2.0 s then flips done.
-            const enterAt = f(0.4 + i * 0.35);
-            const startAt = f(1.0 + i * 0.7);
-            const endAt = startAt + f(2.2);
-            const opacity = tween(frame, enterAt, enterAt + 10, 0, 1);
-            const progress = Math.min(1, Math.max(0, (frame - startAt) / (endAt - startAt)));
-            const done = frame >= endAt;
+      {/* Dropzone */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: 130,
+          transform: 'translateX(-50%)',
+          width: 1080,
+          maxWidth: '90%',
+          height: 180,
+          borderRadius: 20,
+          background: 'rgba(34, 211, 238, 0.04)',
+          border: `2px dashed rgba(34, 211, 238, ${0.3 + dropHover * 0.3})`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 10,
+          opacity: dropIn,
+        }}
+      >
+        <div style={{ fontSize: 22, color: tokens.fgHi, fontWeight: 500 }}>
+          Drop audio or video files here
+        </div>
+        <div style={{ fontSize: 18, color: tokens.muted }}>
+          WAV, MP3, M4A, MP4, MKV — transcribed locally to .txt, .srt or .vtt
+        </div>
+      </div>
+
+      {/* Queue */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: 360,
+          transform: 'translateX(-50%)',
+          width: 1080,
+          maxWidth: '90%',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: fonts.mono,
+            fontSize: 17,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: tokens.muted,
+            marginBottom: 14,
+          }}
+        >
+          Queue
+        </div>
+        <div
+          style={{
+            background: tokens.bg1,
+            borderRadius: 18,
+            border: `1px solid ${tokens.border}`,
+            overflow: 'hidden',
+          }}
+        >
+          {JOBS.map((j, i) => {
+            const { status, progress } = statusAt(i, frame, fps);
             return (
               <div
-                key={job.name}
+                key={j.name}
                 style={{
-                  background: tokens.bg2,
-                  borderRadius: 16,
-                  padding: '22px 26px',
+                  padding: '20px 24px',
+                  borderTop: i === 0 ? 'none' : `1px solid ${tokens.border}`,
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 22,
-                  opacity,
-                  border: `1px solid ${tokens.border}`,
+                  flexDirection: 'column',
+                  gap: 10,
                 }}
               >
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 12,
-                    background: done ? 'rgba(52, 211, 153, 0.15)' : 'rgba(34, 211, 238, 0.12)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {done ? (
-                    <svg
-                      width={26}
-                      height={26}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={tokens.moss}
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        fontSize: 18,
+                        color: tokens.fgHi,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 520,
+                      }}
                     >
-                      <path d="M5 12l4 4L19 6" />
-                    </svg>
-                  ) : (
-                    <svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke={tokens.accent} strokeOpacity="0.25" strokeWidth="3" />
-                      <path
-                        d="M12 2a10 10 0 0 1 10 10"
-                        stroke={tokens.accent}
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        fill="none"
-                      />
-                    </svg>
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 28,
-                      color: tokens.fgHi,
-                      fontWeight: 500,
-                      letterSpacing: '-0.01em',
-                      fontFamily: fonts.mono,
-                    }}
-                  >
-                    {job.name}
+                      {j.name}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: fonts.mono,
+                        fontSize: 16,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.14em',
+                        color: tokens.fgDim,
+                      }}
+                    >
+                      {j.kind}
+                    </span>
                   </div>
-                  <div
-                    style={{
-                      fontFamily: fonts.mono,
-                      fontSize: 20,
-                      color: tokens.muted,
-                      marginTop: 6,
-                    }}
-                  >
-                    {job.size} · {formatSecs(job.duration)}
-                    {done
-                      ? ' · saved as .utterbar.txt'
-                      : progress > 0
-                        ? ` · ${Math.round(progress * 100)} %`
-                        : ' · queued'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <Duration seconds={j.seconds} />
+                    <StatusChip status={status} />
                   </div>
                 </div>
-                {/* Progress bar */}
                 <div
                   style={{
-                    width: 220,
-                    height: 8,
-                    background: tokens.bg1,
-                    borderRadius: 999,
+                    height: 4,
+                    borderRadius: 2,
+                    background: 'rgba(255,255,255,0.06)',
                     overflow: 'hidden',
-                    flexShrink: 0,
                   }}
                 >
                   <div
                     style={{
                       width: `${progress * 100}%`,
                       height: '100%',
-                      background: done ? tokens.moss : tokens.accent,
-                      transition: 'background 120ms linear',
+                      background: status === 'done' ? tokens.moss : tokens.accent,
                     }}
                   />
                 </div>
@@ -246,10 +240,4 @@ export function FeatureFileTranscription() {
       </div>
     </AbsoluteFill>
   );
-}
-
-function formatSecs(s: number) {
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${r.toString().padStart(2, '0')}`;
 }

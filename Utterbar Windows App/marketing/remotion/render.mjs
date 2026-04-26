@@ -211,12 +211,26 @@ for (const v of videos) {
         serveUrl,
         codec: 'h264',
         outputLocation: mp4,
-        // CRF 18 / yuv420p / jpeg image format are the defaults set by
-        // remotion.config.ts; repeating here guards against the config not
-        // being picked up in this headless context.
-        crf: 18,
+        // Image format: PNG, not JPEG. JPEG intermediates are emitted as
+        // full-range ("yuvj420p") by Remotion's encoder, which some browsers
+        // decode with a shifted colour range — near-black navy crushes to
+        // pure black, producing the "black background" artefact we saw on
+        // the first render pass. PNG keeps us in proper `yuv420p` and costs
+        // ~30 s extra across the full batch.
+        imageFormat: 'png',
         pixelFormat: 'yuv420p',
-        imageFormat: 'jpeg',
+        // Tag the output as Rec.709 / limited range so browser video
+        // decoders can't misinterpret it. Without this the encoded stream
+        // can be tagged as "unspecified", which Chrome on Windows and
+        // Safari on iOS sometimes guess wrong — crushing --bg-0 to black.
+        colorSpace: 'bt709',
+        // x264 quality: CRF 17 + slow preset gives the encoder room to
+        // handle the typewriter-heavy scenes (feature-modes, feature-
+        // vocabulary, feature-history-retranscribe) where per-frame text
+        // deltas starved the previous CRF 18 / medium-preset output of
+        // bits and read as stutter.
+        crf: 17,
+        x264Preset: 'slow',
         puppeteerInstance: browser,
         concurrency: null, // let Remotion pick — scales with CPU
       });

@@ -83,3 +83,76 @@ html.floating-shell
   width: auto !important;
   align-items: center !important;
 }
+
+/*
+ * Freeze wall-clock animations inside the pill. Remotion renders each
+ * frame headlessly with no real animation clock running between frames,
+ * so any CSS keyframe / Framer Motion transition resolves to a random
+ * partial state per frame — that's the "jittery waveform" + "flickering
+ * Ready/Processing/Inserted chip" + "jumpy recording ripple" Jay flagged
+ * on 2026-04-24. Nuke all three here; the per-bar wave heights are then
+ * driven from Remotion via inline CSS custom properties (see
+ * `WaveformPatch` in BarDriver.tsx).
+ */
+html.remotion-render .ub-bar-wave__bar {
+  animation: none !important;
+  /* Each bar reads its height from --ub-wave-h-N, set inline from React. */
+  height: var(--ub-wave-h, 18px) !important;
+  transform-origin: center;
+}
+html.remotion-render .ub-bar-wave__bar:nth-child(1) { height: var(--ub-wave-h-1, 10px) !important; }
+html.remotion-render .ub-bar-wave__bar:nth-child(2) { height: var(--ub-wave-h-2, 14px) !important; }
+html.remotion-render .ub-bar-wave__bar:nth-child(3) { height: var(--ub-wave-h-3, 22px) !important; }
+html.remotion-render .ub-bar-wave__bar:nth-child(4) { height: var(--ub-wave-h-4, 26px) !important; }
+html.remotion-render .ub-bar-wave__bar:nth-child(5) { height: var(--ub-wave-h-5, 22px) !important; }
+html.remotion-render .ub-bar-wave__bar:nth-child(6) { height: var(--ub-wave-h-6, 14px) !important; }
+html.remotion-render .ub-bar-wave__bar:nth-child(7) { height: var(--ub-wave-h-7, 10px) !important; }
+
+/* Ripple (the red recording pulse) — frame-driven by --ub-ripple-* vars
+ * set per-frame from BarDriver. Same visual effect as the CSS keyframe,
+ * but every frame's value is a pure function of the Remotion frame
+ * counter so there's no per-frame wobble. */
+html.remotion-render .ub-bar-ripple::after {
+  animation: none !important;
+  transform: scale(var(--ub-ripple-scale, 1)) !important;
+  opacity: var(--ub-ripple-opacity, 0) !important;
+}
+
+/* Kill every CSS keyframe / transition that might bleed in from the app's
+ * own styles — Tailwind animate-* utilities, pseudo-element ripples, hover
+ * transitions, etc. Framer Motion is handled separately in BarDriver via a
+ * frame-locked clock patch; the goal here is specifically to remove CSS-side
+ * wall-clock motion from the render tree. */
+html.remotion-render *,
+html.remotion-render *::before,
+html.remotion-render *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+}
+
+/* Force the FloatingBar's expanded-content wrapper to always paint at
+ * full size during render. The shipping component sets max-width: 0 +
+ * opacity: 0 on the right-side "actions" motion.div when its `expanded`
+ * boolean is false, and that boolean is gated on a useEffect-driven
+ * timer (see FloatingBar.tsx ~line 243). Inside Remotion, the timer
+ * doesn't always reach steady state before the frame captures, so the
+ * inner chip + buttons stay invisible — which is what produces the
+ * "the bar is there but doesn't say Recording / Processing / Inserted"
+ * symptom. Forcing aria-hidden + the inline max-width style here means
+ * the chip text always paints, regardless of the gating.
+ *
+ * Both selectors target the actions wrapper; aria-hidden flips with
+ * `expanded`, and the inline max-width is the actual layout-killer. */
+html.remotion-render [data-bar-actions],
+html.remotion-render [aria-hidden] {
+  /* Lower-specificity catch-all kept here so future inline overrides
+   * via Framer Motion don't beat us by source order. The targeted
+   * rules below win on specificity for the cases we care about. */
+}
+html.remotion-render [aria-hidden][style] {
+  max-width: 720px !important;
+  opacity: 1 !important;
+}

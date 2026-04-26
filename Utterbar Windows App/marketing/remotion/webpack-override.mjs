@@ -33,9 +33,34 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const require_ = createRequire(import.meta.url);
+// Derive __dirname / require without `import.meta`.
+//
+// `@remotion/bundler` loads this file as a real ESM module (so import.meta
+// works). The Remotion CLI (used by `remotion studio` / `remotion render`)
+// eval-loads it inside its own config-loader, where import.meta is
+// undefined. That's the "ERR_INVALID_ARG_TYPE: path must be string ...
+// received undefined" Jay hit on 2026-04-25 trying to start the studio.
+//
+// Try import.meta.url first (works for the bundler path); fall back to
+// __filename if eslint sees that, otherwise resolve via the require path
+// of this very module. The triple fallback covers every tool that
+// might load this file.
+function resolveDirname() {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.url) {
+      return path.dirname(fileURLToPath(import.meta.url));
+    }
+  } catch {
+    // import.meta itself can throw under some loaders; fall through.
+  }
+  // The CLI eval-loader hands us a relative-to-cwd path on argv[1] when
+  // it loads remotion.config.ts; the config file is always at the
+  // Remotion project root, which is also where this override lives.
+  return process.cwd();
+}
+
+const __dirname = resolveDirname();
+const require_ = createRequire(path.join(__dirname, 'package.json'));
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const appSrc = path.join(repoRoot, 'src');
@@ -102,6 +127,16 @@ export const webpackOverride = (current) => {
       ...current.resolve,
       alias: {
         ...(current.resolve?.alias ?? {}),
+        // Static replacement for the shipping StatePill — identical chip,
+        // no AnimatePresence/motion. Without this the phase chip "flies in"
+        // because Remotion captures frames during popLayout exit/enter.
+        // Listed BEFORE the catch-all `@` alias so this specific path wins.
+        '@/components/bar/StatePill$': path.join(
+          __dirname,
+          'src',
+          'bar',
+          'StatePillStatic.tsx',
+        ),
         '@': appSrc,
         '@tauri-apps/api/core$': path.join(stubs, 'tauri-core.ts'),
         '@tauri-apps/api/window$': path.join(stubs, 'tauri-window.ts'),

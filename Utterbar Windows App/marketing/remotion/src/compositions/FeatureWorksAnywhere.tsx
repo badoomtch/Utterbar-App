@@ -1,205 +1,132 @@
 /**
- * feature-works-anywhere — 10 s sequence showing the floating pill
- * dictating text into THREE different Windows apps, one after another:
- * browser, chat, editor. The pill stays pinned to the top of the screen;
- * the host window behind it transforms each beat.
+ * feature-works-anywhere — 8 s. The pill sits at the top of the frame,
+ * a generic text field with a blinking cursor sits below.
+ *
+ * The flow narrates the real app: hold the hotkey, talk while the pill
+ * records (field stays empty, that's the speaking part), processing
+ * lights up briefly, then the text pastes in fast — like a real paste,
+ * not a typewriter. The pill returns to idle and the field's accent
+ * glow fades.
+ *
+ * Timeline:
+ *   0.0 – 0.7   idle        empty field, caret blinks
+ *   0.7 – 4.5   listening   "Recording" chip, timer ticks 0:00 → 0:03
+ *   4.5 – 5.5   processing  "Processing" chip, field still empty
+ *   5.5 – 6.0   processing  text pastes in over 0.5 s
+ *   6.0 – 8.0   idle        text stays, accent glow fades
+ *
+ * Skips the `success` phase deliberately — see HeroPillLoop comment.
  */
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { tokens, fonts } from '../design/tokens';
 import { BarDriver } from '../bar/BarDriver';
-import { HostWindow } from '../chrome/HostWindow';
-import { WindowsDesktop } from '../chrome/WindowsDesktop';
-import { pulse, tween, typewriter } from '../util/anim';
+import { tween, typewriter } from '../util/anim';
 
-const BEATS = [
-  {
-    variant: 'browser' as const,
-    title: 'Gmail · Compose',
-    transcript:
-      "Thanks for sending this through — I've had a look and the dates on slide twelve should be the 9th of June, not the 16th.",
-    accent: '#ea4335',
-  },
-  {
-    variant: 'chat' as const,
-    title: 'Slack · #release',
-    transcript:
-      "Quick heads up — 0.6.1 is cut and the installer is up on R2. Auto-update toast lands on launch.",
-    accent: '#7c3aed',
-  },
-  {
-    variant: 'editor' as const,
-    title: 'Obsidian · Research Notes',
-    transcript:
-      "Feature hypothesis: users who complete onboarding in under two minutes convert at 3× the rate of users who drop off between steps four and six.",
-    accent: '#a855f7',
-  },
-];
+const SENTENCE = 'The typed text just shows up — in any Windows app, wherever the cursor is.';
 
 export function FeatureWorksAnywhere() {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const f = (s: number) => Math.round(s * fps);
-  const beatLen = f(3.33); // 3 beats across 10 s
 
-  const beatIdx = Math.min(2, Math.floor(frame / beatLen));
-  const beat = BEATS[beatIdx];
-  const localFrame = frame - beatIdx * beatLen;
+  let state: 'idle' | 'listening' | 'processing' = 'idle';
+  if (frame < f(0.7)) state = 'idle';
+  else if (frame < f(4.5)) state = 'listening';
+  else if (frame < f(6.0)) state = 'processing';
+  else state = 'idle';
 
-  // Within each beat: 0.2 s idle → 1.6 s listening → 0.3 s processing → 1.2 s result
-  const listenStart = f(0.2);
-  const listenEnd = f(1.8);
-  const procEnd = f(2.1);
+  const elapsed = state === 'listening' ? Math.max(0, (frame - f(0.7)) / fps) : 0;
 
-  let barState: 'idle' | 'listening' | 'processing' | 'success' = 'idle';
-  if (localFrame < listenStart) barState = 'idle';
-  else if (localFrame < listenEnd) barState = 'listening';
-  else if (localFrame < procEnd) barState = 'processing';
-  else barState = 'success';
+  // Text pastes in fast at the end of processing — the moment the real
+  // app would inject the transcript. Half-second window so it reads as
+  // "boom, it's there", not as a typewriter.
+  const typed = typewriter(SENTENCE, frame, f(5.5), f(6.0));
 
-  const elapsedSecs = barState === 'listening' ? (localFrame - listenStart) / fps : 0;
-  const typed = typewriter(beat.transcript, localFrame, procEnd, procEnd + f(1.0));
+  // Field accent glow rises with the paste, then fades while the bar
+  // returns to idle. Peaks at the moment the text lands.
+  const successGlow = tween(frame, f(5.5), f(6.0), 0, 1) * tween(frame, f(6.2), f(7.4), 1, 0);
 
-  // Cross-fade host window between beats.
-  const crossIn = tween(frame, beatIdx * beatLen - 6, beatIdx * beatLen + 6, 0, 1);
+  // Caret blink — visible until the paste fires.
+  const caretBlink = Math.floor(frame / 12) % 2;
+  const showCaret = frame < f(5.5);
 
   return (
-    <AbsoluteFill style={{ fontFamily: fonts.sans }}>
-      <WindowsDesktop accent={beat.accent}>
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingBottom: 48,
-          }}
-        >
-          <div style={{ opacity: crossIn }}>
-            <HostWindow variant={beat.variant} title={beat.title} width={1500} height={820} accent={beat.accent}>
-              <HostBody variant={beat.variant} typed={typed} />
-            </HostWindow>
-          </div>
+    <AbsoluteFill style={{ background: tokens.bg0, fontFamily: fonts.sans }}>
+      {/* Pill at the top — the floating utility is always visible. */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 90,
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }}
+      >
+        <div style={{ transform: 'scale(1.85)', transformOrigin: 'top center' }}>
+          <BarDriver state={state} elapsedMs={elapsed * 1000} />
         </div>
+      </div>
 
-        {/* Floating bar pinned near the top of the screen. Bumped wider
-            + scaled up so the bar reads clearly at a 400 px mobile
-            render alongside the host window. */}
+      {/* Generic text field — sits in the centre-bottom of the frame. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: 480,
+          transform: 'translateX(-50%)',
+          width: 1060,
+          maxWidth: '86%',
+        }}
+      >
         <div
           style={{
-            position: 'absolute',
-            top: 36,
-            left: '50%',
-            transform: 'translateX(-50%) scale(1.15)',
-            transformOrigin: 'top center',
+            fontFamily: fonts.mono,
+            fontSize: 17,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: tokens.muted,
+            marginBottom: 14,
           }}
         >
-          <BarDriver state={barState} elapsedMs={elapsedSecs * 1000} />
+          Any Windows app — wherever the cursor is
         </div>
-      </WindowsDesktop>
+        <div
+          style={{
+            background: tokens.bg1,
+            borderRadius: 16,
+            padding: '32px 36px',
+            border: `1px solid ${
+              successGlow > 0.05
+                ? `rgba(34, 211, 238, ${0.15 + successGlow * 0.55})`
+                : tokens.border
+            }`,
+            minHeight: 220,
+            fontSize: 28,
+            lineHeight: 1.55,
+            color: tokens.fg,
+            position: 'relative',
+            boxShadow: successGlow > 0.05
+              ? `0 0 0 ${6 * successGlow}px rgba(34, 211, 238, ${0.1 * successGlow})`
+              : 'none',
+          }}
+        >
+          {typed}
+          {showCaret && (
+            <span
+              style={{
+                display: 'inline-block',
+                width: 3,
+                height: 30,
+                background: tokens.accent,
+                marginLeft: 2,
+                verticalAlign: 'middle',
+                transform: 'translateY(-2px)',
+                opacity: caretBlink,
+              }}
+            />
+          )}
+        </div>
+      </div>
     </AbsoluteFill>
-  );
-}
-
-function HostBody({ variant, typed }: { variant: 'browser' | 'chat' | 'editor'; typed: string }) {
-  if (variant === 'browser') {
-    return (
-      <div style={{ padding: '40px 56px', color: '#E8EAED', fontFamily: fonts.sans, height: '100%', boxSizing: 'border-box' }}>
-        <div style={{ fontSize: 22, color: '#9AA0A6', marginBottom: 14 }}>
-          To: priya@utterbar.app &nbsp;·&nbsp; Cc: team@utterbar.app
-        </div>
-        <div style={{ fontSize: 36, fontWeight: 500, marginBottom: 28, color: '#E8EAED' }}>Re: Slide deck</div>
-        <div style={{ fontSize: 30, lineHeight: 1.55, color: '#D0D3D9' }}>
-          Hi Priya,
-          <br />
-          <br />
-          {typed}
-          <span style={{ display: 'inline-block', width: 3, height: 30, background: tokens.accent, marginLeft: 2, verticalAlign: -4 }} />
-        </div>
-      </div>
-    );
-  }
-  if (variant === 'chat') {
-    return (
-      <div
-        style={{
-          padding: '32px 40px',
-          color: '#E8EAED',
-          fontFamily: fonts.sans,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 20,
-          height: '100%',
-          boxSizing: 'border-box',
-        }}
-      >
-        <MsgBubble who="Priya" color="#7c3aed" text="ETA on 0.6.1?" />
-        <MsgBubble who="Kiran" color="#0ea371" text="running the checklist rn" />
-        <div
-          style={{
-            marginTop: 'auto',
-            background: '#2A2B2E',
-            borderRadius: 14,
-            padding: '24px 28px',
-            minHeight: 120,
-            fontSize: 30,
-            lineHeight: 1.5,
-            color: '#E8EAED',
-          }}
-        >
-          {typed}
-          <span style={{ display: 'inline-block', width: 3, height: 30, background: tokens.accent, marginLeft: 2, verticalAlign: -4 }} />
-        </div>
-      </div>
-    );
-  }
-  // editor
-  return (
-    <div
-      style={{
-        fontFamily: fonts.mono,
-        fontSize: 28,
-        lineHeight: 1.65,
-        color: '#D0D3D9',
-        padding: '40px 56px',
-        height: '100%',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ color: '#9AA0A6' }}># Research Notes — 23 April</div>
-      <div style={{ marginTop: 26 }}>
-        {typed}
-        <span style={{ display: 'inline-block', width: 12, height: 30, background: tokens.accent, marginLeft: 2, verticalAlign: -4 }} />
-      </div>
-    </div>
-  );
-}
-
-function MsgBubble({ who, color, text }: { who: string; color: string; text: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-      <div
-        style={{
-          width: 52,
-          height: 52,
-          borderRadius: 999,
-          background: color,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 22,
-          fontWeight: 700,
-          color: '#fff',
-          flexShrink: 0,
-        }}
-      >
-        {who[0]}
-      </div>
-      <div>
-        <div style={{ fontSize: 20, fontWeight: 500, color: tokens.muted, marginBottom: 4 }}>{who}</div>
-        <div style={{ fontSize: 28 }}>{text}</div>
-      </div>
-    </div>
   );
 }
