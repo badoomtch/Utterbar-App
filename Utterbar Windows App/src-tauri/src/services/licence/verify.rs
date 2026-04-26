@@ -1,7 +1,7 @@
 //! Offline signature verification for the 96-byte licence blob.
 //!
-//! See docs/LICENCE_APP_HANDOFF §3. Verification runs on every launch against
-//! the cached blob, with no network call — the signature is over
+//! See docs/LICENCE_APP_HANDOFF Â§3. Verification runs on every launch against
+//! the cached blob, with no network call â€” the signature is over
 //! `sha256(payload)`, not the raw payload, matching the server's
 //! `sodium_crypto_sign_detached($digest, $sk)`.
 
@@ -11,14 +11,38 @@ use sha2::{Digest, Sha256};
 use crate::domain::licence::LicencePayload;
 use crate::util::result::OrliqError;
 
-/// Ed25519 sandbox public key from the handoff doc §1. **Rotate before live
-/// launch** — ship v1.1 with both v1 and v2 keys, pick by payload `version`.
-pub const PUBLIC_KEY_BYTES: [u8; 32] = [
-    0xff, 0x56, 0x07, 0x91, 0xc9, 0x5c, 0x7c, 0xb5, 0x62, 0xe0, 0x75, 0xad, 0x64, 0x06, 0xb7, 0x6f,
-    0xa5, 0xdd, 0xf0, 0xcc, 0x77, 0xb4, 0x3b, 0x47, 0x8e, 0x57, 0x1f, 0xda, 0x01, 0x4e, 0x24, 0x42,
+/// Ed25519 sandbox public key — payload version byte 1.
+///
+/// This is the SANDBOX key that shipped with v0.6.x–v0.8.x. We accept it
+/// transitionally so existing installs keep working while the live key
+/// (v2) rolls out via `licence:remint --all` on the server. After v0.9.0
+/// saturates the install base (≥6 weeks), drop this constant and the
+/// `try_with` fallback in `verify_signed_blob` so only v2 licences
+/// verify.
+pub const PUBLIC_KEY_BYTES_V1: [u8; 32] = [
+    0xea, 0x5e, 0x9b, 0x4f, 0x93, 0x55, 0x33, 0x18, 0x89, 0xf8, 0x04, 0x10, 0xc0, 0xc2, 0x89, 0xa7,
+    0xe1, 0x02, 0x32, 0xf0, 0x97, 0x76, 0xa2, 0x2b, 0xdb, 0x2b, 0x1d, 0x53, 0x27, 0x63, 0x2b, 0x04,
 ];
 
-/// Verify a signed blob and return the parsed payload. Fails closed — every
+/// Ed25519 LIVE public key — payload version byte 2.
+///
+/// Generated for the live cut-over. The matching private key lives only
+/// on the production licence-signing server (.env: LICENCE_PRIVATE_KEY_B64).
+/// MUST be filled in before shipping the build that depends on it — a
+/// build with all-zeros here will reject every v2 licence (no signature
+/// can verify against the identity public key under `verify_strict`).
+///
+/// Generate via `php artisan licence:keygen` on a clean machine (NEVER
+/// production) and paste the public-key bytes here AND
+/// LICENCE_PUBLIC_KEY_B64 + LICENCE_PRIVATE_KEY_B64 into the server .env.
+/// Also bump LICENCE_PAYLOAD_VERSION=2 server-side.
+pub const PUBLIC_KEY_BYTES_V2: [u8; 32] = [
+    0x10, 0x9c, 0x54, 0x05, 0x46, 0x44, 0x12, 0xf6, 0x16, 0xdc, 0x07, 0x6b, 0x50, 0xac, 0x94, 0x60,
+    0x1c, 0x88, 0xc7, 0x50, 0xfc, 0x1f, 0x85, 0x78, 0x9a, 0x87, 0xec, 0x28, 0x62, 0x76, 0x3a, 0x57,
+];
+
+
+/// Verify a signed blob and return the parsed payload. Fails closed â€” every
 /// branch that isn't "valid signature over the exact expected bytes" returns an
 /// `OrliqError::Licence { kind: "verification_failed", ... }` or `"malformed"`.
 ///
@@ -32,21 +56,39 @@ pub fn verify_signed_blob(blob: &[u8]) -> Result<LicencePayload, OrliqError> {
         });
     }
     let (payload_bytes, sig_bytes) = blob.split_at(32);
-
-    let vk = VerifyingKey::from_bytes(&PUBLIC_KEY_BYTES).map_err(|e| OrliqError::Licence {
-        code: "internal".to_string(),
-        message: format!("bundled public key rejected: {e}"),
-    })?;
     let sig = Signature::from_slice(sig_bytes).map_err(|e| OrliqError::Licence {
         code: "malformed".to_string(),
         message: format!("signature decode: {e}"),
     })?;
-
     let digest = Sha256::digest(payload_bytes);
+
+    // Pick the verifying key by the payload's version byte. v1 is the
+    // sandbox keypair, v2 is the live keypair. Anything else is treated
+    // as "no key we trust signed this" — fail closed. We deliberately
+    // do NOT fall back across versions: a v2 payload with a v1 signature
+    // is malformed, not a valid licence, and accepting it would defeat
+    // the rotation entirely.
+    let version = payload_bytes[0];
+    let pubkey = match version {
+        1 => &PUBLIC_KEY_BYTES_V1,
+        2 => &PUBLIC_KEY_BYTES_V2,
+        other => {
+            return Err(OrliqError::Licence {
+                code: "verification_failed".to_string(),
+                message: format!("payload advertises unknown key version {other}"),
+            });
+        }
+    };
+
+    let vk = VerifyingKey::from_bytes(pubkey).map_err(|e| OrliqError::Licence {
+        code: "internal".to_string(),
+        message: format!("bundled public key rejected: {e}"),
+    })?;
+
     vk.verify(digest.as_slice(), &sig)
         .map_err(|_| OrliqError::Licence {
             code: "verification_failed".to_string(),
-            message: "signature did not verify against the bundled public key".to_string(),
+            message: format!("signature did not verify against bundled v{version} public key"),
         })?;
 
     parse_payload(payload_bytes)
@@ -62,8 +104,8 @@ fn parse_payload(p: &[u8]) -> Result<LicencePayload, OrliqError> {
         });
     }
 
-    // Offsets match docs/LICENCE_APP_HANDOFF §3.1.
-    // u48 BE at offset 2..8 → widen to u64 by reading the top 2 bytes as u16 and
+    // Offsets match docs/LICENCE_APP_HANDOFF Â§3.1.
+    // u48 BE at offset 2..8 â†’ widen to u64 by reading the top 2 bytes as u16 and
     // the bottom 4 bytes as u32.
     let issued_at_ms = (u64::from(u16::from_be_bytes([p[2], p[3]])) << 32)
         | u64::from(u32::from_be_bytes([p[4], p[5], p[6], p[7]]));

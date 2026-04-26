@@ -65,6 +65,32 @@ if [[ "$HTTP" != "200" ]]; then
 fi
 echo "  200 OK"
 
+# Updater metadata signing. Signs the canonical blob with the operator-local
+# Ed25519 key from UPDATER_PRIVATE_KEY_B64. The server stores the signature
+# but never sees the private key; the desktop client embeds the public key
+# at compile time and verifies before downloading the installer. See
+# docs canon: app/Services/Releases/UpdateMetadataSigner.php.
+SIG=""
+if [[ -n "${UPDATER_PRIVATE_KEY_B64:-}" ]]; then
+    DOWNLOAD_URL="https://dl.utterbar.com/$KEY"
+    SIZE=$(stat -c %s "$EXE_PATH" 2>/dev/null || stat -f %z "$EXE_PATH")
+    echo "→ signing updater metadata…"
+    SIG=$(UPDATER_PRIVATE_KEY_B64="$UPDATER_PRIVATE_KEY_B64" \
+        python3 "$(dirname "$0")/sign-update-metadata.py" \
+            --version "$VERSION" \
+            --channel "$CHANNEL" \
+            --size-bytes "$SIZE" \
+            --sha256 "$SHA" \
+            --download-url "$DOWNLOAD_URL") || {
+                echo "✗ signing failed; aborting publish" >&2; exit 1
+            }
+    echo "  signed (${#SIG} chars)"
+else
+    echo "⚠  UPDATER_PRIVATE_KEY_B64 not set — releasing WITHOUT updater signature."
+    echo "    Clients on >=0.9.0 will refuse this update once UPDATER_PUBLIC_KEY_B64"
+    echo "    is configured server-side. OK only for first-time bootstrap."
+fi
+
 echo "→ publishing metadata to $UTTERBAR_API_BASE…"
 # Include `r2_key` explicitly so the server doesn't fall back to its
 # legacy default of `releases/{version}/Utterbar-Setup.exe` (unversioned).
@@ -79,8 +105,11 @@ PAYLOAD=$(jq -n \
     --arg sha "$SHA" \
     --arg notes "$NOTES" \
     --arg tag "$TAG" \
+    --arg sig "$SIG" \
     --argjson ann "$ANNOUNCE" \
-    '{version:$v, channel:$ch, r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:$ann} + (if $tag == "" then {} else {tag:$tag} end)')
+    '{version:$v, channel:$ch, r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:$ann}
+        + (if $tag == "" then {} else {tag:$tag} end)
+        + (if $sig == "" then {} else {updater_signature:$sig} end)')
 
 # Write the payload to a temp file and curl via --data-binary @<file>
 # instead of -d "$PAYLOAD". The inline -d form mangles multiline JSON

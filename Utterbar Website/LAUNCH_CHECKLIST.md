@@ -23,21 +23,38 @@
 
 ### A2. Rotate the Ed25519 signing keypair to a production value
 
-The sandbox keypair is committed to `LICENCE_APP_HANDOFF.md`. That's fine for testing; not fine for production.
+The sandbox keypair is committed to `LICENCE_APP_HANDOFF.md`. That's fine for testing; not fine for production. The desktop app already supports dual-key verification — `PUBLIC_KEY_BYTES_V1` (sandbox) and `PUBLIC_KEY_BYTES_V2` (live) — selected by the payload's version byte. v2 is currently zeros; this section is what fills it in.
 
-- [ ] On your **own laptop** (never the production server), run:
-      ```
-      php artisan licence:keygen
-      ```
-- [ ] Copy the **private** key output into the production server's `.env`:
-      ```
-      LICENCE_PRIVATE_KEY_B64=<new secret>
-      LICENCE_PUBLIC_KEY_B64=<new public>
-      LICENCE_PAYLOAD_VERSION=2   # bump from 1, so app can distinguish signers
-      ```
-- [ ] **Do not** remove the old sandbox public key from app Claude's Rust code. The app should ship with BOTH public keys — pick which to verify against using the `version` byte in the payload. This means licences issued in sandbox keep working even after rotation.
-- [ ] Give app Claude the new hex + base64 public key. They rebuild with `PUBLIC_KEY_V2` added alongside `PUBLIC_KEY_V1`.
-- [ ] `php artisan config:clear` on the server.
+Order matters. Do the steps in this exact sequence so existing v0.6.x–v0.8.x installs keep working through the cut-over.
+
+1. **Generate the keypair on a clean machine — never the production server.**
+   ```
+   php artisan licence:keygen
+   ```
+   Save all three outputs: the base64 private key, the base64 public key, the public-key bytes formatted as a Rust array.
+
+2. **Patch the desktop app with the v2 public key.**
+   Open `Utterbar Windows App/src-tauri/src/services/licence/verify.rs` and replace the all-zero bytes in `PUBLIC_KEY_BYTES_V2` with the keygen-output Rust array. Commit. Do NOT touch `PUBLIC_KEY_BYTES_V1` — that's the sandbox key and existing licences still verify under it.
+
+3. **Build but don't ship yet.** Confirm `cargo test --bin utterbar services::licence::verify` passes. The new build accepts BOTH v1 and v2 licences; it'll be released as part of v0.9.0 (see B4 below).
+
+4. **Install the new keys on the server's `.env`** (Cloudways shell, `~/public_html/.env`):
+   ```
+   LICENCE_PRIVATE_KEY_B64=<new secret from step 1>
+   LICENCE_PUBLIC_KEY_B64=<new public from step 1>
+   LICENCE_PAYLOAD_VERSION=2
+   ```
+   Then `php artisan config:clear`. From this moment, every NEW licence minted by Stripe webhook will sign under v2.
+
+5. **Re-mint every existing licence under the new key.**
+   ```
+   php artisan licence:remint --all --non-interactive
+   ```
+   This rewrites every row's `signed_blob` so the old sandbox-signed payloads are replaced with v2 payloads. Once a licence is reminted, the desktop app will verify it under `PUBLIC_KEY_BYTES_V2`. Old v1 blobs cached on user devices keep working until the device next syncs (heartbeat or restart on a v0.9.0+ build).
+
+6. **Ship v0.9.0** as a beta first (see app dev-channel workflow). Confirm the cached licence reverifies after the upgrade — `verify_signed_blob` should pick the right key by version byte automatically.
+
+7. **Sunset v1.** ~6 weeks after v0.9.0 saturates the install base, ship v0.9.x with `PUBLIC_KEY_BYTES_V1` deleted and the `match version` arm for `1` removed. From that release on, only v2-minted licences verify. Track open install version distribution via `/api/licence/heartbeat` user-agents to gauge readiness.
 
 ### A3. Decide the final price
 

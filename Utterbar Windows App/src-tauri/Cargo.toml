@@ -1,6 +1,6 @@
 [package]
 name = "utterbar"
-version = "0.7.0"
+version = "0.9.0"
 edition = "2021"
 description = "Utterbar — local-only dictation for Windows"
 authors = ["Utterbar"]
@@ -100,6 +100,7 @@ sherpa-rs = { version = "0.6", default-features = false }
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Security", # SECURITY_ATTRIBUTES, required for CreateEventW
+    "Win32_Security_Cryptography", # CryptProtectData / CryptUnprotectData (DPAPI wrap of licence file fallback)
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_System_Threading",

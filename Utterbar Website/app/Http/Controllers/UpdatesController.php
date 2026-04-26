@@ -99,17 +99,65 @@ class UpdatesController extends Controller
      * One-click confirmation (no form submission required — avoids email-client
      * prefetch issues that would otherwise trigger a POST).
      */
-    public function confirm(Request $request)
+    /**
+     * GET /updates/confirm?t=<token>
+     *
+     * Renders a one-button confirmation page rather than confirming
+     * straight from the GET. Email clients (Outlook safe-link, some
+     * corporate scanners) prefetch URL targets in incoming messages —
+     * a GET that mutated state would burn the token before the user
+     * ever clicked. The button POSTs to the same route to actually
+     * commit the confirmation.
+     *
+     * The lookup-only check on GET is cheap and lets us tell the user
+     * up-front when their link has already expired or been used,
+     * before they even click.
+     */
+    public function confirmPage(Request $request)
     {
         $token = (string) $request->query('t', '');
         if ($token === '') {
             return $this->invalidConfirm();
         }
         $hash = UpdateSubscriber::hashToken($token);
+        $sub = UpdateSubscriber::where('token_hash', $hash)->first();
+        if (!$sub || $sub->unsubscribed_at) {
+            return $this->invalidConfirm();
+        }
+        // Already confirmed? Render the success state directly so a
+        // second click on the same link doesn't show "invalid".
+        if ($sub->confirmed_at) {
+            return view('pages.updates-status', [
+                'status' => 'ok',
+                'title'  => "You're already on the list.",
+                'body'   => "Nothing to do — we'll email you from hello@utterbar.com when there's a new release worth installing.",
+            ]);
+        }
+        return view('pages.updates-confirm', [
+            'token' => $token,
+        ]);
+    }
 
-        // Atomic confirm: transaction + row lock so the confirmation can't
-        // race with a re-subscribe that rotates the token (see subscribe()).
-        // The lookup is by token_hash — plaintext lives only in email URLs.
+    /**
+     * POST /updates/confirm
+     *
+     * The real state-mutating endpoint. Reached by clicking the button
+     * on the confirmation page. CSRF is enforced by Laravel's default
+     * `web` middleware so a third-party page can't drive this. The
+     * token in the form body is the one from the original sign-up
+     * email; we hash + look it up the same way GET does.
+     */
+    public function confirmPost(Request $request)
+    {
+        $token = (string) $request->input('t', '');
+        if ($token === '') {
+            return $this->invalidConfirm();
+        }
+        $hash = UpdateSubscriber::hashToken($token);
+
+        // Atomic confirm: transaction + row lock so the confirmation
+        // can't race with a re-subscribe that rotates the token. The
+        // lookup is by token_hash — plaintext lives only in email URLs.
         $ok = DB::transaction(function () use ($hash) {
             $sub = UpdateSubscriber::where('token_hash', $hash)->lockForUpdate()->first();
             if (!$sub || $sub->unsubscribed_at) {

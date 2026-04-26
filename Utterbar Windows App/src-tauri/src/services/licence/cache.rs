@@ -43,6 +43,12 @@ const SERVICE: &str = "Utterbar/Licence";
 const ACCOUNT: &str = "default";
 const FILE_NAME: &str = "licence.json";
 
+/// Magic prefix on DPAPI-wrapped licence files (v0.9.0+). Lets us
+/// distinguish new from legacy on read — anything starting with this
+/// is unwrapped, anything else is parsed as legacy plaintext JSON.
+/// 9 bytes + colon makes for cheap eyeball inspection too.
+const DPAPI_MAGIC: &[u8] = b"dpapi-v1:";
+
 /// Persistent record as stored in the OS keyring. Deliberately a flat JSON
 /// object — the whole blob is small enough that we read/write it atomically on
 /// every change, no partial updates.
@@ -105,6 +111,20 @@ impl LicenceCache {
         Some(dir.join(FILE_NAME))
     }
 
+    /// File-cache load. v0.9.0+ wraps the bytes via Windows DPAPI
+    /// (`CryptProtectData` with the user-scope key) so a copy of
+    /// `licence.json` lifted off disk by malware running as a
+    /// different user — or off a backup snapshot — can't be re-imported
+    /// onto another machine to bypass the 3-device cap.
+    ///
+    /// Older builds wrote raw JSON. We accept both shapes on read so an
+    /// upgrade doesn't lose a working licence:
+    ///   - Try DPAPI unwrap first (the new format starts with the
+    ///     `dpapi-v1:` magic prefix)
+    ///   - Fall back to plain-JSON parse for legacy files
+    ///
+    /// On a successful legacy read, the next save() rewrites in DPAPI
+    /// form, so the cache silently upgrades itself.
     fn load_from_file() -> Result<Option<CachedLicence>> {
         let Some(path) = Self::file_path() else {
             return Ok(None);
@@ -112,9 +132,24 @@ impl LicenceCache {
         if !path.exists() {
             return Ok(None);
         }
-        let json = fs::read_to_string(&path).context("read licence file")?;
+        let bytes = fs::read(&path).context("read licence file")?;
+
+        // DPAPI-wrapped path (preferred).
+        if let Some(rest) = bytes.strip_prefix(DPAPI_MAGIC) {
+            let plaintext = dpapi::unprotect(rest).context("DPAPI unwrap of licence file")?;
+            let json = std::str::from_utf8(&plaintext)
+                .context("DPAPI-unwrapped licence file is not valid UTF-8")?;
+            let rec: CachedLicence =
+                serde_json::from_str(json).context("decode cached licence file")?;
+            return Ok(Some(rec));
+        }
+
+        // Legacy plaintext path. Anything that isn't UTF-8 JSON falls
+        // through as a hard error — better to surface it than to
+        // silently confuse a corrupt-file case with a rotated key.
+        let json = std::str::from_utf8(&bytes).context("legacy licence file is not UTF-8")?;
         let rec: CachedLicence =
-            serde_json::from_str(&json).context("decode cached licence file")?;
+            serde_json::from_str(json).context("decode cached licence file")?;
         Ok(Some(rec))
     }
 
@@ -123,7 +158,15 @@ impl LicenceCache {
             anyhow::bail!("no data dir available for licence fallback file");
         };
         let json = serde_json::to_string(rec).context("encode cached licence for file")?;
-        fs::write(&path, json).context("write licence file")?;
+        // DPAPI-wrap with user-scope key. The magic prefix lets load()
+        // distinguish between the new format and a legacy plain-JSON
+        // file, so an upgrade from older builds doesn't lose state.
+        let wrapped =
+            dpapi::protect(json.as_bytes()).context("DPAPI wrap of licence file payload")?;
+        let mut buf = Vec::with_capacity(DPAPI_MAGIC.len() + wrapped.len());
+        buf.extend_from_slice(DPAPI_MAGIC);
+        buf.extend_from_slice(&wrapped);
+        fs::write(&path, &buf).context("write licence file")?;
         Ok(())
     }
 
@@ -239,6 +282,103 @@ impl LicenceCache {
 impl Default for LicenceCache {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Windows DPAPI wrappers for the licence-cache file fallback.
+///
+/// `CryptProtectData` with the user-scope key (no entropy, no
+/// `CRYPTPROTECT_LOCAL_MACHINE` flag) wraps bytes such that they can
+/// only be unwrapped by code running as the same Windows user on the
+/// same machine. A backup snapshot or a copy lifted by a different-
+/// user-account process can't unwrap the result.
+///
+/// We don't pass a description string — sherpa-onnx and other
+/// inspecting-tools surface those in a system dialog, which is poor
+/// UX and not adding security here. The blob inside is itself
+/// Ed25519-signed; DPAPI is purely the cross-machine-copy guard.
+///
+/// On non-Windows targets the module exists for compile-cross-platform
+/// purposes (the Tauri build only ships on Windows, but `cargo check`
+/// occasionally runs on macOS/Linux for cross-validation) and falls
+/// back to identity transforms — there's no equivalent of DPAPI we
+/// can rely on without pulling in a keychain crate, and this
+/// fallback only matters during dev cross-checks.
+#[cfg(target_os = "windows")]
+mod dpapi {
+    use anyhow::{anyhow, Result};
+    use windows::Win32::Foundation::LocalFree;
+    use windows::Win32::Security::Cryptography::{
+        CryptProtectData, CryptUnprotectData, CRYPT_INTEGER_BLOB,
+    };
+
+    pub fn protect(plaintext: &[u8]) -> Result<Vec<u8>> {
+        unsafe {
+            let input = CRYPT_INTEGER_BLOB {
+                cbData: plaintext.len() as u32,
+                pbData: plaintext.as_ptr() as *mut u8,
+            };
+            let mut output = CRYPT_INTEGER_BLOB::default();
+            CryptProtectData(
+                &input,
+                None,
+                None,
+                None,
+                None,
+                0,
+                &mut output,
+            )
+            .map_err(|e| anyhow!("CryptProtectData: {e:?}"))?;
+            let bytes = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
+            // CryptProtectData allocates with LocalAlloc; we own the
+            // pointer until LocalFree. Leaking it would be a steady
+            // GDI-handle-style drip on long-running apps.
+            let _ = LocalFree(windows::Win32::Foundation::HLOCAL(
+                output.pbData as *mut _,
+            ));
+            Ok(bytes)
+        }
+    }
+
+    pub fn unprotect(ciphertext: &[u8]) -> Result<Vec<u8>> {
+        unsafe {
+            let input = CRYPT_INTEGER_BLOB {
+                cbData: ciphertext.len() as u32,
+                pbData: ciphertext.as_ptr() as *mut u8,
+            };
+            let mut output = CRYPT_INTEGER_BLOB::default();
+            CryptUnprotectData(
+                &input,
+                None,
+                None,
+                None,
+                None,
+                0,
+                &mut output,
+            )
+            .map_err(|e| anyhow!("CryptUnprotectData: {e:?}"))?;
+            let bytes = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
+            let _ = LocalFree(windows::Win32::Foundation::HLOCAL(
+                output.pbData as *mut _,
+            ));
+            Ok(bytes)
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+mod dpapi {
+    use anyhow::Result;
+
+    /// No-op on non-Windows. This module only exists to keep
+    /// cross-target `cargo check` clean; the app only ships on
+    /// Windows.
+    pub fn protect(plaintext: &[u8]) -> Result<Vec<u8>> {
+        Ok(plaintext.to_vec())
+    }
+
+    pub fn unprotect(ciphertext: &[u8]) -> Result<Vec<u8>> {
+        Ok(ciphertext.to_vec())
     }
 }
 

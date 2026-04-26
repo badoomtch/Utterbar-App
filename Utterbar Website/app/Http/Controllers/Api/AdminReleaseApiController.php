@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\UpdateAnnouncement;
 use App\Models\Release;
 use App\Models\UpdateSubscriber;
+use App\Services\Releases\UpdateMetadataSigner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -43,14 +44,19 @@ class AdminReleaseApiController extends Controller
         // release row with null sha256 cannot be auto-installed. We
         // reject at publish rather than silently persist a dead row.
         $data = $request->validate([
-            'version'           => ['required', 'string', 'max:32', 'regex:/^\d+\.\d+\.\d+$/'],
-            'channel'           => ['nullable', 'in:stable,beta'],
-            'r2_key'            => ['nullable', 'string', 'max:255'],
-            'tag'               => ['nullable', 'string', 'max:64'],
-            'sha256'            => ['required', 'string', 'regex:/^[A-Fa-f0-9]{64}$/'],
-            'notes_markdown'    => ['required', 'string'],
-            'announce'          => ['nullable', 'boolean'],
-            'announce_subject'  => ['nullable', 'string', 'max:200'],
+            'version'            => ['required', 'string', 'max:32', 'regex:/^\d+\.\d+\.\d+$/'],
+            'channel'            => ['nullable', 'in:stable,beta'],
+            'r2_key'             => ['nullable', 'string', 'max:255'],
+            'tag'                => ['nullable', 'string', 'max:64'],
+            'sha256'             => ['required', 'string', 'regex:/^[A-Fa-f0-9]{64}$/'],
+            'notes_markdown'     => ['required', 'string'],
+            'announce'           => ['nullable', 'boolean'],
+            'announce_subject'   => ['nullable', 'string', 'max:200'],
+            // Base64-encoded Ed25519 signature (64 raw bytes = 88 chars b64) over
+            // the canonical metadata blob. Required when an updater public key
+            // is configured — the publish script signs locally and sends the
+            // signature here so the server never needs the private key.
+            'updater_signature'  => ['nullable', 'string', 'max:128'],
         ], [
             'version.regex' => 'Version must be three numeric segments, e.g. 0.6.2. Pre-release suffixes (-rc.1, -beta) are not supported; use the beta channel for pre-GA builds.',
             'sha256.required' => 'SHA-256 is required — releases without a hash cannot be auto-installed by the desktop updater.',
@@ -85,15 +91,54 @@ class AdminReleaseApiController extends Controller
 
         $size = $disk->size($r2Key);
 
+        // Build the canonical download URL the same way UpdaterApiController
+        // does (single source of truth: r2.url config). The updater signature
+        // is computed over a metadata blob that includes this URL — keeping
+        // both sides identical ensures the client's reconstruction matches.
+        $cdnBase = (string) (config('filesystems.disks.r2.url') ?: env('CLOUDFLARE_R2_PUBLIC_URL', 'https://dl.utterbar.com'));
+        $downloadUrl = rtrim($cdnBase, '/') . '/' . ltrim($r2Key, '/');
+
+        // Updater signature handling. When an updater public key is
+        // configured (production), a signature is REQUIRED — pushing an
+        // unsigned release would mean clients refuse to install it,
+        // creating a silent dead-row. Reject at publish time instead.
+        // When no key is configured (local dev / tests), accept whatever
+        // the operator sent (including nothing) so the test suite doesn't
+        // require key material.
+        $updaterSig = $data['updater_signature'] ?? null;
+        $hasUpdaterKey = (bool) config('services.updater.public_key_b64');
+        if ($hasUpdaterKey) {
+            if (!is_string($updaterSig) || $updaterSig === '') {
+                return response()->json([
+                    'error'   => 'updater_signature_required',
+                    'message' => 'Releases must include an updater_signature when UPDATER_PUBLIC_KEY_B64 is set. Use scripts/sign-update-metadata.sh.',
+                ], 422);
+            }
+            $signedOk = UpdateMetadataSigner::verify($updaterSig, [
+                'version'      => $data['version'],
+                'channel'      => $channel,
+                'size_bytes'   => (int) $size,
+                'sha256'       => strtolower($data['sha256']),
+                'download_url' => $downloadUrl,
+            ]);
+            if (!$signedOk) {
+                return response()->json([
+                    'error'   => 'updater_signature_invalid',
+                    'message' => 'updater_signature does not verify against the canonical metadata blob. Check that the operator key matches UPDATER_PUBLIC_KEY_B64 and that nothing changed (sha256, r2_key, size) between signing and upload.',
+                ], 422);
+            }
+        }
+
         $release = Release::create([
-            'version'         => $data['version'],
-            'channel'         => $channel,
-            'r2_key'          => $r2Key,
-            'file_size_bytes' => $size,
-            'sha256'          => strtolower($data['sha256']),
-            'tag'             => $data['tag'] ?? null,
-            'notes_markdown'  => $data['notes_markdown'],
-            'published_at'    => now(),
+            'version'           => $data['version'],
+            'channel'           => $channel,
+            'r2_key'            => $r2Key,
+            'file_size_bytes'   => $size,
+            'sha256'            => strtolower($data['sha256']),
+            'updater_signature' => $updaterSig,
+            'tag'               => $data['tag'] ?? null,
+            'notes_markdown'    => $data['notes_markdown'],
+            'published_at'      => now(),
         ]);
 
         $announced = 0;

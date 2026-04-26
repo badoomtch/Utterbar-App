@@ -118,6 +118,12 @@ class UpdaterApiController extends Controller
             // Release model stores the file size as `file_size_bytes`; the
             // client wire field is `size_bytes` to match Rust's struct.
             'size_bytes'     => $latest->file_size_bytes !== null ? (int) $latest->file_size_bytes : null,
+            // Base64-encoded Ed25519 signature over the canonical metadata
+            // blob (see App\Services\Releases\UpdateMetadataSigner). Empty
+            // string when the row pre-dates updater signing — the client
+            // (>=0.9.0) treats empty as "do not install" once it embeds
+            // a non-zero public key.
+            'signature'      => (string) ($latest->updater_signature ?? ''),
         ]);
     }
 
@@ -159,6 +165,14 @@ class UpdaterApiController extends Controller
      */
     private static function pickEligibleRelease(string $channel): ?Release
     {
+        // When updater signing is configured server-side, every advertised
+        // row MUST carry a signature — pre-signing rows are effectively
+        // dead for the auto-updater (clients on the new public key will
+        // refuse them). Skipping them here means manual download still
+        // works (legacy rows remain visible on /releases) without the
+        // updater offering an unsignable upgrade.
+        $requireSignature = (bool) config('services.updater.public_key_b64');
+
         $candidates = Release::query()
             ->where('channel', $channel)
             ->whereNotNull('published_at')
@@ -173,6 +187,9 @@ class UpdaterApiController extends Controller
                 continue;
             }
             if (empty($row->r2_key)) {
+                continue;
+            }
+            if ($requireSignature && empty($row->updater_signature)) {
                 continue;
             }
             return $row;

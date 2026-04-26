@@ -1,14 +1,33 @@
 import { cn } from '@/lib/cn';
 
 /**
- * On/off toggle.
+ * On/off toggle. Single canonical implementation — every Toggle in the
+ * app uses this component. If a switch ever looks "off" elsewhere, the
+ * fix lives here, not in a one-off override.
  *
- * Visual language matches the spec's "at rest vs lit" button dialectic
- * applied to a switch:
- *   • Off — hollow track on bg-2, quiet border, knob sits left.
- *   • On  — cyan accent fill, knob sits right with a soft shadow.
+ * Geometry (audited 2026-04-27, fourth pass — see history at the bottom
+ * of this comment for the full saga). Numbers chosen so the on/off knob
+ * positions are mirror-symmetric AND the visible track shape stays the
+ * same in both states:
  *
- * No glow ring on focus — a 2px cyan outline per §6.1 is sufficient.
+ *   Track       w-11 h-6      → 44×24 outer (border-box)
+ *   Border      1px each side → 42×22 content box, present in BOTH states
+ *   Knob        h-[18px] w-[18px]
+ *   Inset       2px each side from the content box
+ *   Travel      content_w - knob - 2*inset = 42 - 18 - 4 = 20px
+ *
+ *   OFF      translate-x-[2px]   → 2px inset from left
+ *   ON       translate-x-[22px]  → 22+18 = 40, 2px from right
+ *
+ * The previous version used `border-transparent` for the ON state, which
+ * was mathematically symmetric but perceptually asymmetric: a transparent
+ * border meant the cyan fill bled to the OUTER edge of the track, so the
+ * ON knob's 2px right gap looked like it was sitting on the very rim
+ * while the OFF knob's 2px left gap had a visible grey border to butt
+ * against. Fix: keep a same-coloured (accent) border in the ON state so
+ * the visible track terminates at the same place in both states.
+ *
+ * Focus ring: 2px cyan outline per DESIGN_SYSTEM §6.1, no glow.
  */
 export function Toggle({
   checked,
@@ -30,31 +49,20 @@ export function Toggle({
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       className={cn(
-        'relative inline-flex h-6 w-10 items-center rounded-pill border transition-colors duration-180',
+        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-pill border transition-colors duration-180',
         'focus-visible:outline-2 focus-visible:outline focus-visible:outline-accent focus-visible:outline-offset-2',
         checked
-          ? 'bg-accent border-transparent'
+          ? 'bg-accent border-accent'
           : 'bg-bg-2 border-border-strong hover:border-accent/40',
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
-      {/*
-        Knob geometry — the ON-state translate was visibly wrong in v0.6.x:
-        the knob clipped past the right edge of the track.
-        Track:  w-10 = 40px, with a 1px border each side → 38px inner.
-        Knob:   w-4  = 16px.
-        OFF translates by 3px from the left edge (leaves a 3px inset).
-        ON must translate by (inner - knob - inset) = 38 - 16 - 3 = 19px
-        to sit flush with the right edge with the SAME 3px inset.
-        The old value (21px) overshoots by 2px and collides with the
-        right border, producing the visible clip the user flagged.
-      */}
       <span
         className={cn(
-          'pointer-events-none inline-block h-4 w-4 rounded-full transition-all duration-180',
+          'pointer-events-none inline-block h-[18px] w-[18px] rounded-full transition-all duration-180',
           checked
-            ? 'translate-x-[19px] bg-[#06121A] shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
-            : 'translate-x-[3px] bg-fg-dim',
+            ? 'translate-x-[22px] bg-[#06121A] shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
+            : 'translate-x-[2px] bg-fg-dim',
         )}
       />
     </button>

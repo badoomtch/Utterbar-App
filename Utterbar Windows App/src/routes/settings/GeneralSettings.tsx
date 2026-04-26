@@ -7,8 +7,8 @@ import { Toggle } from '@/components/common/Toggle';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { UpgradeModal } from '@/components/upgrade/UpgradeModal';
-import type { UpdateInfo } from '@/generated/UpdateInfo';
 import { useSettings } from '@/state/settings';
+import { useUpdate } from '@/state/update';
 import { useLicence, isPro } from '@/state/licence';
 import { cn } from '@/lib/cn';
 import { invoke } from '@/lib/ipc';
@@ -37,24 +37,26 @@ function isPlausibleEmail(s: string): boolean {
  * bordered "selected" ring. This keeps the active-state vocabulary
  * consistent with list selection surfaces (rail) and navigation (rail).
  */
+const UPDATE_CHANNELS = [
+  { id: 'stable' as const, label: 'Stable' },
+  { id: 'beta' as const, label: 'Beta' },
+];
+
 export function GeneralSettings() {
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const licenceStatus = useLicence((x) => x.status);
   const pro = isPro(licenceStatus);
   const [showAccentUpgrade, setShowAccentUpgrade] = useState(false);
-  // Manual "Check for updates" state. We keep the last check's outcome inline
-  // on the row so the user sees an immediate answer — either "You're up to
-  // date" or "0.6.1 is available, install from the toast" — without hunting
-  // for a toast that might not reappear if it was already dismissed this
-  // session. `status` is purely cosmetic; the toast is still the install UX.
-  const [updateCheck, setUpdateCheck] = useState<
-    | { state: 'idle' }
-    | { state: 'checking' }
-    | { state: 'current'; version: string }
-    | { state: 'available'; from: string; to: string }
-    | { state: 'error' }
-  >({ state: 'idle' });
+  // Manual "Check for updates" wires through the shared `useUpdate` store so
+  // the same click both updates the inline status row and surfaces the
+  // bottom-right toast. Previously this used a local `setUpdateCheck` and the
+  // toast had its own `info` state — clicking "Check now" set the inline copy
+  // but the toast never appeared because nothing wrote to the toast's state.
+  const checking = useUpdate((s) => s.checking);
+  const lastManualOutcome = useUpdate((s) => s.lastManualOutcome);
+  const updateInfo = useUpdate((s) => s.info);
+  const runCheck = useUpdate((s) => s.check);
   // Hidden <input type="color"> — clicking the Custom swatch chip opens the
   // OS colour picker through this ref, so we don't have to build a palette
   // UI ourselves and the user gets their native picker with recent colours,
@@ -65,22 +67,7 @@ export function GeneralSettings() {
   const update = (key: string, value: unknown) =>
     patch({ general: { ...s.general, [key]: value } });
 
-  const checkForUpdatesNow = async () => {
-    setUpdateCheck({ state: 'checking' });
-    try {
-      const u = await invoke<UpdateInfo>('check_update');
-      if (u.available) {
-        setUpdateCheck({ state: 'available', from: u.current, to: u.available });
-      } else {
-        setUpdateCheck({ state: 'current', version: u.current });
-      }
-    } catch {
-      // The backend folds transport errors into "no update" already, so this
-      // only fires for genuinely impossible things (IPC bridge down, etc.).
-      // Surface a generic "couldn't check" rather than an exception stack.
-      setUpdateCheck({ state: 'error' });
-    }
-  };
+  const checkForUpdatesNow = () => runCheck({ manual: true });
 
   const g = s.general as Record<string, unknown>;
   const customHex =
@@ -285,7 +272,17 @@ export function GeneralSettings() {
           </Row>
         </Card>
 
-        <Card title="App updates">
+        {/* Updates — consolidated. Previously this was two cards (App
+            updates + Release updates) with a third Update channel toggle
+            buried in Advanced, forcing users to scroll three places to
+            understand "how do I get new versions". Now: one card, one
+            mental model. The channel chip sits right next to the auto-
+            check toggle so the relationship between "what to look for"
+            and "how often to look" is visible at a glance. */}
+        <Card
+          title="Updates"
+          description="When and how Utterbar checks for new releases."
+        >
           <Row
             label="Check for updates automatically"
             description="Checks the update feed on launch and shows a toast if a newer version is available. No auto-install — you always click Install."
@@ -296,13 +293,40 @@ export function GeneralSettings() {
             />
           </Row>
           <Row
+            label="Update channel"
+            description="Stable is the public-facing channel. Beta receives pre-release builds for testing — useful if you want to dogfood new versions before they ship widely."
+          >
+            <div className="flex gap-2">
+              {UPDATE_CHANNELS.map((c) => {
+                const current =
+                  ((s.advanced as { update_channel?: string }).update_channel ?? 'stable') === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() =>
+                      patch({
+                        advanced: {
+                          ...s.advanced,
+                          update_channel: c.id,
+                        },
+                      })
+                    }
+                    className={cn('ub-chip', current && 'ub-chip--active')}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </Row>
+          <Row
             label="Check now"
             description={
-              updateCheck.state === 'available'
-                ? `${updateCheck.from} → ${updateCheck.to} — see the toast to install.`
-                : updateCheck.state === 'current'
-                  ? `You're up to date (${updateCheck.version}).`
-                  : updateCheck.state === 'error'
+              lastManualOutcome === 'available' && updateInfo?.available
+                ? `${updateInfo.current} → ${updateInfo.available} — see the toast to install.`
+                : lastManualOutcome === 'up-to-date'
+                  ? `You're up to date.`
+                  : lastManualOutcome === 'failed'
                     ? "Couldn't reach the update server. Check your connection and try again."
                     : 'Asks the update server right now, independent of the launch check.'
             }
@@ -312,9 +336,9 @@ export function GeneralSettings() {
               size="sm"
               noLed
               onClick={() => void checkForUpdatesNow()}
-              disabled={updateCheck.state === 'checking'}
+              disabled={checking}
             >
-              {updateCheck.state === 'checking' ? 'Checking…' : 'Check now'}
+              {checking ? 'Checking…' : 'Check now'}
             </Button>
           </Row>
         </Card>

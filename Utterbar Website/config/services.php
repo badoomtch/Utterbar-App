@@ -55,6 +55,13 @@ return [
         // Whether to ask Stripe to collect VAT/tax automatically. Requires Stripe Tax
         // to be configured in the dashboard. Safe to leave off in sandbox.
         'automatic_tax'  => env('STRIPE_AUTOMATIC_TAX', false),
+
+        // Tip jar — a "Customer chooses price" Stripe Price configured in the
+        // dashboard with min £1, max £100, suggested £5. The Price has the
+        // "Optional Gratuity" product category so Stripe handles the tax
+        // category correctly. When STRIPE_TIP_PRICE_ID is unset, the tip
+        // surface auto-hides — no broken buttons in dev environments.
+        'tip_price_id'   => env('STRIPE_TIP_PRICE_ID'),
     ],
 
     'admin' => [
@@ -76,6 +83,21 @@ return [
         'max_devices'     => (int) env('LICENCE_MAX_DEVICES', 3),
         // Payload version byte. Bump when we rotate signing keys.
         'payload_version' => (int) env('LICENCE_PAYLOAD_VERSION', 1),
+    ],
+
+    'updater' => [
+        // Ed25519 keypair used to sign release-update metadata returned by
+        // /api/updater/check. Distinct from the licence keypair on purpose:
+        // a compromised licence key still can't push updates, and a
+        // compromised updater key still can't mint licences. The private
+        // key is operator-local — the publish script signs the canonical
+        // metadata blob and POSTs the signature to the admin API. Only
+        // the public key needs to live on the server (for verification at
+        // publish time + sanity-check tooling). The desktop client embeds
+        // the public key at compile time.
+        //
+        // Generated once via `php artisan updater:keygen`.
+        'public_key_b64' => env('UPDATER_PUBLIC_KEY_B64'),
     ],
 
 ];

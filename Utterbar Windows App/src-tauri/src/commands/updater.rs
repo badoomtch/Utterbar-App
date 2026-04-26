@@ -55,6 +55,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use base64::Engine;
+use ed25519_dalek::{Signature, VerifyingKey};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -64,6 +66,30 @@ use ts_rs::TS;
 use crate::util::result::{CmdResult, OrliqError};
 
 const DEFAULT_BASE_URL: &str = "https://utterbar.com";
+
+/// Ed25519 public key used to verify update metadata signatures.
+///
+/// **Operator-local key** — the matching private key never leaves the
+/// release operator's machine. The publish script signs the canonical
+/// metadata blob (see `canonical_metadata_blob`) with the private half;
+/// this constant is what we verify against on every install. Replace
+/// these zero bytes with the output of `php artisan updater:keygen` on
+/// the operator's machine BEFORE shipping a build that depends on
+/// signature verification — a build with all-zeros here will refuse
+/// every update because no valid signature can verify against the
+/// identity public key.
+///
+/// Distinct from the licence keypair (services/licence/verify.rs)
+/// on purpose: a leak of either key does not compromise the other.
+pub const UPDATER_PUBLIC_KEY: [u8; 32] = [
+    0x3e, 0x15, 0xc0, 0x75, 0x7b, 0xcf, 0x7c, 0xec, 0x05, 0x9b, 0xd1, 0x97, 0x81, 0xd8, 0xa3, 0x51,
+    0xeb, 0x6b, 0x51, 0x65, 0x22, 0xe2, 0x64, 0x85, 0x57, 0xb5, 0x52, 0xeb, 0xa0, 0xd6, 0x02, 0x87,
+];
+
+/// Magic line at the top of the canonical metadata blob — bumped if we
+/// ever need to change the format. The server-side and operator-side
+/// signers use the same string. See `canonical_metadata_blob`.
+const UPDATE_METADATA_MAGIC: &str = "utterbar-update-v1";
 
 /// Payload returned to the frontend. Matches the existing `UpdateInfo` shape
 /// the `UpdateToast` consumes, extended with the fields we need to download
@@ -82,8 +108,14 @@ pub struct UpdateInfo {
     /// Hex-encoded SHA-256 of the installer. We verify this before
     /// launching the downloaded binary — a surprise-mismatch never spawns.
     pub sha256: Option<String>,
-    /// File size in bytes, for a hypothetical progress UI later.
+    /// File size in bytes, used both for a future progress UI and as part
+    /// of the signed metadata blob (any size mismatch voids the signature).
     pub size_bytes: Option<u64>,
+    /// Base64-encoded Ed25519 signature over the canonical metadata blob.
+    /// Verified against `UPDATER_PUBLIC_KEY` before any download starts.
+    /// Kept on `UpdateInfo` rather than hidden inside `install_update` so
+    /// the UI can surface "this release is unsigned" diagnostics later.
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -99,6 +131,8 @@ struct ServerAvailable {
     notes_markdown: Option<String>,
     #[serde(default)]
     size_bytes: Option<u64>,
+    #[serde(default)]
+    signature: Option<String>,
 }
 
 /// Ask the server what the latest version is for this channel.
@@ -108,7 +142,9 @@ struct ServerAvailable {
 /// because the update endpoint is unreachable at launch. That would be
 /// noisy, user-hostile, and fires on every flaky hotel-wifi morning.
 #[tauri::command]
-pub async fn check_update() -> CmdResult<UpdateInfo> {
+pub async fn check_update(
+    state: tauri::State<'_, std::sync::Arc<crate::app_state::AppState>>,
+) -> CmdResult<UpdateInfo> {
     let current = env!("CARGO_PKG_VERSION").to_string();
     let no_update = || UpdateInfo {
         current: current.clone(),
@@ -117,6 +153,15 @@ pub async fn check_update() -> CmdResult<UpdateInfo> {
         download_url: None,
         sha256: None,
         size_bytes: None,
+        signature: None,
+    };
+
+    // Read the channel preference from settings. Anything other than
+    // "beta" is sent as "stable" server-side. Default is stable.
+    let snapshot = state.settings.snapshot().await;
+    let channel = match snapshot.advanced.update_channel.as_str() {
+        "beta" => "beta",
+        _ => "stable",
     };
 
     let user_agent = format!("Utterbar/{} (windows; x86_64)", current);
@@ -133,8 +178,8 @@ pub async fn check_update() -> CmdResult<UpdateInfo> {
     let base =
         std::env::var("UTTERBAR_LICENCE_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
     let url = format!(
-        "{}/api/updater/check?current={}&channel=stable",
-        base, current
+        "{}/api/updater/check?current={}&channel={}",
+        base, current, channel
     );
 
     let resp = match client.get(&url).send().await {
@@ -158,30 +203,113 @@ pub async fn check_update() -> CmdResult<UpdateInfo> {
         download_url: payload.download_url,
         sha256: payload.sha256,
         size_bytes: payload.size_bytes,
+        signature: payload.signature,
     })
 }
 
 /// Download the new installer, verify its hash, spawn the silent installer,
-/// and exit the running app.
+/// queue a detached watcher that re-launches Utterbar after the install
+/// completes, and exit the running app.
 ///
-/// Exit-after-spawn is deliberate: NSIS needs exclusive access to the .exe
-/// files it's overwriting, which means the currently-running app MUST die
-/// before the installer can make progress. If the user kept the window up,
-/// they'd stare at a hung Installing… spinner that never completes. We spawn
-/// the installer detached, then call `app.exit(0)` after a short delay so the
-/// child has time to initialise. NSIS's post-install hook re-launches
-/// Utterbar, closing the loop.
+/// Why a detached watcher and not the NSIS post-install hook:
+///   - NSIS in `currentUser` silent-install mode does not reliably run a
+///     hook that exec's the freshly-installed binary. The hook fires inside
+///     the installer's own process which then exits; whether the spawned
+///     child outlives that exit depends on flags Tauri's installer template
+///     doesn't expose. Empirically (v0.7.x): users see install succeed, no
+///     relaunch, manual open required.
+///   - We own the running process, we know the install target path, and we
+///     can spawn an OS-level detached `cmd.exe` chain that outlives our own
+///     exit. That is the only point in the chain where we can guarantee
+///     the relaunch happens.
+///
+/// Sequence:
+///   1. download + SHA-256 verify
+///   2. write `pending_relaunch.json` to config_dir, marking "we asked the
+///      installer to upgrade us — when you start, we expect to be on
+///      version vX.Y.Z; if so, surface the post-update toast"
+///   3. spawn the relaunch watcher: a detached `cmd /c ping -n 9 ... &
+///      start "" "<install-path>"` chain that waits ~8 seconds (long
+///      enough for NSIS to finish a 10MB install) then launches the
+///      installed binary
+///   4. spawn NSIS silently
+///   5. handle.exit(0) after a short beat so the spawn settles
+///
+/// `ping -n 9 127.0.0.1` is the standard NSIS-friendly wait pattern on
+/// Windows — `timeout` requires a console attached, `ping` doesn't.
 #[tauri::command]
-pub async fn install_update(handle: AppHandle) -> CmdResult<()> {
-    let info = check_update().await?;
-    let (version, download_url, sha256) = match (info.available, info.download_url, info.sha256) {
-        (Some(v), Some(url), Some(sha)) => (v, url, sha),
+pub async fn install_update(
+    handle: AppHandle,
+    state: tauri::State<'_, std::sync::Arc<crate::app_state::AppState>>,
+) -> CmdResult<()> {
+    // Re-read the channel preference here so the signature check uses
+    // exactly the channel string the operator signed. We don't echo
+    // channel back on the wire — instead, the client requested it via
+    // ?channel=, so the server's response IS for that channel. Asking
+    // settings again is cheap and keeps the verification single-shot.
+    let snapshot = state.settings.snapshot().await;
+    let channel = match snapshot.advanced.update_channel.as_str() {
+        "beta" => "beta",
+        _ => "stable",
+    };
+
+    let info = check_update(state).await?;
+    let (version, download_url, sha256, size_bytes, signature) = match (
+        info.available,
+        info.download_url,
+        info.sha256,
+        info.size_bytes,
+        info.signature,
+    ) {
+        (Some(v), Some(url), Some(sha), Some(size), Some(sig)) => (v, url, sha, size, sig),
         _ => {
             return Err(OrliqError::Internal {
-                message: "No update is available to install.".into(),
+                message: "No installable update available (missing metadata or signature).".into(),
             });
         }
     };
+
+    let sig_ok = verify_update_signature(
+        &signature,
+        &version,
+        channel,
+        size_bytes,
+        &sha256,
+        &download_url,
+    );
+    if !sig_ok {
+        return Err(OrliqError::Internal {
+            message: "Update metadata failed Ed25519 signature verification — refusing to install."
+                .into(),
+        });
+    }
+
+    // Downgrade prevention. The server-side comparator already refuses
+    // to advertise a non-newer version, but that's enforced server-side
+    // only — a compromised server (or one returning manipulated JSON)
+    // could push an older signed binary to clients to pivot through a
+    // known-fixed bug in the older code. Compare here, refuse to
+    // install anything <= the running version.
+    let current_version = env!("CARGO_PKG_VERSION");
+    if !semver_strictly_greater(&version, current_version) {
+        return Err(OrliqError::Internal {
+            message: format!(
+                "Update server offered v{} which is not newer than v{}; refusing to install.",
+                version, current_version
+            ),
+        });
+    }
+
+    // Pin the download host. The signature already commits to the URL,
+    // but a defence-in-depth check here means even a botched signing
+    // workflow (e.g. operator accidentally signing an attacker URL)
+    // can never reach our spawn step.
+    if !download_url.starts_with("https://dl.utterbar.com/") {
+        return Err(OrliqError::Internal {
+            message: "Update download URL is not on dl.utterbar.com; refusing to install."
+                .to_string(),
+        });
+    }
 
     let user_agent = format!("Utterbar/{} (windows; x86_64)", env!("CARGO_PKG_VERSION"));
     let client = Client::builder()
@@ -231,20 +359,114 @@ pub async fn install_update(handle: AppHandle) -> CmdResult<()> {
         })?;
     }
 
-    // Spawn the installer silently. `/S` is NSIS's silent-install flag — the
-    // user sees no UI, the installer overwrites the app in place, and our
-    // post-install hook in `installer.nsh` re-launches Utterbar.
+    // Capture the running exe path BEFORE we touch anything — NSIS will
+    // replace the file in place, but the path stays the same. The watcher
+    // Mark "we expect to be on version `version` after the next launch". The
+    // freshly-launched process reads this file from `config_dir` to decide
+    // whether to surface the post-update toast.
+    write_pending_relaunch(&version);
+
+    // Spawn the installer silently. `/S` is NSIS's silent-install flag —
+    // the user sees no UI, the installer overwrites the app in place,
+    // and the NSIS_HOOK_POSTINSTALL hook (in installer.nsh) re-launches
+    // utterbar.exe via ExecShell once the install completes. The
+    // PowerShell watcher we tried in v0.7.5–v0.8.3 is gone: it kept
+    // failing because it ran outside the install process and had to
+    // guess when the installer was done. ExecShell from inside NSIS is
+    // how Squirrel / VS Code / Slack / Discord do it — the relaunch is
+    // a child of the installer, fully detached, no shell scripting.
     spawn_installer(&path)?;
 
-    // Exit after a short beat so the spawn has stuck. Using `handle.exit(0)`
-    // instead of `std::process::exit(0)` lets Tauri's cleanup (tray, window
-    // hooks) run, so we don't leave a dangling tray icon while the installer
-    // works.
+    // Exit after a short beat so both spawns have stuck. Using
+    // `handle.exit(0)` instead of `std::process::exit(0)` lets Tauri's
+    // cleanup (tray, window hooks) run, so we don't leave a dangling tray
+    // icon while the installer works.
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_millis(400)).await;
         handle.exit(0);
     });
     Ok(())
+}
+
+/// On-disk shape for the relaunch marker. Read on the next launch by
+/// `consume_pending_relaunch` to surface the "you've been updated" toast.
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct PendingRelaunch {
+    /// The version we expect the freshly-installed binary to advertise via
+    /// `CARGO_PKG_VERSION`. If it doesn't match (e.g. the install failed
+    /// and the watcher relaunched the old binary, or the user reverted),
+    /// we silently delete the marker without firing the toast.
+    target_version: String,
+    /// Wall-clock at the moment we wrote the marker. Purely for human-
+    /// readable diagnostics in the log.
+    written_at_unix: u64,
+}
+
+fn pending_relaunch_path() -> Option<PathBuf> {
+    crate::util::paths::config_dir()
+        .ok()
+        .map(|d| d.join("pending_relaunch.json"))
+}
+
+fn write_pending_relaunch(target_version: &str) {
+    let Some(path) = pending_relaunch_path() else {
+        tracing::warn!("could not resolve config dir for pending_relaunch.json");
+        return;
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let rec = PendingRelaunch {
+        target_version: target_version.to_string(),
+        written_at_unix: now,
+    };
+    let json = match serde_json::to_string(&rec) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(?e, "serialise pending_relaunch failed");
+            return;
+        }
+    };
+    match std::fs::write(&path, json) {
+        Ok(()) => tracing::info!(?path, "wrote pending_relaunch marker"),
+        Err(e) => tracing::warn!(?e, ?path, "failed to write pending_relaunch marker"),
+    }
+}
+
+/// IPC entry. The frontend calls this once on mount; if we returned
+/// Some, it fires the "Updated to vX.Y.Z" toast. The marker is deleted
+/// on read regardless of return value, so re-mounts (e.g. dev HMR)
+/// don't re-fire the toast.
+#[tauri::command]
+pub async fn consume_post_update_marker() -> CmdResult<Option<String>> {
+    Ok(consume_pending_relaunch())
+}
+
+/// Read + delete the pending_relaunch.json marker. Returns Some(version)
+/// only when the marker exists AND the running binary's version matches
+/// the marker's target_version — i.e. the install actually upgraded us
+/// to what we asked for. Any mismatch silently discards the marker.
+fn consume_pending_relaunch() -> Option<String> {
+    let path = pending_relaunch_path()?;
+    if !path.exists() {
+        return None;
+    }
+    let json = std::fs::read_to_string(&path).ok()?;
+    let rec: PendingRelaunch = serde_json::from_str(&json).ok()?;
+    let current = env!("CARGO_PKG_VERSION");
+    let _ = std::fs::remove_file(&path);
+    if rec.target_version == current {
+        tracing::info!(version = %current, "consumed pending_relaunch marker — surfacing post-update toast");
+        Some(current.to_string())
+    } else {
+        tracing::info!(
+            target = %rec.target_version,
+            actual = %current,
+            "pending_relaunch marker version mismatch — discarding without surfacing toast"
+        );
+        None
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -267,4 +489,173 @@ fn spawn_installer(_path: &std::path::Path) -> Result<(), OrliqError> {
     Err(OrliqError::Internal {
         message: "In-app updates are Windows-only at the moment.".into(),
     })
+}
+
+/// Strict three-segment semver comparator: returns true when `candidate`
+/// is strictly greater than `baseline`. Anything that fails to parse as
+/// `X.Y.Z` (digits only, no pre-release suffix) returns false — better
+/// to refuse than to install a malformed version. Matches the server-
+/// side parser in `UpdaterApiController::parseSemver` so client + server
+/// agree on what counts as "newer".
+fn semver_strictly_greater(candidate: &str, baseline: &str) -> bool {
+    let c = parse_semver(candidate);
+    let b = parse_semver(baseline);
+    match (c, b) {
+        (Some(c), Some(b)) => c > b,
+        _ => false,
+    }
+}
+
+/// Build the canonical metadata blob whose bytes the operator signed.
+/// The format is fixed and MUST match the server-side reconstruction in
+/// `App\Services\Releases\UpdateMetadataSigner::canonicalBlob()` and the
+/// operator-side signer in `scripts/sign-update-metadata.py`. Any drift
+/// in line ordering, separator, or field encoding voids every signature
+/// the operator has already issued.
+///
+/// Format (UTF-8, LF-separated, NO trailing newline):
+///
+/// ```text
+/// utterbar-update-v1
+/// version=<X.Y.Z>
+/// channel=<stable|beta>
+/// size_bytes=<integer>
+/// sha256=<lowercase 64-hex>
+/// download_url=<https://dl.utterbar.com/...>
+/// ```
+fn canonical_metadata_blob(
+    version: &str,
+    channel: &str,
+    size_bytes: u64,
+    sha256: &str,
+    download_url: &str,
+) -> Vec<u8> {
+    format!(
+        "{magic}\nversion={version}\nchannel={channel}\nsize_bytes={size_bytes}\nsha256={sha}\ndownload_url={url}",
+        magic = UPDATE_METADATA_MAGIC,
+        version = version,
+        channel = channel,
+        size_bytes = size_bytes,
+        sha = sha256.to_ascii_lowercase(),
+        url = download_url,
+    )
+    .into_bytes()
+}
+
+/// Verify a base64-encoded Ed25519 signature against the canonical metadata
+/// blob built from the supplied fields. Returns false on any failure mode
+/// (bad base64, wrong length, unparseable key, signature mismatch) — the
+/// caller treats false as "do not install" and bails loudly.
+fn verify_update_signature(
+    signature_b64: &str,
+    version: &str,
+    channel: &str,
+    size_bytes: u64,
+    sha256: &str,
+    download_url: &str,
+) -> bool {
+    let sig_bytes = match base64::engine::general_purpose::STANDARD.decode(signature_b64) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    if sig_bytes.len() != 64 {
+        return false;
+    }
+    let sig_arr: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let signature = Signature::from_bytes(&sig_arr);
+
+    let vk = match VerifyingKey::from_bytes(&UPDATER_PUBLIC_KEY) {
+        Ok(k) => k,
+        Err(_) => return false,
+    };
+
+    let blob = canonical_metadata_blob(version, channel, size_bytes, sha256, download_url);
+    vk.verify_strict(&blob, &signature).is_ok()
+}
+
+fn parse_semver(s: &str) -> Option<(u32, u32, u32)> {
+    let mut it = s.split('.');
+    let major = it.next()?.parse().ok()?;
+    let minor = it.next()?.parse().ok()?;
+    let patch = it.next()?.parse().ok()?;
+    if it.next().is_some() {
+        return None; // reject anything beyond X.Y.Z
+    }
+    Some((major, minor, patch))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn semver_strictly_greater_basic() {
+        assert!(semver_strictly_greater("0.8.8", "0.8.7"));
+        assert!(semver_strictly_greater("0.9.0", "0.8.99"));
+        assert!(semver_strictly_greater("1.0.0", "0.99.99"));
+        assert!(!semver_strictly_greater("0.8.7", "0.8.7"));
+        assert!(!semver_strictly_greater("0.8.6", "0.8.7"));
+    }
+
+    #[test]
+    fn semver_strictly_greater_rejects_garbage() {
+        assert!(!semver_strictly_greater("foo", "0.8.7"));
+        assert!(!semver_strictly_greater("0.8", "0.8.7"));
+        assert!(!semver_strictly_greater("0.8.7-beta", "0.8.7"));
+        assert!(!semver_strictly_greater("0.8.7.1", "0.8.7"));
+    }
+
+    #[test]
+    fn canonical_blob_matches_spec() {
+        // The exact byte layout the operator-side signer + server-side
+        // verifier both reconstruct. If this test ever needs editing, the
+        // format has drifted and every previously-signed release is
+        // invalidated — bump UPDATE_METADATA_MAGIC to v2 first.
+        let blob = canonical_metadata_blob(
+            "0.9.0",
+            "stable",
+            12345678,
+            "ABCDEF0123456789aBcDeF0123456789ABCDEF0123456789ABCDEF0123456789",
+            "https://dl.utterbar.com/releases/0.9.0/Utterbar-Setup-0.9.0.exe",
+        );
+        let expected = b"utterbar-update-v1\nversion=0.9.0\nchannel=stable\nsize_bytes=12345678\nsha256=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\ndownload_url=https://dl.utterbar.com/releases/0.9.0/Utterbar-Setup-0.9.0.exe";
+        assert_eq!(blob.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn verify_rejects_obviously_bad_signature() {
+        // base64-decoded but wrong length
+        assert!(!verify_update_signature(
+            "AAAA",
+            "0.9.0",
+            "stable",
+            1,
+            "00",
+            "https://dl.utterbar.com/x"
+        ));
+        // not base64 at all
+        assert!(!verify_update_signature(
+            "not-base-64-!!!",
+            "0.9.0",
+            "stable",
+            1,
+            "00",
+            "https://dl.utterbar.com/x"
+        ));
+        // valid 64-byte zero signature against zero pubkey: ed25519
+        // identity-key checks SHOULD reject — `verify_strict` treats
+        // small-order keys as unsafe.
+        let zeroes = base64::engine::general_purpose::STANDARD.encode([0u8; 64]);
+        assert!(!verify_update_signature(
+            &zeroes,
+            "0.9.0",
+            "stable",
+            1,
+            "00",
+            "https://dl.utterbar.com/x"
+        ));
+    }
 }

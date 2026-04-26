@@ -88,6 +88,10 @@ impl ModelRegistry {
                         "py-sidecar" => ModelBackend::PySidecar,
                         _ => ModelBackend::LlamaCpp,
                     },
+                    // Engine isn't persisted in the DB — derived at
+                    // merge time from the catalogue. Default keeps
+                    // installed-only paths working before the merge.
+                    engine: crate::domain::ModelEngine::default(),
                     languages: serde_json::from_str(&langs).unwrap_or_default(),
                     installed: true,
                     path: row.get(5)?,
@@ -178,7 +182,24 @@ impl ModelRegistry {
             ModelProgressPhase::Verifying,
         );
         let digest = hex::encode(hasher.finalize());
-        if !entry.sha256.is_empty() && digest != entry.sha256 {
+        // Fail-closed integrity check (v0.9.0 hardening).
+        //
+        // Earlier code skipped verification when the catalogue SHA was
+        // empty — that meant a forgotten pin (or any new entry added
+        // without one) silently accepted whatever bytes the URL
+        // served. The catalogue is now the single trust root for
+        // model identity; an entry with no pin is a misconfiguration,
+        // not "trust everything". We refuse to install in that case
+        // and surface a clear operator-side error.
+        if entry.sha256.is_empty() {
+            let _ = tokio::fs::remove_file(&partial).await;
+            emit(handle, &entry.id, done, total, ModelProgressPhase::Error);
+            return Err(anyhow!(
+                "model {} has no pinned sha256 in the catalogue — refusing to install",
+                entry.id
+            ));
+        }
+        if digest != entry.sha256 {
             let _ = tokio::fs::remove_file(&partial).await;
             emit(handle, &entry.id, done, total, ModelProgressPhase::Error);
             return Err(anyhow!(
@@ -298,11 +319,13 @@ fn flatten_single_subdir(dir: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-/// Built-in catalogue. URLs point at sherpa-onnx's publicly hosted Parakeet exports.
-/// Keeping sha256 empty for now — the k2-fsa GitHub release assets don't publish stable
-/// hashes alongside them, and we'd rather not lock the user out of a working download on
-/// a harmless re-release. Integrity is still guarded by the fact that these are served
-/// over HTTPS from GitHub.
+/// Built-in catalogue. URLs point at sherpa-onnx / k2-fsa publicly hosted exports.
+/// Every entry MUST carry a pinned sha256 — the install path verifies the downloaded
+/// archive against this and fails closed if the hash mismatches OR is empty. To add a
+/// new model: download the asset, run `sha256sum`, paste the digest here. Bumping a
+/// model version requires re-pinning; HTTPS-from-GitHub alone is not sufficient
+/// integrity (a compromised GH release or MITM with a forged cert would otherwise be
+/// invisible).
 fn built_in_catalogue() -> Vec<ModelInfo> {
     // Catalogue scope — what IS and ISN'T plug-compatible with the current
     // inference pipeline. `services::inference::sherpa_parakeet` is hard-wired
@@ -324,97 +347,122 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
     // the user a downloaded model that crashes on first use, so they stay
     // out of the catalogue until the inference layer learns to dispatch on
     // model kind. Everything below is Parakeet-TDT and genuinely runnable.
+    use crate::domain::ModelEngine;
     vec![
-        // Real k2-fsa asset names — confirmed via `gh release view asr-models`.
-        // Sizes are exact Content-Length from the mirror as of this catalogue
-        // version (see release asset listing for provenance).
-        ModelInfo {
-            id: "sherpa-parakeet-tdt-0.6b-v2-int8".into(),
-            kind: ModelKind::Asr,
-            display_name: "Parakeet (English, compact)".into(),
-            description: "Recommended for most people. A smaller download that runs fast and uses less memory, while staying nearly as accurate as the larger version for everyday speech. Pick this unless you have a specific reason not to.".into(),
-            version: "2".into(),
-            size_bytes: 482_468_385,
-            backend: ModelBackend::Onnx,
-            languages: vec!["en".into()],
-            installed: false,
-            path: None,
-            sha256: String::new(),
-            download_url: Some(
-                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2"
-                    .into(),
-            ),
-            recommended: true,
-            // int8 compact is the reference: great speed on any CPU (10/10)
-            // and very usable accuracy (8/10). v3 below is a touch more
-            // accurate (9/10) at the same speed; fp16 is the accuracy
-            // ceiling (10/10) but at a real speed cost on most hardware.
-            accuracy_score: 8,
-            speed_score: 10,
-            requires_pro: false,
-        },
-        // v3 int8 — newer NeMo Parakeet generation, same 0.6B parameter budget
-        // and same TDT architecture so it's a drop-in replacement that just
-        // swaps the weights. Trained on more recent data; in the NeMo release
-        // notes k2-fsa cite a modest WER improvement on conversational English
-        // over v2. Same int8 size bucket as v2. Marked NOT recommended only
-        // because v2 is what our v0.x users have been running and we don't
-        // want to force a re-download on update; curious users can opt in.
+        // Parakeet v3 int8 — the recommended default. Newer NeMo
+        // generation than v2, same 0.6B parameter budget, same TDT
+        // architecture, slightly better WER on conversational English.
+        // Drops to int8 weights for fast CPU inference. English only;
+        // multilingual support arrives via Whisper in v0.8.1.
         ModelInfo {
             id: "sherpa-parakeet-tdt-0.6b-v3-int8".into(),
             kind: ModelKind::Asr,
             display_name: "Parakeet v3 (English, compact)".into(),
-            description: "Newer generation of the compact Parakeet model with a modest accuracy bump on conversational English. Same size and speed as the standard compact model — worth trying if you notice recurring misrecognitions on the default.".into(),
+            description: "Recommended for most people. Fast on any modern CPU, accurate on conversational English. Pick this unless you have a specific reason not to.".into(),
             version: "3".into(),
             size_bytes: 487_170_055,
             backend: ModelBackend::Onnx,
+            engine: ModelEngine::ParakeetTdt,
             languages: vec!["en".into()],
             installed: false,
             path: None,
-            sha256: String::new(),
+            // Pinned 2026-04-26 against the live k2-fsa release asset.
+            // Verified by the fail-closed branch in `install_model`:
+            // any byte-for-byte tampering of the upstream tarball
+            // produces a hash mismatch and the install aborts.
+            sha256: "5793d0fd397c5778d2cf2126994d58e9d56b1be7c04d13c7a15bb1b4eafb16bf".into(),
             download_url: Some(
                 "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"
                     .into(),
             ),
-            recommended: false,
+            recommended: true,
             accuracy_score: 9,
             speed_score: 10,
             requires_pro: false,
         },
-        // fp16 variant — higher-precision weights, slightly better accuracy on edge cases
-        // (accents, noisy input, proper nouns), larger download. Only safe to run when a
-        // GPU provider (CUDA or DirectML) is available; the CPU provider aborts on first
-        // inference because the fp16 kernels aren't registered for CPU. The inference
-        // layer now resolves a concrete provider string from settings.advanced.gpu_acceleration,
-        // so users who picked "Smart" / "Always use GPU" on a machine with a real adapter
-        // can pick this and have it run correctly. Left non-recommended so first-run users
-        // don't land on a model that silently falls back on CPU-only boxes.
+        // Whisper base — multilingual, free tier. ~99 languages via
+        // OpenAI Whisper. Slower than Parakeet on English but the only
+        // free-tier path to non-English dictation. Bundle name + size
+        // confirmed against the live k2-fsa GitHub release at v0.8.6
+        // build time. (v0.8.2–v0.8.5 used a guessed `.int8.tar.bz2`
+        // suffix that didn't exist — those releases listed Whisper but
+        // every install attempt 404'd silently. Fixed here.)
         ModelInfo {
-            id: "sherpa-parakeet-tdt-0.6b-v2-fp16".into(),
+            id: "sherpa-whisper-base".into(),
             kind: ModelKind::Asr,
-            display_name: "Parakeet (English, high-precision)".into(),
-            description: "Higher-precision fp16 weights of the same Parakeet model. A touch more accurate on tricky audio, but requires GPU acceleration — pick this only if your PC has a supported GPU (and make sure GPU acceleration isn't set to CPU only in Settings → Advanced).".into(),
-            version: "2".into(),
-            size_bytes: 1_214_103_108,
+            display_name: "Whisper base (multilingual)".into(),
+            description: "OpenAI Whisper, ~99 languages with quality varying by language. Pick this if you dictate in anything other than English. Slower than Parakeet on English; comparable on non-English.".into(),
+            version: "base".into(),
+            size_bytes: 207_557_382,
             backend: ModelBackend::Onnx,
-            languages: vec!["en".into()],
+            engine: ModelEngine::Whisper,
+            languages: vec!["multi".into()],
             installed: false,
             path: None,
-            sha256: String::new(),
+            // Pinned 2026-04-26 against the live k2-fsa release asset.
+            sha256: "911b2083efd7c0dca2ac3b358b75222660dc09fb716d64fbfc417ba6c99ff3de".into(),
             download_url: Some(
-                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-fp16.tar.bz2"
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.tar.bz2"
                     .into(),
             ),
             recommended: false,
-            // fp16 hits the accuracy ceiling on edge cases (accents, proper
-            // nouns, noisy audio). Speed drops because the model only runs
-            // on a GPU path — anyone without one either can't load it or is
-            // pushed to the CPU fallback, which is noticeably slower than
-            // the int8 variants. 6/10 reflects that realistic user
-            // experience rather than a synthetic GPU-only benchmark.
-            accuracy_score: 10,
+            accuracy_score: 7,
             speed_score: 6,
+            requires_pro: false,
+        },
+        // Whisper small — Pro tier. Bigger Whisper checkpoint with
+        // stronger non-English accuracy than base. Same fix as base
+        // for the bundle name + size.
+        ModelInfo {
+            id: "sherpa-whisper-small".into(),
+            kind: ModelKind::Asr,
+            display_name: "Whisper small (multilingual, high accuracy)".into(),
+            description: "Bigger Whisper checkpoint with stronger non-English accuracy than base. Worth it if you dictate frequently in a non-English language.".into(),
+            version: "small".into(),
+            size_bytes: 639_387_718,
+            backend: ModelBackend::Onnx,
+            engine: ModelEngine::Whisper,
+            languages: vec!["multi".into()],
+            installed: false,
+            path: None,
+            // Pinned 2026-04-26 against the live k2-fsa release asset.
+            sha256: "486a46afbb7ba798507190ffe02fea2dd726049af212e774537efac6afb210a6".into(),
+            download_url: Some(
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2"
+                    .into(),
+            ),
+            recommended: false,
+            accuracy_score: 9,
+            speed_score: 4,
             requires_pro: true,
+        },
+        // Zipformer English — Free tier. Smaller download than Parakeet
+        // and slightly faster cold start. Accuracy is a notch below
+        // Parakeet on conversational English; the trade is "smaller
+        // footprint, lower-spec PCs friendly". Engine: Zipformer (k2-fsa
+        // RNNT). int8 quantised to keep CPU inference snappy.
+        ModelInfo {
+            id: "sherpa-zipformer-en-int8".into(),
+            kind: ModelKind::Asr,
+            display_name: "Zipformer (English, lightweight)".into(),
+            description: "Smaller English model. Faster cold start than Parakeet — pick this on lower-spec PCs. Accuracy a notch below Parakeet on conversational English.".into(),
+            version: "2023-06-26".into(),
+            size_bytes: 307_666_046,
+            backend: ModelBackend::Onnx,
+            engine: ModelEngine::Zipformer,
+            languages: vec!["en".into()],
+            installed: false,
+            path: None,
+            // Pinned 2026-04-26 against the live k2-fsa release asset.
+            sha256: "652181d80dfe0e8e0659cf32036d1d6ef56fa2f1ab5b35c54d0cee8a663e8954".into(),
+            download_url: Some(
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-zipformer-en-2023-06-26.tar.bz2"
+                    .into(),
+            ),
+            recommended: false,
+            accuracy_score: 7,
+            speed_score: 9,
+            requires_pro: false,
         },
     ]
 }

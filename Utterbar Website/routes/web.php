@@ -7,14 +7,28 @@ use App\Http\Controllers\Api\PricingApiController;
 use App\Http\Controllers\Api\UpdaterApiController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\DownloadController;
+use App\Http\Controllers\OgImageController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\SignInController;
 use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\TipController;
 use App\Http\Controllers\UpdatesController;
-use App\Http\Controllers\WaitlistController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'index'])->name('sitemap');
+
+// Per-page OG image generator. Title + kicker arrive via query string;
+// rendered output cached on disk by hash so repeat scrapes are static.
+// Per-page OG image generator. Title + kicker arrive via query string;
+// rendered output cached on disk by hash so repeat scrapes are static.
+// Rate-limited so a scripted attacker can't force the GD pipeline to
+// fill the Cloudways droplet's disk with PNGs (each unique title +
+// kicker pair produces a permanent ~30-50 KB file). Cache itself is
+// LRU-capped inside the controller.
+Route::get('/og/image', [OgImageController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('og.image');
 
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/features', [PageController::class, 'features'])->name('features');
@@ -29,8 +43,17 @@ Route::post('/api/contact', [ContactController::class, 'store'])
     ->name('contact.store');
 Route::get('/roadmap', [PageController::class, 'roadmap'])->name('roadmap');
 Route::get('/press', [PageController::class, 'press'])->name('press');
-Route::get('/waitlist', [PageController::class, 'waitlist'])->name('waitlist');
-Route::get('/blog', [PageController::class, 'blog'])->name('blog');
+Route::get('/blog',          [PageController::class, 'blog'])->name('blog');
+Route::get('/blog/{slug}',   [PageController::class, 'blogShow'])
+    ->where('slug', '[a-z0-9-]+')
+    ->name('blog.show');
+
+Route::get('/what-is-local-dictation', [PageController::class, 'whatIsLocalDictation'])->name('what-is-local-dictation');
+
+Route::prefix('compare')->name('compare.')->group(function () {
+    Route::get('/', [PageController::class, 'compareIndex'])->name('index');
+    Route::get('/wispr-flow', [PageController::class, 'compareWisprFlow'])->name('wispr-flow');
+});
 
 Route::prefix('docs')->name('docs.')->group(function () {
     Route::get('/', [PageController::class, 'docsIndex'])->name('index');
@@ -48,10 +71,6 @@ Route::prefix('legal')->name('legal.')->group(function () {
     Route::get('/terms', [PageController::class, 'legalTerms'])->name('terms');
     Route::get('/eula', [PageController::class, 'legalEula'])->name('eula');
 });
-
-Route::post('/api/waitlist', [WaitlistController::class, 'store'])
-    ->middleware('throttle:10,1')
-    ->name('waitlist.store');
 
 Route::get('/thanks', [PageController::class, 'thanks'])->name('thanks');
 Route::post('/api/checkout/create-session', [CheckoutController::class, 'createSession'])
@@ -96,20 +115,90 @@ Route::prefix('api/licence')->group(function () {
 Route::get('/api/pricing',        [PricingApiController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('api.pricing');
+
+// Tip jar — opens a Stripe Checkout Session for a voluntary tip. The
+// POST is form-driven from the tip-pills on home + download. The GET
+// variant supports the desktop app's "Donate" surface (Settings →
+// Licence on Free) which opens this URL in the user's default browser.
+// Both paths converge on the same controller action; the GET handler
+// reads `amount` from the query string instead of the POST body.
+// Hidden when STRIPE_TIP_PRICE_ID is unset.
+// Tip-jar throttle: real users click once or twice. The previous
+// 30-per-10-minutes window was generous enough that a botnet could
+// churn Stripe Checkout sessions and trip Stripe's "abuse pattern"
+// detection on the account. 6 per minute is plenty for genuine use
+// and tightens the screw on automated abuse.
+Route::post('/tip/checkout',      [TipController::class, 'checkout'])
+    ->middleware('throttle:6,1')
+    ->name('tip.checkout');
+Route::get('/tip/start',          [TipController::class, 'start'])
+    ->middleware('throttle:6,1')
+    ->name('tip.start');
+Route::get('/tip/thanks',         [TipController::class, 'thanks'])
+    ->name('tip.thanks');
 Route::get('/api/updater/check',  [UpdaterApiController::class, 'check'])
     ->middleware('throttle:60,1')
     ->name('api.updater.check');
 
-// Admin — email allow-list via ADMIN_EMAILS env var.
-Route::middleware(['auth', 'admin'])->group(function () {
-    Route::get('/admin', [AdminController::class, 'index'])->name('admin');
+// Public download endpoint. Logs a unique-per-day-per-IP-per-UA event
+// then 302s the user to the R2 download URL. Both /download/latest and
+// /download/<version> are served by DownloadController.
+Route::get('/download/latest',           [DownloadController::class, 'latest'])
+    ->middleware('throttle:30,1')
+    ->name('download.latest');
+Route::get('/download/version/{version}', [DownloadController::class, 'version'])
+    ->where('version', '\d+\.\d+\.\d+')
+    ->middleware('throttle:30,1')
+    ->name('download.version');
 
-    Route::get('/admin/releases',          [\App\Http\Controllers\Admin\ReleaseController::class, 'index'])->name('admin.releases.index');
-    Route::get('/admin/releases/create',   [\App\Http\Controllers\Admin\ReleaseController::class, 'create'])->name('admin.releases.create');
-    Route::post('/admin/releases',         [\App\Http\Controllers\Admin\ReleaseController::class, 'store'])->name('admin.releases.store');
-    Route::delete('/admin/releases/{id}',  [\App\Http\Controllers\Admin\ReleaseController::class, 'destroy'])
+// Admin - email allow-list via ADMIN_EMAILS env var.
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminController::class, 'index'])->name('index');
+
+    // Releases.
+    Route::get('/releases',          [\App\Http\Controllers\Admin\ReleaseController::class, 'index'])->name('releases.index');
+    Route::get('/releases/create',   [\App\Http\Controllers\Admin\ReleaseController::class, 'create'])->name('releases.create');
+    Route::post('/releases',         [\App\Http\Controllers\Admin\ReleaseController::class, 'store'])->name('releases.store');
+    Route::delete('/releases/{id}',  [\App\Http\Controllers\Admin\ReleaseController::class, 'destroy'])
         ->whereNumber('id')
-        ->name('admin.releases.destroy');
+        ->name('releases.destroy');
+
+    // Licences.
+    Route::get('/licences',              [\App\Http\Controllers\Admin\LicenceController::class, 'index'])->name('licences.index');
+    Route::get('/licences/create',       [\App\Http\Controllers\Admin\LicenceController::class, 'create'])->name('licences.create');
+    Route::post('/licences',             [\App\Http\Controllers\Admin\LicenceController::class, 'store'])->name('licences.store');
+    Route::get('/licences/{id}',         [\App\Http\Controllers\Admin\LicenceController::class, 'show'])
+        ->whereNumber('id')->name('licences.show');
+    Route::post('/licences/{id}/revoke',   [\App\Http\Controllers\Admin\LicenceController::class, 'revoke'])
+        ->whereNumber('id')->name('licences.revoke');
+    Route::post('/licences/{id}/unrevoke', [\App\Http\Controllers\Admin\LicenceController::class, 'unrevoke'])
+        ->whereNumber('id')->name('licences.unrevoke');
+    Route::post('/licences/{id}/resend',   [\App\Http\Controllers\Admin\LicenceController::class, 'resend'])
+        ->whereNumber('id')->name('licences.resend');
+    Route::post('/licences/{id}/remint',   [\App\Http\Controllers\Admin\LicenceController::class, 'remint'])
+        ->whereNumber('id')->name('licences.remint');
+    Route::post('/licences/{id}/devices/{fingerprint}/deactivate',
+        [\App\Http\Controllers\Admin\LicenceController::class, 'deactivateDevice'])
+        ->whereNumber('id')
+        ->where('fingerprint', '[a-f0-9]{64}')
+        ->name('licences.devices.deactivate');
+
+    // Subscribers.
+    Route::get('/subscribers',                [\App\Http\Controllers\Admin\SubscriberController::class, 'index'])->name('subscribers.index');
+    Route::post('/subscribers/{id}/unsubscribe', [\App\Http\Controllers\Admin\SubscriberController::class, 'unsubscribe'])
+        ->whereNumber('id')->name('subscribers.unsubscribe');
+
+    // Contacts.
+    Route::get('/contacts',       [\App\Http\Controllers\Admin\ContactController::class, 'index'])->name('contacts.index');
+    Route::get('/contacts/{id}',  [\App\Http\Controllers\Admin\ContactController::class, 'show'])
+        ->whereNumber('id')->name('contacts.show');
+
+    // Analytics — unique downloads per release, country split, daily trend.
+    Route::get('/analytics',      [\App\Http\Controllers\Admin\AnalyticsController::class, 'index'])->name('analytics.index');
+
+    // Tips — voluntary "Tip the developer" Stripe payments. Total raised,
+    // recent tips, daily chart.
+    Route::get('/tips',           [\App\Http\Controllers\Admin\TipController::class, 'index'])->name('tips.index');
 });
 
 // Release update subscribers — "email me when there's a new release".
@@ -119,13 +208,27 @@ Route::middleware(['auth', 'admin'])->group(function () {
 Route::post('/api/updates/subscribe', [UpdatesController::class, 'subscribe'])
     ->middleware('throttle:5,10')
     ->name('updates.subscribe');
-Route::get('/updates/confirm',     [UpdatesController::class, 'confirm'])    ->name('updates.confirm');
+// Two-step confirm: GET renders a button page, POST commits the
+// confirmation. Avoids email-prefetcher (Outlook safe-link, corporate
+// URL scanners) auto-confirming subscriptions before the user clicks.
+Route::get('/updates/confirm',     [UpdatesController::class, 'confirmPage'])->name('updates.confirm');
+Route::post('/updates/confirm',    [UpdatesController::class, 'confirmPost'])->name('updates.confirm.post');
+
+// Unsubscribe stays GET per RFC 8058 — that's the standard for
+// email "list-unsubscribe" links and aggressive prefetching there is
+// a feature, not a bug (auto-unsubs from broken inboxes).
 Route::get('/updates/unsubscribe', [UpdatesController::class, 'unsubscribe'])->name('updates.unsubscribe');
 
 // Headless admin API — bearer-token-authed (ADMIN_API_TOKEN env var).
-// Used by the app-repo release script so app Claude can publish releases
+// Used by the app-repo release script so the publish flow can run
 // end-to-end without touching the admin form.
-Route::middleware(['admin.api', 'throttle:30,1'])->prefix('api/admin')->group(function () {
+//
+// Throttle tightened from 30/min to 6/min after the v0.8.x security
+// audit: real publish traffic is at most one request every few weeks,
+// 6 per minute is plenty for genuine retries and aggressive against
+// any token-leak abuse pattern. The middleware itself logs every
+// request for an audit trail (see App\Http\Middleware\AdminApiToken).
+Route::middleware(['admin.api', 'throttle:6,1'])->prefix('api/admin')->group(function () {
     Route::post('releases',            [\App\Http\Controllers\Api\AdminReleaseApiController::class, 'store']);
     Route::delete('releases/{id}',     [\App\Http\Controllers\Api\AdminReleaseApiController::class, 'destroy'])
         ->whereNumber('id');
