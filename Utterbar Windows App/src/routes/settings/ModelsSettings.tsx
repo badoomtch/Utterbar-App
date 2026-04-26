@@ -6,6 +6,12 @@ import { Card } from '@/components/common/Card';
 import { ProNudge } from '@/components/common/ProNudge';
 import { Select, type SelectOption } from '@/components/common/Select';
 import { ScoreBars } from '@/components/common/ScoreBars';
+import { Toggle } from '@/components/common/Toggle';
+
+// Sentinel for "keep the model loaded forever" — matches the u32::MAX
+// special case in `services/inference/mod.rs` (both the inline unload
+// and the idle sweeper short-circuit on this value).
+const FOREVER = 4_294_967_295; // u32::MAX
 import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { formatBytes } from '@/lib/format';
@@ -25,7 +31,51 @@ type ModelInfo = {
   accuracy_score: number;
   speed_score: number;
   requires_pro: boolean;
+  engine?: 'parakeet-tdt' | 'whisper' | 'zipformer';
 };
+
+/** Human label for the engine field. Used on each model card so users
+ *  can see at a glance which family a model comes from. Parakeet-TDT
+ *  + Whisper are live; Zipformer lands in a later release. */
+const ENGINE_LABEL: Record<string, string> = {
+  'parakeet-tdt': 'Parakeet · NVIDIA',
+  whisper: 'Whisper · OpenAI',
+  zipformer: 'Zipformer · k2-fsa',
+};
+
+/** Whisper language picker shortlist. ~20 most common languages plus
+ *  Auto-detect at the top. Whisper itself supports ~99 languages — if
+ *  someone needs a less common one, they can edit `whisper_language`
+ *  in the settings JSON directly (advanced path). The shortlist keeps
+ *  the visible UI manageable and covers the realistic 95% of users. */
+const WHISPER_LANGUAGE_OPTIONS: SelectOption<string>[] = [
+  { value: 'auto', label: 'Auto-detect (recommended)' },
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'nl', label: 'Dutch' },
+  { value: 'pl', label: 'Polish' },
+  { value: 'tr', label: 'Turkish' },
+  { value: 'ru', label: 'Russian' },
+  { value: 'ar', label: 'Arabic' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'zh', label: 'Chinese' },
+  { value: 'id', label: 'Indonesian' },
+  { value: 'th', label: 'Thai' },
+  { value: 'vi', label: 'Vietnamese' },
+  { value: 'sv', label: 'Swedish' },
+  { value: 'no', label: 'Norwegian' },
+  { value: 'da', label: 'Danish' },
+  { value: 'fi', label: 'Finnish' },
+  { value: 'cs', label: 'Czech' },
+  { value: 'el', label: 'Greek' },
+  { value: 'he', label: 'Hebrew' },
+];
 
 type Progress = {
   model_id: string;
@@ -106,6 +156,23 @@ export function ModelsSettings() {
     });
   };
 
+  // Whisper language hint. `auto` means "detect on each utterance" —
+  // accurate but slightly slower per dictation. Pinning a specific
+  // language locks Whisper to that language (no detection cost) but
+  // loses the multilingual ability. Only meaningful when a Whisper
+  // model is installed; the section auto-hides otherwise.
+  const whisperLanguage =
+    (settings?.models as { whisper_language?: string } | undefined)?.whisper_language ?? 'auto';
+  const hasWhisperInstalled = items.some(
+    (m) => m.engine === 'whisper' && m.installed,
+  );
+  const updateWhisperLanguage = (lang: string) => {
+    if (!settings) return;
+    void patch({
+      models: { ...(settings.models as Record<string, unknown>), whisper_language: lang },
+    });
+  };
+
   const installedModels = useMemo(() => items.filter((m) => m.installed), [items]);
   const licenceStatus = useLicence((s) => s.status);
   const pro = isPro(licenceStatus);
@@ -148,16 +215,53 @@ export function ModelsSettings() {
         )}
       </Card>
 
+      {/* Whisper language hint. Only relevant when a Whisper model is
+          installed — the picker hides otherwise so the page doesn't
+          surface controls that don't apply to the user's setup.
+          "Auto-detect" is the default and best for users who dictate in
+          more than one language; pinning a specific language is a
+          minor speed win when always dictating in the same one. */}
+      {hasWhisperInstalled && (
+        <Card
+          title="Whisper language"
+          description="Used by Whisper models only. Auto-detect picks the language at the start of each dictation; pinning a specific one is slightly faster but locks you to that language."
+        >
+          <div className="flex items-center gap-3">
+            <Radio className="h-4 w-4 text-accent" />
+            <Select
+              value={whisperLanguage}
+              onChange={(v) => updateWhisperLanguage(v)}
+              minWidth="min-w-[20rem]"
+              options={WHISPER_LANGUAGE_OPTIONS}
+            />
+          </div>
+        </Card>
+      )}
+
       <Card
         className="mt-4"
         title="Keep-warm duration"
         description="The first dictation after a cold start loads the model into memory — that one takes a few seconds. Subsequent dictations while the model is warm feel near-instant. We keep the model loaded for a while after each use so you don't pay the cold-start cost on every burst of speech."
       >
+        {/* Keep-loaded-forever sentinel. Backed in services/inference: when
+            warm_duration_secs is u32::MAX the inline-unload skips and the
+            idle sweeper short-circuits — the model stays resident until
+            the app exits or an explicit reload (e.g. default-model switch). */}
         <div className="flex items-center gap-3 text-[12px] text-muted">
           <Flame className="h-4 w-4 text-accent" />
-          Model stays warm for{' '}
-          <span className="font-mono text-[13px] text-fg-hi">{formatWarm(warmSecs)}</span>{' '}
-          after a dictation.
+          {warmSecs === FOREVER ? (
+            <>
+              Model stays loaded{' '}
+              <span className="font-mono text-[13px] text-accent">forever</span>{' '}
+              (until you quit Utterbar).
+            </>
+          ) : (
+            <>
+              Model stays warm for{' '}
+              <span className="font-mono text-[13px] text-fg-hi">{formatWarm(warmSecs)}</span>{' '}
+              after a dictation.
+            </>
+          )}
         </div>
         <div className="mt-4 flex items-center gap-4">
           <input
@@ -165,16 +269,34 @@ export function ModelsSettings() {
             min={0}
             max={600}
             step={10}
-            value={warmSecs}
+            value={warmSecs === FOREVER ? 600 : warmSecs}
             onChange={(e) => updateWarm(Number(e.target.value))}
+            disabled={warmSecs === FOREVER}
             className="flex-1"
+            style={warmSecs === FOREVER ? { opacity: 0.4 } : undefined}
           />
-          <span className="w-20 text-right font-mono text-[12px] tabular-nums text-fg-hi">{formatWarm(warmSecs)}</span>
+          <span className="w-20 text-right font-mono text-[12px] tabular-nums text-fg-hi">
+            {warmSecs === FOREVER ? '∞' : formatWarm(warmSecs)}
+          </span>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <Toggle
+            checked={warmSecs === FOREVER}
+            onChange={(v) => updateWarm(v ? FOREVER : 120)}
+          />
+          <div>
+            <div className="text-[13px] text-fg-hi">Keep model loaded forever</div>
+            <div className="text-[11px] text-muted">
+              Model stays resident in memory for the whole session. Best latency,
+              but the RAM (and VRAM, if you're on GPU) stays reserved while
+              Utterbar is running.
+            </div>
+          </div>
         </div>
         <p className="mt-3 text-[11px] text-muted leading-relaxed">
-          Longer durations give you the instant-feeling second-speech at the cost of RAM staying
-          reserved; shorter ones free memory sooner but you'll feel the load time again after the
-          timeout. 0 means unload immediately after each dictation.
+          Longer durations give you instant-feeling subsequent dictations at the cost of RAM staying
+          reserved; shorter ones free memory sooner but you&rsquo;ll feel the load time again after the
+          timeout. 0 means unload immediately after each dictation. Forever keeps it loaded for the whole session.
         </p>
       </Card>
 
@@ -203,6 +325,9 @@ export function ModelsSettings() {
                     </div>
                     <div className="mt-0.5 font-mono text-[11px] text-fg-dim">
                       v{m.version} · {formatBytes(m.size_bytes)} · {m.languages.join(', ')}
+                      {m.engine && ENGINE_LABEL[m.engine] && (
+                        <> · {ENGINE_LABEL[m.engine]}</>
+                      )}
                     </div>
                     {m.description && (
                       <p className="mt-2 max-w-xl text-[12px] leading-relaxed text-muted">

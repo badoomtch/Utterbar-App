@@ -331,6 +331,19 @@ pub struct ModelSettings {
     pub default_llm_model_id: Option<String>,
     pub warm_duration_secs: u32,
     pub experimental_models: bool,
+    /// ISO-639-1 code (or "auto") passed to Whisper recognisers for
+    /// language hinting. Ignored by Parakeet / Zipformer (English-only
+    /// engines). Default `auto` lets Whisper detect the language on
+    /// each utterance — slightly slower than a pinned language but
+    /// the right behaviour when the user dictates in more than one.
+    /// Examples: "en", "fr", "de", "es", "ja". Empty string is
+    /// equivalent to "auto" for back-compat with older settings.json.
+    #[serde(default = "default_whisper_language")]
+    pub whisper_language: String,
+}
+
+fn default_whisper_language() -> String {
+    "auto".into()
 }
 
 impl Default for ModelSettings {
@@ -340,6 +353,7 @@ impl Default for ModelSettings {
             default_llm_model_id: None,
             warm_duration_secs: 120,
             experimental_models: false,
+            whisper_language: "auto".into(),
         }
     }
 }
@@ -360,9 +374,21 @@ pub struct TextOutputSettings {
     /// rare.
     #[serde(default = "default_auto_space_on_paste")]
     pub auto_space_on_paste: bool,
+    /// When true, post-process the transcript to convert spelled-out
+    /// numbers ("twenty three") into digits ("23"). Most ASR models
+    /// emit words by default; users dictating prices, dates, code,
+    /// addresses etc. usually want digits. On by default — the
+    /// transform is conservative (only converts unambiguous numeric
+    /// phrases, leaves "one of these days" alone).
+    #[serde(default = "default_numbers_as_digits")]
+    pub numbers_as_digits: bool,
 }
 
 fn default_auto_space_on_paste() -> bool {
+    true
+}
+
+fn default_numbers_as_digits() -> bool {
     true
 }
 
@@ -376,6 +402,7 @@ impl Default for TextOutputSettings {
             auto_capitalise: true,
             trim_trailing_space: true,
             auto_space_on_paste: true,
+            numbers_as_digits: true,
         }
     }
 }
@@ -433,10 +460,21 @@ pub struct AdvancedSettings {
     pub gpu_acceleration: GpuAcceleration,
     #[serde(default)]
     pub thread_count: Option<u32>,
+    /// Update channel for the auto-updater. `stable` is the default and
+    /// what the public sees. `beta` opts into pre-release builds —
+    /// passed as `?channel=beta` to `/api/updater/check`. Useful for
+    /// the developer dogfooding fixes before publishing them stable.
+    /// Anything other than `beta` is treated as `stable` server-side.
+    #[serde(default = "default_update_channel")]
+    pub update_channel: String,
 }
 
 fn default_log_level() -> String {
     "info".into()
+}
+
+fn default_update_channel() -> String {
+    "stable".into()
 }
 
 impl Default for AdvancedSettings {
@@ -447,6 +485,7 @@ impl Default for AdvancedSettings {
             // The inference layer resolves this to a concrete provider at load time.
             gpu_acceleration: GpuAcceleration::Auto,
             thread_count: None,
+            update_channel: "stable".into(),
         }
     }
 }
@@ -479,6 +518,12 @@ pub struct ShortcutSettings {
     pub cycle_mode: Option<crate::domain::Shortcut>,
     pub open_settings: Option<crate::domain::Shortcut>,
     pub open_history: Option<crate::domain::Shortcut>,
+    /// Add-to-vocabulary shortcut. Defaults to None (unbound) — no
+    /// accelerator we'd pick is reliably free across apps, so we ask the
+    /// user to choose one from Settings → Shortcuts. The Vocabulary page
+    /// surfaces a "Bind a shortcut" CTA when this is None.
+    #[serde(default)]
+    pub add_to_vocabulary: Option<crate::domain::Shortcut>,
 }
 
 impl Default for ShortcutSettings {
@@ -532,6 +577,8 @@ impl Default for ShortcutSettings {
                 label: "Ctrl+Alt+H".into(),
                 trigger_style: TriggerStyle::Toggle,
             }),
+            // No safe default — see field doc. User picks one in Settings.
+            add_to_vocabulary: None,
         }
     }
 }

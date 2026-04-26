@@ -1,12 +1,12 @@
 //! Pro-tier pricing lookup.
 //!
 //! One verb: `get_pro_price`. GETs `https://utterbar.com/api/pricing` and
-//! returns a `{ amount_usd, period, currency, display, source }` struct. If
+//! returns a `{ amount, period, currency, display, source }` struct. If
 //! the server is unreachable, returns an offline fallback so the in-app
 //! upgrade modal always has a price to show — a modal that says "couldn't
 //! load pricing" reads like a broken feature and hurts conversion more than
-//! a slightly stale number ever could. The fallback is `$29 one-time`, the
-//! launch price at v0.6.
+//! a slightly stale number ever could. The fallback is `£39.99 GBP one-time`,
+//! matching the live price as of v0.7.
 //!
 //! Rationale for baking a fallback rather than erroring:
 //!   • Offline users aren't edge cases — dictation is a headphones-on, on-
@@ -32,7 +32,7 @@ use crate::util::result::CmdResult;
 const DEFAULT_BASE_URL: &str = "https://utterbar.com";
 
 /// Flat pricing descriptor. `display` is a pre-formatted string the UI can
-/// render directly (`"$29"`, `"$29 / month"`, `"£24"`). Keeps currency +
+/// render directly (`"£39.99"`, `"£9.99 / month"`, `"$49"`). Keeps currency +
 /// period rendering on the server, where it's easier to iterate without an
 /// app release. `source` lets the UI reveal whether we're showing live or
 /// fallback copy — set to `"server"` on a successful fetch and `"fallback"`
@@ -128,8 +128,8 @@ pub async fn get_pro_price() -> CmdResult<ProPrice> {
 }
 
 /// Server-missing-display-field fallback formatter. Keeps the UI from having
-/// to reconstruct "$29 / month" out of parts when the server speaks the
-/// older contract.
+/// to reconstruct "£39.99" out of parts when the server speaks the older
+/// contract.
 fn format_price(amount: f64, currency: &str, period: &str) -> String {
     let symbol = match currency {
         "USD" => "$",

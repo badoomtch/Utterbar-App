@@ -53,6 +53,12 @@ pub async fn list_shortcuts(state: State<'_, Arc<AppState>>) -> CmdResult<Vec<Sh
             "Show the history panel.",
             s.shortcuts.open_history.clone(),
         ),
+        slot(
+            ShortcutId::AddToVocabulary,
+            "Add to vocabulary",
+            "Capture the currently selected word in any app and open a quick-add window. Synthesises Ctrl+C, reads the clipboard, then restores it.",
+            s.shortcuts.add_to_vocabulary.clone(),
+        ),
     ])
 }
 
@@ -124,5 +130,6 @@ fn assign(settings: &mut crate::domain::Settings, id: &ShortcutId, val: Option<S
         ShortcutId::CycleMode => settings.shortcuts.cycle_mode = val,
         ShortcutId::OpenSettings => settings.shortcuts.open_settings = val,
         ShortcutId::OpenHistory => settings.shortcuts.open_history = val,
+        ShortcutId::AddToVocabulary => settings.shortcuts.add_to_vocabulary = val,
     }
 }

@@ -61,6 +61,15 @@ export function TextOutputSettings() {
             />
           </Row>
           <Row
+            label="Numbers as digits"
+            description="Convert spoken numbers into digits (&lsquo;twenty three&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;five pounds&rsquo; &rarr; &lsquo;5 pounds&rsquo;). Idioms stay as words (&lsquo;one of these days&rsquo;). Turn off if you prefer numbers spelled out."
+          >
+            <Toggle
+              checked={t.numbers_as_digits ?? true}
+              onChange={(v) => void update('numbers_as_digits', v)}
+            />
+          </Row>
+          <Row
             label="Hold Shift to auto-send"
             description="If you're holding Shift when you stop recording, Utterbar presses Enter for you right after pasting — so the message goes out in Teams, Slack, Discord, etc. without a second hand-off."
           >

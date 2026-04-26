@@ -13,6 +13,13 @@ pub struct ModelInfo {
     pub version: String,
     pub size_bytes: u64,
     pub backend: ModelBackend,
+    /// Which sherpa-onnx recogniser class this model needs at load
+    /// time. The inference layer dispatches on this so the catalogue
+    /// can hold multiple ASR engine families side by side. Only meaningful
+    /// when `kind == Asr`. LLM entries leave this at the default
+    /// (`Parakeet`) and the field is ignored on that path.
+    #[serde(default)]
+    pub engine: ModelEngine,
     pub languages: Vec<String>,
     pub installed: bool,
     pub path: Option<String>,
@@ -59,4 +66,23 @@ pub enum ModelBackend {
     Onnx,
     PySidecar,
     LlamaCpp,
+}
+
+/// ASR recogniser family. Each maps to a different sherpa-rs class at
+/// load time. New engines land here once the inference dispatch knows
+/// how to spin them up.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, Default, PartialEq, Eq)]
+#[ts(export, export_to = "../../src/generated/")]
+#[serde(rename_all = "kebab-case")]
+pub enum ModelEngine {
+    /// NVIDIA Parakeet TDT via sherpa_rs::transducer::TransducerRecognizer.
+    /// Today's only shipping engine and the default. English only.
+    #[default]
+    ParakeetTdt,
+    /// OpenAI Whisper via sherpa_rs::whisper::WhisperRecognizer.
+    /// Multilingual. Wired in the inference layer in v0.8.1 onwards.
+    Whisper,
+    /// Zipformer streaming via sherpa_rs::zipformer::ZipFormer.
+    /// English, fast cold start. Wired in v0.8.2 onwards.
+    Zipformer,
 }

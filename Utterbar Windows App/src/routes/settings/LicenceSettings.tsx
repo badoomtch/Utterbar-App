@@ -115,7 +115,9 @@ function FreePanel() {
   }
 
   return (
-    <Card className="mt-6">
+    <>
+      <WhatProUnlocks />
+      <Card className="mt-4">
       <div className="ub-eyebrow mb-3">Activate Pro</div>
       <p className="text-[14px] leading-[1.6] text-muted max-w-[56ch]">
         Paste the licence key from your purchase email. Activation takes a second and uses
@@ -164,6 +166,120 @@ function FreePanel() {
           <ExternalLink className="h-3 w-3" />
         </button>
       </div>
+    </Card>
+
+    <TipCard />
+    </>
+  );
+}
+
+/**
+ * Tip jar surface, shown only on the Free state of the Licence page.
+ *
+ * The Pro state intentionally does not show this — Pro users have already
+ * paid £39.99 and surfacing a "tip the developer" prompt to them would
+ * read as cap-in-hand. Free users have a clean, no-strings way to
+ * support the project if they want to. Buttons open the website's
+ * `/tip/start?amount=...` URL in the user's default browser via Tauri's
+ * shell plugin; payment lives entirely on Stripe-hosted Checkout.
+ *
+ * Auto-hides if the website hasn't got `STRIPE_TIP_PRICE_ID` set — but
+ * the failure mode of "user clicks, lands on a blank page" doesn't
+ * surface here because the website redirects home in that case.
+ */
+function TipCard() {
+  const startTip = (amountPence: number | null) => {
+    const url = amountPence
+      ? `https://utterbar.com/tip/start?amount=${amountPence}`
+      : `https://utterbar.com/tip/start`;
+    void openShell(url).catch(() => undefined);
+  };
+
+  return (
+    <Card className="mt-4">
+      <div className="ub-eyebrow mb-3">Tip the developer</div>
+      <p className="text-[13px] leading-[1.55] text-muted max-w-[56ch]">
+        Utterbar is free. If it's earning its keep on your machine, a few quid keeps the
+        next release moving. Voluntary, no perks, no licence — just thank-you money. Opens
+        Stripe in your browser.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {[300, 500, 1000].map((pence) => (
+          <button
+            key={pence}
+            type="button"
+            onClick={() => startTip(pence)}
+            className="rounded-input bg-bg-2 px-3 py-1.5 text-[12px] font-medium text-fg-hi transition-colors hover:bg-bg-2/70"
+          >
+            £{pence / 100}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => startTip(null)}
+          className="rounded-input bg-bg-2 px-3 py-1.5 text-[12px] font-medium text-fg-hi transition-colors hover:bg-bg-2/70"
+        >
+          Custom →
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Free → Pro feature explainer.
+ *
+ * Sits above the activation card on the Free state. Concrete and compact:
+ * the five things Pro actually unlocks today, with the Free cap quoted
+ * next to each one so the value is unambiguous. Bullets, not marketing
+ * copy.
+ *
+ * Caps quoted here MUST track `src-tauri/src/util/gating.rs`. If we
+ * change a cap there, change it here. There's no shared TS source for
+ * these numbers — they're display strings, the backend is the
+ * enforcement.
+ */
+function WhatProUnlocks() {
+  const items = [
+    {
+      title: 'Unlimited custom modes',
+      free: '3 modes on Free',
+    },
+    {
+      title: 'Unlimited vocabulary & replacements',
+      free: '50 words / 25 replacements on Free',
+    },
+    {
+      title: 'File transcription',
+      free: 'Pro only — drop a .wav / .mp3 / .m4a in and get a transcript',
+    },
+    {
+      title: 'Full history with re-transcribe',
+      free: 'Free keeps the last 7 days; Pro keeps everything',
+    },
+    {
+      title: 'High-accuracy GPU model (fp16)',
+      free: 'Free uses the compact model; Pro adds the larger fp16 build for stronger accuracy on capable GPUs',
+    },
+  ];
+  return (
+    <Card className="mt-6" rail>
+      <div className="ub-eyebrow mb-2">What Pro unlocks</div>
+      <p className="text-[13px] leading-[1.55] text-muted max-w-[58ch]">
+        One-time £39.99 GBP. No subscription. Three-device cap, transferable any time
+        from utterbar.com/account.
+      </p>
+      <ul className="mt-4 flex flex-col gap-2.5">
+        {items.map((it) => (
+          <li key={it.title} className="flex items-start gap-2.5">
+            <Check className="mt-[3px] h-3.5 w-3.5 shrink-0 text-accent" />
+            <div className="flex-1">
+              <div className="text-[13px] font-medium text-fg-hi">{it.title}</div>
+              <div className="text-[12px] leading-snug text-muted">{it.free}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

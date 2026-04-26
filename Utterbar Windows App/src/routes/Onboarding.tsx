@@ -23,7 +23,7 @@ import { Waveform } from '@/components/bar/Waveform';
 import { Button } from '@/components/common/Button';
 import { Select } from '@/components/common/Select';
 import { ScoreBars } from '@/components/common/ScoreBars';
-import { Textarea } from '@/components/common/Input';
+import { Input, Textarea } from '@/components/common/Input';
 import { Kbd } from '@/components/common/Kbd';
 import { useDictation } from '@/state/dictation';
 import { invoke, listen } from '@/lib/ipc';
@@ -42,6 +42,12 @@ import { cn } from '@/lib/cn';
 const ALL_STEPS = [
   { id: 'welcome', title: 'Welcome to Utterbar' },
   { id: 'privacy', title: 'Everything local, always' },
+  // Update-check consent sits immediately after the privacy step because it's
+  // the one network call Utterbar makes by default. We surface the choice
+  // explicitly here rather than burying it in Settings — the local-only
+  // ethos means the user should know there's a single, opt-out outbound
+  // request and decide for themselves whether to keep it on.
+  { id: 'updates', title: 'Update checks' },
   { id: 'theme', title: 'Pick a theme' },
   { id: 'model', title: 'Choose your ASR model' },
   // `gpu` is conditionally included — only shown when a hardware GPU is detected.
@@ -84,7 +90,7 @@ export function Onboarding() {
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-bg-0">
+    <div className="flex h-full min-h-0 w-full flex-col bg-bg-0">
       <header className="flex items-center justify-between px-8 pt-6">
         <div className="flex items-center gap-2">
           <UtterbarLogoMark size={26} />
@@ -103,7 +109,25 @@ export function Onboarding() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-8">
+      {/*
+        Step pane scrolls when content overflows. Header + footer eat
+        ~110 px and the onboarding window opens 880×720; some steps
+        (model picker, mic + test) can still exceed the available
+        height on a high-DPI render. `overflow-y-auto` lets the user
+        scroll to reach Continue without needing to maximise the
+        window. `items-start` keeps tall content pinned to the top
+        of the pane rather than being vertically centred and clipped
+        from both ends.
+
+        `min-h-0` is load-bearing: a flex child's default `min-height`
+        is `auto`, which means the child refuses to shrink below its
+        content height — so `overflow-y-auto` never engages and the
+        footer ends up pushed off-screen on shorter windows. With
+        min-h-0, the child happily shrinks to fit, and the inner
+        scroll takes over. This was the root cause of the "can't
+        reach the Next button" complaint on small windows.
+       */}
+      <main className="flex flex-1 min-h-0 items-start justify-center overflow-y-auto px-8 py-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={step.id}
@@ -190,6 +214,8 @@ function StepContent({
           body="No cloud transcription. No cloud post-processing. No telemetry by default. Your recordings, transcripts, and preferences are stored only on this PC."
         />
       );
+    case 'updates':
+      return <UpdateConsentStep />;
     case 'model':
       return <ModelPickStep />;
     case 'gpu':
@@ -262,6 +288,76 @@ function Hero({ icon, title, body }: { icon: React.ReactNode; title: string; bod
 }
 
 /**
+ * Onboarding step asking the user whether to enable automatic update checks.
+ *
+ * The local-only ethos is the pitch — and the update check is the one
+ * outbound network request Utterbar makes by default. We surface the
+ * trade-off explicitly so the user makes an informed choice rather than
+ * discovering it later in Settings → General.
+ *
+ * Default selection mirrors the current `check_updates_automatically`
+ * setting (true on first install). The user can flip it before continuing;
+ * the choice is committed to settings via `patch` so it survives even if
+ * the user backs out and revisits.
+ */
+function UpdateConsentStep() {
+  const data = useSettings((x) => x.data);
+  const patch = useSettings((x) => x.patch);
+  const enabled = Boolean(
+    (data?.general as Record<string, unknown> | undefined)?.check_updates_automatically ?? true,
+  );
+
+  const set = (v: boolean) => {
+    if (!data) return;
+    void patch({ general: { ...data.general, check_updates_automatically: v } });
+  };
+
+  return (
+    <div className="rounded-block bg-bg-1 p-10">
+      <div className="text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-card bg-[color-mix(in_oklab,var(--accent)_14%,var(--bg-2))]">
+          <Sparkles className="h-9 w-9 text-accent" />
+        </div>
+        <h1 className="mt-6 text-[26px] font-bold tracking-[-0.02em] text-fg-hi">
+          Update checks
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-muted">
+          Utterbar can occasionally ask <span className="text-fg-hi">utterbar.com</span> if a
+          newer version is out. This is the only outbound request the app makes by default.
+          It sends just your current version — no usage, no telemetry, no identifiers.
+        </p>
+      </div>
+      <div className="mx-auto mt-6 flex max-w-md flex-col gap-2">
+        <RadioTile
+          name="update-consent"
+          value="on"
+          selected={enabled}
+          onSelect={() => set(true)}
+        >
+          <div className="text-[14px] font-medium text-fg-hi">Yes, check for updates</div>
+          <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
+            Get a small toast when a new version is available. You always click Install
+            yourself — nothing downloads or runs in the background.
+          </div>
+        </RadioTile>
+        <RadioTile
+          name="update-consent"
+          value="off"
+          selected={!enabled}
+          onSelect={() => set(false)}
+        >
+          <div className="text-[14px] font-medium text-fg-hi">No, fully offline</div>
+          <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
+            Utterbar will never reach the internet. You can still check manually any time
+            from Settings → General → "Check now".
+          </div>
+        </RadioTile>
+      </div>
+    </div>
+  );
+}
+
+/**
  * RadioTile — the universal "pick one of these" surface used by the model, gpu,
  * and trigger steps. Replaces the legacy `border-accent/60 bg-accent/10` pattern
  * with the §1.3 active-state vocabulary: bg-bg-2 lift + 2px cyan left rail.
@@ -320,6 +416,10 @@ type ModelCatEntry = {
   recommended: boolean;
   accuracy_score: number;
   speed_score: number;
+  // Pro-gated models are filtered out of the onboarding shortlist
+  // because a first-run user can't buy yet. Catalogue (services/models.rs)
+  // is the source of truth; surfaced in Settings → Models for upgraded users.
+  requires_pro: boolean;
 };
 
 type ModelProgress = {
@@ -330,8 +430,12 @@ type ModelProgress = {
 };
 
 const EXTRACT_HINT_SECS: Record<string, number> = {
-  'sherpa-parakeet-tdt-0.6b-v2-int8': 45,
-  'sherpa-parakeet-tdt-0.6b-v2-fp16': 90,
+  // Cold extraction wall-clock measured on a baseline laptop —
+  // empirical, not theoretical. Used only by the onboarding progress
+  // pane to nudge the spinner copy ("about 45 seconds left") so users
+  // don't think the extract phase has hung.
+  'sherpa-parakeet-tdt-0.6b-v3-int8': 45,
+  'sherpa-parakeet-tdt-0.6b-v3-fp16': 90,
 };
 
 function ModelPickStep() {
@@ -346,14 +450,21 @@ function ModelPickStep() {
   const extractStartRef = useRef<number>(0);
   const [nowTick, setNowTick] = useState(0);
 
+  // Onboarding shows a deliberately narrowed shortlist: Pro-gated
+  // models (fp16) are skipped because a fresh user is on the free tier
+  // and can't buy yet. The Settings → Models page exposes the full
+  // catalogue once they're past onboarding.
   const reload = () =>
     invoke<ModelCatEntry[]>('list_available_models')
       .then((list) => {
-        setModels(list);
+        const onboarding = list.filter((m) => !m.requires_pro);
+        setModels(onboarding);
         if (!pick) {
-          const installed = list.find((m) => m.installed);
-          const recommended = list.find((m) => m.recommended);
-          setPick(installed?.id ?? recommended?.id ?? list[0]?.id ?? '');
+          const installed = onboarding.find((m) => m.installed);
+          const recommended = onboarding.find((m) => m.recommended);
+          setPick(
+            installed?.id ?? recommended?.id ?? onboarding[0]?.id ?? '',
+          );
         }
       })
       .catch(() => undefined);
@@ -458,6 +569,22 @@ function ModelPickStep() {
       <p className="mt-2 text-[13px] leading-relaxed text-muted">
         Models run entirely on this machine. Change it later in Settings → Models.
       </p>
+
+      {/* Multilingual nudge. Parakeet (recommended default) is English
+          only. Users dictating in other languages should pick Whisper —
+          listed below as an option, but easy to miss. The banner is
+          one line and one accent dot; doesn't compete with the
+          Recommended chip on the Parakeet row. */}
+      <div className="mt-3 flex items-start gap-2 rounded-input bg-bg-2/60 p-3 text-[12px] leading-relaxed text-muted">
+        <span
+          aria-hidden
+          className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
+        />
+        <span>
+          <span className="text-fg-hi">Dictating in another language?</span>{' '}
+          Pick the Whisper model below — it covers around 99 languages on the free tier.
+        </span>
+      </div>
 
       <ul className="mt-5 space-y-2">
         {models.map((m) => (
@@ -1021,11 +1148,27 @@ function BaselineChoice({
 }
 
 function TriggerStep() {
-  const [pick, setPick] = useState<'toggle' | 'push_to_talk' | 'hold_to_talk'>('toggle');
+  const [pick, setPick] = useState<'toggle' | 'hold_to_talk' | 'push_to_talk'>('toggle');
+  // Two natural patterns first (toggle, hold), then the dual-purpose
+  // hybrid. The previous copy described toggle and push-to-talk almost
+  // identically, which is fair confusion — the only real difference
+  // between them is press *duration*, not behaviour after the press.
   const items = [
-    { id: 'toggle', label: 'Toggle', desc: 'Press once to start, press again to stop.' },
-    { id: 'hold_to_talk', label: 'Hold to talk', desc: 'Hold the key while speaking; release to finalise.' },
-    { id: 'push_to_talk', label: 'Push to talk', desc: 'Quick press-release starts recording; press again to stop.' },
+    {
+      id: 'toggle',
+      label: 'Toggle',
+      desc: 'Press the key to start recording. Press it again to stop. Most apps work this way.',
+    },
+    {
+      id: 'hold_to_talk',
+      label: 'Hold to talk',
+      desc: 'Hold the key down while speaking. Release to stop. Walkie-talkie style — good for short bursts.',
+    },
+    {
+      id: 'push_to_talk',
+      label: 'Push to talk (hybrid)',
+      desc: 'Same key does both. A quick tap toggles; holding it acts like hold-to-talk. Pick this if you want one key to handle both styles.',
+    },
   ] as const;
 
   return (
@@ -1033,6 +1176,9 @@ function TriggerStep() {
       <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
         How would you like to trigger recording?
       </h1>
+      <p className="mt-2 text-[13px] leading-relaxed text-muted">
+        You can change this any time in Settings &rarr; Shortcuts, and bind different styles to different keys.
+      </p>
       <ul className="mt-5 space-y-2">
         {items.map((it) => (
           <li key={it.id}>
@@ -1377,6 +1523,13 @@ function ReadyStep() {
         )}
       </div>
 
+      {/* Optional one-tap addition: get your name into vocabulary so the
+          first transcription doesn't mangle it. Skip is the path of least
+          friction — empty input + Skip closes this card and onboarding
+          continues. The user can always add words later from
+          Settings → Vocabulary or with the add-to-vocabulary shortcut. */}
+      <NameVocabularyCard />
+
       {/* Warm-up expectation-setting. Without this, the first dictation taking 4-6s
           reads as "the app is slow" when really it's just a one-time load cost. */}
       <div className="mt-4 rounded-input bg-bg-2 p-3 text-[11px] leading-relaxed text-muted">
@@ -1384,6 +1537,96 @@ function ReadyStep() {
         model and takes a few seconds. Subsequent ones while the model is warm feel near-instant.
         Tune how long the model stays warm in Settings → Models.
       </div>
+    </div>
+  );
+}
+
+/**
+ * Optional inline card on the Ready step: type your name (or a short
+ * phrase you want Utterbar to get right) and save it to vocabulary in
+ * one tap. Skip is friction-free — the card collapses and onboarding
+ * continues. The card hides itself once a save succeeds so the user
+ * isn't tempted to spam-add their own name.
+ *
+ * This is an OPTIONAL touch, not a required step. It deliberately sits
+ * inside the Ready step rather than as its own dedicated step, so the
+ * onboarding flow doesn't grow longer.
+ */
+function NameVocabularyCard() {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [skipped, setSkipped] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (saved || skipped) return null;
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await invoke('upsert_vocabulary', {
+        entry: {
+          id: '',
+          word: trimmed,
+          hint: null,
+          weight: 1,
+          enabled: true,
+          created_at: 0,
+        },
+      });
+      setSaved(true);
+    } catch (e) {
+      setSaving(false);
+      const msg = (e as { message?: string } | null)?.message;
+      setError(typeof msg === 'string' && msg ? msg : 'Could not save. Try again later.');
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-input bg-bg-2 p-3 text-[12px] leading-relaxed">
+      <div className="flex items-center gap-2 text-fg-hi">
+        <Sparkles className="h-3.5 w-3.5 text-accent" />
+        <span className="text-[12px] font-medium">Want Utterbar to get your name right?</span>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted">
+        Add it to vocabulary now and dictation will spell it correctly from the very first try.
+        You can add more words later from Settings → Vocabulary.
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Type your name…"
+          maxLength={40}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void save();
+            }
+          }}
+        />
+        <Button
+          variant="cta"
+          size="sm"
+          onClick={() => void save()}
+          disabled={saving || !name.trim()}
+        >
+          {saving ? 'Saving…' : 'Add'}
+        </Button>
+        <button
+          type="button"
+          onClick={() => setSkipped(true)}
+          className="text-[11px] text-muted transition-colors hover:text-fg-hi"
+        >
+          Skip
+        </button>
+      </div>
+      {error && (
+        <div className="mt-1 text-[11px] text-[color:var(--danger,#f87171)]">{error}</div>
+      )}
     </div>
   );
 }

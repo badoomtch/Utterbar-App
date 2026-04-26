@@ -122,6 +122,41 @@ impl FileJobService {
         Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
+    /// Single-row lookup. Returns None when the id doesn't exist —
+    /// callers (Tauri commands) translate that into a friendly error.
+    pub fn get(&self, id: &str) -> Result<Option<FileJob>> {
+        let conn = self.db.conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT id,source_path,mode_id,model_id,status,progress,result_path,error_message,created_at,updated_at FROM file_jobs WHERE id = ?1 LIMIT 1",
+        )?;
+        let mut rows = stmt.query(params![id])?;
+        if let Some(r) = rows.next()? {
+            let status: String = r.get(4)?;
+            return Ok(Some(FileJob {
+                id: r.get(0)?,
+                source_path: r.get(1)?,
+                mode_id: r.get(2)?,
+                model_id: r.get(3)?,
+                status: serde_json::from_str(&status).unwrap_or(FileJobStatus::Queued),
+                progress: r.get(5)?,
+                result_path: r.get(6)?,
+                error_message: r.get(7)?,
+                created_at: r.get(8)?,
+                updated_at: r.get(9)?,
+            }));
+        }
+        Ok(None)
+    }
+
+    /// Remove the row from the database. Does NOT touch the result
+    /// file on disk — that's the caller's responsibility (the
+    /// `delete_job` Tauri command exposes an `also_delete_file` flag).
+    pub fn delete(&self, id: &str) -> Result<()> {
+        let conn = self.db.conn()?;
+        conn.execute("DELETE FROM file_jobs WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
     /// Async so the running-map mutex can be awaited. Cancellation is two-phase:
     ///   * Queued job — DB flip to `Cancelled` is sufficient; `next_queued()` filters
     ///     on `status = 'queued'` so the worker never picks it up.

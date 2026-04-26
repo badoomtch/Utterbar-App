@@ -39,6 +39,14 @@ pub enum ShortcutId {
     CycleMode,
     OpenSettings,
     OpenHistory,
+    /// Quick add-to-vocabulary. When pressed we synthesise Ctrl+C against the
+    /// foreground app, read the resulting clipboard, restore the user's
+    /// previous clipboard, and open the small vocab-add window prefilled
+    /// with the captured text. Ships unbound by default — there is no
+    /// generally-safe accelerator that doesn't risk colliding with another
+    /// app's binding, so the user is invited to bind one from
+    /// Settings → Shortcuts (or the prompt on the Vocabulary page).
+    AddToVocabulary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

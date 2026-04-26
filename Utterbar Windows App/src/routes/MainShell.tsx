@@ -27,7 +27,7 @@ import {
 
 import { UtterbarLogoMark } from '@/components/bar/UtterbarLogoMark';
 import { UtterbarWordmark } from '@/components/bar/UtterbarWordmark';
-import { UpdateToast } from '@/components/common/UpdateToast';
+import { PostUpdateToast, UpdateToast } from '@/components/common/UpdateToast';
 import { cn } from '@/lib/cn';
 import { Dashboard } from '@/routes/Dashboard';
 import { HistoryRoute } from '@/routes/HistoryRoute';
@@ -117,7 +117,7 @@ export function MainShell() {
   }, [navigate]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg-0 text-fg">
+    <div className="flex h-full min-h-0 overflow-hidden bg-bg-0 text-fg">
       <aside className="flex h-full w-[248px] min-h-0 flex-col overflow-hidden bg-bg-1">
         {/* Sidebar lockup. Bumped from 28/18 → 36/24 per the brief: the old
             sizing read as "small utility chrome" and made the wordmark's
@@ -167,16 +167,27 @@ export function MainShell() {
         </div>
       </aside>
 
-      {/* v0.7.0 scroll fix. Previous version used `flex-1 min-h-0 overflow-y-auto`
-          which in theory constrains height via flex and enables scrolling.
-          In practice it was miscomputing scroll extent: the scrollbar bottomed
-          out before the true content bottom (see screenshot in chat log).
-          Root cause appeared to be flex-child height resolution interacting
-          with the scrollable region — making the container explicitly
-          `h-screen` removes every bit of ambiguity. It can't be anything
-          other than viewport-height; the child settings panel flows
-          naturally inside and scrolls fully to its end. */}
-      <main ref={mainRef} className="h-screen flex-1 overflow-y-auto bg-bg-0">
+      {/* Scroll container.
+          Parent `<div>` is `flex h-screen overflow-hidden`, so this `<main>`
+          must derive its height from the flex parent. The trio is:
+          - `flex-1`         — fill the remaining width/height of the row
+          - `min-h-0`        — allow this flex child to shrink below content
+                               height (default `min-height: auto` makes the
+                               child refuse to shrink, which kills overflow)
+          - `overflow-y-auto`— produce the scrollbar when content > height
+          - `h-full`         — belt-and-braces: even if `flex-1`'s height
+                               resolution lags a layout pass, h-full pins us
+                               to the parent's `h-screen` so we never overrun
+          The previous v0.7.0 fix used `h-screen` here, which decoupled the
+          height from the flex parent. That worked when the window was at
+          exactly 100vh but left content clipped on shorter windows where
+          the OS chrome / DPI rounding meant `100vh` didn't equal the true
+          inner viewport. Going back to flex-derived height with the proper
+          `min-h-0` is the textbook scroll container in a flex column. */}
+      <main
+        ref={mainRef}
+        className="flex-1 min-h-0 overflow-y-auto bg-bg-0"
+      >
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -198,6 +209,7 @@ export function MainShell() {
         </Routes>
       </main>
       <UpdateToast />
+      <PostUpdateToast />
     </div>
   );
 }

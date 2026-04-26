@@ -50,6 +50,20 @@ impl SettingsStore {
             let _ = persist(&path, &cache);
         }
 
+        // v0.8.0: Parakeet v2 (int8 + fp16) dropped from the catalogue —
+        // v3 supersedes it. Any user whose default_asr_model_id still
+        // points at the old v2 ids gets transparently moved to the v3
+        // int8 default. v2 model files on disk are NOT deleted (the
+        // user paid the download cost; we leave the bytes alone) — the
+        // catalogue just stops listing v2 as installable. If the user
+        // has no v3 model installed yet, the dictation path will surface
+        // the standard "no model installed" UI on next use.
+        let migrated_v2 = migrate_v2_references_to_v3(&mut cache);
+        if migrated_v2 {
+            tracing::warn!("migrated default_asr_model_id from Parakeet v2 to v3");
+            let _ = persist(&path, &cache);
+        }
+
         // Back-compat migration: early builds shipped before some shortcut slots
         // existed (cancel/cycle/settings/history) or with several slots unbound.
         // New installs get all defaults via `ShortcutSettings::default()`, but
@@ -107,6 +121,28 @@ fn migrate_fp16_reference_if_cpu_forced(s: &mut Settings) -> bool {
         changed = true;
     }
     changed
+}
+
+/// v0.8.0: Parakeet v2 catalogue entries were retired. Clear any
+/// setting that still references a v2 id so the next dictation
+/// surfaces the existing "no model installed" prompt and the user
+/// picks a v3 from Settings → Models. We deliberately do NOT
+/// auto-redirect to a v3 id — the v3 model isn't installed on disk,
+/// so pointing at it would produce a confusing runtime error
+/// ("model not installed: …-v3-int8") instead of the clean
+/// pick-a-model flow. Idempotent.
+fn migrate_v2_references_to_v3(s: &mut Settings) -> bool {
+    const V2_INT8: &str = "sherpa-parakeet-tdt-0.6b-v2-int8";
+    const V2_FP16: &str = "sherpa-parakeet-tdt-0.6b-v2-fp16";
+
+    if matches!(
+        s.models.default_asr_model_id.as_deref(),
+        Some(V2_INT8) | Some(V2_FP16)
+    ) {
+        s.models.default_asr_model_id = None;
+        return true;
+    }
+    false
 }
 
 /// Fill any `None` shortcut slot from `ShortcutSettings::default()`. Non-None

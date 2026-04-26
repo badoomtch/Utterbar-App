@@ -8,4 +8,13 @@ export type TextOutputSettings = { paste_automatically: boolean, restore_clipboa
  * heuristic is conservative (same-app + short time window) so false positives are
  * rare.
  */
-auto_space_on_paste: boolean, };
+auto_space_on_paste: boolean, 
+/**
+ * When true, post-process the transcript to convert spelled-out
+ * numbers ("twenty three") into digits ("23"). Most ASR models
+ * emit words by default; users dictating prices, dates, code,
+ * addresses etc. usually want digits. On by default — the
+ * transform is conservative (only converts unambiguous numeric
+ * phrases, leaves "one of these days" alone).
+ */
+numbers_as_digits: boolean, };

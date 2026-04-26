@@ -12,7 +12,7 @@ mod services;
 mod util;
 
 use std::sync::Arc;
-use tauri::{Manager, RunEvent};
+use tauri::{Emitter, Manager, RunEvent};
 use tracing::info;
 
 use crate::app_state::AppState;
@@ -140,6 +140,7 @@ fn main() {
             commands::vocabulary::delete_replacement,
             commands::vocabulary::import_vocabulary,
             commands::vocabulary::export_vocabulary,
+            commands::vocabulary::open_vocab_quick_add,
             // history
             commands::history::list_history,
             commands::history::get_history_entry,
@@ -148,8 +149,13 @@ fn main() {
             commands::history::export_history,
             // files
             commands::files::enqueue_file,
+            commands::files::enqueue_folder,
+            commands::files::enqueue_path,
             commands::files::list_jobs,
             commands::files::cancel_job,
+            commands::files::read_job_transcript,
+            commands::files::reveal_job_in_folder,
+            commands::files::delete_job,
             // licence
             commands::licence::licence_status,
             commands::licence::licence_activate,
@@ -162,6 +168,7 @@ fn main() {
             // adopting `tauri-plugin-updater`.
             commands::updater::check_update,
             commands::updater::install_update,
+            commands::updater::consume_post_update_marker,
             // release-email subscription
             commands::updates::subscribe_to_release_updates,
             // pricing lookup (for the in-app upgrade modal)
@@ -262,14 +269,37 @@ fn main() {
                 // main window on launch so they land in Dashboard instead of having to
                 // click the tray icon. Default remains minimised-to-tray so the app's
                 // out-of-box behaviour doesn't change.
-                let start_minimised = tauri::async_runtime::block_on(state.settings.snapshot())
-                    .general
-                    .start_minimised;
-                if !start_minimised {
+                let snap = tauri::async_runtime::block_on(state.settings.snapshot());
+                let start_minimised = snap.general.start_minimised;
+
+                // Post-migration prompt. When the v0.8.0 v2 retirement
+                // migration has cleared `default_asr_model_id`, the user
+                // is now past onboarding (otherwise we'd be in the
+                // onboarding window above) but has no working model.
+                // Pop the main window straight to Settings → Models so
+                // they see the picker instead of silently dictating
+                // against the stub provider. Only fires when there's
+                // something to fix; otherwise the start-minimised
+                // preference wins.
+                let no_default_model = snap.models.default_asr_model_id.is_none();
+
+                if !start_minimised || no_default_model {
                     if let Some(w) = handle.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();
-                        info!("main window shown (start_minimised=false)");
+                        if no_default_model {
+                            // Fire the navigate event so MainShell lands
+                            // on the Models settings page on this open.
+                            // Same pattern the floating bar uses for
+                            // History / Settings shortcuts.
+                            let _ = handle.emit(
+                                crate::domain::events::EVT_MAIN_NAVIGATE,
+                                "/settings/models",
+                            );
+                            info!("main window shown -> /settings/models (no default model after v2 retirement)");
+                        } else {
+                            info!("main window shown (start_minimised=false)");
+                        }
                     }
                 }
             }

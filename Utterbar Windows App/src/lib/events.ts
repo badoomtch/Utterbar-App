@@ -17,4 +17,7 @@ export const EVT = {
   trayPauseToggled: 'tray:pause-toggled',
   mainNavigate: 'main:navigate',
   licenceChanged: 'licence_changed',
+  /// Emitted by `open_vocab_quick_add` (commands/vocabulary.rs) after the
+  /// vocab-add window is shown. Payload is `VocabCapturePayload`.
+  vocabCapture: 'vocab:capture',
 } as const;

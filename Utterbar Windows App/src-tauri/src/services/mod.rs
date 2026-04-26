@@ -13,6 +13,7 @@ pub mod llm;
 pub mod media;
 pub mod models;
 pub mod modes;
+pub mod numbers;
 pub mod settings;
 pub mod text_inject;
 pub mod tray;

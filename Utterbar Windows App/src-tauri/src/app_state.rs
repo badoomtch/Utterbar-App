@@ -99,17 +99,60 @@ impl AppState {
         let modes = Arc::new(ModeService::new(db.clone()));
         modes.ensure_seed()?;
 
-        // fp16-on-CPU crash migration, DB side: null out any mode.asr_model_id that points
-        // at the removed fp16 Parakeet variant. Settings.json was handled in SettingsStore.
+        // v0.8.0: Parakeet v2 catalogue entries retired (int8 + fp16).
+        // Forced clean migration: delete any v2 model rows from the
+        // installed-models table, null out modes that reference them,
+        // and remove the v2 files from disk. Settings-side migration
+        // (in SettingsStore::load) re-points default_asr_model_id at
+        // a v3 id — but on first launch v3 isn't installed yet, so the
+        // dictation path will surface the existing "no model installed"
+        // UI. The user picks a v3 from Settings → Models or via the
+        // onboarding "pick a model" step. Idempotent — running on an
+        // already-clean DB is a no-op.
         {
-            const FP16_ID: &str = "sherpa-parakeet-tdt-0.6b-v2-fp16";
+            const V2_INT8: &str = "sherpa-parakeet-tdt-0.6b-v2-int8";
+            const V2_FP16: &str = "sherpa-parakeet-tdt-0.6b-v2-fp16";
             if let Ok(conn) = db.conn() {
+                // Modes first — null out the FK before deleting the row.
                 if let Ok(n) = conn.execute(
-                    "UPDATE modes SET asr_model_id = NULL WHERE asr_model_id = ?1",
-                    rusqlite::params![FP16_ID],
+                    "UPDATE modes SET asr_model_id = NULL WHERE asr_model_id IN (?1, ?2)",
+                    rusqlite::params![V2_INT8, V2_FP16],
                 ) {
                     if n > 0 {
-                        tracing::warn!(rows = n, "migrated modes off fp16 Parakeet model");
+                        tracing::warn!(rows = n, "migrated modes off retired Parakeet v2 ids");
+                    }
+                }
+                // Read the on-disk paths before deleting so we can
+                // rm them after. `path` is relative to models_root.
+                let mut to_remove: Vec<String> = Vec::new();
+                if let Ok(mut stmt) = conn.prepare(
+                    "SELECT path FROM models WHERE id IN (?1, ?2) AND path IS NOT NULL",
+                ) {
+                    let rows = stmt.query_map(
+                        rusqlite::params![V2_INT8, V2_FP16],
+                        |r| r.get::<_, String>(0),
+                    );
+                    if let Ok(rows) = rows {
+                        for row in rows.flatten() {
+                            to_remove.push(row);
+                        }
+                    }
+                }
+                if let Ok(n) = conn.execute(
+                    "DELETE FROM models WHERE id IN (?1, ?2)",
+                    rusqlite::params![V2_INT8, V2_FP16],
+                ) {
+                    if n > 0 {
+                        tracing::warn!(rows = n, "removed retired Parakeet v2 model rows");
+                    }
+                }
+                for rel in to_remove {
+                    let abs = data_dir.join("models").join(&rel);
+                    if abs.is_dir() {
+                        let _ = std::fs::remove_dir_all(&abs);
+                        tracing::warn!(path = ?abs, "removed retired Parakeet v2 model directory");
+                    } else if abs.is_file() {
+                        let _ = std::fs::remove_file(&abs);
                     }
                 }
             }

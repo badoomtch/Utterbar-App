@@ -772,6 +772,9 @@ pub async fn stop_recording(
 
     // Text-output settings. These are deliberately applied last, after any LLM/mode
     // rewriting, so they're the final word on the string that hits the user's app.
+    if settings.text_output.numbers_as_digits {
+        processed = crate::services::numbers::words_to_digits(&processed);
+    }
     if settings.text_output.auto_capitalise {
         processed = capitalise_first_letter(&processed);
     }

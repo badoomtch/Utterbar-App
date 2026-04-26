@@ -3,6 +3,8 @@
 pub mod provider;
 pub mod py_sidecar;
 pub mod sherpa_parakeet;
+pub mod sherpa_whisper;
+pub mod sherpa_zipformer;
 pub mod stub;
 
 use std::path::PathBuf;
@@ -110,7 +112,14 @@ impl InferenceOrchestrator {
             guard = self.active.write().await;
         }
 
-        let provider = build_provider(model_id, &self.registry, &desired).await?;
+        // Snapshot settings before building so the Whisper language hint
+        // is consistent across this load+warm. Don't read it inside
+        // build_provider directly — keeping the call free of *self lets
+        // it stay testable in isolation.
+        let snapshot = self.settings.snapshot().await;
+        let whisper_language = snapshot.models.whisper_language.clone();
+        let provider =
+            build_provider(model_id, &self.registry, &desired, &whisper_language).await?;
         // `warm()` runs native `TransducerRecognizer::new` internally;
         // while we hold the write lock no other transcribe() can be
         // racing this path. See the bug comment above.
@@ -154,6 +163,10 @@ impl InferenceOrchestrator {
         // means "just us". Higher means another transcribe is in flight
         // and unloading would race its native teardown.
         let warm_secs = self.settings.snapshot().await.models.warm_duration_secs;
+        // Three semantic regimes:
+        //   • 0          unload immediately after this transcription (handled inline below).
+        //   • u32::MAX   keep loaded forever (no inline unload, sweeper also no-ops).
+        //   • else       keep warm for N seconds, idle sweeper handles eviction.
         if warm_secs == 0 {
             // Drop our local `provider` Arc BEFORE the check so strong_count
             // reflects only other in-flight callers, not ourselves.
@@ -239,6 +252,14 @@ impl InferenceOrchestrator {
                 let warm_secs = self.settings.snapshot().await.models.warm_duration_secs;
                 if warm_secs == 0 {
                     // Inline-unload path handles this; nothing for the sweeper to do.
+                    continue;
+                }
+                if warm_secs == u32::MAX {
+                    // Sentinel for "keep loaded forever" — user has explicitly
+                    // chosen to keep the model resident in RAM/VRAM at all times
+                    // for the lowest possible latency. Skip the eviction check;
+                    // the model only unloads on app exit or an explicit reload
+                    // from Settings (e.g. switching default model).
                     continue;
                 }
 
@@ -327,16 +348,22 @@ async fn build_provider(
     model_id: &str,
     registry: &ModelRegistry,
     provider_string: &str,
+    whisper_language: &str,
 ) -> Result<Arc<dyn AsrProvider>> {
     // Stub always available — no model installed yet, or explicit opt-out.
     if model_id == "stub" {
         return Ok(Arc::new(stub::StubProvider));
     }
 
-    let installed = registry.list_installed()?;
-    let info = installed
+    // Use list_available so we get the catalogue's engine field merged
+    // with installed-state. list_installed() alone returns the DB row
+    // which doesn't persist engine — every loaded model would fall
+    // back to ParakeetTdt (the enum default), masking misconfigurations
+    // until they crashed at first inference.
+    let available = registry.list_available().await;
+    let info = available
         .iter()
-        .find(|m| m.id == model_id)
+        .find(|m| m.id == model_id && m.installed)
         .ok_or_else(|| anyhow!("model not installed: {model_id}"))?;
 
     let model_dir: PathBuf = info
@@ -345,9 +372,29 @@ async fn build_provider(
         .map(|p| registry.models_root().join(p))
         .ok_or_else(|| anyhow!("installed model has no path: {model_id}"))?;
 
-    Ok(Arc::new(sherpa_parakeet::SherpaParakeet::new(
-        model_id.to_string(),
-        model_dir,
-        provider_string.to_string(),
-    )))
+    // Engine dispatch. Today only the Parakeet path is wired into the
+    // inference layer; Whisper + Zipformer cases land in v0.8.1 / v0.8.2
+    // alongside their respective recogniser providers. Catalogue entries
+    // for those engines are guarded so the user can't install one and
+    // hit a runtime panic — install_model rejects engines the loader
+    // doesn't yet support.
+    use crate::domain::ModelEngine;
+    match info.engine {
+        ModelEngine::ParakeetTdt => Ok(Arc::new(sherpa_parakeet::SherpaParakeet::new(
+            model_id.to_string(),
+            model_dir,
+            provider_string.to_string(),
+        ))),
+        ModelEngine::Whisper => Ok(Arc::new(sherpa_whisper::SherpaWhisper::new(
+            model_id.to_string(),
+            model_dir,
+            whisper_language.to_string(),
+            provider_string.to_string(),
+        ))),
+        ModelEngine::Zipformer => Ok(Arc::new(sherpa_zipformer::SherpaZipformer::new(
+            model_id.to_string(),
+            model_dir,
+            provider_string.to_string(),
+        ))),
+    }
 }

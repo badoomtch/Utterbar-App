@@ -8,6 +8,7 @@ import { AppBootstrap } from '@/routes/AppBootstrap';
 import { FloatingBar } from '@/routes/FloatingBar';
 import { Onboarding } from '@/routes/Onboarding';
 import { MainShell } from '@/routes/MainShell';
+import { VocabAdd } from '@/routes/VocabAdd';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -16,6 +17,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route path="/floating" element={<FloatingBar />} />
           <Route path="/onboarding/*" element={<Onboarding />} />
+          <Route path="/vocab-add" element={<VocabAdd />} />
           <Route path="/*" element={<MainShell />} />
         </Routes>
       </AppBootstrap>

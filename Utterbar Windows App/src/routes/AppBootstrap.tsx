@@ -9,14 +9,7 @@ import { attachLicenceListener, useLicence } from '@/state/licence';
 import { useSoundCues } from '@/design/sounds';
 import { useSystemNotifications } from '@/design/notifications';
 
-type ShortcutId =
-  | 'toggle_recording'
-  | 'push_to_talk'
-  | 'hold_to_talk'
-  | 'cancel_recording'
-  | 'cycle_mode'
-  | 'open_settings'
-  | 'open_history';
+import type { ShortcutId } from '@/generated/ShortcutId';
 
 /**
  * Identify the current webview by hash. Each of `main`/`floating`/`onboarding`
@@ -26,7 +19,11 @@ type ShortcutId =
  */
 function isMainWindow(): boolean {
   const h = typeof window !== 'undefined' ? window.location.hash : '';
-  return !h.startsWith('#/floating') && !h.startsWith('#/onboarding');
+  return (
+    !h.startsWith('#/floating') &&
+    !h.startsWith('#/onboarding') &&
+    !h.startsWith('#/vocab-add')
+  );
 }
 
 export function AppBootstrap({ children }: { children: ReactNode }) {
@@ -196,6 +193,14 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
             break;
           case 'open_history':
             await invoke('show_main_at', { path: '/history' });
+            break;
+          case 'add_to_vocabulary':
+            // Capture the foreground app's selection (synthesise Ctrl+C,
+            // read clipboard, restore) and open the small quick-add window.
+            // The Rust side handles the entire workflow; we just kick it.
+            await invoke('open_vocab_quick_add').catch((err) => {
+              console.warn('[utterbar] vocab quick-add failed', err);
+            });
             break;
           default:
             break;

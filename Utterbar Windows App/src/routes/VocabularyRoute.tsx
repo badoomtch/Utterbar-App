@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Zap } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Card, Row } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
+import { Kbd } from '@/components/common/Kbd';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ProNudge } from '@/components/common/ProNudge';
 import { invoke } from '@/lib/ipc';
 import { useLicence, isPro } from '@/state/licence';
+import { useSettings } from '@/state/settings';
 
 // Must track the backend caps in src-tauri/src/util/gating.rs. If you edit
 // one, edit the other — there's no shared source of truth for "50 / 25"
@@ -153,6 +157,8 @@ export function VocabularyRoute() {
         title="Vocabulary & Replacements"
         subtitle="Teach Utterbar your jargon and shortcuts. Applied locally, never uploaded."
       />
+
+      <QuickAddHint />
 
       <div className="mt-6 space-y-4">
         <Card
@@ -344,6 +350,80 @@ export function VocabularyRoute() {
             <span className="text-[12px] text-muted">Recommended on</span>
           </Row>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Quick-add hint sitting under the Vocabulary page header.
+ *
+ * Two states:
+ *   - Shortcut bound: shows the bound accelerator + a "Capture selection
+ *     now" button that triggers the same workflow without leaving the page.
+ *   - Shortcut unbound: shows a "Bind a shortcut" CTA that jumps to
+ *     Settings → Shortcuts. This is the discoverability surface for the
+ *     feature — the page where users actually look for vocabulary tools.
+ *
+ * The capture button works regardless of binding because it goes through
+ * the same `open_vocab_quick_add` command as the global shortcut. We
+ * keep it visible in both states so a Pro user without a shortcut bound
+ * still has a one-click path to the quick-add window.
+ *
+ * The card is intentionally compact — it's a hint, not a feature panel.
+ * The full feature lives in the global shortcut + the small quick-add
+ * window. Anything more here would crowd the page.
+ */
+function QuickAddHint() {
+  const navigate = useNavigate();
+  const shortcut = useSettings(
+    (s) =>
+      (s.data?.shortcuts as { add_to_vocabulary?: { label?: string } } | undefined)
+        ?.add_to_vocabulary,
+  );
+  const label = shortcut?.label;
+
+  const captureNow = async () => {
+    try {
+      await invoke('open_vocab_quick_add');
+    } catch {
+      // The Rust side already swallows transport errors and opens an
+      // empty window; if the invoke itself fails the user has bigger
+      // problems than a missing toast.
+    }
+  };
+
+  return (
+    <div className="mt-5 flex items-center justify-between gap-3 rounded-card bg-bg-1 px-4 py-3">
+      <div className="flex items-start gap-2.5">
+        <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+        <div className="text-[12px] leading-relaxed text-fg">
+          <span className="font-medium text-fg-hi">Add words from any app.</span>{' '}
+          Select a word, press your add-to-vocabulary shortcut, and confirm. Utterbar
+          synthesises Ctrl+C and reads the clipboard, then puts it back.
+          <span className="block text-[11px] text-muted">
+            Plain-text clipboard only — image, file or rich-text clipboard contents
+            are lost during capture.
+          </span>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {label ? (
+          <Kbd>{label}</Kbd>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            noLed
+            onClick={() => navigate('/settings/shortcuts')}
+          >
+            Bind a shortcut →
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" noLed onClick={() => void captureNow()}>
+          <Plus className="h-3 w-3" />
+          Capture
+        </Button>
       </div>
     </div>
   );

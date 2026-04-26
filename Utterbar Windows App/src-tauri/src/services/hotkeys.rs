@@ -105,6 +105,10 @@ pub async fn arm_from_settings(handle: &AppHandle, state: &AppState) -> Result<(
         (ShortcutId::CycleMode, s.shortcuts.cycle_mode.as_ref()),
         (ShortcutId::OpenSettings, s.shortcuts.open_settings.as_ref()),
         (ShortcutId::OpenHistory, s.shortcuts.open_history.as_ref()),
+        (
+            ShortcutId::AddToVocabulary,
+            s.shortcuts.add_to_vocabulary.as_ref(),
+        ),
     ]
     .into_iter()
     .filter_map(|(id, maybe)| maybe.map(|sh| (id, sh.accelerator.clone())))
