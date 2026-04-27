@@ -59,6 +59,32 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# ----------------------------------------------------------------------
+# PowerShell 5.1 native-stderr workaround
+# ----------------------------------------------------------------------
+# PowerShell 5.1 wraps any line a native command writes to stderr in a
+# NativeCommandError ErrorRecord, and `$ErrorActionPreference = 'Stop'`
+# above turns that into a terminating error. Several tools we drive
+# (composer, plink, pscp, npm) write innocuous progress / status lines
+# to stderr on success — composer's "Installing dependencies from lock
+# file" is the canonical offender. The script aborts before $LASTEXITCODE
+# can be checked, even though the underlying command exited 0.
+#
+# Fix: wrap each native call in this helper, which flips
+# $ErrorActionPreference to 'Continue' for the duration of the call,
+# letting stderr go to its own stream without aborting. The
+# `if ($LASTEXITCODE -ne 0) { throw }` checks after each call remain
+# the real exit-code gate — that's the contract: we trust exit codes,
+# not stderr presence.
+#
+# Do NOT add `2>&1` inside the wrapped block — that re-introduces the
+# NativeCommandError wrapping and defeats the helper.
+function Invoke-NativeQuiet([scriptblock]$Block) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Block } finally { $ErrorActionPreference = $prev }
+}
+
 # Credential loading from ~/.utterbar-deploy/.env (off-repo, per-user).
 #
 # Supports two Cloudways auth patterns; the script picks whichever is set:
@@ -212,7 +238,7 @@ function Send($localPath, $remoteSubpath) {
     $target = "${HostName}:$RemotePath/$remoteSubpath"
     Write-Output "  -> $localPath => $target"
     if ($DryRun) { return }
-    & pscp -pw $pass -batch -r -q $localPath $target
+    Invoke-NativeQuiet { & pscp -pw $pass -batch -r -q $localPath $target }
     if ($LASTEXITCODE -ne 0) { throw "pscp failed for $localPath" }
 }
 
@@ -222,7 +248,8 @@ foreach ($f in $safeFiles) { Send $f '' }
 # The bootstrap/cache dir must exist remotely but contents were ignored above.
 # Laravel refuses to boot without the dir present.
 if (-not $DryRun) {
-    & plink -pw $pass -batch $HostName "mkdir -p $RemotePath/bootstrap/cache $RemotePath/storage/framework/cache/data $RemotePath/storage/framework/sessions $RemotePath/storage/framework/views $RemotePath/storage/logs"
+    Invoke-NativeQuiet { & plink -pw $pass -batch $HostName "mkdir -p $RemotePath/bootstrap/cache $RemotePath/storage/framework/cache/data $RemotePath/storage/framework/sessions $RemotePath/storage/framework/views $RemotePath/storage/logs" }
+    if ($LASTEXITCODE -ne 0) { throw "remote mkdir failed" }
 }
 
 # -----------------------------------------------------------------
@@ -231,7 +258,7 @@ if (-not $DryRun) {
 Write-Output ""
 Write-Output "=== composer install --no-dev --optimize-autoloader ==="
 if (-not $DryRun) {
-    & plink -pw $pass -batch $HostName "cd $RemotePath && composer install --no-dev --optimize-autoloader --no-interaction"
+    Invoke-NativeQuiet { & plink -pw $pass -batch $HostName "cd $RemotePath && composer install --no-dev --optimize-autoloader --no-interaction" }
     if ($LASTEXITCODE -ne 0) { throw "composer install failed" }
 }
 
@@ -241,7 +268,7 @@ if (-not $DryRun) {
 Write-Output ""
 Write-Output "=== php artisan migrate --force ==="
 if (-not $DryRun) {
-    & plink -pw $pass -batch $HostName "cd $RemotePath && php artisan migrate --force"
+    Invoke-NativeQuiet { & plink -pw $pass -batch $HostName "cd $RemotePath && php artisan migrate --force" }
     if ($LASTEXITCODE -ne 0) { throw "artisan migrate failed" }
 }
 
@@ -251,7 +278,7 @@ if (-not $DryRun) {
 Write-Output ""
 Write-Output "=== Clearing view / config / route caches ==="
 if (-not $DryRun) {
-    & plink -pw $pass -batch $HostName "cd $RemotePath && php artisan view:clear && php artisan config:clear && php artisan route:clear"
+    Invoke-NativeQuiet { & plink -pw $pass -batch $HostName "cd $RemotePath && php artisan view:clear && php artisan config:clear && php artisan route:clear" }
     if ($LASTEXITCODE -ne 0) { throw "cache clears failed" }
 }
 
@@ -271,13 +298,13 @@ if (-not $DryRun) {
     if (-not (Test-Path (Join-Path $websiteRoot 'node_modules'))) {
         Write-Output "  node_modules missing - running npm install..."
         Push-Location $websiteRoot
-        try { & npm install --silent } finally { Pop-Location }
+        try { Invoke-NativeQuiet { & npm install --silent } } finally { Pop-Location }
         if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
     }
 
     Push-Location $websiteRoot
     try {
-        & npm run build
+        Invoke-NativeQuiet { & npm run build }
         if ($LASTEXITCODE -ne 0) { throw "local vite build failed" }
     } finally { Pop-Location }
 
@@ -286,9 +313,9 @@ if (-not $DryRun) {
     Write-Output ""
     Write-Output "=== Uploading public/build to server ==="
     # Wipe old build remotely so stale hashed-filename assets don't linger.
-    & plink -pw $pass -batch $HostName "rm -rf $RemotePath/public/build"
+    Invoke-NativeQuiet { & plink -pw $pass -batch $HostName "rm -rf $RemotePath/public/build" }
     if ($LASTEXITCODE -ne 0) { throw "remote public/build wipe failed" }
-    & pscp -pw $pass -batch -r -q $localBuild "${HostName}:$RemotePath/public/"
+    Invoke-NativeQuiet { & pscp -pw $pass -batch -r -q $localBuild "${HostName}:$RemotePath/public/" }
     if ($LASTEXITCODE -ne 0) { throw "pscp upload of public/build failed" }
 }
 
