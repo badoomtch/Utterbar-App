@@ -4,13 +4,25 @@
 > dictation tool. Picked up across multiple sessions; this doc is the
 > contract between them.
 
-**Status:** safety patches landed in v0.12.1-beta (capture cap lifted to
-8 hours, transcribe-input guard added, silent truncation fixed). Phase 1A
-(streaming wrapper) and Phase 1B.1 (trait scaffolding) landed
-in commits 9820575 and cc42b64. **Phase 1B.2 is the next session's
-opener** — see "Where to pick up" at the bottom. The 5-minute transcribe
-guard remains in place until 1B-1E lands and a smoke test on a 40-min
-recording confirms the streaming path is live.
+**Status (2026-04-27 evening):** safety patches landed in v0.12.1-beta
+(capture cap lifted to 8 hours, transcribe-input guard added, silent
+truncation fixed).
+
+Phase 1A and Phase 1B.1 through 1B.6 are committed:
+  - 9820575 1A: OnlineRecognizer wrapper
+  - cc42b64 1B.1: StreamingAsrProvider + StreamingSession traits
+  - b0f3494 1B.2-1B.5: catalogue + provider impl + dispatch
+  - f1643f6 1B.6: EVT_STREAMING_TEXT + StreamingTextEvent
+
+**Phase 1B.7 is the next session's opener** — wiring streaming into
+`start_recording` / `stop_recording`. This is the riskiest piece of
+the whole work because dictation.rs is 1000+ lines of carefully-
+balanced async / atomic / cross-thread cancellation logic. See
+"Where to pick up" below for the integration points already mapped.
+
+The 5-minute transcribe guard remains in place until 1B.7-1E lands
+and a smoke test on a 40-min recording confirms the streaming path is
+live end-to-end.
 
 **Trigger:** v0.12.0 user reproduced a hard crash on a 40-minute meeting
 (mic + system audio mixed). Process ballooned to 12 GB RAM, processed for
@@ -377,82 +389,158 @@ moment. Ships as v0.15.0-beta or later — only after Phase 2 is solid.
 
 ## Where to pick up (next session)
 
-**Phase 1A is complete.** The safe Rust wrapper for sherpa's
-`OnlineRecognizer` lives at
-[src-tauri/src/services/inference/streaming/online_recognizer.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/streaming/online_recognizer.rs).
-Cargo check + clippy are clean. The wrapper is dead-code from the
-binary's perspective until 1B wires it in.
+**Phase 1A through 1B.6 are complete.**
 
-**Phase 1B.1 is complete.** `StreamingAsrProvider` + `StreamingSession`
-traits are in
-[provider.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/provider.rs)
-alongside the existing `AsrProvider`. Marked `#[allow(dead_code)]`
-because no impl exists yet.
+The streaming Rust stack now exists end-to-end up to (but not including)
+the dictation orchestrator:
 
-**Phase 1B.2 is the next ticket.** Steps in order:
+  - `OnlineRecognizer` wrapper (Phase 1A)
+  - `StreamingAsrProvider` + `StreamingSession` traits (Phase 1B.1)
+  - `ModelEngine::ZipformerStreaming` variant + catalogue entry +
+    SHA-pinned download URL (Phase 1B.2-1B.3)
+  - `SherpaZipformerStreaming` provider impl in
+    [sherpa_zipformer_streaming.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/sherpa_zipformer_streaming.rs)
+    (Phase 1B.4) — implements both `StreamingAsrProvider` and a
+    fallback `AsrProvider`
+  - Dispatch arm in `build_provider` (Phase 1B.5)
+  - `EVT_STREAMING_TEXT` + `StreamingTextEvent` payload (Phase 1B.6)
 
-1. **Download the streaming Zipformer model and pin its SHA-256.**
-   The model is at
-   `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2`.
-   Untar; inspect the file layout (the offline Zipformer has names
-   like `encoder-epoch-99-avg-1.onnx`; the streaming variant has its
-   own naming convention — get the actual filenames from the tarball
-   before writing the provider).
+`cargo check` clean, 133 unit tests pass, no warnings except 2
+expected dead-code on `EVT_STREAMING_TEXT` / `StreamingTextEvent` /
+`StreamingAsrProvider` until 1B.7 wires them in.
 
-2. **Add the streaming Zipformer to the model catalogue** in
-   [services/models.rs](Utterbar%20Windows%20App/src-tauri/src/services/models.rs).
-   New entry with `engine: ModelEngine::ZipformerStreaming` (add this
-   variant to the enum if it doesn't exist), the SHA from step 1, and
-   the URL above.
+**Streaming Zipformer SHA-256 (verified 2026-04-27):**
+  `639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282`
 
-3. **Write `services/inference/sherpa_zipformer_streaming.rs`** —
-   the `StreamingAsrProvider` impl. Pattern: holds the
-   `OnlineRecognizer` from Phase 1A, `start_session()` calls
-   `recognizer.create_stream()` and wraps the resulting
-   `OnlineStream` in a `StreamingSession` impl that converts i16 →
-   f32, pushes via `accept_waveform`, drives the decoder with
-   `is_ready` / `decode`, and reads via `result()`.
+### Phase 1B.7 is the next ticket — and the riskiest
 
-4. **Plumb the new provider into `build_provider`** in
-   [services/inference/mod.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/mod.rs).
-   Map `ModelEngine::ZipformerStreaming` → the new provider.
+The work: modify [`commands/dictation.rs`](Utterbar%20Windows%20App/src-tauri/src/commands/dictation.rs)
+to spawn a streaming task on `start_recording` and finalise it on
+`stop_recording`. This file is 1000+ lines of hand-tuned async +
+atomic + cross-thread cancellation; the v0.6.1 vendored
+`tauri-runtime-wry` exists because of a previous rushed FFI commit in
+this same area. Don't rush.
 
-5. **Add `EVT_STREAMING_TEXT`** to
-   [domain/events.rs](Utterbar%20Windows%20App/src-tauri/src/domain/events.rs).
-   Payload: `{ text: String, is_final: bool }`.
+**Existing invariants the new code MUST NOT break:**
 
-6. **Wire `start_recording` in
-   [commands/dictation.rs](Utterbar%20Windows%20App/src-tauri/src/commands/dictation.rs)** —
-   if the loaded provider implements `StreamingAsrProvider`, spawn a
-   task that drains `capture::frames_rx` (already exists, marked
-   `#[allow(dead_code)]` with a comment "kept for the streaming ASR
-   path we expect to wire up next" — this is that path). Each
-   ~100-500 ms chunk → `session.accept_chunk()` → emit
-   `EVT_STREAMING_TEXT` if the result grew. On `stop_recording`,
-   `session.finish()`, write to history.
+  1. **Cold-load handling.** `start_recording` may emit `Warming` if
+     the requested model isn't loaded. The streaming task must not
+     start pumping audio until the model is warmed.
+  2. **Self-heal flag clearing.** `recording_in_progress` and
+     `transcribe_in_progress` are atomic flags with stale-detection
+     timers (see lines ~140-235). The streaming task must be
+     correctly joined / detached on every exit branch — including
+     error-rollback in lines 290-310.
+  3. **Drag-lift detection.** `FloatingBar.tsx`-side debounced 220 ms
+     suppresses the listening state during window-move events. The
+     streaming task should not emit text events that contradict the
+     drag-lift suppression.
+  4. **Busy-flash signal.** `EVT_DICTATION_BUSY` fires when re-entry
+     is rejected. Streaming text events MUST NOT fire under that
+     branch.
+  5. **Ducking + media-pause rollback.** `media_paused` and
+     `conferencing_ducked` are restored if capture fails; the
+     streaming task must not be left dangling.
 
-7. **Phase 1C** — UI work. Floating bar gets a small text region that
-   fills with the live transcript; History writes the streaming text
-   as the body and marks the entry `pending_refinement: true` so
-   Phase 2 has something to flip.
+**Integration points (mapped during Phase 1B.7 recon):**
 
-8. **Phase 1D** — once 1B-1E pass an end-to-end 40-min recording,
-   remove the 5-minute guard at the top of
-   [services/inference/mod.rs `transcribe()`](Utterbar%20Windows%20App/src-tauri/src/services/inference/mod.rs).
+  - `start_recording` ~line 290 onwards arms `state.audio.start_capture(...)`,
+    which returns a `CaptureHandle` containing a `frames_rx:
+    tokio::sync::mpsc::Receiver<Vec<i16>>` — already there since
+    v0.6.x with a comment "kept for the streaming ASR path we
+    expect to wire up next". This is that path.
+  - The provider lookup happens via `state.inference` — currently
+    only calls offline `transcribe()`. Need a "do you support
+    streaming?" probe — likely add `inference.start_streaming_session(model_id)`
+    that returns `Result<Option<Box<dyn StreamingSession>>>` (None
+    when the loaded provider doesn't implement `StreamingAsrProvider`).
+  - `stop_recording` ~line 432 onwards drains the buffer and calls
+    `inference.transcribe`. For streaming sessions, replace this
+    with `session.finish()` and use the returned `StreamingPartial`
+    as the transcript. The history-write logic afterward remains the
+    same — just point it at the streaming-final result instead of
+    `asr.text`.
 
-9. **Phase 1E** — the smoke test. Record 40 min mic+loopback, expect
-   memory under 500 MB throughout, transcript appearing live, no
-   crash, history entry complete with `pending_refinement: true`.
+**Implementation plan:**
 
-The riskiest piece is step 6 — the async task lifecycle. The capture
-side already has `frames_rx` and the streaming session is just an
-async consumer of that channel. The hard parts are: (a) what happens
-when the user cancels, (b) what happens when an `accept_chunk`
-errors mid-recording, (c) ensuring the streaming task is properly
-joined before `start_recording` returns success.
+1. **Add `Inference::start_streaming_session(model_id)`** in
+   [inference/mod.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/mod.rs).
+   Like the existing `ensure_loaded`, but downcast to
+   `&dyn StreamingAsrProvider` and call `start_session()`. Returns
+   `Ok(None)` if the loaded provider doesn't implement the trait
+   (so the orchestrator falls back to offline).
 
-Use the existing tokio `select!` pattern that the rest of the
-dictation flow uses; don't invent new task plumbing.
+2. **Open a streaming session at `start_recording`'s arm-capture
+   point.** If the session opens successfully, store the
+   `Box<dyn StreamingSession>` in a new `AppState::active_streaming_session`
+   slot (Arc<Mutex<Option<...>>>). If `start_session()` returns
+   `Ok(None)`, fall back to offline.
+
+3. **Spawn the streaming task** with a clone of the session handle
+   and a clone of `frames_rx`. Loop: `frames_rx.recv()` → push
+   into session → if `Some(StreamingPartial)` returned, emit
+   `EVT_STREAMING_TEXT` to the AppHandle. Cancel cleanly on
+   `stop_recording` via either dropping the receiver or a tokio
+   cancellation token.
+
+4. **At `stop_recording`,** if a streaming session is active:
+   - Stop the streaming task (it'll see frames_rx close).
+   - Call `session.finish()`.
+   - Use the returned `StreamingPartial.text` as the transcript.
+   - Skip the offline `inference.transcribe()` path entirely.
+   - Skip the 5-minute guard's effect (it remains in code; the
+     streaming path doesn't go through `transcribe()` so it's
+     bypassed naturally).
+   - Write the history row with `streaming_text_snapshot = text`
+     and (Phase 2 prep) `pending_refinement: true`.
+
+5. **Cancellation safety:** use a `tokio::sync::oneshot` cancellation
+   channel passed into the streaming task so `stop_recording` can
+   signal "we're shutting down, finish your last chunk and exit".
+   On the rare double-stop case, idempotent.
+
+6. **Provider preference:** when the user is on the streaming
+   Zipformer model, this all kicks in. When they're on offline
+   Parakeet/Whisper/Zipformer, the streaming-session probe returns
+   `None` and the existing offline path runs unchanged. **No
+   behaviour change for users not on the streaming model.**
+
+### Phase 1C onwards (after 1B.7 lands and smoke-tests clean)
+
+  7. **Phase 1C.1** — Floating bar gets a small live-transcript area
+     in `listening` state. Listens for `EVT_STREAMING_TEXT`,
+     accumulates the cumulative text into a single `<div>`, ellipsises
+     when wider than the bar. Clears on `idle`.
+
+  8. **Phase 1C.2** — History entry stores the streaming text as
+     `processed_text`. New schema column `streaming_text_snapshot`
+     (so Phase 2 can compare against the streaming version once
+     refinement runs). New column `pending_refinement: bool` with
+     default false; the streaming-path history-write sets it to
+     true so Phase 2's worker has something to filter on.
+
+  9. **Phase 1D** — Once 1B.7 + 1C smoke-test green on a real
+     40-minute recording, remove the 5-minute guard at the top of
+     `services::inference::transcribe()`. Anything that hits the
+     guard at that point is hitting the offline path on a long
+     recording — which is still valid behaviour to refuse loudly,
+     but the guard's user-facing message changes from "wait for
+     streaming" to "switch to the streaming Zipformer model in
+     Settings → Models".
+
+  10. **Phase 1E** — The smoke test. Record 40 min mic+loopback on
+      the streaming Zipformer model. Expected:
+        - Memory peak under 500 MB throughout.
+        - Live transcript appearing in the floating bar with ≤2 s lag.
+        - No crash, no truncation.
+        - History entry complete with `pending_refinement: true`.
+        - Phase 2's refinement worker hook can later flip
+          `pending_refinement: false` and replace the body.
+
+### Cut v0.12.2-beta after 1B.7 + 1C + 1D + 1E
+
+Same release flow as v0.12.1: `--beta`, no `--announce`, no `--tag latest`.
+Tagged `v0.12.2`. Update [MONOREPO §12](MONOREPO.md) post-release.
 
 ---
 
