@@ -129,7 +129,19 @@
         {{-- Copyright + metadata --}}
         <div class="mt-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <p class="text-xs" style="color: var(--muted);">
-                © {{ date('Y') }} Utterbar &middot; Built by <a href="https://jayparry.me" target="_blank" rel="noopener" style="color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--border);">Jay Parry</a> &middot; Built in Britain
+                © {{ date('Y') }} Utterbar &middot; Built by
+                <a href="https://ddraig.dev" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1.5 align-middle"
+                   style="color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--border);">
+                    <img src="{{ asset('brand/ddraig-icon.png') }}" alt=""
+                         width="14" height="14"
+                         style="display: inline-block; vertical-align: -2px;" />
+                    Ddraig Dev
+                </a>
+                &middot; Built in Wales
+                <img src="{{ asset('brand/welsh-dragon.png') }}" alt="Welsh dragon"
+                     width="14" height="14"
+                     style="display: inline-block; vertical-align: -2px; margin-left: 4px;" />
             </p>
             <p class="font-mono text-[11px]" style="color: var(--fg-dim); letter-spacing: 0.08em;">
                 LOCAL-ONLY &middot; NO ACCOUNT &middot; NO TELEMETRY

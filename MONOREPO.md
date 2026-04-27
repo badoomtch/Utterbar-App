@@ -167,7 +167,7 @@ zustand stores under `src/state/`:
 | Fonts | Self-hosted Instrument Sans Variable (body) + Geist Mono Variable (tech data) |
 | DB | MySQL 8 (Cloudways managed) |
 | Sessions | `database` driver, 120-min lifetime, httpOnly + SameSite=Lax + Secure |
-| Mail | Resend (`MAIL_MAILER=resend`, `hello@utterbar.com`) |
+| Mail | Resend (`MAIL_MAILER=resend`, `hello@ddraig.dev` — outbound moved off utterbar.com to the studio domain on 2026-04-27, separate API key, DKIM passing) |
 | Payments | Stripe Checkout, **live mode**. `stripe/stripe-php ^17.0` |
 | File storage | Cloudways local (`public/`) for most. R2 for installers only. |
 | Signing | Ed25519 via `ext-sodium`. |
@@ -241,7 +241,7 @@ scripts/render-brand-png.mjs, sync-marketing-assets.mjs
 | `releases` | Published app versions. `r2_key`, `sha256`, `notes_markdown`, `published_at`, optional `announced_at`, `tag`, `channel` (stable/beta). |
 | `update_subscribers` | Release mailing list. `confirmed_at` + `unsubscribed_at` + per-subscriber `token`. |
 | `waitlist_entries` | Legacy. Retained but no longer primary CTA. |
-| `contact_messages` | Contact form submissions. Emailed to `hello@utterbar.com` on arrival. |
+| `contact_messages` | Contact form submissions. Emailed to the admin notify inbox on arrival (`ADMIN_NOTIFY_EMAIL`, currently `hello@ddraig.dev`). |
 
 ### 3.4 Licence key format
 
@@ -280,7 +280,7 @@ Signed at licence mint time (in the Stripe webhook handler). Delivered via `POST
 Guest redirect configured in `bootstrap/app.php` to `/sign-in`, not Laravel's `/login`.
 
 **Admin auth — two gates.**
-1. Browser admin (`/admin`, `/admin/releases`): `auth` + `admin` middleware. `admin` checks `$user->email` against `ADMIN_EMAILS` env var. Currently `jayparry1@gmail.com, hello@utterbar.com`.
+1. Browser admin (`/admin`, `/admin/releases`): `auth` + `admin` middleware. `admin` checks `$user->email` against `ADMIN_EMAILS` env var. Currently `jayparry1@gmail.com, hello@ddraig.dev` (post-2026-04-27 email-domain switch).
 2. API admin (`POST /api/admin/releases`, `DELETE /api/admin/releases/{id}`): `admin.api` middleware. Bearer token `hash_equals` vs `ADMIN_API_TOKEN`. Timing-safe. 503 if env var unset.
 
 ---
@@ -342,7 +342,7 @@ User clicks "Get Utterbar Pro" → POST /api/checkout/create-session
       5. LicenceSigner signs blob (Ed25519)
       6. Save signed_blob
       7. Mail::send(LicenceDelivery)
-      8. AdminNotify::newLicence → hello@utterbar.com
+      8. AdminNotify::newLicence → admin notify inbox (env: ADMIN_NOTIFY_EMAIL)
    → User lands on /thanks → licence email arrives minutes later
    → User pastes key in Tauri app
       → POST /api/licence/fetch {key} → signed blob
@@ -511,7 +511,8 @@ LOG_LEVEL=warning
 # Mail (Resend)
 MAIL_MAILER=resend
 RESEND_API_KEY=<key>
-MAIL_FROM_ADDRESS="hello@utterbar.com"
+MAIL_FROM_ADDRESS="hello@ddraig.dev"
+MAIL_FROM_NAME="Ddraig Dev"
 
 # Stripe (live)
 STRIPE_ENABLED=true
@@ -532,8 +533,8 @@ LICENCE_MAX_DEVICES=3
 LICENCE_PAYLOAD_VERSION=1
 
 # Admin gates
-ADMIN_EMAILS=jayparry1@gmail.com,hello@utterbar.com
-ADMIN_NOTIFY_EMAIL=hello@utterbar.com
+ADMIN_EMAILS=jayparry1@gmail.com,hello@ddraig.dev
+ADMIN_NOTIFY_EMAIL=hello@ddraig.dev
 ADMIN_API_TOKEN=<64-hex>
 
 # Cloudflare R2
@@ -776,7 +777,7 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 - **Updater keypair:** separate Ed25519 key, operator-local. Private key in `~/.utterbar-deploy/.env` only. Public key in server `.env` and baked into [updater.rs](Utterbar%20Windows%20App/src-tauri/src/commands/updater.rs).
 - Licence cache: DPAPI-encrypted at rest (`%APPDATA%\Utterbar\licence.json` wrapped via `CryptProtectData`); legacy plaintext caches auto-upgrade on next save.
 - R2 CDN: `dl.utterbar.com` — installers at `releases/<v>/Utterbar-Setup-<v>.exe` (+ legacy `Utterbar-Setup.exe` alias for the versioned-key validator fix).
-- Admin notify: `hello@utterbar.com`.
+- Admin notify: `hello@ddraig.dev` (post-2026-04-27 email-domain switch off utterbar.com to the studio domain).
 
 ---
 

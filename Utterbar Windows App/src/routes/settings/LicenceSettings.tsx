@@ -20,7 +20,10 @@ import {
 
 const PRICING_URL = 'https://utterbar.com/pricing';
 const ACCOUNT_URL = 'https://utterbar.com/account';
-const SUPPORT_EMAIL = 'hello@utterbar.com';
+// 2026-04-27: outbound email moved off utterbar.com to the studio
+// domain ddraig.dev. The website is still utterbar.com (PRICING_URL,
+// ACCOUNT_URL above) — only the support inbox changed.
+const SUPPORT_EMAIL = 'hello@ddraig.dev';
 
 /**
  * Settings → Licence.

@@ -126,7 +126,7 @@ This is app Claude's turf, but it needs to happen before the download link works
 
 ### B5. Go live — flip the last switches
 
-- [ ] Add `ADMIN_EMAILS=jay@utterbar.com,jayparry1@gmail.com` in `.env` (whichever emails should see `/admin`). Already set for sandbox — verify it's still there.
+- [ ] Add `ADMIN_EMAILS=hello@ddraig.dev,jayparry1@gmail.com` in `.env` (whichever emails should see `/admin`). Already set for sandbox — verify it's still there.
 - [ ] Clear one more time: `php artisan optimize:clear`
 - [ ] Hit `/pricing` in an incognito window — "Get Utterbar Pro" button should POST to `/api/checkout/create-session` and kick you to live Stripe.
 - [ ] Make one more real purchase at the real price to prove the live flow is clean.
