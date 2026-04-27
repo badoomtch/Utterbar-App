@@ -25,7 +25,7 @@
     <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">
         <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
             <strong style="color: var(--fg-hi);">Code-signing status, plainly.</strong>
-            Today the public beta installers are not code-signed. End users see a Windows SmartScreen warning on first install. For Business and Enterprise customers we will supply a code-signed installer as part of the rollout. Mention &ldquo;signed installer&rdquo; in your enquiry and we&rsquo;ll include it in the quote.
+            The public installer is not code-signed. End users see a Windows SmartScreen warning on first install. For any Business or Enterprise order where SmartScreen warnings are unacceptable on a fleet rollout, we sign the installer at order time &mdash; the signing-cert cost is folded into the quote, not invented as a separate line. Mention &ldquo;signed installer&rdquo; in your enquiry and we&rsquo;ll include it.
         </p>
     </div>
 
@@ -142,15 +142,25 @@ HKEY_CURRENT_USER\SOFTWARE\Policies\Utterbar     (HKLM wins on conflict)</pre>
                 <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
                 <td class="py-3" style="color: var(--muted);">0 or 1. Pins whether auto-update checks happen at launch.</td>
             </tr>
-            <tr>
+            <tr style="border-bottom: 1px solid var(--border);">
                 <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">BlockModelDownloads</td>
                 <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
                 <td class="py-3" style="color: var(--muted);">0 or 1. When 1, the catalogue refuses any new model download. Use for environments where models must come from your internal mirror.</td>
             </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">BlockSystemAudio</td>
+                <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
+                <td class="py-3" style="color: var(--muted);">0 or 1. When 1, forces the capture source back to <code class="text-xs">Microphone</code> on every settings read. Use to disable system / loopback audio capture (call recording, meeting transcription) for compliance.</td>
+            </tr>
+            <tr>
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">RequireLicence</td>
+                <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
+                <td class="py-3" style="color: var(--muted);">0 or 1. When 1, the app refuses to dictate unless a Pro licence is active on the machine. The free tier becomes unavailable. Use when only the paid SKU is approved on managed devices.</td>
+            </tr>
         </tbody>
     </table>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        More keys land per customer request. Tell us what you need pinned in the enquiry; the format is small enough that adding one more is a same-day change for us.
+        More keys land per customer request. The pattern is small &mdash; one new field, one registry read, one apply rule &mdash; so adding one more is a same-day change for us. Tell us what you need pinned in the enquiry.
     </p>
 
     <h2 class="mt-14 ub-docs-h2">Licensing</h2>

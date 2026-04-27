@@ -85,6 +85,24 @@ pub async fn start_recording(
     state: State<'_, Arc<AppState>>,
     device_id: Option<String>,
 ) -> CmdResult<()> {
+    // Group-policy gate. An IT admin in a managed deployment can pin
+    // `RequireLicence=1` under HKLM\SOFTWARE\Policies\Utterbar to
+    // disallow the free tier — typically because Pro is the approved
+    // SKU and the IT team has already pushed a licence to the machine.
+    // We surface a clear OrliqError::User so the floating bar shows
+    // "your IT admin requires a Pro licence" rather than a generic
+    // refusal. Cheap registry read; only happens at the start of a
+    // dictation, not in the audio loop.
+    if crate::services::policy::Policy::load().licence_required() {
+        let status = state.licence.status().await;
+        if !crate::util::gating::is_pro(&status) {
+            tracing::warn!("start_recording refused: RequireLicence policy active and licence is not Pro");
+            return Err(OrliqError::User {
+                message: "Your IT administrator requires a Pro licence on this machine. Contact them to activate Utterbar.".into(),
+            });
+        }
+    }
+
     // Log the guard state on every entry. The flags are the canonical
     // source of "is a capture/transcribe actually in-flight?" — visualising
     // their value at entry makes stuck-state bugs diagnosable from a log

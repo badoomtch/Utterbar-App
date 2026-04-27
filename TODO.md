@@ -122,6 +122,57 @@ contradicts the above, fix the docs in the same PR.
 
 ## Open product issues
 
+### B2B follow-throughs (post first-pass)
+
+The 2026-04-27 B2B pass shipped the front door (landing page,
+enquiry form, IT-deployment doc, volume pricing block) and a small
+group-policy surface (5 pinnable values: `UpdateChannel`,
+`CheckUpdatesAutomatically`, `BlockModelDownloads`,
+`BlockSystemAudio`, `RequireLicence`). What still needs doing
+before the *first real volume sale* closes cleanly:
+
+- [ ] **Code-signed installer at order time.** Public installer is
+  unsigned (SmartScreen warnings on first install). For any
+  Business / Enterprise order where a fleet rollout can't tolerate
+  that, we sign at order time and fold the cert cost into the
+  quote. Requires: a process for buying / loading an EV
+  signing-cert on demand, signing during `publish-release.sh`,
+  and a way to ship the signed installer to one customer without
+  it leaking into the public R2 bucket. **Not a blocker for the
+  first enquiry — only when the first enquiry says yes.**
+- [ ] **Bulk licence delivery for fleets.** Today personal licences
+  arrive via a per-buyer email + magic link. A 50-seat hand-mint
+  needs *one* artefact the IT team can deploy across every
+  machine — likely a signed `licence.bin` file + a documented
+  drop path under `%APPDATA%\Utterbar\` (or a registry-pinned
+  override). Spec'd, not built.
+- [ ] **Manual-mint invoice / VAT receipt.** Stripe handles this
+  for self-serve. Hand-minted Business licences currently have no
+  paper trail — first volume customer will need an invoice with
+  VAT broken out before they pay. Probably a one-off Stripe
+  Invoice from the dashboard for the first 1–3 deals; revisit if
+  it becomes routine.
+- [ ] **Volume self-serve checkout (later).** Manual mint is fine
+  for the first 3–5 deals; painful at 20. When the queue justifies
+  it, extend Stripe checkout with a quantity selector that maps
+  to `max_devices` on the minted licence. Don't build until there
+  is queue.
+- [ ] **Three more policy keys waiting on Settings work.**
+  `BlockTelemetry`, `BlockHistory`, `BlockHistoryExport` would all
+  be high-value pinnable values for compliance buyers, but the
+  underlying user-facing toggles don't exist yet. Build the
+  Settings → Privacy controls first, then add the policy
+  overrides. Promised in the IT-deployment doc as "more keys per
+  customer request" rather than as shipped today.
+- [ ] **Air-gapped activation.** Documented as "on request" only.
+  Build when a real buyer asks: a `licence_request.bin` writer in
+  the app, a paired admin endpoint that returns a signed
+  `licence_response.bin`, and a one-button ingest flow in the
+  app's Account UI. Each leg is small; combined it's a
+  sub-session of work.
+
+### Pre-existing open issues
+
 - [ ] **Waitlist tidy-up** — code is staged for deletion in-tree
   but not yet pushed/deployed. Run the drop migration on production
   after the deploy, then verify `prompt-cta` + footer + admin views

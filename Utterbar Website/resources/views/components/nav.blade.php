@@ -4,7 +4,11 @@
         ['label' => 'How it works', 'href' => route('how-it-works')],
         ['label' => 'Privacy', 'href' => route('privacy')],
         ['label' => 'Pricing', 'href' => route('pricing')],
-        ['label' => 'Business', 'href' => route('business')],
+        // 'Business' deliberately omitted from the primary nav. The
+        // 99% of visitors are individuals and a B2B link in the header
+        // is clutter for them. IT buyers reach /business via the
+        // volume tiers block on /pricing, the "For business" footer
+        // link, and direct sales conversations.
         ['label' => 'Compare', 'href' => route('compare.index')],
         ['label' => 'Docs', 'href' => route('docs.index')],
     ];
