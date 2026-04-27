@@ -23,6 +23,14 @@ pub const EVT_MAIN_NAVIGATE: &str = "main:navigate";
 /// this and plays a one-second border flash so the user gets a visible
 /// "busy, wait" cue instead of pressing the hotkey into a silent void.
 pub const EVT_DICTATION_BUSY: &str = "dictation:busy";
+/// Streaming transcript update during a live recording. Fires every
+/// time the streaming recogniser emits new tokens. Payload is the
+/// cumulative transcript so far, not just the new tokens — the
+/// frontend computes the diff if it wants per-token deltas. `is_final`
+/// is set on the last frame after `stop_recording`, indicating no
+/// further tokens will arrive on this recording. Floating bar listens
+/// for this to render the live transcript area.
+pub const EVT_STREAMING_TEXT: &str = "dictation:streaming_text";
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
@@ -79,4 +87,14 @@ pub struct FileJobProgress {
     pub id: String,
     pub progress: f32,
     pub status: String,
+}
+
+/// Payload for `EVT_STREAMING_TEXT`. The cumulative transcript at the
+/// time of emit; `is_final` is true exactly once per recording, on the
+/// final frame after `stop_recording` triggers `session.finish()`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct StreamingTextEvent {
+    pub text: String,
+    pub is_final: bool,
 }
