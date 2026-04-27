@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { ProNudge } from '@/components/common/ProNudge';
 import { UpgradeModal } from '@/components/upgrade/UpgradeModal';
 import { ModeEditor, type EditableMode } from '@/components/modes/ModeEditor';
+import { ModeIcon } from '@/components/modes/ModeIcon';
 import { invoke } from '@/lib/ipc';
 import { cn } from '@/lib/cn';
 import { useLicence, isPro } from '@/state/licence';
@@ -163,8 +164,8 @@ export function ModesRoute() {
                 )}
                 aria-hidden
               />
-              <span className="flex h-8 w-8 items-center justify-center rounded-input bg-bg-2 text-[13px] text-fg-hi">
-                <ModeIcon id={m.id} />
+              <span className="flex h-8 w-8 items-center justify-center rounded-input bg-bg-2 text-fg-hi">
+                <ModeIcon name={m.icon} />
               </span>
               <div className="flex-1 min-w-0">
                 {/* Weight 700. font-semibold (600) is forbidden. */}
@@ -299,14 +300,6 @@ function outputStyleLabel(kind: 'none' | 'deterministic' | 'llm'): string {
   }
 }
 
-function ModeIcon({ id }: { id: string }) {
-  const g: Record<string, string> = {
-    'voice-to-text': '🎙',
-    message: '✉︎',
-    email: '✦',
-    note: '✎',
-    meeting: '☰',
-    super: '✴︎',
-  };
-  return <span aria-hidden>{g[id] ?? '·'}</span>;
-}
+// ModeIcon now lives in components/modes/ModeIcon.tsx — a real lucide
+// renderer instead of the emoji-fallback lookup that used to live here.
+// Imported at the top of this file.

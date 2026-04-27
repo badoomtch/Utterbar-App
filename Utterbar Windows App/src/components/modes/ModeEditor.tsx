@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Input, Textarea } from '@/components/common/Input';
+import { ModeIconPicker } from '@/components/modes/ModeIcon';
 import { invoke } from '@/lib/ipc';
 import { cn } from '@/lib/cn';
 
@@ -180,13 +181,15 @@ export function ModeEditor({
                 className="flex-1"
               />
             </Field>
-            <Field label="Icon (lucide key)">
-              <Input
+            {/* Icon picker uses items-start variant of Field so the label
+                aligns with the top of the grid rather than mid-height. */}
+            <div className="flex items-start gap-3">
+              <div className="w-44 pt-1.5 text-[12px] text-muted">Icon</div>
+              <ModeIconPicker
                 value={draft.icon}
-                onChange={(e) => patch({ icon: e.target.value })}
-                className="flex-1"
+                onChange={(next) => patch({ icon: next })}
               />
-            </Field>
+            </div>
             {/* v0.6.6: the per-mode ASR model picker was removed. Globals
                 are authoritative, change the model in Settings → Models.
                 The field is still on the Mode struct for back-compat; it's
