@@ -68,50 +68,68 @@ appears as the user speaks. Ships as v0.13.0-beta.
 
 ### 1A — sherpa-rs streaming binding
 
-The crate we use ([`sherpa-rs`](https://github.com/thewh1teagle/sherpa-rs))
-exposes the offline `TransducerRecognizer` only. Sherpa-onnx's C++ API
-has the matching online recogniser; we need a Rust binding for it.
+**STATUS UPDATE 2026-04-27 (post-recon):** the FFI we worried about
+already exists. `sherpa-rs-sys-0.6.8` (transitive dep of `sherpa-rs`)
+generates bindings against the *full* `c-api.h` via bindgen. Every
+streaming symbol — `SherpaOnnxCreateOnlineRecognizer`,
+`SherpaOnnxOnlineStreamAcceptWaveform`, `SherpaOnnxIsOnlineStreamReady`,
+`SherpaOnnxDecodeOnlineStream`, `SherpaOnnxGetOnlineStreamResult`,
+`SherpaOnnxOnlineStreamReset`, `SherpaOnnxOnlineStreamInputFinished`,
+`SherpaOnnxDestroyOnlineRecognizer`, `SherpaOnnxDestroyOnlineStream` —
+is reachable from `sherpa_rs_sys::`.
 
-**Decision: fork `sherpa-rs`, vendor at `src-tauri/vendor/sherpa-rs-streaming/`.**
-Rationale:
-- Same pattern as the existing `tauri-runtime-wry-2.10.1` vendor.
-- Upstream PR is the right end-state but takes weeks; vendoring now
-  unblocks us.
-- Diff is small enough that re-syncing on a future upstream release is
-  manageable.
+What's missing is only the **safe Rust wrapper**: an `OnlineRecognizer`
+struct that mirrors the existing `TransducerRecognizer` (in `sherpa-rs`'s
+[`transducer.rs`](https://docs.rs/sherpa-rs/latest/sherpa_rs/transducer/index.html))
+but talks to the online recogniser. Single file, ~200 lines, lives
+inside our own crate at
+[services/inference/streaming/online_recognizer.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/streaming/online_recognizer.rs).
 
-**The C++ symbols we need to bind** (all in `sherpa-onnx-c-api.h`):
-- `SherpaOnnxCreateOnlineRecognizer(config) -> *OnlineRecognizer`
-- `SherpaOnnxCreateOnlineStream(recognizer) -> *OnlineStream`
-- `SherpaOnnxOnlineStreamAcceptWaveform(stream, sample_rate, samples, n)`
-- `SherpaOnnxIsOnlineStreamReady(recognizer, stream) -> int`
-- `SherpaOnnxDecodeOnlineStream(recognizer, stream)`
-- `SherpaOnnxGetOnlineStreamResult(recognizer, stream) -> *OnlineRecognizerResult`
-- `SherpaOnnxOnlineStreamReset(recognizer, stream)`
-- `SherpaOnnxDestroyOnlineRecognizer/Stream/...Result`
+**Implementation plan:**
 
-**The model we'll use:** Parakeet-TDT-0.6b ships a streaming variant in
-the same sherpa-onnx model catalogue. Same accuracy as offline, packaged
-for online inference. Add to the model catalogue in
-[catalogue.rs](Utterbar%20Windows%20App/src-tauri/src/services/models/catalogue.rs)
-as a new entry; existing offline-only catalogue entries stay.
+1. Add `sherpa-rs-sys = "0.6"` as a direct dep in our Cargo.toml (it's
+   already a transitive dep, this just makes the path public to our
+   code).
+2. Mirror `sherpa-rs`'s `transducer.rs` shape:
+   - `OnlineRecognizer { recognizer: *const sys::SherpaOnnxOnlineRecognizer }`
+   - `OnlineRecognizerConfig { encoder, decoder, joiner, tokens, num_threads, sample_rate, feature_dim, decoding_method, provider, ... }`
+   - `OnlineStream { stream: *const sys::SherpaOnnxOnlineStream }` —
+     dropped via `SherpaOnnxDestroyOnlineStream`.
+   - `Drop`, `Send`, `Sync` impls following the same pattern as the
+     offline wrapper.
+3. Public API:
+   ```rust
+   impl OnlineRecognizer {
+       pub fn new(cfg: OnlineRecognizerConfig) -> Result<Self>;
+       pub fn create_stream(&self) -> Result<OnlineStream>;
+       pub fn is_ready(&self, stream: &OnlineStream) -> bool;
+       pub fn decode(&self, stream: &mut OnlineStream);
+       pub fn result(&self, stream: &OnlineStream) -> String;
+       pub fn reset(&self, stream: &mut OnlineStream);
+   }
+   impl OnlineStream {
+       pub fn accept_waveform(&mut self, sample_rate: u32, samples: &[f32]);
+       pub fn input_finished(&mut self);
+   }
+   ```
+4. Mark `OnlineRecognizer: Send + Sync` (the C++ object is internally
+   thread-safe per sherpa-onnx docs; the *stream* is `Send` but not
+   `Sync` — only one thread feeds a stream at a time).
 
-**Open questions to resolve in the binding work:**
-1. Is the C `*OnlineStream` Send + Sync? (Read sherpa-onnx source; if it's
-   internally `std::shared_ptr` we can probably mark `Send` with care.)
-2. Does sherpa intern the recogniser config strings, or do we need to
-   keep our `CString` allocations alive for the recogniser's lifetime?
-3. What's the chunk size the recogniser actually consumes? (320 ms or
-   user-configurable?)
+**The model:** streaming Zipformer English (smaller, real-time on CPU,
+well-tested) — `sherpa-onnx-streaming-zipformer-en-2023-06-26`. Add to
+the model catalogue alongside the existing offline entries; the `kind`
+discriminant on the catalogue entry tells the inference layer to use
+the streaming or offline path. Streaming Parakeet exists too but the
+Zipformer streaming export is more mature and the size is friendlier
+(~70 MB vs ~600 MB).
 
 **Test bar before merge:**
-- Unit test: feed 60 seconds of synthesised sine + silence, get a
-  non-empty result, no leaks under `cargo test --release` with
-  `MIRIFLAGS=-Zmiri-strict-provenance`.
-- Bench: peak RSS during a 40-minute synthesised speech stays under
-  200 MB.
-- The `sherpa-rs-streaming` vendor compiles standalone with
-  `cargo build` from inside its directory.
+- Unit test: synth 60 s of sine + silence, push through, get a
+  non-empty result, no segfaults / no double-frees.
+- Mini-bench: 40 min of synthesised audio runs at <100 MB peak RSS.
+- Cargo test passes for the existing offline path (sanity that we
+  haven't broken it).
 
 ### 1B — Provider trait + streaming session
 
