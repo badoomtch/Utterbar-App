@@ -65,6 +65,20 @@ function describe(phase: DictationPhase) {
     case 'processing':
       return { label: 'Processing', tone: 'accent' as const };
     case 'success':
+      // Meeting-mode success carries a summary so the user gets concrete
+      // feedback ("5:01 · 11 chunks · 799 chars") instead of the generic
+      // "Inserted" pill that was indistinguishable between a 3-second
+      // dictation and a 5-minute meeting that happened to process fast.
+      // Ordinary dictations don't carry a summary and keep the original
+      // copy.
+      if (phase.summary) {
+        const { duration_seconds, chunks, chars } = phase.summary;
+        const mm = Math.floor(duration_seconds / 60);
+        const ss = duration_seconds % 60;
+        const time = `${mm}:${ss.toString().padStart(2, '0')}`;
+        const label = `Saved · ${time} · ${chunks} chunk${chunks === 1 ? '' : 's'} · ${chars.toLocaleString()} chars`;
+        return { label, tone: 'success' as const };
+      }
       return { label: 'Inserted', tone: 'success' as const };
     case 'error':
       return { label: 'Error', tone: 'error' as const };

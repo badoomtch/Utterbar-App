@@ -1,12 +1,6 @@
 /**
- * ad-08-windows-first — 10s. The positioning ad. Half the frame is a
- * Mac with a "voice → text" tool that's clearly Mac-only (Superwhisper
- * shaped, never named). Half is a Windows desktop with the Utterbar
- * pill. The cursor on the Windows side fires the hotkey; the cursor
- * on the Mac side does nothing because there's nothing for it to do.
- *
- * Different angle from anything in the existing pack: explicit
- * positioning vs. the Mac incumbent, the way BRIEF.md §1 frames it.
+ * ad-08-windows-first — 11s. v3: pill demo extended to 5.5s, hold
+ * the resolution for 1s before end card. Pill scale 2.0 (already).
  */
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
@@ -22,28 +16,16 @@ export function Ad08WindowsFirst() {
   const { fps } = useVideoConfig();
   const f = (s: number) => Math.round(s * fps);
 
-  const showPill = frame >= f(2.0);
-  const pillState: 'idle' | 'listening' = frame >= f(3.0) && frame < f(6.0) ? 'listening' : 'idle';
-  const elapsedMs = pillState === 'listening' ? ((frame - f(3.0)) / fps) * 1000 : 0;
+  const showPill = frame >= f(1.4);
+  const pillState: 'idle' | 'listening' = frame >= f(2.2) && frame < f(5.5) ? 'listening' : 'idle';
+  const elapsedMs = pillState === 'listening' ? ((frame - f(2.2)) / fps) * 1000 : 0;
 
-  const winFade = tween(frame, f(0.4), f(1.4), 0, 1);
-  const macFade = tween(frame, f(0.0), f(0.8), 0, 1);
+  const macFade = tween(frame, f(0.0), f(0.5), 0, 1);
+  const winFade = tween(frame, f(0.6), f(1.4), 0, 1);
 
   return (
     <SocialFrame variant="canvas">
-      <Eyebrow text="Windows-first since day one" />
-
-      {/* MAC half — TOP. Greyed out, dimmer, "no app" badge */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 200,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 940,
-          opacity: macFade,
-        }}
-      >
+      <div style={{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)', width: 1020, opacity: macFade }}>
         <FauxLaptop label="macOS" filled>
           <div
             style={{
@@ -52,51 +34,28 @@ export function Ad08WindowsFirst() {
               alignItems: 'center',
               justifyContent: 'center',
               color: tokens.fgDim,
-              fontSize: 22,
+              fontSize: 40,
               fontFamily: fonts.mono,
-              letterSpacing: '0.08em',
+              letterSpacing: '0.06em',
+              textAlign: 'center',
+              padding: '0 40px',
+              fontWeight: 500,
             }}
           >
-            ※ Mac dictation tools live elsewhere ※
+            Mac dictation tools<br />live elsewhere
           </div>
         </FauxLaptop>
       </div>
 
-      {/* WINDOWS half — BOTTOM. The pill lives here */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 1080,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 940,
-          opacity: winFade,
-        }}
-      >
+      <div style={{ position: 'absolute', top: 1000, left: '50%', transform: 'translateX(-50%)', width: 1020, opacity: winFade }}>
         <FauxLaptop label="Windows 11" highlight>
           {showPill && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%) scale(1.6)',
-              }}
-            >
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) scale(2.0)' }}>
               <BarDriver state={pillState} elapsedMs={elapsedMs} />
             </div>
           )}
           {!showPill && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: tokens.muted,
-                fontSize: 22,
-              }}
-            >
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tokens.muted, fontSize: 40, fontFamily: fonts.mono, fontWeight: 500 }}>
               Press Ctrl + Space
             </div>
           )}
@@ -105,35 +64,13 @@ export function Ad08WindowsFirst() {
 
       <Captions
         cues={[
-          { text: 'Mac has Superwhisper.', at: 0.5, until: 3.4 },
-          { text: 'Windows has Utterbar.', at: 3.6, until: 6.5 },
-          { text: 'Built for Windows from day one.', at: 6.7, until: 9.0 },
+          { text: 'Mac has Superwhisper.', at: 0.4, until: 2.7 },
+          { text: 'Windows has Utterbar.', at: 2.9, until: 6.4 },
         ]}
-        bottom={120}
       />
 
-      <EndCard tagline="Dictation, native to Windows." startAt={9.0} />
+      <EndCard tagline="Native to Windows." startAt={6.5} />
     </SocialFrame>
-  );
-}
-
-function Eyebrow({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 90,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        fontFamily: fonts.mono,
-        fontSize: 18,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
-        color: tokens.muted,
-      }}
-    >
-      {text}
-    </div>
   );
 }
 
@@ -152,33 +89,34 @@ function FauxLaptop({
     <div
       style={{
         background: tokens.bg1,
-        border: `1px solid ${highlight ? `${tokens.accent}55` : tokens.border}`,
-        borderRadius: 22,
+        border: `2px solid ${highlight ? `${tokens.accent}88` : tokens.border}`,
+        borderRadius: 26,
         overflow: 'hidden',
-        boxShadow: highlight ? `0 0 60px ${tokens.accent}1f` : 'none',
+        boxShadow: highlight ? `0 0 60px ${tokens.accent}33` : 'none',
         opacity: filled ? 0.55 : 1,
       }}
     >
       <div
         style={{
-          padding: '14px 20px',
+          padding: '20px 28px',
           borderBottom: `1px solid ${tokens.border}`,
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
+          gap: 14,
         }}
       >
-        <div style={{ width: 12, height: 12, borderRadius: 999, background: 'rgba(255,255,255,0.15)' }} />
-        <div style={{ width: 12, height: 12, borderRadius: 999, background: 'rgba(255,255,255,0.15)' }} />
-        <div style={{ width: 12, height: 12, borderRadius: 999, background: 'rgba(255,255,255,0.15)' }} />
+        <div style={{ width: 16, height: 16, borderRadius: 999, background: 'rgba(255,255,255,0.15)' }} />
+        <div style={{ width: 16, height: 16, borderRadius: 999, background: 'rgba(255,255,255,0.15)' }} />
+        <div style={{ width: 16, height: 16, borderRadius: 999, background: 'rgba(255,255,255,0.15)' }} />
         <div
           style={{
-            marginLeft: 14,
+            marginLeft: 18,
             color: tokens.muted,
             fontFamily: fonts.mono,
-            fontSize: 14,
-            letterSpacing: '0.08em',
+            fontSize: 20,
+            letterSpacing: '0.1em',
             textTransform: 'uppercase',
+            fontWeight: 600,
           }}
         >
           {label}
@@ -186,7 +124,7 @@ function FauxLaptop({
       </div>
       <div
         style={{
-          height: 600,
+          height: 720,
           background: filled ? tokens.bg0 : `linear-gradient(180deg, ${tokens.bg0}, #08101a)`,
           position: 'relative',
           display: 'flex',

@@ -1,22 +1,15 @@
 /**
- * Cycling language badge — used in Ad05ThirtyLanguages. Shows the
- * currently-active language's flag glyph (rendered as a coloured
- * circle to dodge any flag-rendering politics) and the language
- * name in its native script.
- *
- * Caller passes index + the LANGS array; this just renders the active
- * one with a smooth crossfade against whatever was on screen before.
- * Crossfade is handled by mounting one badge per language stacked,
- * each with its own opacity from the parent.
+ * Cycling language badge — v2 hero-sized. Native-script sample text
+ * is now the visual hero (90 px, was 44). Badge chip bigger too.
  */
 import React from 'react';
 import { tokens, fonts } from '../../design/tokens';
 
 export type LangSpec = {
-  code: string;       // ISO 639-1, used for the small chip
-  native: string;     // language name in its own script
-  sample: string;     // a short transcription example in that language
-  hue: number;        // 0-360, for the dot-flag
+  code: string;
+  native: string;
+  sample: string;
+  hue: number;
 };
 
 export const LANGS: LangSpec[] = [
@@ -25,7 +18,7 @@ export const LANGS: LangSpec[] = [
   { code: 'DE', native: 'Deutsch',  sample: 'Schick die Folien vor fünf.',    hue:  45 },
   { code: 'ES', native: 'Español',  sample: 'Envía la presentación antes de las cinco.', hue:  20 },
   { code: 'JA', native: '日本語',     sample: '5時前に資料を送って。',             hue: 350 },
-  { code: 'AR', native: 'العربية',    sample: 'أرسل العرض قبل الساعة الخامسة.',    hue: 130 },
+  { code: 'AR', native: 'العربية',    sample: 'أرسل العرض قبل الخامسة.',          hue: 130 },
 ];
 
 type Props = {
@@ -42,7 +35,7 @@ export function LanguageBadge({ lang, opacity }: Props) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 28,
+        gap: 50,
         opacity,
         fontFamily: fonts.sans,
       }}
@@ -51,8 +44,8 @@ export function LanguageBadge({ lang, opacity }: Props) {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 18,
-          padding: '14px 22px',
+          gap: 24,
+          padding: '20px 32px',
           background: tokens.bg2,
           border: `1px solid ${tokens.border}`,
           borderRadius: 999,
@@ -60,36 +53,37 @@ export function LanguageBadge({ lang, opacity }: Props) {
       >
         <div
           style={{
-            width: 28,
-            height: 28,
+            width: 40,
+            height: 40,
             borderRadius: 999,
             background: `hsl(${lang.hue} 70% 55%)`,
-            boxShadow: `0 0 16px hsl(${lang.hue} 70% 55% / 0.6)`,
+            boxShadow: `0 0 20px hsl(${lang.hue} 70% 55% / 0.65)`,
           }}
         />
         <div
           style={{
             fontFamily: fonts.mono,
-            fontSize: 18,
+            fontSize: 28,
             color: tokens.muted,
-            letterSpacing: '0.1em',
+            letterSpacing: '0.12em',
           }}
         >
           {lang.code}
         </div>
-        <div style={{ width: 1, height: 22, background: tokens.border }} />
-        <div style={{ color: tokens.fgHi, fontSize: 28, fontWeight: 600 }}>{lang.native}</div>
+        <div style={{ width: 1, height: 32, background: tokens.border }} />
+        <div style={{ color: tokens.fgHi, fontSize: 44, fontWeight: 600 }}>{lang.native}</div>
       </div>
 
       <div
         style={{
-          fontSize: 44,
+          fontSize: 90,
           color: tokens.fgHi,
           textAlign: 'center',
-          maxWidth: 920,
-          lineHeight: 1.3,
+          maxWidth: 1000,
+          lineHeight: 1.2,
           padding: '0 60px',
-          letterSpacing: '-0.01em',
+          letterSpacing: '-0.025em',
+          fontWeight: 600,
           direction: lang.code === 'AR' ? 'rtl' : 'ltr',
         }}
       >

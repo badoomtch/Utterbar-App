@@ -433,7 +433,7 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
         // Processing) the timer is stale and must not clobber it.
         let current = phase_cell().read().await.clone();
         match current {
-            DictationPhase::Success
+            DictationPhase::Success { .. }
             | DictationPhase::Error { .. }
             | DictationPhase::Cancelled
             | DictationPhase::NoAudio => {
@@ -457,6 +457,25 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
     });
 }
 
+/// Per-window RMS for speaker tagging. Walks `pcm[start..end]` once and
+/// returns mean square of the i16 samples (no sqrt; we only ever compare
+/// two RMS values against each other and saving the sqrt is cheaper).
+/// Bounds-safe — clamps end to pcm.len() and returns 0.0 on empty range
+/// so a missing-side capture trivially loses the tag race.
+fn rms_over(pcm: &[i16], start: usize, end: usize) -> f64 {
+    let lo = start.min(pcm.len());
+    let hi = end.min(pcm.len());
+    if hi <= lo {
+        return 0.0;
+    }
+    let mut sum_sq: f64 = 0.0;
+    for &s in &pcm[lo..hi] {
+        let f = s as f64;
+        sum_sq += f * f;
+    }
+    sum_sq / (hi - lo) as f64
+}
+
 /// Meeting Mode chunked transcribe.
 ///
 /// Slices the captured PCM into ~30 s windows with a 2 s overlap and
@@ -475,19 +494,31 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
 /// Stitching: each non-first chunk has its first ~6.7 % of words
 /// dropped (the proportional overlap fraction, 2 s / 30 s). This is
 /// imperfect — words don't distribute perfectly evenly across an audio
-/// chunk — but bounded error and trivially correct. A future
-/// optimisation could move to longest-common-substring stitching once
-/// we have a representative test corpus.
+/// chunk — but bounded error and trivially correct.
+///
+/// Output formatting (v0.13.2):
+///   - Each non-empty chunk is prefixed with `[mm:ss]` derived from the
+///     chunk's wall-clock start (relative to the recording start).
+///   - When mic and loopback PCM were both available (the typical meeting-
+///     mode case where capture_source was forced to Mixed), a `**You**:`
+///     or `**Other**:` speaker tag is appended after the timestamp,
+///     chosen by which side had higher RMS over that chunk's audio
+///     window. With only one side present (mic-only or loopback-only)
+///     the tag is omitted — the label would be trivially the same on
+///     every chunk.
 ///
 /// duration_ms on the returned AsrResult is the wall-clock duration
 /// of the source audio (sum of chunk durations less overlaps). Other
 /// fields are taken from the first chunk's result; word_timings is
 /// dropped because per-chunk timings would need rebasing to remain
 /// useful and meeting-mode rows don't render them today.
+#[allow(clippy::too_many_arguments)]
 async fn transcribe_chunked(
     state: &Arc<AppState>,
     model_id: &str,
     pcm: Vec<i16>,
+    mic_pcm: Option<Vec<i16>>,
+    loop_pcm: Option<Vec<i16>>,
     sample_rate: u32,
     target_language: Option<String>,
     vocabulary_hints: Vec<String>,
@@ -576,9 +607,53 @@ async fn transcribe_chunked(
         };
 
         if !chunk_text.trim().is_empty() {
-            if !stitched.is_empty() && !stitched.ends_with(' ') {
-                stitched.push(' ');
+            // Timestamp prefix derived from the chunk's wall-clock start.
+            // Non-first chunks contribute starting at `start + overlap`
+            // because their first ~overlap seconds were dropped from the
+            // text by the dedup pass above; the listener's mental model
+            // is "where in the recording does this text begin?" — that's
+            // start+overlap for chunk N, start (=0) for chunk 0.
+            let chunk_text_start_samples = if chunk_index == 0 {
+                start
+            } else {
+                start + overlap_samples
+            };
+            let chunk_text_start_secs = chunk_text_start_samples / sample_rate as usize;
+            let mm = chunk_text_start_secs / 60;
+            let ss = chunk_text_start_secs % 60;
+
+            // Speaker tag, only when both sides were captured. Per-side
+            // RMS over the SAME slice window as the mixed chunk we just
+            // transcribed; whichever side has higher RMS over that
+            // window gets credit. Imperfect when both sides talk
+            // simultaneously (whoever is louder wins) but a real first
+            // step that ships now without a diarisation model.
+            let speaker_tag = match (mic_pcm.as_ref(), loop_pcm.as_ref()) {
+                (Some(mic), Some(lp)) => {
+                    let mic_rms = rms_over(mic, start, end);
+                    let lp_rms = rms_over(lp, start, end);
+                    if mic_rms >= lp_rms {
+                        Some("**You**")
+                    } else {
+                        Some("**Other**")
+                    }
+                }
+                _ => None,
+            };
+
+            // One chunk per paragraph for legibility. Empty line between
+            // chunks so a long meeting reads as a stack of timestamped
+            // turns rather than a wall of text.
+            if !stitched.is_empty() {
+                stitched.push_str("\n\n");
             }
+            stitched.push_str(&format!("[{:02}:{:02}]", mm, ss));
+            if let Some(tag) = speaker_tag {
+                stitched.push(' ');
+                stitched.push_str(tag);
+                stitched.push(':');
+            }
+            stitched.push(' ');
             stitched.push_str(&chunk_text);
         }
 
@@ -641,7 +716,20 @@ pub async fn stop_recording(
         transcribe_in_progress = trx_flag,
         "dictation::stop_recording enter"
     );
-    let final_ = state.audio.stop_capture().await;
+    // Pull mic and loopback streams separately. Non-meeting-mode paths
+    // mix them immediately and continue with the existing single-buffer
+    // flow; meeting mode stashes both sides so the chunked transcribe
+    // can derive per-chunk speaker tags from per-side RMS before mixing
+    // for ASR. The split is meeting-aware here rather than at the audio
+    // service so the audio layer's contract stays simple — one path,
+    // returns whatever the user asked for.
+    let (mic_final, loop_final) = state.audio.stop_capture_split().await;
+    let final_ = match (mic_final.clone(), loop_final.clone()) {
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (Some(a), Some(b)) => Some(crate::services::audio::mix_two(a, b)),
+        (None, None) => None,
+    };
     let Some(mut final_) = final_ else {
         tracing::warn!("stop_recording called with no active recording");
         // Clear the guard even on "no-op stop" — the post-v0.6.2 fan-out
@@ -875,12 +963,21 @@ pub async fn stop_recording(
         tracing::info!(
             samples = final_.pcm.len(),
             sample_rate = final_.sample_rate,
+            mic_present = mic_final.is_some(),
+            loop_present = loop_final.is_some(),
             "stop_recording: meeting mode — chunked transcribe"
         );
+        // Hand the chunked path the per-side PCMs so it can derive
+        // speaker tags via RMS comparison per chunk window. The mixed
+        // PCM (final_.pcm) is what the recogniser sees; the per-side
+        // streams are only used for the speaker-label heuristic and
+        // never reach ASR.
         transcribe_chunked(
             state.inner(),
             &model_id,
             final_.pcm,
+            mic_final.map(|f| f.pcm),
+            loop_final.map(|f| f.pcm),
             final_.sample_rate,
             mode.target_language.clone(),
             vocab_hints,
@@ -1116,29 +1213,42 @@ pub async fn stop_recording(
         });
     }
 
-    // Attempt text delivery.
-    let strategy = if settings.text_output.paste_automatically {
-        crate::services::text_inject::Strategy::Paste {
-            restore_clipboard: settings.text_output.restore_clipboard,
-            fallback_to_keystrokes: settings.text_output.keystroke_fallback,
+    // Meeting mode: skip text injection entirely. A meeting transcript is
+    // reference material — saving 5+ minutes of dialogue into whatever
+    // window happened to have focus is the wrong default. The history row
+    // (and, in v0.14, the Meetings page) is the destination. We also skip
+    // the `record_delivery` bookkeeping because there's no delivery to
+    // remember — the auto-space-on-paste heuristic only applies to
+    // dictation continuations.
+    if !mode.is_meeting_mode {
+        let strategy = if settings.text_output.paste_automatically {
+            crate::services::text_inject::Strategy::Paste {
+                restore_clipboard: settings.text_output.restore_clipboard,
+                fallback_to_keystrokes: settings.text_output.keystroke_fallback,
+            }
+        } else {
+            crate::services::text_inject::Strategy::Keystrokes
+        };
+        let _ = state.text_inject.deliver(&processed, strategy);
+
+        if auto_send {
+            // Small pause so the host has time to accept the paste before we fire Enter —
+            // some apps (Teams, specifically) briefly freeze on receiving a paste and would
+            // drop the Enter if we fired it synchronously.
+            tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+            if let Err(e) = state.text_inject.send_enter() {
+                tracing::warn!(?e, "auto-send Enter failed");
+            }
         }
+
+        // Remember this delivery so the next dictation can decide whether to prepend a space.
+        record_delivery(now_ms(), ctx_snapshot.app_exe.as_deref(), &processed);
     } else {
-        crate::services::text_inject::Strategy::Keystrokes
-    };
-    let _ = state.text_inject.deliver(&processed, strategy);
-
-    if auto_send {
-        // Small pause so the host has time to accept the paste before we fire Enter —
-        // some apps (Teams, specifically) briefly freeze on receiving a paste and would
-        // drop the Enter if we fired it synchronously.
-        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
-        if let Err(e) = state.text_inject.send_enter() {
-            tracing::warn!(?e, "auto-send Enter failed");
-        }
+        tracing::info!(
+            chars = processed.len(),
+            "meeting mode: skipping text injection — transcript saved to history only"
+        );
     }
-
-    // Remember this delivery so the next dictation can decide whether to prepend a space.
-    record_delivery(now_ms(), ctx_snapshot.app_exe.as_deref(), &processed);
 
     let context_payload = serde_json::to_string(&ctx_snapshot).ok();
     let entry = HistoryEntry {
@@ -1186,11 +1296,62 @@ pub async fn stop_recording(
     }
 
     let _ = handle.emit(EVT_DICTATION_RESULT, &entry);
-    set_phase(&handle, DictationPhase::Success).await;
-    // Return to idle after a brief pause (client-driven; we just emit the current phase).
-    schedule_idle(&handle, 1200);
+    // Meeting recordings get a substantive success pill — duration,
+    // chunk count, char count — for ~3 s before decay so the user can
+    // see "5:01 · 11 chunks · 799 chars" instead of a generic
+    // "Inserted" cue. Non-meeting dictations keep the current sparse
+    // payload (None) so the floating bar's existing Success treatment
+    // is unchanged.
+    let success_summary = if mode.is_meeting_mode {
+        Some(crate::domain::DictationSuccessSummary {
+            duration_seconds: (asr.duration_ms / 1000),
+            // The chunked path doesn't expose its chunk count to the
+            // outer scope, so compute it here from the audio length —
+            // matches the decision the chunker made (CHUNK 30s, OVERLAP 2s,
+            // stride 28s). For a single-chunk recording this gives 1.
+            chunks: chunk_count_for_duration(asr.duration_ms),
+            chars: processed.len() as u32,
+        })
+    } else {
+        None
+    };
+    set_phase(
+        &handle,
+        DictationPhase::Success {
+            summary: success_summary,
+        },
+    )
+    .await;
+    // Meeting mode lingers a beat longer (3 s instead of the dictation
+    // 1.2 s) so the user has time to read the duration + chunk pill
+    // before it decays. The pill is the only visible "your meeting was
+    // saved" signal until the v0.14 Meetings page lands.
+    let idle_delay = if mode.is_meeting_mode { 3000 } else { 1200 };
+    schedule_idle(&handle, idle_delay);
 
     Ok(entry)
+}
+
+/// Mirror of the chunking arithmetic in `transcribe_chunked` — used by
+/// stop_recording's success-pill payload to report how many chunks the
+/// meeting was split into without threading the count back from the
+/// chunker. Hard-coded to the same CHUNK_SECONDS=30 / OVERLAP_SECONDS=2
+/// pair the chunker uses; if those are ever moved to settings, both
+/// sites read from the same source.
+fn chunk_count_for_duration(duration_ms: u32) -> u32 {
+    const CHUNK_S: u32 = 30;
+    const OVERLAP_S: u32 = 2;
+    const STRIDE_S: u32 = CHUNK_S - OVERLAP_S;
+    let secs = duration_ms.div_ceil(1000);
+    if secs == 0 {
+        return 0;
+    }
+    if secs <= CHUNK_S {
+        return 1;
+    }
+    // Chunk N starts at N * stride; covers the whole recording when
+    // (N-1) * stride + chunk >= total. Solve: N = ceil((total - chunk) / stride) + 1.
+    ((secs - CHUNK_S).div_ceil(STRIDE_S)) + 1
 }
 
 #[tauri::command]
@@ -1236,7 +1397,7 @@ async fn set_phase(handle: &AppHandle, phase: DictationPhase) {
         DictationPhase::Warming { .. } => "warming",
         DictationPhase::Listening { .. } => "listening",
         DictationPhase::Processing => "processing",
-        DictationPhase::Success => "success",
+        DictationPhase::Success { .. } => "success",
         DictationPhase::Error { .. } => "error",
         DictationPhase::Cancelled => "cancelled",
         DictationPhase::NoAudio => "no_audio",

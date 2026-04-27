@@ -1,11 +1,8 @@
 /**
- * Generic AI-chat surface, vertical. Brand-agnostic chrome — caller
- * passes the assistant *label* (e.g. "ChatGPT", "Claude", "Gemini"),
- * which renders as a neutral dot + label so the same component
- * services Ad04TalksToAnyAI's brand-cycle.
- *
- * Caller controls draft / sent / reply and the caret-blink phase via
- * useCurrentFrame in their own composition.
+ * Generic AI-chat surface, vertical, v2. Same scale-up as the Slack
+ * thread: 1020 wide, bigger bubbles (38 px font), bigger header dot,
+ * bigger input field. The whole point is that this surface is the
+ * action — it should DOMINATE the lower 70% of the frame.
  */
 import React from 'react';
 import { useCurrentFrame } from 'remotion';
@@ -13,14 +10,11 @@ import { tokens, fonts } from '../../design/tokens';
 
 type Props = {
   assistantLabel: string;
-  /** Optional dot colour — defaults to brand cyan. Use to give the
-   *  illusion of switching assistants in Ad04. */
   assistantColor?: string;
   draft: string;
   sent?: string;
   reply?: string;
   showInputCaret?: boolean;
-  /** When `reply` is partial (still streaming), show the trailing caret. */
   replyStreaming?: boolean;
 };
 
@@ -39,9 +33,9 @@ export function AssistantChat({
   return (
     <div
       style={{
-        width: 920,
+        width: 1020,
         background: tokens.bg1,
-        borderRadius: 22,
+        borderRadius: 26,
         border: `1px solid ${tokens.border}`,
         overflow: 'hidden',
         fontFamily: fonts.sans,
@@ -52,39 +46,41 @@ export function AssistantChat({
 
       <div
         style={{
-          minHeight: 720,
-          padding: '24px 28px 8px 28px',
+          minHeight: 880,
+          padding: '32px 36px 12px 36px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 18,
+          gap: 28,
         }}
       >
         {sent && <UserBubble text={sent} />}
-        {reply && <AssistantBubble text={reply} color={assistantColor} streaming={replyStreaming} caretOn={caretOn} />}
+        {reply && (
+          <AssistantBubble text={reply} color={assistantColor} streaming={replyStreaming} caretOn={caretOn} />
+        )}
       </div>
 
       <div
         style={{
-          margin: '0 24px 24px 24px',
-          padding: '16px 18px',
-          borderRadius: 14,
+          margin: '0 32px 32px 32px',
+          padding: '24px 28px',
+          borderRadius: 18,
           background: tokens.bg0,
           border: `1px solid ${tokens.border}`,
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: 16,
         }}
       >
-        <div style={{ flex: 1, fontSize: 22, color: tokens.fg, minHeight: 28 }}>
+        <div style={{ flex: 1, fontSize: 32, color: tokens.fg, minHeight: 40 }}>
           {draft || <span style={{ color: tokens.fgDim }}>Ask anything…</span>}
           {showInputCaret && caretOn && (
             <span
               style={{
                 display: 'inline-block',
-                width: 2,
-                height: 22,
+                width: 3,
+                height: 32,
                 background: tokens.muted,
-                marginLeft: draft ? 2 : 0,
+                marginLeft: draft ? 3 : 0,
                 verticalAlign: 'text-bottom',
               }}
             />
@@ -92,15 +88,15 @@ export function AssistantChat({
         </div>
         <div
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 10,
+            width: 52,
+            height: 52,
+            borderRadius: 12,
             background: draft ? assistantColor : 'rgba(255,255,255,0.06)',
             color: draft ? '#06121A' : tokens.muted,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 18,
+            fontSize: 24,
             fontWeight: 800,
           }}
         >
@@ -115,23 +111,30 @@ function Header({ label, color }: { label: string; color: string }) {
   return (
     <div
       style={{
-        padding: '20px 24px',
+        padding: '24px 32px',
         borderBottom: `1px solid ${tokens.border}`,
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
+        gap: 18,
       }}
     >
       <div
         style={{
-          width: 28,
-          height: 28,
+          width: 44,
+          height: 44,
           borderRadius: 999,
           background: color,
-          boxShadow: `0 0 16px ${color}88`,
+          boxShadow: `0 0 22px ${color}99`,
         }}
       />
-      <div style={{ color: tokens.fgHi, fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em' }}>
+      <div
+        style={{
+          color: tokens.fgHi,
+          fontSize: 36,
+          fontWeight: 600,
+          letterSpacing: '-0.01em',
+        }}
+      >
         {label}
       </div>
     </div>
@@ -143,15 +146,16 @@ function UserBubble({ text }: { text: string }) {
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <div
         style={{
-          maxWidth: '82%',
-          padding: '14px 18px',
-          borderRadius: 18,
-          borderTopRightRadius: 6,
-          background: `${tokens.accent}1f`,
-          border: `1px solid ${tokens.accent}55`,
+          maxWidth: '88%',
+          padding: '24px 32px',
+          borderRadius: 26,
+          borderTopRightRadius: 8,
+          background: `${tokens.accent}26`,
+          border: `1px solid ${tokens.accent}66`,
           color: tokens.fgHi,
-          fontSize: 22,
-          lineHeight: 1.4,
+          fontSize: 38,
+          lineHeight: 1.35,
+          fontWeight: 500,
         }}
       >
         {text}
@@ -172,30 +176,31 @@ function AssistantBubble({
   caretOn: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 12 }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 16 }}>
       <div
         style={{
-          width: 28,
-          height: 28,
+          width: 44,
+          height: 44,
           borderRadius: 999,
           background: color,
-          marginTop: 6,
+          marginTop: 8,
           flexShrink: 0,
-          boxShadow: `0 0 12px ${color}66`,
+          boxShadow: `0 0 18px ${color}77`,
         }}
       />
       <div
         style={{
-          maxWidth: '84%',
-          padding: '14px 18px',
-          borderRadius: 18,
-          borderTopLeftRadius: 6,
+          maxWidth: '86%',
+          padding: '24px 32px',
+          borderRadius: 26,
+          borderTopLeftRadius: 8,
           background: tokens.bg0,
           border: `1px solid ${tokens.border}`,
           color: tokens.fg,
-          fontSize: 22,
-          lineHeight: 1.5,
+          fontSize: 36,
+          lineHeight: 1.4,
           whiteSpace: 'pre-wrap',
+          fontWeight: 500,
         }}
       >
         {text}
@@ -203,10 +208,10 @@ function AssistantBubble({
           <span
             style={{
               display: 'inline-block',
-              width: 2,
-              height: 22,
+              width: 3,
+              height: 32,
               background: color,
-              marginLeft: 2,
+              marginLeft: 3,
               verticalAlign: 'text-bottom',
               opacity: caretOn ? 1 : 0,
             }}

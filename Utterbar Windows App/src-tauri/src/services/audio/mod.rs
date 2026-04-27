@@ -89,6 +89,37 @@ impl AudioService {
         }
     }
 
+    /// Stop capture and return the mic and loopback streams **separately**
+    /// rather than pre-mixed. Meeting mode needs both sides as distinct
+    /// buffers so the chunked transcribe can tag speakers (mic-loud vs
+    /// loopback-loud per chunk) before mixing for ASR. Both buffers are
+    /// at the same 16 kHz mono PCM contract as `stop_capture` returns;
+    /// the caller is responsible for mixing if it wants a single track.
+    ///
+    /// Either side may be None — `stop_capture_split` doesn't synthesise
+    /// silence for an absent source. The dictation path then knows
+    /// whether speaker tagging is meaningful (both sides present) or
+    /// degenerate (only one — every chunk is "You" or every chunk is
+    /// "Other", which is fine and the tagger handles it).
+    pub async fn stop_capture_split(
+        &self,
+    ) -> (Option<capture::CaptureFinal>, Option<capture::CaptureFinal>) {
+        let mic_final = if let Some(h) = self.inner.write().await.take() {
+            Some(h.stop().await)
+        } else {
+            None
+        };
+        #[cfg(windows)]
+        let loop_final = if let Some(h) = self.loopback_inner.write().await.take() {
+            Some(h.stop().await)
+        } else {
+            None
+        };
+        #[cfg(not(windows))]
+        let loop_final: Option<capture::CaptureFinal> = None;
+        (mic_final, loop_final)
+    }
+
     /// Read the currently-active primary capture handle. Unused today — dictation and
     /// meter paths each stash their own handle — but kept so diagnostics / future probes
     /// can ask "is the mic currently hot?" without racing the start/stop APIs.
@@ -100,7 +131,7 @@ impl AudioService {
 
 /// Sum two PCM streams sample-by-sample with hard clipping. Assumes both streams are at
 /// the same sample rate (both capture paths resample to 16 kHz before returning).
-fn mix_two(mut a: capture::CaptureFinal, b: capture::CaptureFinal) -> capture::CaptureFinal {
+pub fn mix_two(mut a: capture::CaptureFinal, b: capture::CaptureFinal) -> capture::CaptureFinal {
     let len = a.pcm.len().max(b.pcm.len());
     a.pcm.resize(len, 0);
     let mut out = Vec::with_capacity(len);

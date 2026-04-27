@@ -1,14 +1,7 @@
 /**
- * Animated price line — used in Ad10PriceOnce. Displays a price string
- * with the slash-line replaced over time. The composition cycles through:
- *
- *   £39.99/month   ←  what users brace for
- *   £39.99/year    ←  what users hope for
- *   £39.99 once    ←  what they actually get
- *
- * Each variant fades in over the previous, with the trailing word
- * (month / year / once) swapping cleanly. Caller supplies the active
- * index + per-line opacity from the parent composition.
+ * Animated price line — v2 hero scale (220 px main, was 140). The
+ * trailing /month, /year, "once" sits inline at 80 px so the slash
+ * struck-through reads as a single typographic gesture.
  */
 import React from 'react';
 import { tokens, fonts } from '../../design/tokens';
@@ -39,31 +32,32 @@ export function PriceLine({ variant, opacity }: Props) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 16,
+        gap: 24,
         opacity,
         fontFamily: fonts.sans,
       }}
     >
       <div
         style={{
-          fontSize: 140,
-          fontWeight: 600,
+          fontSize: 220,
+          fontWeight: 700,
           color: tokens.fgHi,
           letterSpacing: '-0.04em',
           textDecoration: variant.strikeThrough ? 'line-through' : 'none',
           textDecorationColor: variant.strikeThrough ? `${tokens.muted}aa` : undefined,
-          textDecorationThickness: 4,
+          textDecorationThickness: 6,
+          lineHeight: 1,
         }}
       >
         £39.99
       </div>
       <div
         style={{
-          fontSize: 56,
-          fontWeight: 500,
+          fontSize: 80,
+          fontWeight: 600,
           color: variant.trailingColor ?? tokens.muted,
           letterSpacing: '-0.01em',
-          marginTop: 18,
+          marginTop: 30,
         }}
       >
         {variant.trailing}

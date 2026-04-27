@@ -1,13 +1,8 @@
 /**
- * ad-07-teach-vocabulary — 12s. Two takes of the same sentence side-
- * by-side. First take: the proper noun "Anthropic" gets transcribed
- * as "an throw pick" (the natural mistake). Cursor adds the word to
- * a tiny vocabulary chip stack. Second take of the same sentence:
- * the proper noun lands correctly.
- *
- * Different angle from FeatureVocabulary (which is a settings panel
- * walkthrough). This is the moment-of-fix demo — the BEFORE and
- * AFTER, side by side.
+ * ad-07-teach-vocabulary — 15s. v3: take 1 result snaps in (was
+ * typewritten, missed the punchline), holds long enough to read
+ * the wrong text, vocabulary chip lands cleanly, take 2 result
+ * snaps in and holds for comparison. Pill scale 2.0 (already).
  */
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
@@ -17,79 +12,51 @@ import { BarDriver } from '../../bar/BarDriver';
 import { SocialFrame } from '../frame/SocialFrame';
 import { Captions } from '../frame/Captions';
 import { EndCard } from '../frame/EndCard';
-import { humanType } from '../frame/humanType';
 
-const WRONG = "We need to ship the an throw pick integration before launch.";
-const RIGHT = "We need to ship the Anthropic integration before launch.";
+const WRONG = "Ship the an throw pick integration before launch.";
+const RIGHT = "Ship the Anthropic integration before launch.";
 
 export function Ad07TeachVocabulary() {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const f = (s: number) => Math.round(s * fps);
 
-  // Take 1: 0.5s pill listening, 2.0s output, 1.0s "wrong" highlight, 1.5s teach.
-  const takeOnePill = frame >= f(0.5) && frame < f(2.5);
-  const takeOneText = frame >= f(2.5) ? humanType(WRONG, frame, f(2.5), fps, 0x111) : '';
-  const showTeach = frame >= f(5.5);
-  const showVocabChip = frame >= f(6.5);
+  const takeOnePill = frame >= f(0.2) && frame < f(2.0);
+  // Take 1 result snaps in at 2.0 — wrong on purpose, want it readable.
+  const takeOneText = frame >= f(2.0) ? WRONG : '';
+  const showTeach = frame >= f(5.0);
+  const showVocabChip = frame >= f(5.7);
 
-  // Take 2: starts at 8.0s. 0.5s pill, output appears in full at 9.5s.
-  const takeTwoPill = frame >= f(8.0) && frame < f(9.5);
-  const takeTwoText = frame >= f(9.5) ? humanType(RIGHT, frame, f(9.5), fps, 0x222) : '';
+  const takeTwoPill = frame >= f(7.0) && frame < f(8.4);
+  const takeTwoText = frame >= f(8.4) ? RIGHT : '';
 
-  const elapsed1 = takeOnePill ? ((frame - f(0.5)) / fps) * 1000 : 0;
-  const elapsed2 = takeTwoPill ? ((frame - f(8.0)) / fps) * 1000 : 0;
+  const elapsed1 = takeOnePill ? ((frame - f(0.2)) / fps) * 1000 : 0;
+  const elapsed2 = takeTwoPill ? ((frame - f(7.0)) / fps) * 1000 : 0;
 
   return (
     <SocialFrame variant="canvas">
-      <Eyebrow text="Teach it your jargon" />
-
-      {/* TAKE 1 panel */}
-      <Panel top={200} label="Take 1" showHighlight={frame >= f(5.0) && frame < f(7.5)}>
+      <Panel top={140} label="Take 1" highlight={frame >= f(3.5) && frame < f(7.0)}>
         <PillRow listening={takeOnePill} elapsedMs={elapsed1} />
-        <Output text={takeOneText} highlight={frame >= f(5.0) ? "an throw pick" : undefined} />
+        <Output text={takeOneText} highlight={frame >= f(3.5) ? "an throw pick" : undefined} />
       </Panel>
 
-      {/* Vocabulary teach chip flies up between panels */}
       {showTeach && <VocabularyTeach showChip={showVocabChip} />}
 
-      {/* TAKE 2 panel */}
-      <Panel top={1100} label="Take 2 — after teaching" accent={tokens.accent}>
+      <Panel top={1080} label="After teaching" accent={tokens.accent}>
         <PillRow listening={takeTwoPill} elapsedMs={elapsed2} />
         <Output text={takeTwoText} highlight={takeTwoText.includes('Anthropic') ? 'Anthropic' : undefined} highlightColor={tokens.accent} />
       </Panel>
 
       <Captions
         cues={[
-          { text: 'It misheard "Anthropic".', at: 4.5, until: 7.0 },
-          { text: 'Teach it once.', at: 7.0, until: 8.5 },
-          { text: 'Now it gets it right.', at: 9.6, until: 11.5 },
+          { text: 'It misheard.',          at: 3.5, until: 5.0 },
+          { text: 'Teach it once.',        at: 5.1, until: 6.9 },
+          { text: 'Now it gets it right.', at: 8.5, until: 10.4 },
         ]}
-        bottom={120}
       />
 
-      <EndCard tagline="Teach it your jargon. Once." startAt={11.5} />
+      <EndCard tagline="Teach it your jargon." startAt={10.5} />
     </SocialFrame>
-  );
-}
-
-function Eyebrow({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 100,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        fontFamily: fonts.mono,
-        fontSize: 18,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
-        color: tokens.muted,
-      }}
-    >
-      {text}
-    </div>
   );
 }
 
@@ -97,13 +64,13 @@ function Panel({
   top,
   label,
   accent = tokens.muted,
-  showHighlight,
+  highlight,
   children,
 }: {
   top: number;
   label: string;
   accent?: string;
-  showHighlight?: boolean;
+  highlight?: boolean;
   children?: React.ReactNode;
 }) {
   return (
@@ -113,24 +80,25 @@ function Panel({
         top,
         left: '50%',
         transform: 'translateX(-50%)',
-        width: 940,
+        width: 1020,
         background: tokens.bg1,
-        border: `1px solid ${showHighlight ? tokens.rose : tokens.border}`,
-        borderRadius: 22,
-        padding: '20px 26px 26px 26px',
+        border: `2px solid ${highlight ? tokens.rose : tokens.border}`,
+        borderRadius: 26,
+        padding: '24px 32px 32px 32px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 18,
-        boxShadow: showHighlight ? `0 0 40px ${tokens.rose}33` : 'none',
+        gap: 22,
+        boxShadow: highlight ? `0 0 50px ${tokens.rose}55` : 'none',
       }}
     >
       <div
         style={{
           fontFamily: fonts.mono,
-          fontSize: 16,
+          fontSize: 28,
           letterSpacing: '0.16em',
           textTransform: 'uppercase',
           color: accent,
+          fontWeight: 600,
         }}
       >
         {label}
@@ -142,8 +110,8 @@ function Panel({
 
 function PillRow({ listening, elapsedMs }: { listening: boolean; elapsedMs: number }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-      <div style={{ transform: 'scale(1.4)' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+      <div style={{ transform: 'scale(2.0)' }}>
         <BarDriver state={listening ? 'listening' : 'idle'} elapsedMs={elapsedMs} />
       </div>
     </div>
@@ -161,43 +129,28 @@ function Output({
 }) {
   if (!text) {
     return (
-      <div
-        style={{
-          minHeight: 110,
-          fontFamily: fonts.sans,
-          fontSize: 26,
-          color: tokens.fgDim,
-          lineHeight: 1.45,
-        }}
-      >
+      <div style={{ minHeight: 130, fontFamily: fonts.sans, fontSize: 40, color: tokens.fgDim, lineHeight: 1.4, fontStyle: 'italic' }}>
         Listening…
       </div>
     );
   }
-  if (!highlight) {
+  if (!highlight || !text.includes(highlight)) {
     return (
-      <div style={{ minHeight: 110, fontFamily: fonts.sans, fontSize: 26, color: tokens.fgHi, lineHeight: 1.45 }}>
+      <div style={{ minHeight: 130, fontFamily: fonts.sans, fontSize: 40, color: tokens.fgHi, lineHeight: 1.4, fontWeight: 500 }}>
         {text}
       </div>
     );
   }
   const i = text.indexOf(highlight);
-  if (i < 0) {
-    return (
-      <div style={{ minHeight: 110, fontFamily: fonts.sans, fontSize: 26, color: tokens.fgHi, lineHeight: 1.45 }}>
-        {text}
-      </div>
-    );
-  }
   return (
-    <div style={{ minHeight: 110, fontFamily: fonts.sans, fontSize: 26, color: tokens.fgHi, lineHeight: 1.45 }}>
+    <div style={{ minHeight: 130, fontFamily: fonts.sans, fontSize: 40, color: tokens.fgHi, lineHeight: 1.4, fontWeight: 500 }}>
       {text.slice(0, i)}
       <span
         style={{
-          background: `${highlightColor}22`,
+          background: `${highlightColor}33`,
           color: highlightColor,
-          padding: '2px 8px',
-          borderRadius: 6,
+          padding: '4px 14px',
+          borderRadius: 8,
           fontWeight: 700,
         }}
       >
@@ -212,8 +165,8 @@ function VocabularyTeach({ showChip }: { showChip: boolean }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const f = (s: number) => Math.round(s * fps);
-  const slide = tween(frame, f(5.5), f(6.5), 80, 0);
-  const fade = tween(frame, f(5.5), f(6.5), 0, 1);
+  const slide = tween(frame, f(5.0), f(5.7), 80, 0);
+  const fade = tween(frame, f(5.0), f(5.7), 0, 1);
   return (
     <div
       style={{
@@ -223,28 +176,28 @@ function VocabularyTeach({ showChip }: { showChip: boolean }) {
         transform: `translate(-50%, ${slide}px)`,
         opacity: fade,
         background: tokens.bg2,
-        border: `1px solid ${tokens.accent}55`,
-        borderRadius: 14,
-        padding: '14px 22px',
+        border: `1px solid ${tokens.accent}66`,
+        borderRadius: 18,
+        padding: '20px 32px',
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
+        gap: 18,
         fontFamily: fonts.sans,
       }}
     >
-      <div style={{ color: tokens.muted, fontSize: 18, fontFamily: fonts.mono, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+      <div style={{ color: tokens.muted, fontSize: 24, fontFamily: fonts.mono, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
         Vocabulary
       </div>
-      <div style={{ width: 1, height: 22, background: tokens.border }} />
+      <div style={{ width: 1, height: 30, background: tokens.border }} />
       <div
         style={{
           color: tokens.accent,
-          fontSize: 22,
-          fontWeight: 600,
-          padding: '4px 14px',
+          fontSize: 36,
+          fontWeight: 700,
+          padding: '8px 22px',
           borderRadius: 999,
-          background: showChip ? `${tokens.accent}1f` : 'transparent',
-          border: showChip ? `1px solid ${tokens.accent}66` : 'none',
+          background: showChip ? `${tokens.accent}26` : 'transparent',
+          border: showChip ? `1px solid ${tokens.accent}77` : 'none',
         }}
       >
         + Anthropic

@@ -81,6 +81,7 @@ pub struct CaptureHandle {
     buffer: Arc<Mutex<Vec<i16>>>,
 }
 
+#[derive(Clone)]
 pub struct CaptureFinal {
     pub pcm: Vec<i16>,
     pub sample_rate: u32,

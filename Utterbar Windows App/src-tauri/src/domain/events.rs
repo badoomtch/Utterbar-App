@@ -36,7 +36,17 @@ pub enum DictationPhase {
         started_at_ms: i64,
     },
     Processing,
-    Success,
+    /// Recording finished cleanly. Optional `summary` is populated for
+    /// meeting-mode recordings so the floating bar can show
+    /// "5:01 · 11 chunks · 799 chars" for ~3 s before decaying to idle —
+    /// without it, a 5-minute meeting and a 3-second dictation look
+    /// identical in the bar (both transition Listening → Processing →
+    /// Success). Default None for ordinary dictations so the existing
+    /// "Inserted" treatment is unchanged.
+    Success {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        summary: Option<DictationSuccessSummary>,
+    },
     Error {
         message: String,
     },
@@ -48,6 +58,30 @@ pub enum DictationPhase {
     /// "No audio detected" message and settles back to idle without writing
     /// a history row or firing the success cue.
     NoAudio,
+}
+
+/// Payload appended to a `Success` phase event for meeting-mode
+/// recordings. The floating bar uses these fields to render a
+/// substantive success pill ("5:01 · 11 chunks · 799 chars") instead of
+/// the generic "Inserted" copy. None of the fields are required to
+/// reconstruct the history row — the Rust side has all of that — they
+/// exist purely so the UI can paint the success state without an
+/// extra IPC round-trip.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct DictationSuccessSummary {
+    /// Wall-clock duration of the captured audio, in seconds. Rendered
+    /// as `mm:ss` in the bar.
+    pub duration_seconds: u32,
+    /// Number of chunks the meeting was split into. 1 for non-meeting
+    /// recordings (and they shouldn't carry a summary at all in that
+    /// case, but the field is here so meetings that happened to fit
+    /// inside a single chunk still produce a coherent payload).
+    pub chunks: u32,
+    /// Character count of the final stitched transcript. Rough proxy
+    /// for "is this a real meeting or two seconds of silence" the user
+    /// can read at a glance.
+    pub chars: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

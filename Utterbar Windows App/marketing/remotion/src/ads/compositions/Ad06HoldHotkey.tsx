@@ -1,12 +1,6 @@
 /**
- * ad-06-hold-hotkey — 8s. The "hotkey is the instrument" beat. The
- * Ctrl+Space chord is shown front-and-centre; pressing it summons the
- * pill, releasing it dismisses. Three quick reps — the third spawns
- * a clean transcription that holds on screen.
- *
- * Different angle from anything in the existing pack: this ad treats
- * the hotkey itself as the protagonist. Useful as a 6-second loop on
- * the website hero.
+ * ad-06-hold-hotkey — 11s. v3: transcript SNAPS in (was typewritten),
+ * holds for 2.6s before end card. Pill scale 2.4→2.0.
  */
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
@@ -16,13 +10,12 @@ import { BarDriver } from '../../bar/BarDriver';
 import { SocialFrame } from '../frame/SocialFrame';
 import { Captions } from '../frame/Captions';
 import { EndCard } from '../frame/EndCard';
-import { humanType } from '../frame/humanType';
 import { HotkeyBadge } from '../scenes/HotkeyBadge';
 
 const REPS = [
-  { pressAt: 0.6, releaseAt: 1.4 },
-  { pressAt: 1.8, releaseAt: 2.6 },
-  { pressAt: 3.0, releaseAt: 5.5 },
+  { pressAt: 0.4, releaseAt: 0.95 },
+  { pressAt: 1.25, releaseAt: 1.8 },
+  { pressAt: 2.1, releaseAt: 4.4 },
 ];
 
 const TRANSCRIPT = "Coffee at half past — bring the laptop.";
@@ -34,79 +27,54 @@ export function Ad06HoldHotkey() {
 
   const rep = REPS.find((r) => frame >= f(r.pressAt) && frame < f(r.releaseAt));
   const pressed = !!rep;
-  const inThirdRep = frame >= f(REPS[2].pressAt) && frame < f(REPS[2].releaseAt);
-
-  const pillState: 'idle' | 'listening' = pressed ? 'listening' : 'idle';
   const elapsedMs = pressed && rep ? ((frame - f(rep.pressAt)) / fps) * 1000 : 0;
 
-  // Show pill only while pressed; on third rep, transcript appears below
-  // after release.
-  const showTranscript = frame >= f(REPS[2].releaseAt);
-  const transcript = showTranscript
-    ? humanType(TRANSCRIPT, frame, f(REPS[2].releaseAt + 0.1), fps, 0xfeed)
-    : '';
+  // Transcript snaps in fully formed at 4.5 (just after the third
+  // release at 4.4) and holds until end card at 7.0 = 2.5s of payoff.
+  const showTranscript = frame >= f(4.5);
 
   return (
     <SocialFrame variant="canvas">
-      {/* Hotkey badge — centred, the protagonist */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 360,
-          left: '50%',
-          transform: `translateX(-50%) scale(${pressed ? 1.06 : 1})`,
-          transition: 'none',
-        }}
-      >
-        <HotkeyBadge pressed={pressed} />
-      </div>
-
-      {/* Pill above the badge — only when pressed */}
       {pressed && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 200,
-            left: '50%',
-            transform: 'translateX(-50%) scale(1.8)',
-            transformOrigin: 'top center',
-          }}
-        >
-          <BarDriver state={pillState} elapsedMs={elapsedMs} />
+        <div style={{ position: 'absolute', top: 200, left: '50%', transform: 'translateX(-50%) scale(2.0)', transformOrigin: 'top center' }}>
+          <BarDriver state="listening" elapsedMs={elapsedMs} />
         </div>
       )}
 
-      {/* Transcript that lands after the third release */}
+      <div style={{ position: 'absolute', top: 720, left: '50%', transform: `translateX(-50%) scale(${pressed ? 1.04 : 1})` }}>
+        <HotkeyBadge pressed={pressed} />
+      </div>
+
       {showTranscript && (
         <div
           style={{
             position: 'absolute',
-            top: 580,
+            top: 1080,
             left: '50%',
             transform: 'translateX(-50%)',
-            width: 920,
-            padding: '24px 30px',
+            width: 1020,
+            padding: '32px 40px',
             background: tokens.bg1,
-            border: `1px solid ${tokens.accent}55`,
-            borderRadius: 18,
+            border: `1px solid ${tokens.accent}66`,
+            borderRadius: 22,
             color: tokens.fgHi,
-            fontSize: 38,
-            lineHeight: 1.4,
+            fontSize: 50,
+            lineHeight: 1.35,
             fontFamily: fonts.sans,
+            fontWeight: 600,
             textAlign: 'center',
-            opacity: tween(frame, f(REPS[2].releaseAt), f(REPS[2].releaseAt + 0.3), 0, 1),
+            opacity: tween(frame, f(4.5), f(4.7), 0, 1),
           }}
         >
-          {transcript || '…'}
+          {TRANSCRIPT}
         </div>
       )}
 
       <Captions
         cues={[
-          { text: 'Hold to talk.', at: 0.3, until: 2.8 },
-          { text: 'Release to send.', at: 5.6, until: 7.0 },
+          { text: 'Hold to talk.',    at: 0.1, until: 1.95 },
+          { text: 'Release to send.', at: 4.6, until: 6.9 },
         ]}
-        bottom={140}
       />
 
       <EndCard tagline="One key. Anywhere on Windows." startAt={7.0} />

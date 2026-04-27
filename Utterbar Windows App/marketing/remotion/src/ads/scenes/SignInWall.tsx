@@ -1,11 +1,7 @@
 /**
- * "Create your account to continue" sign-in wall — the friction every
- * other category app forces. Used in Ad11NoAccount as the contrast
- * surface against Utterbar's no-account-needed flow.
- *
- * Generic chrome — modal centred on a dim background. Three input
- * fields, a primary CTA, a "Continue with Google" row. None of it
- * functional; it's a still frame that the parent fades through.
+ * "Create your account to continue" sign-in wall — v2 modal scaled
+ * up. Vertical-mobile means the modal IS the screen, not a small
+ * overlay over a desktop. 920 wide, all field text 28-32 px.
  */
 import React from 'react';
 import { tokens, fonts } from '../../design/tokens';
@@ -20,7 +16,7 @@ export function SignInWall({ product }: Props) {
       style={{
         position: 'absolute',
         inset: 0,
-        background: 'rgba(2, 4, 8, 0.78)',
+        background: 'rgba(2, 4, 8, 0.82)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -30,33 +26,41 @@ export function SignInWall({ product }: Props) {
     >
       <div
         style={{
-          width: 720,
+          width: 920,
           background: tokens.bg1,
-          borderRadius: 22,
+          borderRadius: 28,
           border: `1px solid ${tokens.border}`,
-          padding: '40px 44px 36px 44px',
+          padding: '52px 56px 48px 56px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 18,
-          boxShadow: '0 30px 80px rgba(0,0,0,0.65)',
+          gap: 24,
+          boxShadow: '0 30px 80px rgba(0,0,0,0.7)',
         }}
       >
         <div
           style={{
             color: tokens.muted,
             fontFamily: fonts.mono,
-            fontSize: 14,
-            letterSpacing: '0.12em',
+            fontSize: 22,
+            letterSpacing: '0.14em',
             textTransform: 'uppercase',
           }}
         >
           {product}
         </div>
-        <div style={{ color: tokens.fgHi, fontSize: 38, fontWeight: 600, letterSpacing: '-0.02em' }}>
+        <div
+          style={{
+            color: tokens.fgHi,
+            fontSize: 64,
+            fontWeight: 700,
+            letterSpacing: '-0.025em',
+            lineHeight: 1.1,
+          }}
+        >
           Create your account
         </div>
-        <div style={{ color: tokens.muted, fontSize: 18, lineHeight: 1.4, marginBottom: 8 }}>
-          Sign in or sign up to continue. We'll send a verification link to your email.
+        <div style={{ color: tokens.muted, fontSize: 28, lineHeight: 1.4, marginBottom: 8 }}>
+          Sign in or sign up to continue.
         </div>
 
         <Field placeholder="Work email" />
@@ -65,42 +69,18 @@ export function SignInWall({ product }: Props) {
 
         <div
           style={{
-            marginTop: 8,
-            padding: '18px 22px',
+            marginTop: 12,
+            padding: '24px 28px',
             background: tokens.fgDim,
             color: tokens.bg0,
-            borderRadius: 12,
-            fontSize: 22,
-            fontWeight: 600,
+            borderRadius: 16,
+            fontSize: 32,
+            fontWeight: 700,
             textAlign: 'center',
-            opacity: 0.75,
+            opacity: 0.78,
           }}
         >
           Continue
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: tokens.fgDim, fontSize: 14, margin: '8px 0' }}>
-          <div style={{ flex: 1, height: 1, background: tokens.border }} />
-          <div>or</div>
-          <div style={{ flex: 1, height: 1, background: tokens.border }} />
-        </div>
-
-        <div
-          style={{
-            padding: '16px 22px',
-            background: tokens.bg2,
-            border: `1px solid ${tokens.border}`,
-            borderRadius: 12,
-            color: tokens.fg,
-            fontSize: 18,
-            textAlign: 'center',
-          }}
-        >
-          Continue with Google
-        </div>
-
-        <div style={{ color: tokens.fgDim, fontSize: 13, lineHeight: 1.5, marginTop: 6 }}>
-          By continuing you agree to the Terms and acknowledge the Privacy Policy.
         </div>
       </div>
     </div>
@@ -111,12 +91,12 @@ function Field({ placeholder }: { placeholder: string }) {
   return (
     <div
       style={{
-        padding: '16px 18px',
+        padding: '22px 24px',
         background: tokens.bg0,
         border: `1px solid ${tokens.border}`,
-        borderRadius: 12,
+        borderRadius: 16,
         color: tokens.fgDim,
-        fontSize: 18,
+        fontSize: 28,
       }}
     >
       {placeholder}

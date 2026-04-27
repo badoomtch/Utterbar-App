@@ -1,11 +1,20 @@
 import { create } from 'zustand';
 
+export type DictationSuccessSummary = {
+  duration_seconds: number;
+  chunks: number;
+  chars: number;
+};
+
 export type DictationPhase =
   | { kind: 'idle' }
   | { kind: 'warming'; model_id: string }
   | { kind: 'listening'; started_at_ms: number }
   | { kind: 'processing' }
-  | { kind: 'success' }
+  // `summary` is populated for meeting-mode recordings so the floating
+  // bar can render "5:01 · 11 chunks · 799 chars" instead of the generic
+  // "Inserted" pill. Optional — ordinary dictations omit it.
+  | { kind: 'success'; summary?: DictationSuccessSummary }
   | { kind: 'error'; message: string }
   | { kind: 'cancelled' }
   // v0.6.6 — the clip had no usable speech; bar shows "No audio detected"
