@@ -715,12 +715,13 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 
 ---
 
-## 12. Current state (2026-04-27, post-v0.9.0 beta ship)
+## 12. Current state (2026-04-27, post-v0.12.0 stable ship)
 
 ### Desktop app
-- **Last publicly-shipped stable:** `v0.8.7` (admin release row id=19, 2026-04-26). Shown on `/download`. Stable channel covers v0.7.0 → v0.8.7.
-- **Beta channel:** `v0.8.8` (id=20, unsigned) and `v0.9.0` (id=21, **Ed25519-signed**).
-- **In-tree version:** `v0.9.0` across `package.json`, `Cargo.toml`, `tauri.conf.json` — same as the beta-published binary.
+- **Last publicly-shipped stable:** `v0.12.0` (admin release row id=26, 2026-04-27). Shown on `/download` with the `latest` pill. Stable channel: v0.7.0 → v0.8.7 → v0.10.0 → v0.12.0.
+- **Beta channel:** `v0.11.1` (id=22). Will be superseded the next time a `0.x.y` patch ships.
+- **In-tree version:** `v0.12.0` across `package.json`, `Cargo.toml`, `tauri.conf.json` — matches the published binary. Tag `v0.12.0` points at commit `4efe95a`.
+- **Versioning convention** (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)): `0.x.0` minor = mainline / stable, `0.x.y` patch = beta soak. v0.11.0 / v0.11.1 were the soak; v0.12.0 promotes them to stable plus adds IT-deployment + studio-brand work.
 - v0.6.1 was pulled (crashes); v0.6.2–v0.6.9 were internal-only iterations. All their user-facing fixes rolled forward into v0.7.0.
 - **Tauri IPC crash** — patched via vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). See §10.9.
 - Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed.
