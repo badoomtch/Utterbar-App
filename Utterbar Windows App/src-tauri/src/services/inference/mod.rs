@@ -138,6 +138,41 @@ impl InferenceOrchestrator {
         audio: AudioBuffer,
         opts: AsrOptions,
     ) -> Result<AsrResult> {
+        // Long-input guard. Every shipping provider today (sherpa Parakeet,
+        // sherpa Whisper, sherpa Zipformer) calls into the offline native
+        // recogniser, which allocates O(duration) memory inside ONNX
+        // Runtime. Crashes have been observed at ~30+ minutes (see the
+        // analyse-crash dump for utterbar.exe.73872.dmp on 2026-04-27 —
+        // FAIL_FAST_FATAL_APP_EXIT_c0000409 inside
+        // SherpaOnnxDecodeOfflineStream after ~5 min of processing on a
+        // 30-min recording).
+        //
+        // Until the streaming-recogniser path lands (Phase 1 of the
+        // STREAMING_PLAN), refuse anything over 5 min with a clear,
+        // recoverable user-facing error rather than silently OOMing the
+        // whole process. The user keeps the recording (the audio buffer
+        // is owned by the caller — we don't take it on early-return) and
+        // can split it manually if they need to transcribe today.
+        const MAX_TRANSCRIBE_SECONDS: u32 = 5 * 60; // 5 minutes
+        let duration_seconds =
+            (audio.pcm.len() as u64 / audio.sample_rate.max(1) as u64) as u32;
+        if duration_seconds > MAX_TRANSCRIBE_SECONDS {
+            tracing::warn!(
+                model_id,
+                duration_seconds,
+                cap_seconds = MAX_TRANSCRIBE_SECONDS,
+                "transcribe refused: input exceeds the offline-recogniser safety cap. \
+                 the streaming path is on the way."
+            );
+            return Err(anyhow!(
+                "Recording is {duration_seconds}s. Until the streaming path ships, \
+                 transcription is capped at {cap}s to avoid a known offline-decoder \
+                 crash on long inputs. Split the audio into shorter clips, or wait \
+                 for the next beta which removes this limit.",
+                cap = MAX_TRANSCRIBE_SECONDS
+            ));
+        }
+
         let provider = self.ensure_loaded(model_id).await?;
         let result = provider.transcribe(audio, opts).await;
 

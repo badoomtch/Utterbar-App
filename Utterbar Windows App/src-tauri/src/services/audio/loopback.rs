@@ -327,12 +327,30 @@ fn run_loopback(
                 }
 
                 if let Ok(mut buf) = buffer.lock() {
-                    // Match the cap in `capture::MAX_BUFFERED_SAMPLES` — 30 minutes at
-                    // 16 kHz, plenty for legitimate use, strict against the orphan-thread
-                    // leak that surfaced in 0.3.x (buffer grew unbounded in zombie
-                    // threads after AudioService lost track of the handle).
-                    if buf.len() < (TARGET_RATE as usize) * 60 * 30 {
+                    // Match the cap in `capture::MAX_BUFFERED_SAMPLES` — 8 hours at
+                    // 16 kHz, a leak backstop rather than a feature limit. See the
+                    // comment on MAX_BUFFERED_SAMPLES in capture.rs for the history
+                    // (0.12.1: lifted from 30 min to 8 h after a user lost the last
+                    // 10 min of a meeting to silent truncation).
+                    const LOOPBACK_CAP: usize = (TARGET_RATE as usize) * 60 * 60 * 8;
+                    if buf.len() + pcm.len() <= LOOPBACK_CAP {
                         buf.extend_from_slice(&pcm);
+                    } else {
+                        let room = LOOPBACK_CAP.saturating_sub(buf.len());
+                        if room > 0 {
+                            buf.extend_from_slice(&pcm[..room]);
+                        }
+                        // Fire-once warning, like capture.rs's append_capped helper.
+                        // Loopback uses a static AtomicBool because the closure is
+                        // generated once per session via spawn_loopback_thread.
+                        use std::sync::atomic::{AtomicBool, Ordering};
+                        static CAP_HIT: AtomicBool = AtomicBool::new(false);
+                        if !CAP_HIT.swap(true, Ordering::AcqRel) {
+                            tracing::warn!(
+                                "loopback: max-recording-length safety cap reached; new system-audio is being dropped. \
+                                 stop and start a new recording."
+                            );
+                        }
                     }
                 }
                 let _ = frames_tx.try_send(pcm);

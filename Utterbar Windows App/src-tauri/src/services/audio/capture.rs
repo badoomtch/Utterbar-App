@@ -14,13 +14,59 @@ use super::InputDevice;
 
 pub const TARGET_RATE: u32 = 16_000;
 
-/// Safety cap on the in-thread PCM buffer. Normal recordings are seconds to a few
-/// minutes; anything past this means we've been orphaned somehow. Stop appending instead
-/// of growing unbounded — the capture thread will keep running (the cpal stream needs a
-/// live callback) but memory stays flat until the outer `stop()` is called.
+/// Safety cap on the in-thread PCM buffer. The cap exists as a leak backstop:
+/// if `stop()` is somehow never called, the buffer must not grow unbounded.
+/// It is NOT meant to be a feature limit on recording length.
 ///
-/// 30 minutes × 16 kHz × 2 bytes ≈ 58 MB. Generous for legitimate use, strict vs leaks.
-const MAX_BUFFERED_SAMPLES: usize = (TARGET_RATE as usize) * 60 * 30;
+/// Sized at 8 hours: 8 × 60 × 60 × 16_000 = 460,800,000 samples ≈ 920 MB at
+/// i16 mono 16 kHz. Comfortably above any plausible legitimate use (multi-
+/// hour conferences, lectures, meetings) without permitting a runaway leak
+/// to consume all of system RAM. Pre-0.12.1 the cap was 30 minutes and
+/// triggered SILENTLY — the capture callback would simply stop appending,
+/// the user would record for an hour and lose the last 30 minutes with no
+/// warning. From 0.12.1 the cap logs a single warning per session when
+/// hit, and the cap itself is comfortable enough that hitting it almost
+/// always indicates a leak rather than a long meeting.
+const MAX_BUFFERED_SAMPLES: usize = (TARGET_RATE as usize) * 60 * 60 * 8;
+
+/// Append `pcm` to `buf` if there is headroom under the safety cap. If
+/// the cap is hit, log a warning ONCE per `cap_hit` flag (caller-owned
+/// AtomicBool) so the log doesn't flood when the callback fires every
+/// few ms after the cap. Returns true when the append happened.
+///
+/// Centralising this so the three SampleFormat branches (F32 / I16 / U16)
+/// don't drift apart on the truncation logic.
+fn append_capped(
+    buf: &mut Vec<i16>,
+    pcm: &[i16],
+    cap_hit: &AtomicBool,
+    label: &'static str,
+) -> bool {
+    if buf.len() + pcm.len() <= MAX_BUFFERED_SAMPLES {
+        buf.extend_from_slice(pcm);
+        true
+    } else {
+        // Top up to exactly the cap if we're partly over, then drop the
+        // tail. Better than dropping the whole chunk: the user still
+        // gets a continuous recording up to the limit.
+        let room = MAX_BUFFERED_SAMPLES.saturating_sub(buf.len());
+        if room > 0 {
+            buf.extend_from_slice(&pcm[..room]);
+        }
+        // First time we trip the cap, complain loudly. After that, stay
+        // quiet — the cpal callback fires every few ms.
+        if !cap_hit.swap(true, Ordering::AcqRel) {
+            tracing::warn!(
+                source = label,
+                cap_samples = MAX_BUFFERED_SAMPLES,
+                cap_minutes = MAX_BUFFERED_SAMPLES / (TARGET_RATE as usize * 60),
+                "capture: max-recording-length safety cap reached; new audio is being dropped. \
+                 stop the recording and start a new one."
+            );
+        }
+        false
+    }
+}
 
 /// Handle returned to the rest of the app. All fields are `Send + Sync` — the cpal
 /// stream itself is confined to the dedicated capture thread.
@@ -146,11 +192,18 @@ fn run_capture(
     let mut meter_count: u32 = 0;
     let meter_window = (src_rate as f32 / 30.0) as u32;
 
+    // Once-per-session cap-hit flag, shared across all three sample-format
+    // callbacks so the warning fires exactly once if the cap is ever
+    // reached. Wrapped in Arc because the cpal callback closure is
+    // `move`-captured into a separate thread.
+    let cap_hit = Arc::new(AtomicBool::new(false));
+
     let stream_result = match sample_format {
         SampleFormat::F32 => {
             let frames_tx = frames_tx.clone();
             let meter_tx = meter_tx.clone();
             let buffer = buffer.clone();
+            let cap_hit = cap_hit.clone();
             device.build_input_stream(
                 &config,
                 move |data: &[f32], _| {
@@ -169,9 +222,7 @@ fn run_capture(
                         }
                     }
                     if let Ok(mut buf) = buffer.lock() {
-                        if buf.len() < MAX_BUFFERED_SAMPLES {
-                            buf.extend_from_slice(&pcm);
-                        }
+                        append_capped(&mut buf, &pcm, &cap_hit, "capture/f32");
                     }
                     let _ = frames_tx.try_send(pcm);
                 },
@@ -183,6 +234,7 @@ fn run_capture(
             let frames_tx = frames_tx.clone();
             let meter_tx = meter_tx.clone();
             let buffer = buffer.clone();
+            let cap_hit = cap_hit.clone();
             device.build_input_stream(
                 &config,
                 move |data: &[i16], _| {
@@ -201,9 +253,7 @@ fn run_capture(
                         }
                     }
                     if let Ok(mut buf) = buffer.lock() {
-                        if buf.len() < MAX_BUFFERED_SAMPLES {
-                            buf.extend_from_slice(&pcm);
-                        }
+                        append_capped(&mut buf, &pcm, &cap_hit, "capture/i16");
                     }
                     let _ = frames_tx.try_send(pcm);
                 },
@@ -214,15 +264,14 @@ fn run_capture(
         SampleFormat::U16 => {
             let frames_tx = frames_tx.clone();
             let buffer = buffer.clone();
+            let cap_hit = cap_hit.clone();
             device.build_input_stream(
                 &config,
                 move |data: &[u16], _| {
                     let conv: Vec<i16> = data.iter().map(|v| v.to_sample::<i16>()).collect();
                     let pcm = downmix_and_resample_i16(&conv, channels, src_rate);
                     if let Ok(mut buf) = buffer.lock() {
-                        if buf.len() < MAX_BUFFERED_SAMPLES {
-                            buf.extend_from_slice(&pcm);
-                        }
+                        append_capped(&mut buf, &pcm, &cap_hit, "capture/u16");
                     }
                     let _ = frames_tx.try_send(pcm);
                 },
