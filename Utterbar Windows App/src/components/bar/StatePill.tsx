@@ -64,6 +64,13 @@ function describe(phase: DictationPhase) {
       return { label: 'Recording', tone: 'accent' as const };
     case 'processing':
       return { label: 'Processing', tone: 'accent' as const };
+    case 'transcribing_background':
+      // Meeting mode's chunked transcribe pass. Same visual treatment as
+      // Processing (accent tone, same dot) but the copy tells the user
+      // what's actually happening — "Transcribing meeting…" — instead
+      // of the generic "Processing" that for a 5-min meeting can sit on
+      // screen for ~17 s with no context.
+      return { label: 'Transcribing meeting…', tone: 'accent' as const };
     case 'success':
       // Meeting-mode success carries a summary so the user gets concrete
       // feedback ("5:01 · 11 chunks · 799 chars") instead of the generic

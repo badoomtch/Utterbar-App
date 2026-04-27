@@ -36,6 +36,16 @@ pub enum DictationPhase {
         started_at_ms: i64,
     },
     Processing,
+    /// Meeting-mode-specific phase, emitted between capture-drain and
+    /// the final Success. Indistinguishable from Processing for the
+    /// recogniser's perspective — the chunked transcribe is running —
+    /// but the bar shows "Transcribing meeting…" instead of
+    /// "Processing", and the user can start a new recording during
+    /// this window because the orchestrator's transcribe-in-flight
+    /// guard has been released early. The new capture's eventual
+    /// transcribe will queue behind the in-flight one via the
+    /// orchestrator's existing write-lock.
+    TranscribingBackground,
     /// Recording finished cleanly. Optional `summary` is populated for
     /// meeting-mode recordings so the floating bar can show
     /// "5:01 · 11 chunks · 799 chars" for ~3 s before decaying to idle —

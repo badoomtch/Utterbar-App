@@ -445,7 +445,8 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
             }
             DictationPhase::Listening { .. }
             | DictationPhase::Warming { .. }
-            | DictationPhase::Processing => {
+            | DictationPhase::Processing
+            | DictationPhase::TranscribingBackground => {
                 // Active phase started between the scheduling and now.
                 // Leaving it alone is the whole point of this guard.
                 tracing::info!(
@@ -949,10 +950,26 @@ pub async fn stop_recording(
             // the same error via its own error path. We don't abort here
             // to keep one unified failure handler.
         } else {
-            // Warm finished — snap from Warming to Processing so the bar
-            // reads correctly for the final inference stage.
-            set_phase(&handle, DictationPhase::Processing).await;
+            // Warm finished — snap to the right phase for the final
+            // inference stage. Meeting mode gets its own phase so the bar
+            // reads "Transcribing meeting…" while the chunked transcribe
+            // runs (otherwise a 5-minute meeting and a 5-second dictation
+            // both just read "Processing", which gives the user no
+            // indication of what's happening or how long it'll take).
+            let phase = if mode.is_meeting_mode {
+                DictationPhase::TranscribingBackground
+            } else {
+                DictationPhase::Processing
+            };
+            set_phase(&handle, phase).await;
         }
+    } else if mode.is_meeting_mode {
+        // Warm path: we're already past Listening into Processing
+        // (emitted earlier in stop_recording). Snap to the meeting-
+        // specific phase so the bar shows the "Transcribing meeting…"
+        // copy instead of the generic "Processing" pill while the
+        // chunked transcribe runs.
+        set_phase(&handle, DictationPhase::TranscribingBackground).await;
     }
     // Meeting mode: chunk the audio into 30 s windows and transcribe
     // each, stitching the results back together. The non-meeting path
@@ -1397,6 +1414,7 @@ async fn set_phase(handle: &AppHandle, phase: DictationPhase) {
         DictationPhase::Warming { .. } => "warming",
         DictationPhase::Listening { .. } => "listening",
         DictationPhase::Processing => "processing",
+        DictationPhase::TranscribingBackground => "transcribing_background",
         DictationPhase::Success { .. } => "success",
         DictationPhase::Error { .. } => "error",
         DictationPhase::Cancelled => "cancelled",

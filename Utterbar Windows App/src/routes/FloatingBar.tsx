@@ -215,7 +215,8 @@ export function FloatingBar() {
   const activePhase =
     phase.kind === 'listening' ||
     phase.kind === 'processing' ||
-    phase.kind === 'warming';
+    phase.kind === 'warming' ||
+    phase.kind === 'transcribing_background';
   const terminal =
     phase.kind === 'success' ||
     phase.kind === 'error' ||

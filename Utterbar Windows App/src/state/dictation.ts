@@ -11,6 +11,11 @@ export type DictationPhase =
   | { kind: 'warming'; model_id: string }
   | { kind: 'listening'; started_at_ms: number }
   | { kind: 'processing' }
+  // Meeting-mode chunked transcribe is running. Visually distinct from
+  // Processing so the user can tell that a long meeting is in flight
+  // (and roughly how long it'll take — chunked transcribe is ~real-time
+  // on Parakeet, so "5 minutes of audio" → "expect ~17 s of this state").
+  | { kind: 'transcribing_background' }
   // `summary` is populated for meeting-mode recordings so the floating
   // bar can render "5:01 · 11 chunks · 799 chars" instead of the generic
   // "Inserted" pill. Optional — ordinary dictations omit it.
