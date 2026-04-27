@@ -56,12 +56,12 @@ const ALL_IDS = [
 // little extra hold for the still to feel composed.
 const POSTER_FRAMES = {
   'ad-13-the-product': 320,
-  // Shot 2 of ad-14, frame 200 (=6.67s). Shot 2 starts at global frame
-  // 75; the dictated sentence finishes its 0.5s paste-in by frame 198
-  // (global), and the field's accent glow holds through frame 222.
-  // Frame 200 = full sentence locked in, glow at peak — the strongest
-  // single-frame summary of the ad.
-  'ad-14-local-dictation': 200,
+  // Shot 2 of ad-14 (v2 pacing). Shot 2 spans global frames 105-345.
+  // Internal beat: sentence finishes paste at internal f(3.7) = global
+  // frame 216. Glow holds at peak from internal 3.5-7.0 = global 210-315.
+  // Frame 240 (=8.0s) sits squarely in the held-readable centre — full
+  // sentence in the field, accent glow at peak, pill back to idle.
+  'ad-14-local-dictation': 240,
 };
 
 const target = process.argv[2];

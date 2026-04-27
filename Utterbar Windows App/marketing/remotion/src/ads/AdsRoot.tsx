@@ -50,7 +50,7 @@ export function AdsRoot() {
       <Composition id="ad-11-no-account"         component={Ad11NoAccount}        durationInFrames={SEC(13.0)} {...VERTICAL} />
       <Composition id="ad-12-founders-note"      component={Ad12FoundersNote}     durationInFrames={SEC(22.0)} {...VERTICAL} />
       <Composition id="ad-13-the-product"        component={Ad13TheProduct}       durationInFrames={SEC(30.0)} {...VERTICAL} />
-      <Composition id="ad-14-local-dictation"    component={Ad14LocalDictation}   durationInFrames={SEC(30.0)} {...LANDSCAPE} />
+      <Composition id="ad-14-local-dictation"    component={Ad14LocalDictation}   durationInFrames={SEC(45.0)} {...LANDSCAPE} />
     </>
   );
 }
