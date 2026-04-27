@@ -32,7 +32,7 @@ export function PrivacySettings() {
   // screen intentionally drives every field through a generic `update(key, value)`
   // helper so the JSX stays flat. Cast once here to a loose index so the per-field
   // reads/writes don't each need their own narrowing. Fields that aren't scalar
-  // (conferencing_apps_override: string[]) are never touched through `p` — they go
+  // (conferencing_apps_override: string[]) are never touched through `p`, they go
   // through `s.privacy.*` directly below.
   const p = s.privacy as unknown as Record<string, boolean | number>;
 
@@ -82,7 +82,7 @@ export function PrivacySettings() {
           {!pro && (
             <ProNudge
               feature="Audio retention"
-              description="Keep a local WAV of every dictation so you can re-listen or re-transcribe it later. Stored on your disk only — never uploaded."
+              description="Keep a local WAV of every dictation so you can re-listen or re-transcribe it later. Stored on your disk only, never uploaded."
               dense
               className="mt-1"
             />
@@ -121,7 +121,7 @@ export function PrivacySettings() {
           </Row>
           <Row
             label="Mute conferencing apps while recording"
-            description="Silences Teams, Slack, Discord, Zoom, and Webex output audio while you're dictating, so call audio doesn't bleed into the room. Restored the moment dictation ends. Doesn't mute your mic to those apps — use the app's own mute button for that."
+            description="Silences Teams, Slack, Discord, Zoom, and Webex output audio while you're dictating, so call audio doesn't bleed into the room. Restored the moment dictation ends. Doesn't mute your mic to those apps, use the app's own mute button for that."
           >
             <Toggle
               checked={Boolean(p.mute_conferencing_while_recording)}

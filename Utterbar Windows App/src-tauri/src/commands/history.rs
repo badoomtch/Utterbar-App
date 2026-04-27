@@ -120,6 +120,14 @@ pub async fn reprocess_history(
     Ok(entry)
 }
 
+/// Distinct app executables that appear in the history. Used by the
+/// History page to populate its "App" filter dropdown — far cheaper
+/// than the frontend deriving the set on every reload.
+#[tauri::command]
+pub async fn list_history_apps(state: State<'_, Arc<AppState>>) -> CmdResult<Vec<String>> {
+    state.history.distinct_app_exes().map_err(OrliqError::from)
+}
+
 #[tauri::command]
 pub async fn export_history(
     state: State<'_, Arc<AppState>>,

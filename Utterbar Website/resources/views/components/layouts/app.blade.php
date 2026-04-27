@@ -11,7 +11,7 @@
 
     @php
         $t = $title ?? null;
-        $pageTitle = $t ? "$t — " . config('site.name') : config('site.name') . ' — ' . config('site.tagline');
+        $pageTitle = $t ? "$t · " . config('site.name') : config('site.name') . ' · ' . config('site.tagline');
         $desc = $description ?? config('site.description');
         $canonical = url()->current();
 
@@ -59,14 +59,14 @@
     <meta property="og:image"        content="{{ $ogImage }}">
     <meta property="og:image:width"  content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt"    content="Utterbar — dictation that stays on your PC">
+    <meta property="og:image:alt"    content="Utterbar. Dictation that stays on your PC.">
 
     {{-- Twitter Card --}}
     <meta name="twitter:card"        content="summary_large_image">
     <meta name="twitter:title"       content="{{ $pageTitle }}">
     <meta name="twitter:description" content="{{ $desc }}">
     <meta name="twitter:image"       content="{{ $ogImage }}">
-    <meta name="twitter:image:alt"   content="Utterbar — dictation that stays on your PC">
+    <meta name="twitter:image:alt"   content="Utterbar. Dictation that stays on your PC.">
 
     {{-- Favicons + app icons --}}
     <link rel="icon"             href="/favicon.svg?v=3" type="image/svg+xml">

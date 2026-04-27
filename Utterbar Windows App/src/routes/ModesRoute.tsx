@@ -14,7 +14,7 @@ type Mode = EditableMode;
 type ModelInfo = { id: string; display_name: string };
 
 /**
- * Modes — output-shaping presets.
+ * Modes, output-shaping presets.
  *
  * Per DESIGN_SYSTEM.md §8.2 the active mode row wears the canonical
  * ub-item-active treatment (2px cyan rail + bg-2 lift). The "Set active"
@@ -75,7 +75,7 @@ export function ModesRoute() {
 
   const createNew = () => {
     // Authoring custom modes is Pro-only at the backend. Gate the UI action
-    // so we never open an editor that will later fail on save — surface the
+    // so we never open an editor that will later fail on save, surface the
     // upgrade pitch at the click instead.
     if (!pro) {
       setUpgradePrompt(MODE_NEW_PROMPT);
@@ -125,7 +125,7 @@ export function ModesRoute() {
             variant="cta"
             size="sm"
             onClick={createNew}
-            // Free users still get to click — the handler opens the upgrade
+            // Free users still get to click, the handler opens the upgrade
             // modal instead of the editor. A disabled button read as "the
             // app forgot how to let me make a mode"; this reads as "the app
             // knows what I'm trying to do and is telling me what it costs".
@@ -139,7 +139,7 @@ export function ModesRoute() {
       {!pro && (
         <ProNudge
           feature="Custom modes"
-          description="The built-ins are yours to use — Pro unlocks authoring your own: per-app auto-activation, your own templates, and custom post-processing rules."
+          description="The built-ins are yours to use, Pro unlocks authoring your own: per-app auto-activation, your own templates, and custom post-processing rules."
           className="mt-5"
         />
       )}
@@ -177,7 +177,7 @@ export function ModesRoute() {
               </div>
 
               {active ? (
-                /* Live chip per §6.3 .ub-chip--live — cyan LED + accent text
+                /* Live chip per §6.3 .ub-chip--live, cyan LED + accent text
                    on a cyan-tinted background. No button semantics; clicking
                    the row while it's already active is a no-op. */
                 <span className="ub-chip ub-chip--live">
@@ -236,7 +236,7 @@ export function ModesRoute() {
 // Pro-upgrade copy lives next to the component so tweaking the pitch
 // doesn't mean chasing inline-string props across JSX. The two prompts
 // share a bullet set but open with different sentences so the user gets
-// the same Pro pitch regardless of the action they attempted — only the
+// the same Pro pitch regardless of the action they attempted, only the
 // framing changes.
 const MODE_PRO_BULLETS = [
   'Author your own modes with custom ASR, formatting, and post-processing',
@@ -248,7 +248,7 @@ const MODE_PRO_BULLETS = [
 const MODE_NEW_PROMPT = {
   feature: 'Custom modes',
   description:
-    "The built-ins are yours to use — Pro unlocks authoring your own, so you can shape output for a specific app or writing style.",
+    "The built-ins are yours to use, Pro unlocks authoring your own, so you can shape output for a specific app or writing style.",
   bullets: MODE_PRO_BULLETS,
 };
 

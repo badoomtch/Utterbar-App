@@ -8,7 +8,7 @@ import { Select, type SelectOption } from '@/components/common/Select';
 import { ScoreBars } from '@/components/common/ScoreBars';
 import { Toggle } from '@/components/common/Toggle';
 
-// Sentinel for "keep the model loaded forever" — matches the u32::MAX
+// Sentinel for "keep the model loaded forever", matches the u32::MAX
 // special case in `services/inference/mod.rs` (both the inline unload
 // and the idle sweeper short-circuit on this value).
 const FOREVER = 4_294_967_295; // u32::MAX
@@ -44,7 +44,7 @@ const ENGINE_LABEL: Record<string, string> = {
 };
 
 /** Whisper language picker shortlist. ~20 most common languages plus
- *  Auto-detect at the top. Whisper itself supports ~99 languages — if
+ *  Auto-detect at the top. Whisper itself supports ~99 languages, if
  *  someone needs a less common one, they can edit `whisper_language`
  *  in the settings JSON directly (advanced path). The shortlist keeps
  *  the visible UI manageable and covers the realistic 95% of users. */
@@ -87,7 +87,7 @@ type Progress = {
 export function ModelsSettings() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [progress, setProgress] = useState<Record<string, Progress>>({});
-  // `loadedId` is the id of the model currently resident in memory — null
+  // `loadedId` is the id of the model currently resident in memory, null
   // when the orchestrator is cold. We poll every 2s while this page is
   // mounted so the "Ready / Idle" badge below stays accurate without
   // wiring AppHandle into the inference orchestrator just for an event.
@@ -187,7 +187,7 @@ export function ModelsSettings() {
       <Card
         className="mt-6"
         title="Default model"
-        description="Used by any mode that hasn't pinned a specific model. Modes can still override this — the setting here is the fallback your whole app uses by default."
+        description="Used by any mode that hasn't pinned a specific model. Modes can still override this, the setting here is the fallback your whole app uses by default."
         aside={<ModelRuntimeBadge loadedId={loadedId} />}
       >
         {installedModels.length === 0 ? (
@@ -216,7 +216,7 @@ export function ModelsSettings() {
       </Card>
 
       {/* Whisper language hint. Only relevant when a Whisper model is
-          installed — the picker hides otherwise so the page doesn't
+          installed, the picker hides otherwise so the page doesn't
           surface controls that don't apply to the user's setup.
           "Auto-detect" is the default and best for users who dictate in
           more than one language; pinning a specific language is a
@@ -241,11 +241,11 @@ export function ModelsSettings() {
       <Card
         className="mt-4"
         title="Keep-warm duration"
-        description="The first dictation after a cold start loads the model into memory — that one takes a few seconds. Subsequent dictations while the model is warm feel near-instant. We keep the model loaded for a while after each use so you don't pay the cold-start cost on every burst of speech."
+        description="The first dictation after a cold start loads the model into memory, that one takes a few seconds. Subsequent dictations while the model is warm feel near-instant. We keep the model loaded for a while after each use so you don't pay the cold-start cost on every burst of speech."
       >
         {/* Keep-loaded-forever sentinel. Backed in services/inference: when
             warm_duration_secs is u32::MAX the inline-unload skips and the
-            idle sweeper short-circuits — the model stays resident until
+            idle sweeper short-circuits, the model stays resident until
             the app exits or an explicit reload (e.g. default-model switch). */}
         <div className="flex items-center gap-3 text-[12px] text-muted">
           <Flame className="h-4 w-4 text-accent" />
@@ -311,7 +311,7 @@ export function ModelsSettings() {
               <li key={m.id} className="py-4">
                 <div className="flex items-start gap-4">
                   <div className="flex-1">
-                    {/* Weight 700 — font-semibold (600) forbidden per §2.3. */}
+                    {/* Weight 700, font-semibold (600) forbidden per §2.3. */}
                     <div className="flex items-center gap-2 text-[14px] font-bold text-fg-hi">
                       {m.display_name}
                       {m.recommended && (
@@ -334,7 +334,7 @@ export function ModelsSettings() {
                         {m.description}
                       </p>
                     )}
-                    {/* Paired comparison bars — makes the trade-offs between
+                    {/* Paired comparison bars, makes the trade-offs between
                         the int8 / v3 / fp16 variants legible without the
                         user having to parse the descriptions against each
                         other. Hidden automatically when both scores are 0
@@ -347,7 +347,7 @@ export function ModelsSettings() {
                     {locked && (
                       <ProNudge
                         feature={m.display_name}
-                        description="The higher-precision fp16 model is part of Pro. It's the accuracy ceiling of the Parakeet family and benefits from a real GPU — same privacy guarantees as every other model (never leaves your machine)."
+                        description="The higher-precision fp16 model is part of Pro. It's the accuracy ceiling of the Parakeet family and benefits from a real GPU, same privacy guarantees as every other model (never leaves your machine)."
                         dense
                         className="mt-3 max-w-xl"
                       />
@@ -397,18 +397,18 @@ export function ModelsSettings() {
 /**
  * Subtle runtime-state badge shown next to "Default model".
  *
- * ASR models are lazily loaded — the first dictation after launch pays a
+ * ASR models are lazily loaded, the first dictation after launch pays a
  * 1–3 s load cost (ONNX session init, GPU upload) and subsequent dictations
  * land near-instant while the model stays warm. Users who don't know this
  * experience the first-dictation lag as "the app is slow" with no visible
  * reason. This badge makes the cold/warm state legible:
  *
- *   • Ready  — model is resident in memory, next dictation is instant.
+ *   • Ready , model is resident in memory, next dictation is instant.
  *              Cyan LED + `text-accent`, single beat of the cyan budget.
- *   • Idle   — orchestrator is cold, next dictation will take a moment.
+ *   • Idle  , orchestrator is cold, next dictation will take a moment.
  *              Muted dot + `text-muted`, sits back into the card chrome.
  *
- * Deliberately small and quiet — this is meta, not a control. Don't give
+ * Deliberately small and quiet, this is meta, not a control. Don't give
  * it the ub-chip active treatment.
  */
 function ModelRuntimeBadge({ loadedId }: { loadedId: string | null }) {

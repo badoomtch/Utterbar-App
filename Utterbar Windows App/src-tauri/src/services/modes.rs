@@ -130,10 +130,15 @@ impl ModeService {
     }
 
     /// Walk every mode and return the first whose auto-activation rules match
-    /// the given foreground-app signals. Unused today — the context service is
-    /// scaffolded but not yet feeding the active-mode switcher — but this is the
-    /// one-call entry the eventual auto-switch wiring will use.
-    #[allow(dead_code)]
+    /// the given foreground-app signals.
+    ///
+    /// Precedence is intentionally simple and deterministic: rules are
+    /// evaluated in `sort_order` (the order modes appear in the user's
+    /// list — favourites bubble up via the same sort). The first mode
+    /// whose first-matching rule fires is the winner. Within a single
+    /// mode, rules are evaluated in array order; first hit wins. No
+    /// scoring, no specificity, no priority field — if you want a mode
+    /// to take precedence, drag it above the others in the editor.
     pub fn match_auto_activation(
         &self,
         exe: Option<&str>,
@@ -196,9 +201,6 @@ fn row_to_mode(row: &rusqlite::Row) -> rusqlite::Result<Mode> {
 }
 
 // Simple glob: supports `*` wildcards, case-insensitive.
-// Only called from `match_auto_activation`, which is scaffolded but not yet wired —
-// same rationale for the allow.
-#[allow(dead_code)]
 fn glob(haystack: &str, pattern: &str) -> bool {
     let h = haystack.to_lowercase();
     let p = pattern.to_lowercase();

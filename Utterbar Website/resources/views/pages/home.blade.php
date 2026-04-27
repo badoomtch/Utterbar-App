@@ -9,18 +9,18 @@
     ];
 
     $faqs = [
-        ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run — and those are logged so you can read them.'],
+        ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run, and those are logged so you can read them.'],
         ['q' => 'Which Windows versions work?', 'a' => 'Windows 10 22H2 and Windows 11, x86_64. WebView2 is required (already on Windows 11; auto-bootstrapped on Windows 10).'],
         ['q' => 'Do I need a GPU?', 'a' => 'No. The default Parakeet v3 build runs comfortably on any modern CPU. GPU acceleration (DirectML on any DX12 card, CUDA on NVIDIA) is supported and speeds things up if you have one, but it isn\'t required.'],
-        ['q' => 'What languages does it support?', 'a' => 'Over 30 out of the box — English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and more. English uses Parakeet by default for speed; everything else uses Whisper. Pick a default in Settings → Models, or leave it on auto-detect.'],
-        ['q' => 'Does it work with Claude / ChatGPT / Gemini / Copilot?', 'a' => 'Yes. Utterbar isn\'t an integration — it types into whichever app has the cursor. So if your AI assistant lives in a browser tab or a desktop app, click the chat input, hold the hotkey, ask your question. The text lands in the input box exactly as if you\'d typed it. Works with every assistant; no API keys, no extensions, no per-app setup.'],
-        ['q' => 'How does it compare to the Mac-native ones?', 'a' => 'Same philosophy, different platform. The Mac alternatives are great if you\'re on Mac. Utterbar is Windows-native from day one — no Python shim, no Electron wrapper, smaller installer. Different camp, same conviction about local.'],
+        ['q' => 'What languages does it support?', 'a' => 'Over 30 out of the box: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and more. English uses Parakeet by default for speed; everything else uses Whisper. Pick a default in Settings → Models, or leave it on auto-detect.'],
+        ['q' => 'Does it work with Claude / ChatGPT / Gemini / Copilot?', 'a' => 'Yes. Utterbar isn\'t an integration. It types into whichever app has the cursor, so any chat input becomes a voice input. Click the input, hold the hotkey, ask. The text lands in the box as if you\'d typed it. No API key, no extension, no per-assistant setup.'],
+        ['q' => 'How does it compare to the Mac-native ones?', 'a' => 'Same philosophy, different platform. The Mac alternatives are great if you\'re on Mac. Utterbar is Windows-native from day one. No Python shim, no Electron wrapper, a smaller installer. Different camp, same conviction about local.'],
         ['q' => 'Why three engines instead of one?', 'a' => 'Each one is best at something different. Parakeet is fastest and most accurate on English. Whisper covers 30+ other languages. Zipformer is the smallest, for older PCs. The app picks sensibly by default; you can override in Settings → Models.'],
         ['q' => 'Can I use this in video-call and chat apps?', 'a' => 'Only for typing into the chat box. Utterbar transcribes your voice into text; it won\'t (and will never) inject audio into a call. Your colleagues hear nothing from Utterbar.'],
         ['q' => 'Does it work offline?', 'a' => 'Yes. Pull your ethernet cable mid-sentence and nothing changes. The app doesn\'t authenticate against anything.'],
         ['q' => 'Will there be a macOS version?', 'a' => 'Eventually, after Windows 1.0 ships. Mac already has decent local-only options; I\'d rather make Windows actually good first.'],
         ['q' => 'What happens to my data when I uninstall?', 'a' => '<code>%APPDATA%\\Utterbar\\</code> stays on disk so you can re-install without losing history. Delete the folder yourself for a clean wipe.'],
-        ['q' => 'Prove it really runs local.', 'a' => 'Start the app. Unplug your ethernet. Keep dictating. That\'s the proof. If you want harder evidence, sniff the network during a session — there isn\'t any after the model is downloaded.'],
+        ['q' => 'Prove it really runs local.', 'a' => 'Start the app. Unplug your ethernet. Keep dictating. That\'s the proof. If you want harder evidence, sniff the network during a session: there\'s nothing to see once the model has finished downloading.'],
     ];
 @endphp
 
@@ -385,10 +385,10 @@
                     Talk to <x-hl>AI</x-hl> at the speed of speech.
                 </h2>
                 <p class="ub-lead mt-6 max-w-2xl">
-                    Claude, ChatGPT, Gemini, Copilot, the local model you run yourself &mdash; whatever assistant lives in your browser, Utterbar dictates straight into it. People speak about three times faster than they type, and the assistant doesn&rsquo;t care which way the question arrived. Faster prompts, longer context, far fewer wrist breaks.
+                    Claude, ChatGPT, Gemini, Copilot, the local model you run on your own machine. Whichever one you already use, Utterbar dictates straight into the chat box. People speak about three times faster than they type. Longer prompts, fuller context, fewer sore wrists.
                 </p>
                 <p class="mt-4 max-w-2xl text-sm" style="color: var(--muted);">
-                    No browser extension. No API key. No integration. Press the hotkey, ask the question, the answer streams back.
+                    No browser extension. No API key. No integration. Click the input, hold the hotkey, ask the question. The reply streams back.
                 </p>
             </div>
             <div class="max-w-5xl mx-auto">
@@ -421,10 +421,10 @@
             <div class="max-w-3xl mb-10 md:mb-12">
                 <p class="ub-eyebrow">Learns your words</p>
                 <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
-                    Names, acronyms, product terms &mdash; <x-hl>fixed</x-hl>.
+                    Names, acronyms, product terms. <x-hl>Fixed</x-hl>.
                 </h2>
                 <p class="ub-lead mt-6 max-w-xl">
-                    Add your custom words and replacements once. Transcripts come out with &ldquo;J parrie&rdquo; as &ldquo;Jay Parry&rdquo; every single time, locally, on-device.
+                    Add your custom words and replacements once. From then on, &ldquo;J parrie&rdquo; comes out as &ldquo;Jay Parry&rdquo;. The fix happens on your machine, after the ASR runs, before the text is pasted.
                 </p>
             </div>
             <div class="max-w-5xl mx-auto">
@@ -442,7 +442,7 @@
                     Drop a meeting in. Get <x-hl>clean text</x-hl> out.
                 </h2>
                 <p class="ub-lead mt-6 max-w-xl">
-                    Existing recordings, podcasts, interviews &mdash; all transcribed on-device to a plain-text file next to the source. Same pipeline as the floating bar, just for files.
+                    Old recordings, podcasts, voice memos, an interview from last Tuesday. Drop the file in, get a plain-text transcript next to it. Same engine as the floating bar, longer audio.
                 </p>
             </div>
             <div class="max-w-5xl mx-auto">
@@ -454,7 +454,7 @@
     {{-- Pricing teaser --}}
     <x-section eyebrow="Pricing" title="Free forever. Pro once, for life." align="center">
         <p class="max-w-2xl mx-auto text-lg mb-10 text-center" style="color: var(--muted);">
-            The act of speaking isn't a premium feature, and I won't charge for it. Free covers everything a normal person needs. Pro is for power users who want file transcription, unlimited custom modes, and full audio history.
+            The act of speaking isn&rsquo;t a premium feature, and I won&rsquo;t charge for it. Free covers daily dictation in full. Pro adds file transcription, full audio history, unlimited custom modes, and the higher-accuracy multilingual engine.
         </p>
 
         <div class="max-w-4xl mx-auto rounded-2xl overflow-hidden" style="background: var(--bg-1);">
@@ -526,13 +526,13 @@
                         A note from the person building this
                     </p>
                     <p style="font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1.3; letter-spacing: -0.02em; font-weight: 400; color: var(--fg-hi);">
-                        I&rsquo;ve used dictation software for years. The cloud ones are fast but creepy; the local ones are fiddly and Mac-only. Utterbar is the app I wanted to exist on Windows &mdash; opinionated, native, local, and not renting me my own voice back.
+                        I&rsquo;ve used dictation software for years. The cloud ones are fast but creepy. The local ones are fiddly, and almost all of them are on Mac. Utterbar is the Windows app I wanted to exist: opinionated, native, local, not renting me my own voice back.
                     </p>
                     <p class="mt-6" style="font-size: 1.25rem; line-height: 1.55; color: var(--muted); font-weight: 300;">
-                        Free stays free because the core loop isn&rsquo;t a feature &mdash; it&rsquo;s the whole point. Pro exists so I can keep building it. If you&rsquo;ve read this far, that&rsquo;s genuinely appreciated.
+                        Free stays free because the core loop isn&rsquo;t a feature, it&rsquo;s the whole product. Pro exists so I can keep building. If you&rsquo;ve read this far, thank you.
                     </p>
                     <p class="mt-10 flex items-center gap-3 text-sm" style="color: var(--muted);">
-                        <span style="color: var(--fg-hi); font-weight: 500;">&mdash; Jay</span>
+                        <span style="color: var(--fg-hi); font-weight: 500;">Jay</span>
                         <span style="color: var(--border-strong);">&middot;</span>
                         <span class="font-mono" style="font-size: 0.75rem; letter-spacing: 0.08em;">BUILDING UTTERBAR</span>
                     </p>

@@ -14,5 +14,5 @@ return [
         'contact' => 'hello@utterbar.com',
     ],
 
-    'description' => 'Utterbar is a Windows-native, local-only dictation app. Press a hotkey, speak, type anywhere — offline, private, fast.',
+    'description' => 'Utterbar is a Windows-native, local-only dictation app. Press a hotkey, speak, type anywhere. Offline, private, fast.',
 ];

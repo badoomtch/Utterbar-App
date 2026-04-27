@@ -32,25 +32,25 @@ import { useSettings } from '@/state/settings';
 import { springs } from '@/design/motion';
 import { cn } from '@/lib/cn';
 
-// 9 steps — down from 10. The separate "Record a quick test" step is folded into the
+// 9 steps, down from 10. The separate "Record a quick test" step is folded into the
 // mic step now, since having both a mic-test bar and a subsequent record-test page
 // on back-to-back screens was confusing.
 // Order rationale: narrative first (welcome + privacy), then a single cosmetic pick
 // (theme) to warm the user up before any technical commitment. Then the functional
-// chain — install model → mic → typing baseline → trigger style → shortcut — flows
+// chain, install model → mic → typing baseline → trigger style → shortcut, flows
 // uninterrupted into the payoff (ready).
 const ALL_STEPS = [
   { id: 'welcome', title: 'Welcome to Utterbar' },
   { id: 'privacy', title: 'Everything local, always' },
   // Update-check consent sits immediately after the privacy step because it's
   // the one network call Utterbar makes by default. We surface the choice
-  // explicitly here rather than burying it in Settings — the local-only
+  // explicitly here rather than burying it in Settings, the local-only
   // ethos means the user should know there's a single, opt-out outbound
   // request and decide for themselves whether to keep it on.
   { id: 'updates', title: 'Update checks' },
   { id: 'theme', title: 'Pick a theme' },
   { id: 'model', title: 'Choose your ASR model' },
-  // `gpu` is conditionally included — only shown when a hardware GPU is detected.
+  // `gpu` is conditionally included, only shown when a hardware GPU is detected.
   { id: 'gpu', title: 'Use your GPU?' },
   { id: 'mic', title: 'Pick and test your microphone' },
   { id: 'baseline', title: 'Your typing speed' },
@@ -121,7 +121,7 @@ export function Onboarding() {
 
         `min-h-0` is load-bearing: a flex child's default `min-height`
         is `auto`, which means the child refuses to shrink below its
-        content height — so `overflow-y-auto` never engages and the
+        content height, so `overflow-y-auto` never engages and the
         footer ends up pushed off-screen on shorter windows. With
         min-h-0, the child happily shrinks to fit, and the inner
         scroll takes over. This was the root cause of the "can't
@@ -245,7 +245,7 @@ function StepContent({
 }
 
 function WelcomeStep() {
-  // Big logo + wordmark on the page itself — no framed wrapper. First impression
+  // Big logo + wordmark on the page itself, no framed wrapper. First impression
   // of the brand, so we let it breathe against bg-0.
   return (
     <div className="flex flex-col items-center text-center">
@@ -290,7 +290,7 @@ function Hero({ icon, title, body }: { icon: React.ReactNode; title: string; bod
 /**
  * Onboarding step asking the user whether to enable automatic update checks.
  *
- * The local-only ethos is the pitch — and the update check is the one
+ * The local-only ethos is the pitch, and the update check is the one
  * outbound network request Utterbar makes by default. We surface the
  * trade-off explicitly so the user makes an informed choice rather than
  * discovering it later in Settings → General.
@@ -324,7 +324,7 @@ function UpdateConsentStep() {
         <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-muted">
           Utterbar can occasionally ask <span className="text-fg-hi">utterbar.com</span> if a
           newer version is out. This is the only outbound request the app makes by default.
-          It sends just your current version — no usage, no telemetry, no identifiers.
+          It sends just your current version, no usage, no telemetry, no identifiers.
         </p>
       </div>
       <div className="mx-auto mt-6 flex max-w-md flex-col gap-2">
@@ -337,7 +337,7 @@ function UpdateConsentStep() {
           <div className="text-[14px] font-medium text-fg-hi">Yes, check for updates</div>
           <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
             Get a small toast when a new version is available. You always click Install
-            yourself — nothing downloads or runs in the background.
+            yourself, nothing downloads or runs in the background.
           </div>
         </RadioTile>
         <RadioTile
@@ -358,7 +358,7 @@ function UpdateConsentStep() {
 }
 
 /**
- * RadioTile — the universal "pick one of these" surface used by the model, gpu,
+ * RadioTile, the universal "pick one of these" surface used by the model, gpu,
  * and trigger steps. Replaces the legacy `border-accent/60 bg-accent/10` pattern
  * with the §1.3 active-state vocabulary: bg-bg-2 lift + 2px cyan left rail.
  */
@@ -471,7 +471,7 @@ function ModelPickStep() {
 
   // Initial load runs once per mount. `reload` is intentionally a closure
   // that captures state setters (all stable), so there's no benefit to
-  // re-subscribing on every change — but we still want the lint rule to
+  // re-subscribing on every change, but we still want the lint rule to
   // recognise this as deliberate, hence the eslint-disable.
   useEffect(() => {
     void reload();
@@ -497,7 +497,7 @@ function ModelPickStep() {
   }, []);
 
   // The ticker only cares about the current `phase`, not the full `progress`
-  // object — adding `progress` as a dep would reinstate the interval on
+  // object, adding `progress` as a dep would reinstate the interval on
   // every byte-progress event (many times per second during a big download).
   useEffect(() => {
     if (!progress) return;
@@ -556,7 +556,7 @@ function ModelPickStep() {
       case 'done':
         return 'Done.';
       case 'error':
-        return 'Error — see below.';
+        return 'Error, see below.';
     }
   })();
 
@@ -582,7 +582,7 @@ function ModelPickStep() {
         />
         <span>
           <span className="text-fg-hi">Dictating in another language?</span>{' '}
-          Pick the Whisper model below — it covers around 99 languages on the free tier.
+          Pick the Whisper model below, it covers around 99 languages on the free tier.
         </span>
       </div>
 
@@ -691,7 +691,7 @@ function ModelPickStep() {
 }
 
 /**
- * First sentence of the description — the card shows a punchy single line, the
+ * First sentence of the description, the card shows a punchy single line, the
  * Settings → Models page keeps the full version.
  */
 function shortDescription(_id: string, desc: string): string {
@@ -887,7 +887,7 @@ function MicAndTestStep() {
 
 /**
  * Sample sentences for the typing test. Each is ~15-20 words of plain English
- * with a mix of common letter patterns — no pangrams, no dense punctuation,
+ * with a mix of common letter patterns, no pangrams, no dense punctuation,
  * no numbers. A test that feels like "normal typing" gives a WPM closer to
  * the user's real baseline than a quote-with-em-dashes benchmark would.
  *
@@ -906,15 +906,15 @@ const TYPING_TEST_SENTENCES = [
 /**
  * Three-mode baseline step: measure, manual, or skip.
  *
- *   • measure — user types a provided sentence, WPM is calculated from the
+ *   • measure, user types a provided sentence, WPM is calculated from the
  *     elapsed time between the first keystroke and the sentence being
  *     correctly matched. A retry button throws away the current run.
- *   • manual  — the original slider (preserved so users who know their WPM
+ *   • manual , the original slider (preserved so users who know their WPM
  *     can still just punch in a number).
- *   • skip    — keeps the default 55 WPM and moves on.
+ *   • skip   , keeps the default 55 WPM and moves on.
  *
  * The measured WPM is rounded to the nearest 5 because anything finer is
- * noise for a single-sentence test — 47.3 WPM reads as false precision, 45
+ * noise for a single-sentence test, 47.3 WPM reads as false precision, 45
  * reads as an honest measurement.
  */
 function BaselineStep() {
@@ -946,7 +946,7 @@ function BaselineStep() {
     setTyped(v);
     // Finish the moment the user's typed text matches the sentence (trim
     // so a single trailing space doesn't gate them out). Using exact match
-    // keeps the test honest — if a user types the sentence wrong the run
+    // keeps the test honest, if a user types the sentence wrong the run
     // never auto-completes.
     if (v.trim() === sentence.trim() && startAt !== null) {
       const elapsedSec = (Date.now() - startAt) / 1000;
@@ -1109,7 +1109,7 @@ function BaselineStep() {
               onClick={beginMeasure}
               className="text-accent underline-offset-2 hover:underline"
             >
-              Change my mind — take the test
+              Change my mind, take the test
             </button>
           </div>
         </div>
@@ -1151,7 +1151,7 @@ function TriggerStep() {
   const [pick, setPick] = useState<'toggle' | 'hold_to_talk' | 'push_to_talk'>('toggle');
   // Two natural patterns first (toggle, hold), then the dual-purpose
   // hybrid. The previous copy described toggle and push-to-talk almost
-  // identically, which is fair confusion — the only real difference
+  // identically, which is fair confusion, the only real difference
   // between them is press *duration*, not behaviour after the press.
   const items = [
     {
@@ -1162,7 +1162,7 @@ function TriggerStep() {
     {
       id: 'hold_to_talk',
       label: 'Hold to talk',
-      desc: 'Hold the key down while speaking. Release to stop. Walkie-talkie style — good for short bursts.',
+      desc: 'Hold the key down while speaking. Release to stop. Walkie-talkie style, good for short bursts.',
     },
     {
       id: 'push_to_talk',
@@ -1240,7 +1240,7 @@ function ThemeStep() {
 /**
  * GPU acceleration pick. Only shown when the native probe reports a hardware adapter.
  * Three choices: `auto` (recommended default), `direct_ml` (force GPU), `cpu` (force CPU).
- * CUDA is intentionally hidden here — the catch-all DirectML path works on NVIDIA too
+ * CUDA is intentionally hidden here, the catch-all DirectML path works on NVIDIA too
  * and avoids shipping a separate CUDA runtime in v1. Power users can pick CUDA from
  * Settings → Advanced if they want.
  */
@@ -1314,7 +1314,7 @@ function GpuStep({ gpu }: { gpu: GpuProbeResult | null }) {
  * "here's what you'll see" rather than a decoupled mockup.
  *
  * Note: this is the one place in the app where the legacy `.glass` utility is
- * still legitimately used — the DESIGN_SYSTEM §8.1 reserves it for the floating
+ * still legitimately used, the DESIGN_SYSTEM §8.1 reserves it for the floating
  * bar preview exactly because the preview IS the bar replica.
  */
 function BarStep() {
@@ -1335,14 +1335,14 @@ function BarStep() {
         can drag it anywhere you like, and it'll remember the position.
       </p>
 
-      {/* Mock desktop — a soft-grey rectangle with a "taskbar" strip that sells
+      {/* Mock desktop, a soft-grey rectangle with a "taskbar" strip that sells
           the "at the top of your screen" framing without needing an actual
           screenshot we'd have to keep up-to-date. */}
       <div className="relative mt-6 h-44 overflow-hidden rounded-card bg-gradient-to-b from-bg-0 to-bg-2/60">
         <div className="absolute inset-x-0 top-0 h-1 bg-border-soft/50" />
         <div className="absolute inset-x-0 bottom-0 h-5 border-t border-border-soft/40 bg-bg-2/70" />
 
-        {/* Pill replica — mirrors FloatingBar.tsx's visual (glass + rounded-full).
+        {/* Pill replica, mirrors FloatingBar.tsx's visual (glass + rounded-full).
             The .glass utility is intentional here per §8.1. */}
         <div className="absolute left-1/2 top-3 -translate-x-1/2">
           <div className="glass flex items-center gap-2 rounded-full px-2.5 py-1.5">
@@ -1380,7 +1380,7 @@ function ReadyStep() {
   const keys = label.split('+');
 
   // Listen to the global dictation phase so the Ready step can narrate what's happening:
-  // "Press the shortcut" → "Speak now — press again to stop" → "Processing" → result.
+  // "Press the shortcut" → "Speak now, press again to stop" → "Processing" → result.
   const phase = useDictation((x) => x.phase);
   const meter = useDictation((x) => x.meter);
 
@@ -1435,12 +1435,12 @@ function ReadyStep() {
   // the app is doing, rather than guessing whether "listening" is real.
   const promptLine = (() => {
     if (isListening) {
-      if (triggerStyle === 'hold_to_talk') return 'Speak now — release to finish.';
-      if (triggerStyle === 'push_to_talk') return 'Speak now — press again to stop.';
-      return 'Speak now — press the shortcut again to stop.';
+      if (triggerStyle === 'hold_to_talk') return 'Speak now, release to finish.';
+      if (triggerStyle === 'push_to_talk') return 'Speak now, press again to stop.';
+      return 'Speak now, press the shortcut again to stop.';
     }
     if (isProcessing) return 'Processing your speech…';
-    if (phase.kind === 'success') return 'Done — your words are in the box.';
+    if (phase.kind === 'success') return 'Done, your words are in the box.';
     if (phase.kind === 'error') {
       return `Something went wrong: ${phase.message}`;
     }
@@ -1498,7 +1498,7 @@ function ReadyStep() {
                 Transcribing…
               </span>
             ) : (
-              <span>Waiting for the shortcut — the waveform will come alive when you're speaking.</span>
+              <span>Waiting for the shortcut, the waveform will come alive when you're speaking.</span>
             )}
           </div>
         )}
@@ -1516,7 +1516,7 @@ function ReadyStep() {
       <div className="mt-3 text-center text-[11px]">
         {pressedOnce && !isListening && !isProcessing ? (
           <span className="inline-flex items-center gap-1.5 text-moss">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Shortcut detected — dictation is live.
+            <CheckCircle2 className="h-3.5 w-3.5" /> Shortcut detected, dictation is live.
           </span>
         ) : (
           <span className="text-muted">Or click Start dictating below when you're ready.</span>
@@ -1525,7 +1525,7 @@ function ReadyStep() {
 
       {/* Optional one-tap addition: get your name into vocabulary so the
           first transcription doesn't mangle it. Skip is the path of least
-          friction — empty input + Skip closes this card and onboarding
+          friction, empty input + Skip closes this card and onboarding
           continues. The user can always add words later from
           Settings → Vocabulary or with the add-to-vocabulary shortcut. */}
       <NameVocabularyCard />
@@ -1544,7 +1544,7 @@ function ReadyStep() {
 /**
  * Optional inline card on the Ready step: type your name (or a short
  * phrase you want Utterbar to get right) and save it to vocabulary in
- * one tap. Skip is friction-free — the card collapses and onboarding
+ * one tap. Skip is friction-free, the card collapses and onboarding
  * continues. The card hides itself once a save succeeds so the user
  * isn't tempted to spam-add their own name.
  *

@@ -18,13 +18,13 @@ const ACCENTS = ['teal', 'amber', 'violet', 'rose', 'cyan', 'lime'] as const;
 const THEMES = ['obsidian', 'graphite', 'paper'] as const;
 
 /**
- * Loose email syntax check for the release-updates signup — catches obvious
+ * Loose email syntax check for the release-updates signup, catches obvious
  * typos like "jay@" or "jay.com" before the IPC/network round-trip. The
  * server is the authority on what it accepts; this is just a "can we skip
  * the round-trip and save the user 300ms of latency" shortcut.
  */
 function isPlausibleEmail(s: string): boolean {
-  // local@domain.tld  — local allows the common punctuation, domain requires
+  // local@domain.tld , local allows the common punctuation, domain requires
   // at least one dot and a non-empty TLD. Deliberately not RFC 5322 strict.
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
@@ -33,7 +33,7 @@ function isPlausibleEmail(s: string): boolean {
  * General settings.
  *
  * Per DESIGN_SYSTEM.md §6.3 chip-style pickers use the .ub-chip class.
- * Active chips use .ub-chip--active (cyan fill, dark text) — never a
+ * Active chips use .ub-chip--active (cyan fill, dark text), never a
  * bordered "selected" ring. This keeps the active-state vocabulary
  * consistent with list selection surfaces (rail) and navigation (rail).
  */
@@ -51,13 +51,13 @@ export function GeneralSettings() {
   // Manual "Check for updates" wires through the shared `useUpdate` store so
   // the same click both updates the inline status row and surfaces the
   // bottom-right toast. Previously this used a local `setUpdateCheck` and the
-  // toast had its own `info` state — clicking "Check now" set the inline copy
+  // toast had its own `info` state, clicking "Check now" set the inline copy
   // but the toast never appeared because nothing wrote to the toast's state.
   const checking = useUpdate((s) => s.checking);
   const lastManualOutcome = useUpdate((s) => s.lastManualOutcome);
   const updateInfo = useUpdate((s) => s.info);
   const runCheck = useUpdate((s) => s.check);
-  // Hidden <input type="color"> — clicking the Custom swatch chip opens the
+  // Hidden <input type="color">, clicking the Custom swatch chip opens the
   // OS colour picker through this ref, so we don't have to build a palette
   // UI ourselves and the user gets their native picker with recent colours,
   // hex input, and eyedropper (where Win32 supports it).
@@ -91,7 +91,7 @@ export function GeneralSettings() {
           </Row>
           <Row
             label="Start minimised"
-            description="When on, Utterbar launches straight to the tray and the floating bar — no main window until you ask for it. When off, the Dashboard opens on launch so you see your stats immediately."
+            description="When on, Utterbar launches straight to the tray and the floating bar, no main window until you ask for it. When off, the Dashboard opens on launch so you see your stats immediately."
           >
             <Toggle
               checked={Boolean(g.start_minimised)}
@@ -136,7 +136,7 @@ export function GeneralSettings() {
                   key={a}
                   onClick={() => void update('accent', a)}
                   className={cn(
-                    // Raw swatch picker — NOT a ub-chip because the swatch
+                    // Raw swatch picker, NOT a ub-chip because the swatch
                     // IS the label. Ring on the active one so the currently
                     // chosen colour is obvious without colouring the border.
                     `h-6 w-6 rounded-full accent-${a} bg-accent transition-shadow duration-180`,
@@ -149,7 +149,7 @@ export function GeneralSettings() {
                 />
               ))}
               {/* Custom accent (Pro). For Free users, clicking this swatch
-                  opens the upgrade modal instead of the colour picker — same
+                  opens the upgrade modal instead of the colour picker, same
                   click-to-learn pattern used on the Modes page. Pro users
                   get the native OS colour picker via a hidden input[type=
                   color]. The swatch itself always previews the user's last
@@ -188,7 +188,7 @@ export function GeneralSettings() {
                 <input
                   ref={colorPickerRef}
                   type="color"
-                  // Hidden but focusable — we drive the click from the
+                  // Hidden but focusable, we drive the click from the
                   // swatch above. `aria-hidden` because the swatch is the
                   // accessible affordance.
                   aria-hidden
@@ -217,7 +217,7 @@ export function GeneralSettings() {
           open={showAccentUpgrade}
           onClose={() => setShowAccentUpgrade(false)}
           feature="Custom accent colours"
-          description="Pick any colour for the accent family — the recording button, the floating bar's waveform, the pill glyph, and every highlight. The six presets are free; bring-your-own is part of Pro."
+          description="Pick any colour for the accent family, the recording button, the floating bar's waveform, the pill glyph, and every highlight. The six presets are free; bring-your-own is part of Pro."
           bullets={[
             'Pick any hex colour from the native Windows colour picker',
             'Auto-derived tint and shade so gradients still have depth',
@@ -228,7 +228,7 @@ export function GeneralSettings() {
         <Card title="Feedback">
           <Row
             label="Sound cues"
-            description="Play a short synthesised tone when recording starts, stops, succeeds, or errors. The tones are generated in-app via WebAudio so there are no sample files — low-volume by default."
+            description="Play a short synthesised tone when recording starts, stops, succeeds, or errors. The tones are generated in-app via WebAudio so there are no sample files, low-volume by default."
           >
             <Toggle
               checked={Boolean(g.sound_cues_enabled)}
@@ -263,7 +263,7 @@ export function GeneralSettings() {
           )}
           <Row
             label="System notifications"
-            description="Raise a Windows toast when something actually needs your attention — dictation errors, model-install failures, successful model installs."
+            description="Raise a Windows toast when something actually needs your attention, dictation errors, model-install failures, successful model installs."
           >
             <Toggle
               checked={Boolean(g.notifications_enabled)}
@@ -272,7 +272,7 @@ export function GeneralSettings() {
           </Row>
         </Card>
 
-        {/* Updates — consolidated. Previously this was two cards (App
+        {/* Updates, consolidated. Previously this was two cards (App
             updates + Release updates) with a third Update channel toggle
             buried in Advanced, forcing users to scroll three places to
             understand "how do I get new versions". Now: one card, one
@@ -285,7 +285,7 @@ export function GeneralSettings() {
         >
           <Row
             label="Check for updates automatically"
-            description="Checks the update feed on launch and shows a toast if a newer version is available. No auto-install — you always click Install."
+            description="Checks the update feed on launch and shows a toast if a newer version is available. No auto-install, you always click Install."
           >
             <Toggle
               checked={Boolean(g.check_updates_automatically)}
@@ -294,7 +294,7 @@ export function GeneralSettings() {
           </Row>
           <Row
             label="Update channel"
-            description="Stable is the public-facing channel. Beta receives pre-release builds for testing — useful if you want to dogfood new versions before they ship widely."
+            description="Stable is the public-facing channel. Beta receives pre-release builds for testing, useful if you want to dogfood new versions before they ship widely."
           >
             <div className="flex gap-2">
               {UPDATE_CHANNELS.map((c) => {
@@ -323,7 +323,7 @@ export function GeneralSettings() {
             label="Check now"
             description={
               lastManualOutcome === 'available' && updateInfo?.available
-                ? `${updateInfo.current} → ${updateInfo.available} — see the toast to install.`
+                ? `${updateInfo.current} → ${updateInfo.available}, see the toast to install.`
                 : lastManualOutcome === 'up-to-date'
                   ? `You're up to date.`
                   : lastManualOutcome === 'failed'
@@ -358,16 +358,16 @@ export function GeneralSettings() {
  * Opt-in list for the short release-announcement mail we send when a new
  * version ships. The server (utterbar.com) owns the double-opt-in flow
  * (confirmation mail + one-click unsubscribe), so this surface deliberately
- * does NOT track "confirmed vs pending" — we just show the verbatim
+ * does NOT track "confirmed vs pending", we just show the verbatim
  * `message` the server returns and record the email locally so the UI
  * knows the user has opted in across restarts. Unsubscribing happens via
  * the link in every release mail, not here.
  *
  * States:
- *   • Closed, no email on file — toggle off, no inputs.
- *   • Open, fresh — toggle on, email input + Subscribe button.
- *   • Submitted — server's verbatim message under the input.
- *   • Subscribed — read-only "Subscribed as X" line with a change button.
+ *   • Closed, no email on file, toggle off, no inputs.
+ *   • Open, fresh, toggle on, email input + Subscribe button.
+ *   • Submitted, server's verbatim message under the input.
+ *   • Subscribed, read-only "Subscribed as X" line with a change button.
  */
 function ReleaseEmailCard({
   current,
@@ -397,7 +397,7 @@ function ReleaseEmailCard({
     }
     // Client-side sanity check before the IPC round-trip. The server is the
     // authority on what it accepts (it does its own RFC-ish validation), but
-    // bouncing obvious typos here — "jay@" or "jay.com" — gives immediate
+    // bouncing obvious typos here, "jay@" or "jay.com", gives immediate
     // feedback and spares a network hop for the common fat-finger case. The
     // regex is deliberately loose: local@domain with a dot in the domain.
     // Stricter patterns reject valid edge cases (plus-addressing, tagged
@@ -405,7 +405,7 @@ function ReleaseEmailCard({
     if (!isPlausibleEmail(trimmed)) {
       setStatus({
         tone: 'err',
-        text: "That doesn't look like an email address — check for typos.",
+        text: "That doesn't look like an email address, check for typos.",
       });
       return;
     }
@@ -413,7 +413,7 @@ function ReleaseEmailCard({
     setStatus(null);
     try {
       const msg = await invoke<string>('subscribe_to_release_updates', { email: trimmed });
-      // Persist locally so the card renders "subscribed" on next load — the
+      // Persist locally so the card renders "subscribed" on next load, the
       // confirmation handshake is a server concern so we treat a successful
       // POST as "the user has opted in as far as this app knows".
       onSubscribe(trimmed);
@@ -424,7 +424,7 @@ function ReleaseEmailCard({
       //      `message` field already phrased for humans (handled by the
       //      backend's non-JSON fallbacks).
       //   2. A raw Error / string from an unexpected invoke failure
-      //      (missing command, serialisation glitch) — these have
+      //      (missing command, serialisation glitch), these have
       //      developer-speak messages that would confuse a user.
       // We only trust `.message` when a `code` is also present (the
       // OrliqError signature); everything else collapses to the generic
@@ -447,7 +447,7 @@ function ReleaseEmailCard({
   function toggle(next: boolean) {
     setEnabled(next);
     if (!next) {
-      // Local opt-out only — the server list is authoritative and the user
+      // Local opt-out only, the server list is authoritative and the user
       // can fully unsubscribe via the link in any release mail. Clearing
       // the local hint just hides the subscribed state in this UI.
       onSubscribe(null);
@@ -460,7 +460,7 @@ function ReleaseEmailCard({
   return (
     <Card
       title="Release updates"
-      description="Get a short email when a new Utterbar version ships — what's new, how to update, nothing else. Unsubscribe in one click from any release mail."
+      description="Get a short email when a new Utterbar version ships, what's new, how to update, nothing else. Unsubscribe in one click from any release mail."
     >
       <Row
         label="Email me when there's a new release"

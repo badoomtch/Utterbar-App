@@ -41,7 +41,7 @@ const GPU_LABELS: Record<GpuAcceleration, { title: string; hint: string }> = {
   },
   direct_ml: {
     title: 'DirectML',
-    hint: 'Force DirectML. Runs on any DX12 GPU — NVIDIA, AMD, or Intel.',
+    hint: 'Force DirectML. Runs on any DX12 GPU, NVIDIA, AMD, or Intel.',
   },
   cuda: {
     title: 'CUDA',
@@ -67,7 +67,7 @@ function formatBytes(n: number): string {
 }
 
 function defaultExportName(): string {
-  // YYYYMMDD-HHMMSS — sorts naturally in Explorer and reads unambiguously
+  // YYYYMMDD-HHMMSS, sorts naturally in Explorer and reads unambiguously
   // regardless of the user's locale-specific date formatting.
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
@@ -81,7 +81,7 @@ export function AdvancedSettings() {
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [gpu, setGpu] = useState<GpuProbe | null>(null);
 
-  // Backup / restore state. We keep it local (not persisted) — the "last
+  // Backup / restore state. We keep it local (not persisted), the "last
   // export" hint is a session courtesy, not a durable record, and resetting
   // it on navigation is the right default.
   const [includeRecordings, setIncludeRecordings] = useState(false);
@@ -203,7 +203,7 @@ export function AdvancedSettings() {
                     <span className="font-medium text-fg-hi">{GPU_LABELS[opt].title}</span>
                     <span className="mt-0.5 block text-muted leading-relaxed">
                       {GPU_LABELS[opt].hint}
-                      {disabled && ' — not available on this machine.'}
+                      {disabled && ', not available on this machine.'}
                     </span>
                   </span>
                 </label>
@@ -219,7 +219,7 @@ export function AdvancedSettings() {
                     {a.name}
                     {a.is_software && ' (software)'}
                     {a.dedicated_video_memory_mb > 0 &&
-                      ` — ${a.dedicated_video_memory_mb.toLocaleString()} MB VRAM`}
+                      `, ${a.dedicated_video_memory_mb.toLocaleString()} MB VRAM`}
                   </li>
                 ))}
               </ul>
@@ -266,11 +266,11 @@ export function AdvancedSettings() {
 
         <Card
           title="Backup & restore"
-          description="Export your settings, modes, vocabulary, and history to a single file you can move between machines or keep as a safety net. Models are excluded — they're re-downloadable from the catalogue."
+          description="Export your settings, modes, vocabulary, and history to a single file you can move between machines or keep as a safety net. Models are excluded, they're re-downloadable from the catalogue."
         >
           <Row
             label="Include recordings in export"
-            description="Audio files from history. Usually the bulk of the archive — leave off when you just want to move preferences."
+            description="Audio files from history. Usually the bulk of the archive, leave off when you just want to move preferences."
           >
             <Toggle
               checked={includeRecordings}
@@ -282,7 +282,7 @@ export function AdvancedSettings() {
             label="Export data"
             description={
               lastExport
-                ? `Last export: ${formatBytes(lastExport.bytes)} — included ${lastExport.included.join(', ') || 'nothing'}.`
+                ? `Last export: ${formatBytes(lastExport.bytes)}, included ${lastExport.included.join(', ') || 'nothing'}.`
                 : 'Writes a .tar file to the location you choose.'
             }
           >
@@ -338,7 +338,7 @@ export function AdvancedSettings() {
 
       {/* Import confirmation modal. Kept inside this component (not a global
           dialog system) because it's the only destructive-replace flow in the
-          app — one-off UI is simpler than generalising. Dimmed scrim + a panel
+          app, one-off UI is simpler than generalising. Dimmed scrim + a panel
           on bg-1 to match Settings cards so it reads as "part of the page" not
           an OS alert. */}
       {pendingImportPath && (

@@ -1,6 +1,6 @@
-<x-layouts.docs title="Troubleshooting" description="Quick fixes for the most common Utterbar issues — silent transcription, slow dictation, mis-recognised words, missing pill, hotkey conflicts.">
+<x-layouts.docs title="Troubleshooting" description="Quick fixes for the most common Utterbar issues. Silent transcription, slow dictation, mis-recognised words, missing pill, hotkey conflicts.">
     <h1 class="ub-docs-h1">When something&rsquo;s <x-hl>off</x-hl>.</h1>
-    <p class="ub-lead mt-6">If dictation is going quiet, slow, or weird, the fix is almost always one of these. Skim the matching section &mdash; everything below is in the order you should check it.</p>
+    <p class="ub-lead mt-6">If dictation is going quiet, slow, or weird, the fix is almost always one of these. Skim the matching section, everything below is in the order you should check it.</p>
 
     {{-- ───────────── Hotkey ───────────── --}}
     <h2 class="mt-12 ub-docs-h2">The hotkey does nothing</h2>
@@ -13,11 +13,11 @@
     <ul class="mt-3 space-y-2 text-base leading-relaxed" style="color: var(--fg);">
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Windows 11 Voice Access</strong> claims several <code class="font-mono text-sm" style="color: var(--accent);">Win+...</code> combos.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Chinese / Japanese / Korean IMEs</strong> often hold <code class="font-mono text-sm" style="color: var(--accent);">Ctrl+Space</code> to switch input modes.</span></li>
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">VS Code, IntelliJ and other IDEs</strong> bind <code class="font-mono text-sm" style="color: var(--accent);">Ctrl+Space</code> to autocomplete &mdash; that&rsquo;s a window-level binding so it doesn&rsquo;t intercept globally, but it does mean if you press it inside the IDE without focus on a text field, you might see the IDE&rsquo;s autocomplete instead of Utterbar.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">VS Code, IntelliJ and other IDEs</strong> bind <code class="font-mono text-sm" style="color: var(--accent);">Ctrl+Space</code> to autocomplete, that&rsquo;s a window-level binding so it doesn&rsquo;t intercept globally, but it does mean if you press it inside the IDE without focus on a text field, you might see the IDE&rsquo;s autocomplete instead of Utterbar.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Streaming and screen-recording tools</strong> (OBS, NVIDIA ShadowPlay) bind global hotkeys for clip capture.</span></li>
     </ul>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        The fix: rebind in Settings → Shortcuts. Anything works &mdash; <code class="font-mono text-sm" style="color: var(--accent);">F6</code>, <code class="font-mono text-sm" style="color: var(--accent);">Ctrl+`</code>, <code class="font-mono text-sm" style="color: var(--accent);">Caps Lock</code> if you don&rsquo;t use it. Whatever your fingers already know.
+        The fix: rebind in Settings → Shortcuts. Anything works . <code class="font-mono text-sm" style="color: var(--accent);">F6</code>, <code class="font-mono text-sm" style="color: var(--accent);">Ctrl+`</code>, <code class="font-mono text-sm" style="color: var(--accent);">Caps Lock</code> if you don&rsquo;t use it. Whatever your fingers already know.
     </p>
 
     {{-- ───────────── No audio ───────────── --}}
@@ -33,7 +33,7 @@
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Windows mic privacy settings.</strong> Settings → Privacy &amp; Security → Microphone. Make sure desktop apps are allowed.</span></li>
     </ul>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        Settings → Audio also shows a live input meter. If it&rsquo;s flat while you talk, it&rsquo;s an OS-level problem &mdash; nothing Utterbar can do until Windows is hearing your mic.
+        Settings → Audio also shows a live input meter. If it&rsquo;s flat while you talk, it&rsquo;s an OS-level problem, nothing Utterbar can do until Windows is hearing your mic.
     </p>
 
     {{-- ───────────── Slow ───────────── --}}
@@ -56,19 +56,19 @@
     {{-- ───────────── Wrong words ───────────── --}}
     <h2 class="mt-14 ub-docs-h2">Words are coming out wrong</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        Speech models are statistical &mdash; they pick the most likely word given the audio and the surrounding context. They struggle most with names, acronyms, product terms, and anything that doesn&rsquo;t appear in the data they were trained on.
+        Speech models are statistical, they pick the most likely word given the audio and the surrounding context. They struggle most with names, acronyms, product terms, and anything that doesn&rsquo;t appear in the data they were trained on.
     </p>
     <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-        The fix is custom vocabulary. Add the word you keep getting wrong to Settings → Vocabulary &mdash; the model biases toward it on subsequent transcriptions. For multi-word names, add the full version. For acronyms, add both the full form and the abbreviation. See the <a href="{{ route('docs.vocabulary') }}" style="color: var(--accent);">vocabulary doc</a> for the patterns that work best.
+        The fix is custom vocabulary. Add the word you keep getting wrong to Settings → Vocabulary, the model biases toward it on subsequent transcriptions. For multi-word names, add the full version. For acronyms, add both the full form and the abbreviation. See the <a href="{{ route('docs.vocabulary') }}" style="color: var(--accent);">vocabulary doc</a> for the patterns that work best.
     </p>
     <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-        For wholesale find-and-replace patterns &mdash; &ldquo;always render &lsquo;ty&rsquo; as &lsquo;thank you&rsquo;&rdquo;, or &ldquo;always capitalise QA&rdquo; &mdash; use the Replacements section. These run after transcription, before the typed output, and apply globally to every mode.
+        For wholesale find-and-replace patterns . &ldquo;always render &lsquo;ty&rsquo; as &lsquo;thank you&rsquo;&rdquo;, or &ldquo;always capitalise QA&rdquo;, use the Replacements section. These run after transcription, before the typed output, and apply globally to every mode.
     </p>
 
     {{-- ───────────── Pill missing ───────────── --}}
     <h2 class="mt-14 ub-docs-h2">The floating pill disappeared</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        The pill remembers where you last dragged it &mdash; if that location is no longer on a connected monitor (you unplugged a second screen, changed resolution, or docked/undocked a laptop), the pill is on disk in coordinates that don&rsquo;t exist any more.
+        The pill remembers where you last dragged it, if that location is no longer on a connected monitor (you unplugged a second screen, changed resolution, or docked/undocked a laptop), the pill is on disk in coordinates that don&rsquo;t exist any more.
     </p>
     <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
         Right-click the Utterbar tray icon and pick <strong style="color: var(--fg-hi);">&ldquo;Reset Utterbar position&rdquo;</strong>. The pill returns to the default top-centre of your primary monitor.

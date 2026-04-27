@@ -33,7 +33,7 @@ pub enum HistoryStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
 pub struct HistoryFilter {
     pub mode_id: Option<String>,
@@ -41,6 +41,11 @@ pub struct HistoryFilter {
     pub search: Option<String>,
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,
+    /// Filter by status. None means "any status" (the previous behaviour).
+    /// Stored as a HistoryStatus to keep the wire shape symmetric with the
+    /// row column.
+    #[serde(default)]
+    pub status: Option<HistoryStatus>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }

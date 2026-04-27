@@ -1,7 +1,7 @@
-<x-layouts.docs title="Docs" description="The Utterbar docs — getting started, modes, vocabulary, shortcuts, privacy controls, troubleshooting, FAQ. Everything you need to dictate well on Windows.">
+<x-layouts.docs title="Docs" description="The Utterbar docs. Getting started, modes, vocabulary, shortcuts, privacy controls, troubleshooting, FAQ.">
     <h1 class="ub-docs-h1"><x-wordmark /> <x-hl>docs</x-hl>.</h1>
     <p class="ub-lead mt-6">
-        Everything you need to dictate well on Windows. Updated alongside each release.
+        How to dictate well on Windows. Updated with every release.
     </p>
 
     <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-5">

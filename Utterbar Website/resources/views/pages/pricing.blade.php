@@ -1,13 +1,13 @@
 @php
     $freeFeatures = [
         'Unlimited dictation, any length',
-        'Parakeet v3 (English, compact) &mdash; ~460 MB, runs on any modern CPU',
-        'Whisper base (multilingual, 30+ languages) &mdash; ~145 MB',
-        'Zipformer (English, lightweight) &mdash; ~220 MB, smallest footprint',
+        'Parakeet v3 (English, compact). ~460 MB, runs on any modern CPU',
+        'Whisper base (multilingual, 30+ languages). ~145 MB',
+        'Zipformer (English, lightweight). ~220 MB, smallest footprint',
         'All seven hotkey slots',
         'All three built-in modes',
         'Microphone, system-audio (WASAPI loopback), mixed',
-        '50 vocabulary words + 25 replacements',
+        '50 vocabulary words and 25 replacements',
         'History (last 100 transcriptions)',
         'Three themes &times; six accents, reduce-motion, sound cues',
         'Media auto-pause, full privacy controls',
@@ -15,22 +15,22 @@
 
     $proFeatures = [
         'Everything in Free',
-        'Whisper small (multilingual, high accuracy) &mdash; ~610 MB, stronger non-English transcription',
+        'Whisper small (multilingual, higher accuracy). ~610 MB, the stronger non-English engine',
         'Unlimited custom modes',
-        'Unlimited vocabulary + replacements',
-        'File transcription (WAV, MP3, M4A, FLAC, OGG, MP4, MOV, MKV &rarr; plain-text transcript)',
-        'Batch transcription &mdash; drop a folder, walk away',
-        'Full history + audio retention (1&ndash;90 day slider)',
+        'Unlimited vocabulary and replacements',
+        'File transcription (WAV, MP3, M4A, FLAC, OGG, MP4, MOV, MKV). Plain-text plus .srt and .vtt',
+        'Batch transcription. Drop a folder, walk away',
+        'Full history with audio retention (1&ndash;90 day slider)',
         'Re-transcribe any recording with any mode',
-        'Tip-jar isn&rsquo;t shown to Pro users (you&rsquo;ve already paid)',
+        'No tip jar (you&rsquo;ve already paid)',
         'Priority support',
     ];
 
     $faqs = [
-        ['q' => 'Is dictation actually free forever?', 'a' => 'Yes. Every word you speak into Utterbar is transcribed, free, forever, unlimited length. The paid tier is for power-user ergonomics \u2014 file transcription, unlimited custom modes, full history with re-transcription \u2014 not for the basic act of talking.'],
-        ['q' => 'Why a one-time price and not a subscription?', 'a' => 'Subscriptions are fine for software that keeps getting materially better every month. A dictation app that works is a dictation app that works \u2014 charging rent on it feels icky. Pay once; it\'s yours.'],
+        ['q' => 'Is dictation actually free forever?', 'a' => 'Yes. Every word you speak into Utterbar is transcribed, free, forever, unlimited length. The paid tier is for power-user ergonomics: file transcription, unlimited custom modes, full history with re-transcription. The basic act of talking stays free.'],
+        ['q' => 'Why a one-time price and not a subscription?', 'a' => 'Subscriptions are fine for software that keeps getting materially better every month. A dictation app that works is a dictation app that works. Charging rent on it feels off. Pay once, it\'s yours.'],
         ['q' => 'Do I need an account to use the free tier?', 'a' => 'No account, no sign-in, no email. Download, install, talk. Pro unlocks with a licence key that arrives by email after purchase.'],
-        ['q' => 'What if your servers go down forever?', 'a' => 'Pro keeps working. Licence keys are verified locally (Ed25519-signed). The app doesn\'t phone home \u2014 if I disappeared tomorrow, your copy still runs.'],
+        ['q' => 'What if your servers go down forever?', 'a' => 'Pro keeps working. Licence keys are verified locally (Ed25519-signed). The app doesn\'t phone home. If I disappeared tomorrow, your copy still runs.'],
         ['q' => 'How many devices?', 'a' => 'Three per licence. Desktop, laptop, spare. Need more, email me.'],
         ['q' => 'Can I self-host?', 'a' => 'It\'s already self-hosted. It runs on your PC. There\'s no server.'],
         ['q' => 'Discounts?', 'a' => 'Students and OSS maintainers: drop me a line at <a href="mailto:' . config('site.email.contact') . '" style="color: var(--accent);">' . config('site.email.contact') . '</a>.'],
@@ -38,7 +38,7 @@
 @endphp
 
 @php
-    $pricingDesc = 'Utterbar pricing: free forever for unlimited local dictation. Pro is a one-time £39.99 lifetime licence — three devices, all Pro features, no subscription.';
+    $pricingDesc = 'Utterbar pricing. Free forever for unlimited local dictation. Pro is a one-time £39.99 lifetime licence: three devices, all Pro features, no subscription.';
 @endphp
 
 <x-layouts.app title="Pricing" :description="$pricingDesc">
@@ -141,7 +141,7 @@
                         {{-- Lifetime + source-if-sunset commitment. Understated on purpose. --}}
                         <p class="mt-8 pt-6 text-xs leading-relaxed" style="color: var(--muted); border-top: 1px solid var(--border);">
                             <span style="color: var(--fg);">Lifetime means lifetime.</span>
-                            You keep Pro forever, on every future Utterbar release. And if this project ever shuts down, the source goes public &mdash; GPL, on GitHub, the day the lights go out.
+                            You keep Pro forever, on every future Utterbar release. And if this project ever shuts down, the source goes public: GPL, on GitHub, the day the lights go out.
                         </p>
 
                         <div class="mt-8" x-data="{ busy: false, err: '' }">

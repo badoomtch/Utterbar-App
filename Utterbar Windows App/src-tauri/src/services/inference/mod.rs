@@ -19,7 +19,7 @@ use crate::services::gpu;
 use crate::services::models::ModelRegistry;
 use crate::services::settings::SettingsStore;
 
-pub use provider::{AsrOptions, AsrProvider, AsrResult, AudioBuffer};
+pub use provider::{AsrOptions, AsrProvider, AsrResult, AudioBuffer, WordTiming};
 
 pub struct InferenceOrchestrator {
     registry: Arc<ModelRegistry>,

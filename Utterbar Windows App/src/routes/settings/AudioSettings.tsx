@@ -18,7 +18,7 @@ const CAPTURE_SOURCES = [
   {
     id: 'system' as const,
     label: 'System audio',
-    note: 'Record whatever is playing through your speakers — meetings, videos, voice notes. WASAPI loopback: no virtual cable needed.',
+    note: 'Record whatever is playing through your speakers, meetings, videos, voice notes. WASAPI loopback: no virtual cable needed.',
   },
   {
     id: 'mixed' as const,
@@ -41,7 +41,7 @@ const NOISE_LEVELS: {
   label: string;
   blurb: string;
   /** High-pass cutoff (Hz) used for the in-UI audio preview. 0 = bypass. These
-   *  mirror the backend's level_params() — see services/audio/preprocess.rs.
+   *  mirror the backend's level_params(), see services/audio/preprocess.rs.
    *  Preview is a short synthesised noise-plus-rumble clip run through a
    *  biquad HPF at this frequency, so you can hear each level cleaning up. */
   previewCutoffHz: number;
@@ -72,7 +72,7 @@ const NOISE_LEVELS: {
   },
 ];
 
-/** Lazy-shared AudioContext. Creating one per click leaks nodes — Web Audio
+/** Lazy-shared AudioContext. Creating one per click leaks nodes, Web Audio
  *  holds contexts for the page lifetime. One global context, resumed on first
  *  user gesture, is the idiomatic pattern. */
 let sharedAudioCtx: AudioContext | null = null;
@@ -99,7 +99,7 @@ function playNoisePreview(cutoffHz: number): () => void {
   const duration = 0.9;
   const now = ctx.currentTime;
 
-  // Pre-computed brown-noise buffer — 1 ch, mono, same as our capture pipeline.
+  // Pre-computed brown-noise buffer, 1 ch, mono, same as our capture pipeline.
   const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate);
   const data = buf.getChannelData(0);
   let last = 0;
@@ -112,7 +112,7 @@ function playNoisePreview(cutoffHz: number): () => void {
   const noise = ctx.createBufferSource();
   noise.buffer = buf;
 
-  // Two tonal hums mixed in — gives the HPF something to bite on above the
+  // Two tonal hums mixed in, gives the HPF something to bite on above the
   // brown noise floor so the difference between Light/Balanced/Aggressive is
   // audible rather than just a slightly-quieter hiss.
   const hum50 = ctx.createOscillator();
@@ -167,7 +167,7 @@ function playNoisePreview(cutoffHz: number): () => void {
       hum50.stop();
       hum90.stop();
     } catch {
-      // Already stopped — ignore.
+      // Already stopped, ignore.
     }
   };
 }
@@ -233,7 +233,7 @@ export function AudioSettings() {
           title="Capture source"
           description="What Utterbar listens to. Switch to System audio to transcribe a meeting or a video playing in another app; Mixed records both so a call where you also speak gets both sides."
         >
-          {/* Capture-source picker — surface-elevation selection (selected
+          {/* Capture-source picker, surface-elevation selection (selected
               tile lifts to bg-2 + gets the cyan left rail) consistent with
               the rest of the app's active-state vocabulary. */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -297,7 +297,7 @@ export function AudioSettings() {
 
         <Card
           title="Noise handling"
-          description="Clean up the recording before it reaches Parakeet. Everything here runs locally in sub-millisecond time — there's no cloud pass."
+          description="Clean up the recording before it reaches Parakeet. Everything here runs locally in sub-millisecond time, there's no cloud pass."
         >
           <Row
             label="Suppression strength"
@@ -311,7 +311,7 @@ export function AudioSettings() {
                     key={lvl.id}
                     onClick={() => {
                       // Persist the new level AND audibly preview it in one
-                      // click — the old flow required a separate Preview
+                      // click, the old flow required a separate Preview
                       // button tap after selection, which made comparing
                       // levels tedious. Cancel any preview already in flight
                       // so rapid clicks don't stack.
@@ -337,7 +337,7 @@ export function AudioSettings() {
 
           <Row
             label="Between-word gate"
-            description="Zero out short quiet gaps so keyboard clicks, mouse-clicks, lip-smacks, and breath sounds between phrases don't reach the model. Complements the suppression above — safe to use at any level."
+            description="Zero out short quiet gaps so keyboard clicks, mouse-clicks, lip-smacks, and breath sounds between phrases don't reach the model. Complements the suppression above, safe to use at any level."
           >
             <Toggle
               checked={Boolean((s.audio as Record<string, unknown>).noise_gate)}

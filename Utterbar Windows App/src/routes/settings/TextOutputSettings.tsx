@@ -20,7 +20,7 @@ export function TextOutputSettings() {
         <Card title="Delivery">
           <Row
             label="Paste automatically"
-            description="After transcription, copy the result to the clipboard and simulate Ctrl+V. This is the fastest, most reliable path — most apps accept it."
+            description="After transcription, copy the result to the clipboard and simulate Ctrl+V. This is the fastest, most reliable path, most apps accept it."
           >
             <Toggle checked={t.paste_automatically} onChange={(v) => void update('paste_automatically', v)} />
           </Row>
@@ -71,7 +71,7 @@ export function TextOutputSettings() {
           </Row>
           <Row
             label="Hold Shift to auto-send"
-            description="If you're holding Shift when you stop recording, Utterbar presses Enter for you right after pasting — so the message goes out in Teams, Slack, Discord, etc. without a second hand-off."
+            description="If you're holding Shift when you stop recording, Utterbar presses Enter for you right after pasting, so the message goes out in Teams, Slack, Discord, etc. without a second hand-off."
           >
             <Toggle checked={t.shift_to_auto_send} onChange={(v) => void update('shift_to_auto_send', v)} />
           </Row>

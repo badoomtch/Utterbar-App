@@ -146,6 +146,7 @@ fn main() {
             commands::history::get_history_entry,
             commands::history::delete_history_entry,
             commands::history::reprocess_history,
+            commands::history::list_history_apps,
             commands::history::export_history,
             // files
             commands::files::enqueue_file,
@@ -329,6 +330,14 @@ fn main() {
                 // repair when the user has `bar_visibility == Always`; other modes
                 // legitimately hide the pill between phases so we mustn't fight them.
                 services::window_watchdog::spawn(handle_bg.clone(), state_bg.clone());
+
+                // Per-app auto-activation watcher. Polls the foreground
+                // window every 750ms and switches the active mode to
+                // match the user's auto-activation rules. Idle-only —
+                // never changes mode while the user is recording or
+                // mid-transcribe. See services/auto_activation.rs for
+                // the full design rationale.
+                services::auto_activation::spawn(handle_bg.clone(), state_bg.clone());
 
                 // Idle-unload sweeper for the ASR model. Honours
                 // `models.warm_duration_secs`: 0 unloads immediately after each

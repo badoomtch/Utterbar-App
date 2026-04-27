@@ -1,6 +1,6 @@
 <x-layouts.app
     title="How Utterbar compares"
-    description="Honest comparisons between Utterbar and the other dictation apps you might be considering — Wispr Flow, Dragon, Voice Access, Superwhisper, and others.">
+    description="Honest comparisons between Utterbar and the other dictation apps you might be considering: Wispr Flow, Dragon, Voice Access, Superwhisper, and others.">
 
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">

@@ -61,6 +61,13 @@ impl HistoryService {
             sql.push_str(" AND created_at <= ?");
             args.push(Box::new(t));
         }
+        if let Some(st) = filter.status {
+            sql.push_str(" AND status = ?");
+            // Status is serialised the same way as on insert — a JSON
+            // string of the enum variant ("\"success\"" / "\"error\"" /
+            // "\"cancelled\"").
+            args.push(Box::new(serde_json::to_string(&st).unwrap_or_else(|_| "\"success\"".into())));
+        }
         sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
         args.push(Box::new(filter.limit.unwrap_or(200)));
         args.push(Box::new(filter.offset.unwrap_or(0)));
@@ -91,6 +98,26 @@ impl HistoryService {
         let conn = self.db.conn()?;
         conn.execute("DELETE FROM history WHERE id=?1", params![id])?;
         Ok(())
+    }
+
+    /// Return the distinct non-null `app_exe` values across all history
+    /// rows, ordered by recency-of-use (most recent first). Used to
+    /// populate the History page's "App" filter dropdown without having
+    /// the frontend re-derive the set on every list render.
+    pub fn distinct_app_exes(&self) -> Result<Vec<String>> {
+        let conn = self.db.conn()?;
+        // Subquery picks the max(created_at) per app_exe so we can
+        // order the outer SELECT by that — the user's "most-recently-
+        // used" app surfaces at the top of the dropdown.
+        let mut stmt = conn.prepare(
+            "SELECT app_exe FROM history
+             WHERE app_exe IS NOT NULL AND app_exe != ''
+             GROUP BY app_exe
+             ORDER BY MAX(created_at) DESC
+             LIMIT 50",
+        )?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+        Ok(rows.filter_map(|r| r.ok()).collect())
     }
 }
 

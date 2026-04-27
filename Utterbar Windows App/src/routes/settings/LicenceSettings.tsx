@@ -25,21 +25,21 @@ const SUPPORT_EMAIL = 'hello@utterbar.com';
 /**
  * Settings → Licence.
  *
- * Per the product brief this is NOT an "Account" screen — there's no account
+ * Per the product brief this is NOT an "Account" screen, there's no account
  * in Utterbar, only a licence that unlocks Pro. Two rendered states:
  *
- *   Free  — paste UB-XXXX-… → activate. Inline errors per server slug.
- *   Pro   — shows current key (copyable), this-device metadata, and a list
+ *   Free , paste UB-XXXX-… → activate. Inline errors per server slug.
+ *   Pro  , shows current key (copyable), this-device metadata, and a list
  *           of other devices pulled fresh on the last /activate. Managing
  *           those other devices is deliberately pushed to utterbar.com/account
  *           because the Rust `licence_deactivate` command only targets the
  *           current device.
  *
  * Design hooks (DESIGN_SYSTEM.md):
- *   §4.5  — the Pro card uses `rail` to signal "featured / active state".
- *   §6.1  — paste input sunken on bg-0 via <Input>.
- *   §8.1  — tier pill reuses the LED primitive; cyan for Pro, muted for Free.
- *   §11.4 — active list items lift to bg-2; "this device" row follows that.
+ *   §4.5 , the Pro card uses `rail` to signal "featured / active state".
+ *   §6.1 , paste input sunken on bg-0 via <Input>.
+ *   §8.1 , tier pill reuses the LED primitive; cyan for Pro, muted for Free.
+ *   §11.4, active list items lift to bg-2; "this device" row follows that.
  */
 export function LicenceSettings() {
   const status = useLicence((s) => s.status);
@@ -49,7 +49,7 @@ export function LicenceSettings() {
     <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
         title="Licence"
-        subtitle="Your Utterbar Pro key unlocks advanced features on this device. No account, no sign-in — just the key."
+        subtitle="Your Utterbar Pro key unlocks advanced features on this device. No account, no sign-in, just the key."
         actions={<TierBadge status={status} />}
       />
 
@@ -102,7 +102,7 @@ function FreePanel() {
     setBusy(true);
     setErr(null);
     try {
-      // The store updates via the `licence_changed` event — we don't need
+      // The store updates via the `licence_changed` event, we don't need
       // to set it from the return value, but holding the call in busy state
       // keeps the button from double-firing mid-flight.
       await invoke('licence_activate', { key: trimmed });
@@ -121,7 +121,7 @@ function FreePanel() {
       <div className="ub-eyebrow mb-3">Activate Pro</div>
       <p className="text-[14px] leading-[1.6] text-muted max-w-[56ch]">
         Paste the licence key from your purchase email. Activation takes a second and uses
-        the internet once — after that, Utterbar verifies locally on every launch.
+        the internet once, after that, Utterbar verifies locally on every launch.
       </p>
 
       <form
@@ -135,7 +135,7 @@ function FreePanel() {
           value={key}
           onChange={(e) => setKey(e.target.value)}
           placeholder="UB-XXXX-XXXX-XXXX-XXXX-XXXX"
-          // Geist Mono on the input — this is literal data, exactly the case
+          // Geist Mono on the input, this is literal data, exactly the case
           // the spec reserves mono for (§2.4).
           className="font-mono text-[14px] tracking-[0.02em] sm:flex-1"
           autoComplete="off"
@@ -176,14 +176,14 @@ function FreePanel() {
 /**
  * Tip jar surface, shown only on the Free state of the Licence page.
  *
- * The Pro state intentionally does not show this — Pro users have already
+ * The Pro state intentionally does not show this, Pro users have already
  * paid £39.99 and surfacing a "tip the developer" prompt to them would
  * read as cap-in-hand. Free users have a clean, no-strings way to
  * support the project if they want to. Buttons open the website's
  * `/tip/start?amount=...` URL in the user's default browser via Tauri's
  * shell plugin; payment lives entirely on Stripe-hosted Checkout.
  *
- * Auto-hides if the website hasn't got `STRIPE_TIP_PRICE_ID` set — but
+ * Auto-hides if the website hasn't got `STRIPE_TIP_PRICE_ID` set, but
  * the failure mode of "user clicks, lands on a blank page" doesn't
  * surface here because the website redirects home in that case.
  */
@@ -200,7 +200,7 @@ function TipCard() {
       <div className="ub-eyebrow mb-3">Tip the developer</div>
       <p className="text-[13px] leading-[1.55] text-muted max-w-[56ch]">
         Utterbar is free. If it's earning its keep on your machine, a few quid keeps the
-        next release moving. Voluntary, no perks, no licence — just thank-you money. Opens
+        next release moving. Voluntary, no perks, no licence, just thank-you money. Opens
         Stripe in your browser.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -236,7 +236,7 @@ function TipCard() {
  *
  * Caps quoted here MUST track `src-tauri/src/util/gating.rs`. If we
  * change a cap there, change it here. There's no shared TS source for
- * these numbers — they're display strings, the backend is the
+ * these numbers, they're display strings, the backend is the
  * enforcement.
  */
 function WhatProUnlocks() {
@@ -251,7 +251,7 @@ function WhatProUnlocks() {
     },
     {
       title: 'File transcription',
-      free: 'Pro only — drop a .wav / .mp3 / .m4a in and get a transcript',
+      free: 'Pro only, drop a .wav / .mp3 / .m4a in and get a transcript',
     },
     {
       title: 'Full history with re-transcribe',
@@ -305,7 +305,7 @@ function ProPanel({
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      // Silent — the display key is visible on screen; copying is a
+      // Silent, the display key is visible on screen; copying is a
       // convenience, not a dependency.
     }
   }
@@ -329,7 +329,7 @@ function ProPanel({
 
   return (
     <div className="mt-6 flex flex-col gap-5">
-      {/* The primary Pro card carries the cyan rail — this is the "active /
+      {/* The primary Pro card carries the cyan rail, this is the "active /
           featured" state and the spec earmarks the rail for exactly that. */}
       <Card rail>
         <div className="ub-eyebrow mb-2">Your licence</div>
@@ -360,7 +360,7 @@ function ProPanel({
         </div>
       </Card>
 
-      {/* This device — lift to bg-2 so it reads as "the active row" per §11.4. */}
+      {/* This device, lift to bg-2 so it reads as "the active row" per §11.4. */}
       <Card>
         <div className="ub-eyebrow mb-3">This device</div>
         <div className="flex items-center justify-between gap-4 rounded-[12px] bg-bg-2 p-4">
@@ -390,7 +390,7 @@ function ProPanel({
         {err && <ErrorSurface err={err} onDismiss={() => setErr(null)} />}
       </Card>
 
-      {/* Other devices — read-only. The Rust deactivate command only targets
+      {/* Other devices, read-only. The Rust deactivate command only targets
           the fingerprint of *this* install; cross-device deactivation is a
           website concern, so we link out. Max-devices gets shown here even if
           the list is empty so the user can see the cap at a glance. */}
@@ -443,7 +443,7 @@ function ProPanel({
 /**
  * Inline error renderer. Keeps all the code-slug → user-string mapping in one
  * place, colour-coded by severity. `revoked` is the only case that escalates
- * to the rose banner — everything else is an informational inline notice,
+ * to the rose banner, everything else is an informational inline notice,
  * because the distinction we care about is "key is bad now" vs "try again".
  */
 function ErrorSurface({ err, onDismiss }: { err: LicenceError; onDismiss: () => void }) {
@@ -498,7 +498,7 @@ const ERROR_SPEC: Record<LicenceErrorCode, ErrorSpec> = {
   malformed: {
     tone: 'warn',
     title: "That key doesn't look right.",
-    body: 'Check for typos — licence keys are 20 characters, digits plus A–Z (not I, L, O, or U).',
+    body: 'Check for typos, licence keys are 20 characters, digits plus A–Z (not I, L, O, or U).',
   },
   not_found: {
     tone: 'warn',
@@ -534,7 +534,7 @@ const ERROR_SPEC: Record<LicenceErrorCode, ErrorSpec> = {
   verification_failed: {
     tone: 'error',
     title: 'The licence we received failed a security check.',
-    body: "This shouldn't happen — please try again, and contact us if it keeps failing.",
+    body: "This shouldn't happen, please try again, and contact us if it keeps failing.",
     action: <SupportMail />,
   },
   already_activated: {
@@ -545,7 +545,7 @@ const ERROR_SPEC: Record<LicenceErrorCode, ErrorSpec> = {
   rate_limited: {
     tone: 'warn',
     title: "You're trying a lot of keys.",
-    body: 'Slow down for a minute and try again — the activation endpoint briefly blocks rapid retries.',
+    body: 'Slow down for a minute and try again, the activation endpoint briefly blocks rapid retries.',
   },
   pro_required: {
     // `pro_required` travels over the same licence-error envelope but is
@@ -553,7 +553,7 @@ const ERROR_SPEC: Record<LicenceErrorCode, ErrorSpec> = {
     // modes, vocab caps, audio retention, re-transcribe) rather than the
     // activation flow. The UI surfaces ProNudge next to the gated control,
     // so the only way we'd ever hit this spec is if a user pasted a pro-
-    // gated IPC call into the wrong place — treat it as a non-fatal hint.
+    // gated IPC call into the wrong place, treat it as a non-fatal hint.
     tone: 'warn',
     title: 'That feature needs Pro.',
     body: null,

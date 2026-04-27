@@ -85,7 +85,7 @@ return [
             'duration_seconds' => 12,
             'width'            => 1440,
             'height'           => 900,
-            'alt'              => 'Files dropzone with a queue of three jobs moving through queued, running, and done — then the user opens the finished transcript in a modal with Copy and Show in folder actions.',
+            'alt'              => 'Files dropzone with a queue of three jobs moving through queued, running, and done. The user opens the finished transcript in a modal with Copy and Show in folder actions.',
             'loops'            => false,
         ],
         'feature-talk-to-ai' => [

@@ -7,15 +7,15 @@
         <span class="ub-eyebrow">Step 01</span>
         <h2 class="mt-3 ub-docs-h2">Install Utterbar</h2>
         <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-            Download the installer from the <a href="{{ route('download') }}" style="color: var(--accent);">download page</a>. It&rsquo;s a single <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">.exe</code>, around 11&nbsp;MB. Run it. Utterbar installs to your local app data folder &mdash; no admin rights required, no system services, no registry pollution beyond the start-menu shortcut.
+            Download the installer from the <a href="{{ route('download') }}" style="color: var(--accent);">download page</a>. It&rsquo;s a single <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">.exe</code>, around 11&nbsp;MB. Run it. Utterbar installs to your local app data folder, no admin rights required, no system services, no registry pollution beyond the start-menu shortcut.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-            Windows 10 22H2 or Windows 11, x86_64. WebView2 is required &mdash; it&rsquo;s already on every Windows 11 machine and auto-bootstrapped on Windows 10. If you see a SmartScreen warning the first time, that&rsquo;s because the installer isn&rsquo;t code-signed. Click &ldquo;More info&rdquo; → &ldquo;Run anyway&rdquo;. SmartScreen learns over time; once enough installs go through, the warning goes away on its own.
+            Windows 10 22H2 or Windows 11, x86_64. WebView2 is required, it&rsquo;s already on every Windows 11 machine and auto-bootstrapped on Windows 10. If you see a SmartScreen warning the first time, that&rsquo;s because the installer isn&rsquo;t code-signed. Click &ldquo;More info&rdquo; → &ldquo;Run anyway&rdquo;. SmartScreen learns over time; once enough installs go through, the warning goes away on its own.
         </p>
 
         <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">
             <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
-                <strong style="color: var(--fg-hi);">Where Utterbar lives.</strong> All app data lives under <code class="font-mono text-xs" style="color: var(--accent);">%APPDATA%\Utterbar\</code>. Logs, transcription history, the speech model, your custom vocabulary &mdash; all there. Uninstall doesn&rsquo;t touch this folder by default, so you can re-install without losing anything. Delete it manually for a clean wipe.
+                <strong style="color: var(--fg-hi);">Where Utterbar lives.</strong> All app data lives under <code class="font-mono text-xs" style="color: var(--accent);">%APPDATA%\Utterbar\</code>. Logs, transcription history, the speech model, your custom vocabulary, all there. Uninstall doesn&rsquo;t touch this folder by default, so you can re-install without losing anything. Delete it manually for a clean wipe.
             </p>
         </div>
     </div>
@@ -25,10 +25,10 @@
         <span class="ub-eyebrow">Step 02</span>
         <h2 class="mt-3 ub-docs-h2">First-run model download</h2>
         <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-            The very first time Utterbar launches, it fetches a speech-recognition model from the <a href="https://github.com/k2-fsa/sherpa-onnx/releases" target="_blank" rel="noopener" style="color: var(--accent);">k2-fsa sherpa-onnx releases</a>. The default is the int8 build of NVIDIA Parakeet TDT 0.6B v3 &mdash; about 460&nbsp;MB. The download takes a minute or two on a normal connection.
+            The very first time Utterbar launches, it fetches a speech-recognition model from the <a href="https://github.com/k2-fsa/sherpa-onnx/releases" target="_blank" rel="noopener" style="color: var(--accent);">k2-fsa sherpa-onnx releases</a>. The default is the int8 build of NVIDIA Parakeet TDT 0.6B v3, about 460&nbsp;MB. The download takes a minute or two on a normal connection.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-            This is the only time Utterbar will ever talk to the network for transcription. After this, you can disconnect from the internet entirely and dictation keeps working &mdash; the model lives on your disk, the inference runs on your CPU (or GPU, if you have one), and the audio never leaves your machine.
+            This is the only time Utterbar will ever talk to the network for transcription. After this, you can disconnect from the internet entirely and dictation keeps working, the model lives on your disk, the inference runs on your CPU (or GPU, if you have one), and the audio never leaves your machine.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
             Other models live in Settings &rarr; Models. Whisper base (free) and Whisper small (Pro) cover ~99 languages between them, and Zipformer (free) is a smaller English-only build for low-spec PCs. GPU acceleration (DirectML on any DX12 card, CUDA on NVIDIA) speeds any of them up if you have a supported GPU.
@@ -36,7 +36,7 @@
 
         <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">
             <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
-                <strong style="color: var(--fg-hi);">Cold-start.</strong> The first dictation after launch can take 5&ndash;12 seconds while the engine warms up &mdash; the model is loaded into memory and the runtime initialises. The pill shows &ldquo;Initialising model&rdquo; during this window. Subsequent dictations are instant.
+                <strong style="color: var(--fg-hi);">Cold-start.</strong> The first dictation after launch can take 5&ndash;12 seconds while the engine warms up, the model is loaded into memory and the runtime initialises. The pill shows &ldquo;Initialising model&rdquo; during this window. Subsequent dictations are instant.
             </p>
         </div>
     </div>
@@ -46,10 +46,10 @@
         <span class="ub-eyebrow">Step 03</span>
         <h2 class="mt-3 ub-docs-h2">Your first dictation</h2>
         <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-            Focus any app that accepts typing &mdash; an email draft, a Notion page, a Slack message box, the Windows search bar, anything. Press <x-kbd-chip :keys="['Ctrl','Space']" /> to start recording.
+            Focus any app that accepts typing, an email draft, a Notion page, a Slack message box, the Windows search bar, anything. Press <x-kbd-chip :keys="['Ctrl','Space']" /> to start recording.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-            The floating bar at the top of your screen lights up cyan and the seven-bar waveform starts moving. Speak naturally &mdash; you don&rsquo;t need to slow down or pronounce things robotically. When you&rsquo;re done, press <x-kbd-chip :keys="['Ctrl','Space']" /> again to stop. Utterbar transcribes, runs your selected mode&rsquo;s post-processing, and types the result into wherever your cursor is.
+            The floating bar at the top of your screen lights up cyan and the seven-bar waveform starts moving. Speak naturally, you don&rsquo;t need to slow down or pronounce things robotically. When you&rsquo;re done, press <x-kbd-chip :keys="['Ctrl','Space']" /> again to stop. Utterbar transcribes, runs your selected mode&rsquo;s post-processing, and types the result into wherever your cursor is.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
             That&rsquo;s the whole interface. There&rsquo;s no toolbar, no &ldquo;send&rdquo; button, no cloud sync prompt. Press, speak, release.
@@ -74,9 +74,9 @@
         The fastest things to check, in order:
     </p>
     <ul class="mt-4 space-y-3 text-base leading-relaxed" style="color: var(--fg);">
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">No floating bar visible?</strong> Check the system tray &mdash; Utterbar is running but its pill might be off-screen on a monitor that&rsquo;s no longer connected. Right-click the tray icon → &ldquo;Reset Utterbar position&rdquo;.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">No floating bar visible?</strong> Check the system tray . Utterbar is running but its pill might be off-screen on a monitor that&rsquo;s no longer connected. Right-click the tray icon → &ldquo;Reset Utterbar position&rdquo;.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Hotkey does nothing?</strong> Another app is probably holding it globally. Settings → Shortcuts to rebind, or close whichever app is conflicting.</span></li>
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">&ldquo;No audio detected&rdquo; even when you spoke?</strong> Your mic input may be wrong &mdash; Settings → Audio Input. Bluetooth headsets often register twice; pick the one with &ldquo;Hands-Free&rdquo; in the name.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">&ldquo;No audio detected&rdquo; even when you spoke?</strong> Your mic input may be wrong . Settings → Audio Input. Bluetooth headsets often register twice; pick the one with &ldquo;Hands-Free&rdquo; in the name.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Slow first transcription?</strong> Expected. The model warms up over the first few seconds; subsequent dictations are instant.</span></li>
     </ul>
     <p class="mt-6 text-base leading-relaxed" style="color: var(--fg);">

@@ -16,7 +16,7 @@
         [
             'name'   => 'macOS',
             'status' => 'Later',
-            'note'   => 'Planned after Windows 1.0 ships. A Mac version needs an audio-capture and hotkey rewrite &mdash; the core is portable, the system integration isn\'t.',
+            'note'   => 'Planned after Windows 1.0 ships. A Mac version needs an audio-capture and hotkey rewrite. The core is portable, the system integration isn\'t.',
         ],
         [
             'name'   => 'Linux',
@@ -45,7 +45,7 @@
                 <p class="ub-lead mt-8 max-w-xl">
                     Windows-native. Local-only. Small installer.
                     @if (!$latest)
-                        No build is listed just now &mdash; check back shortly.
+                        No build is listed yet. Check back shortly.
                     @endif
                 </p>
             </div>
@@ -112,7 +112,7 @@
                                 Windows installer (.exe)
                             </p>
                             <p class="mt-6 text-sm" style="color: var(--muted); line-height: 1.55;">
-                                No build is listed just now &mdash; check back shortly.
+                                No build is listed yet. Check back shortly.
                             </p>
                         @endif
                     </div>

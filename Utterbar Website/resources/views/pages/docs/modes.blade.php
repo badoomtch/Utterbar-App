@@ -1,6 +1,6 @@
-<x-layouts.docs title="Modes" description="How Utterbar's modes shape the same dictated speech into voice-to-text, a clean message, or verbatim meeting notes — switched in a click or by hotkey.">
+<x-layouts.docs title="Modes" description="How Utterbar's modes shape the same dictated speech into voice-to-text, a clean message, or verbatim meeting notes. Switched in a click or by hotkey.">
     <h1 class="ub-docs-h1">Modes that <x-hl>match</x-hl> the job.</h1>
-    <p class="ub-lead mt-6">A mode is a small post-processing recipe: take the raw transcript, apply a formatting rule-set, type the result. Change mode and the same speech comes out shaped differently &mdash; no extra dictation, no rewriting.</p>
+    <p class="ub-lead mt-6">A mode is a small post-processing recipe: take the raw transcript, apply a formatting rule-set, type the result. Change mode and the same speech comes out shaped differently, no extra dictation, no rewriting.</p>
 
     {{-- ───────────── The three built-ins ───────────── --}}
     <h2 class="mt-12 ub-docs-h2">The three built-in modes</h2>
@@ -34,9 +34,9 @@
     </div>
 
     {{-- ───────────── Voice-to-text ───────────── --}}
-    <h2 class="mt-14 ub-docs-h2">Voice-to-text &mdash; the default</h2>
+    <h2 class="mt-14 ub-docs-h2">Voice-to-text: the default</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        Pure pass-through. Whatever the speech model emits is what you get, with no rewriting and no formatting beyond the standard punctuation and capitalisation the model already applies. This is the right mode for one-off short dictations &mdash; chat replies, search bars, single sentences.
+        Pure pass-through. Whatever the speech model emits is what you get, with no rewriting and no formatting beyond the standard punctuation and capitalisation the model already applies. This is the right mode for one-off short dictations, chat replies, search bars, single sentences.
     </p>
     <div class="mt-5 ub-card" style="padding: 1rem 1.25rem;">
         <p class="font-mono text-xs uppercase tracking-wider" style="color: var(--muted); letter-spacing: 0.12em;">You said</p>
@@ -46,24 +46,24 @@
     </div>
 
     {{-- ───────────── Message ───────────── --}}
-    <h2 class="mt-14 ub-docs-h2">Message &mdash; cleaned for chat</h2>
+    <h2 class="mt-14 ub-docs-h2">Message: cleaned for chat</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        A deterministic template that strips obvious filler (&ldquo;um&rdquo;, &ldquo;like&rdquo;, &ldquo;basically&rdquo;), tightens hedging, and caps the result at a small number of sentences. The shape is conversational rather than verbatim &mdash; what you&rsquo;d send to a colleague, not what a court reporter would write down.
+        A deterministic template that strips obvious filler (&ldquo;um&rdquo;, &ldquo;like&rdquo;, &ldquo;basically&rdquo;), tightens hedging, and caps the result at a small number of sentences. The shape is conversational rather than verbatim, what you&rsquo;d send to a colleague, not what a court reporter would write down.
     </p>
     <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-        It runs entirely on rules &mdash; no LLM, no external service, no &ldquo;your message has been re-imagined as polished business prose&rdquo;. The output stays recognisably yours.
+        It runs entirely on rules, no LLM, no external service, no &ldquo;your message has been re-imagined as polished business prose&rdquo;. The output stays recognisably yours.
     </p>
     <div class="mt-5 ub-card" style="padding: 1rem 1.25rem;">
         <p class="font-mono text-xs uppercase tracking-wider" style="color: var(--muted); letter-spacing: 0.12em;">You said</p>
         <p class="mt-2 text-base italic" style="color: var(--fg);">&ldquo;so basically we need to push the launch to Tuesday because QA flagged two issues with the auth flow and we want them fixed before marketing pings the list&rdquo;</p>
         <p class="mt-4 font-mono text-xs uppercase tracking-wider" style="color: var(--accent); letter-spacing: 0.12em;">It types</p>
-        <p class="mt-2 text-base" style="color: var(--fg-hi);">Quick heads up &mdash; pushing launch to Tuesday. QA flagged two auth-flow issues we want fixed before marketing sends the announcement.</p>
+        <p class="mt-2 text-base" style="color: var(--fg-hi);">Quick heads up, pushing launch to Tuesday. QA flagged two auth-flow issues we want fixed before marketing sends the announcement.</p>
     </div>
 
     {{-- ───────────── Meeting ───────────── --}}
-    <h2 class="mt-14 ub-docs-h2">Meeting &mdash; verbatim, line-broken</h2>
+    <h2 class="mt-14 ub-docs-h2">Meeting: verbatim, line-broken</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        Verbatim capture &mdash; nothing trimmed, nothing rewritten &mdash; with line breaks preserved on natural pauses. Use it when you want a literal record of what was said, not a cleaned-up summary. Combined with system-audio capture (Settings → Audio → System audio), this is what most people use for transcribing a meeting they&rsquo;re sitting in.
+        Verbatim capture, nothing trimmed, nothing rewritten, with line breaks preserved on natural pauses. Use it when you want a literal record of what was said, not a cleaned-up summary. Combined with system-audio capture (Settings → Audio → System audio), this is what most people use for transcribing a meeting they&rsquo;re sitting in.
     </p>
     <div class="mt-5 ub-card" style="padding: 1rem 1.25rem;">
         <p class="font-mono text-xs uppercase tracking-wider" style="color: var(--muted); letter-spacing: 0.12em;">You said</p>
@@ -91,12 +91,12 @@ We want them fixed before marketing announces.</pre>
         Pro unlocks unlimited custom modes. Clone a built-in, edit the post-processing rules, and bind it to its own hotkey. The most common reasons people make custom modes:
     </p>
     <ul class="mt-4 space-y-3 text-base leading-relaxed" style="color: var(--fg);">
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">A &ldquo;quick reply&rdquo; mode</strong> for chat apps &mdash; tighter than Message, no sentence cap, optional sign-off.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">A &ldquo;quick reply&rdquo; mode</strong> for chat apps, tighter than Message, no sentence cap, optional sign-off.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">A &ldquo;code commit&rdquo; mode</strong> that lower-cases the first word and prepends a conventional-commit prefix.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">A &ldquo;markdown notes&rdquo; mode</strong> that turns &ldquo;new bullet&rdquo; / &ldquo;sub-bullet&rdquo; into <code class="font-mono" style="color: var(--accent);">-</code> / <code class="font-mono" style="color: var(--accent);">  -</code>.</span></li>
     </ul>
     <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-        Whether a mode can read your clipboard, current text selection, or the active app name is governed by the global Privacy settings &mdash; one switch per source, applied to every mode. See <a href="{{ route('docs.privacy-controls') }}" style="color: var(--accent);">Privacy controls</a> for the details.
+        Whether a mode can read your clipboard, current text selection, or the active app name is governed by the global Privacy settings, one switch per source, applied to every mode. See <a href="{{ route('docs.privacy-controls') }}" style="color: var(--accent);">Privacy controls</a> for the details.
     </p>
 
     <div class="mt-12 ub-card ub-card-rail">

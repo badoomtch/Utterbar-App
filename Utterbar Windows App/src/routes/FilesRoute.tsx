@@ -37,11 +37,11 @@ type FileJob = {
 type Progress = { id: string; progress: number; status: FileJob['status'] };
 
 /**
- * Files — offline batch transcription.
+ * Files, offline batch transcription.
  *
  * Per DESIGN_SYSTEM.md §4 the dropzone and job rows are flat surfaces
  * (no shadow, no outside border). The dropzone gets a dashed hairline
- * because the dashed pattern is itself the "drop here" affordance — this
+ * because the dashed pattern is itself the "drop here" affordance, this
  * is the one exception to the "no borders on cards" rule and only because
  * replacing the dash with surface tone would lose the metaphor.
  */
@@ -51,7 +51,7 @@ export function FilesRoute() {
   const [openJob, setOpenJob] = useState<FileJob | null>(null);
   // Brief inline toast: "Queued 14 files." Cleared after a few seconds.
   // Lives at the top of the dropzone so users immediately see that a
-  // batch enqueue actually did something — the job rows arrive on the
+  // batch enqueue actually did something, the job rows arrive on the
   // next reload tick which feels slow for hundreds of files.
   const [batchToast, setBatchToast] = useState<string | null>(null);
 
@@ -98,7 +98,7 @@ export function FilesRoute() {
         if (event.payload.type === 'drop') {
           setDragActive(false);
           // Each dropped path could be a file OR a folder. The Rust
-          // side decides — `enqueue_path` checks `is_dir()` and routes
+          // side decides, `enqueue_path` checks `is_dir()` and routes
           // accordingly. Returns a count so we can show a "Queued N"
           // toast for the whole batch.
           void enqueueBatch(event.payload.paths);
@@ -114,7 +114,7 @@ export function FilesRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Single-path enqueue — can be a file OR folder. Backend routes via
+  // Single-path enqueue, can be a file OR folder. Backend routes via
   // `enqueue_path`. Returns the number of jobs created so the caller
   // can sum across a batch.
   const enqueuePath = async (path: string): Promise<number> => {
@@ -150,7 +150,7 @@ export function FilesRoute() {
     }
   };
 
-  // Click-to-pick — files. Uses Tauri's native dialog so we get
+  // Click-to-pick, files. Uses Tauri's native dialog so we get
   // absolute paths (HTML5 `<input type="file">` doesn't expose them
   // inside a webview).
   const pickFiles = async () => {
@@ -172,7 +172,7 @@ export function FilesRoute() {
     }
   };
 
-  // Click-to-pick — a whole folder. The Rust side walks the tree
+  // Click-to-pick, a whole folder. The Rust side walks the tree
   // recursively, filters to supported extensions, and enqueues up to
   // 1,000 files in one go. Bigger trees get the first 1k and the user
   // can re-drop the rest after the queue drains.
@@ -189,7 +189,7 @@ export function FilesRoute() {
   const licenceStatus = useLicence((s) => s.status);
   const pro = isPro(licenceStatus);
 
-  // Free-tier users see only a ProNudge — the dropzone and job list are
+  // Free-tier users see only a ProNudge, the dropzone and job list are
   // Pro-only surfaces. The backend also rejects `enqueue_file`, so the
   // worst case is a stale job list from a previous Pro session (harmless).
   if (!pro) {
@@ -197,7 +197,7 @@ export function FilesRoute() {
       <div className="mx-auto max-w-4xl p-8">
         <PageHeader
           title="File transcription"
-          subtitle="Turn any recording into searchable text — locally, with no upload, no token cost, no cloud queue."
+          subtitle="Turn any recording into searchable text, locally, with no upload, no token cost, no cloud queue."
         />
         <UseCaseStrip />
         <ProNudge
@@ -219,7 +219,7 @@ export function FilesRoute() {
       {jobs.length === 0 && <UseCaseStrip />}
 
       {/* Dropzone. Accepts files AND folders. Drag-drop via Tauri's
-          window-level event (absolute paths only — HTML5 drop is
+          window-level event (absolute paths only, HTML5 drop is
           suppressed in webviews by default). Click goes to the file
           picker; the "Pick folder" link below opens the directory
           picker for batch mode. */}
@@ -250,7 +250,7 @@ export function FilesRoute() {
       </button>
 
       {/* Batch helpers. "Pick folder" lives below the dropzone rather
-          than as a second giant button — most people will drag, this
+          than as a second giant button, most people will drag, this
           is a fallback for keyboard-only / picker-preferring users. */}
       <div className="mt-3 flex items-center justify-between gap-3 px-1 text-[11px] text-muted">
         <button
@@ -259,7 +259,7 @@ export function FilesRoute() {
           className="inline-flex items-center gap-1.5 text-fg-dim transition-colors hover:text-accent"
         >
           <FolderOpen className="h-3 w-3" />
-          Pick a folder instead — batch transcribe up to 1,000 files
+          Pick a folder instead, batch transcribe up to 1,000 files
         </button>
         {batchToast && (
           <span className="text-accent" role="status" aria-live="polite">
@@ -271,7 +271,7 @@ export function FilesRoute() {
       <ul className="mt-6 space-y-2">
         {jobs.map((j) => {
           const done = j.status === 'done';
-          // Done rows are clickable — opens the transcript modal.
+          // Done rows are clickable, opens the transcript modal.
           // Anything else is read-only with a Cancel option for in-flight jobs.
           const Row = done ? 'button' : 'div';
           return (
@@ -323,7 +323,7 @@ export function FilesRoute() {
                 ) : (
                   // Inline row delete. Available on done / error / cancelled
                   // rows so users can clear out finished or failed jobs
-                  // without opening anything. Drops the row only — the
+                  // without opening anything. Drops the row only, the
                   // .utterbar.txt file (when present) stays on disk; the
                   // modal's "Row + file" option is the way to remove that
                   // too. Errored rows have no file so this is the only
@@ -360,7 +360,7 @@ export function FilesRoute() {
 
 /**
  * Modal showing the finished transcript with copy / show-in-folder /
- * delete actions. Lightweight — no router state, no portal library;
+ * delete actions. Lightweight, no router state, no portal library;
  * just a fixed overlay that takes over the viewport when `job` is set.
  *
  * The transcript is loaded lazily on open so the row click stays fast
@@ -444,7 +444,7 @@ function TranscriptModal({
     }
   };
 
-  // Filename only for the header — full path in a small line below.
+  // Filename only for the header, full path in a small line below.
   const filename =
     job.source_path.split(/[\\/]/).pop() || job.source_path;
 
@@ -498,6 +498,16 @@ function TranscriptModal({
               <FolderOpen className="h-3 w-3" />
               Show in folder
             </Button>
+            {/* Subtitle-export hint. v0.11.0 emits .srt + .vtt sidecars
+                next to the .txt for every completed job. We don't open
+                them with a single button click (the user might use any
+                editor); pointing them at the folder is enough. Timing is
+                approximate at the sentence level, the underlying ASR
+                wrapper drops per-token timestamps, so we distribute the
+                total duration proportionally across sentences. */}
+            <span className="text-[11px] text-muted hidden sm:inline">
+              · also wrote .srt + .vtt (timing approximate)
+            </span>
           </div>
           {confirmingDelete ? (
             <div className="flex items-center gap-2 text-[12px]">
@@ -537,10 +547,10 @@ function TranscriptModal({
 }
 
 /**
- * Status pill — inline state read next to each job row. Uses the same
+ * Status pill, inline state read next to each job row. Uses the same
  * palette discipline as StatePill: moss for done, rose for error, accent
  * (spinner) for running, muted for idle. Never stack more than ~3 of
- * these coloured states at once — the rail + progress bar already eat
+ * these coloured states at once, the rail + progress bar already eat
  * into the cyan budget on this page.
  */
 function StatusPill({ status }: { status: FileJob['status'] }) {
@@ -566,7 +576,7 @@ function StatusPill({ status }: { status: FileJob['status'] }) {
  * the feature is actually for" expectation up front, instead of leaving
  * the user with a generic dropzone and no hint about why they'd use it.
  *
- * Kept tight — three real workflows, one short sentence each. Anything
+ * Kept tight, three real workflows, one short sentence each. Anything
  * longer crowds the page; anything shorter is decorative.
  */
 function UseCaseStrip() {
@@ -574,7 +584,7 @@ function UseCaseStrip() {
     {
       icon: Users,
       title: 'Meeting recordings',
-      body: 'Drop a Teams or Zoom recording — get a searchable transcript next to the file, with no upload to a meeting-notes service.',
+      body: 'Drop a Teams or Zoom recording, get a searchable transcript next to the file, with no upload to a meeting-notes service.',
     },
     {
       icon: Podcast,

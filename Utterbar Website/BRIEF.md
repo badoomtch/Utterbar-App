@@ -33,7 +33,7 @@ Anchors for every page:
 
 Elevator pitch (use verbatim on hero):
 
-> Dictation that stays on your PC. Utterbar transcribes your voice into any Windows app — instantly, offline, and without sending a single byte to the cloud.
+> Dictation that stays on your PC. Utterbar transcribes your voice into any Windows app, instantly, offline, and without sending a single byte to the cloud.
 
 ---
 
@@ -68,7 +68,13 @@ Confident, specific, minimal. Three rules:
 2. **Name the competition when it sharpens a sentence.** Superwhisper is the Mac equivalent; saying so saves a paragraph.
 3. **Short sentences on hero + features.** Headlines max 9 words. Longer paragraphs are fine on docs / FAQ.
 
-Banned words: *synergy, empower, revolutionise, game-changer, AI-powered (as a noun), seamless, unlock, frictionless, supercharge, next-gen*. If you reach for one, rewrite.
+Banned words: *synergy, empower, revolutionise, game-changer, AI-powered (as a noun), seamless, unlock, frictionless, supercharge, next-gen, effortless, robust, tailored, intuitive, streamline, elevate, transform the way, designed to help you, everything you need, whether you're, simply, just, easily*. If you reach for one, rewrite.
+
+**No em dashes.** Don't use `—` or `&mdash;` in customer-facing copy. Use a comma, full stop, colon, or semicolon. The em dash is a tell for AI-generated marketing copy, and rewriting around it makes the sentence sharper anyway.
+
+**No fake friendliness.** Avoid "good news", "you're all set", "no worries", "we've got you covered". Plain confidence reads better.
+
+**Sentence rhythm should feel human.** Don't write three perfectly-balanced sentences in a row. Mix lengths. A four-word sentence is fine. So is an eight-word one. So is a longer one with a comma in the middle.
 
 Preferred register: British English spelling (`colour`, `organise`, `customise`, `optimise`, `licence` as noun, `license` as verb). The product ships worldwide; the founder is British; the copy stays British.
 

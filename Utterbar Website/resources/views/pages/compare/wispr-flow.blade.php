@@ -239,7 +239,7 @@
                     <h3 class="text-xl mb-4" style="color: var(--fg-hi); letter-spacing: -0.015em;">Pick Wispr Flow if&hellip;</h3>
                     <ul class="space-y-3 text-base" style="color: var(--fg);">
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span>You work on macOS, iOS, or Android, not just Windows. Wispr ships everywhere; Utterbar is Windows-first by design.</span></li>
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span>You want aggressive AI-driven rewrites of what you said &mdash; not just clean transcription, but the LLM restructuring your sentences into &ldquo;business-appropriate&rdquo; copy. That&rsquo;s Wispr&rsquo;s headline feature; we deliberately don&rsquo;t do it.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span>You want aggressive AI-driven rewrites of what you said. Not just clean transcription, but the LLM restructuring your sentences into &ldquo;business-appropriate&rdquo; copy. That&rsquo;s Wispr&rsquo;s headline feature. We deliberately don&rsquo;t do it.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span>You&rsquo;re happy with monthly subscription billing and don&rsquo;t mind your voice going through a third-party server.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span>You need cross-device sync of vocabulary, settings, and history out of the box.</span></li>
                     </ul>
@@ -249,11 +249,11 @@
                     <h3 class="text-xl mb-4" style="color: var(--fg-hi); letter-spacing: -0.015em;">Pick Utterbar if&hellip;</h3>
                     <ul class="space-y-3 text-base" style="color: var(--fg);">
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re on Windows and you want a Windows-native app, not an Electron shell or a web app pretending to be one.</span></li>
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want your voice leaving your machine. Privacy isn&rsquo;t a feature toggle, it&rsquo;s the architecture &mdash; the app literally has nowhere to send your audio.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want your voice leaving your machine. Privacy isn&rsquo;t a feature toggle here, it&rsquo;s the architecture. The app literally has nowhere to send your audio.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want to rent your dictation tool. &pound;39.99 one-time on three devices is what Wispr Pro costs in three months.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You dictate enough that weekly word caps would frustrate you, even on a free tier.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You need to transcribe meetings (system audio) or files (recordings, podcasts), not just speak into a chat box.</span></li>
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You work in environments where corporate or compliance policy makes a cloud audio service a non-starter &mdash; legal, healthcare, government, security &mdash; and you need a tool that can prove it stays local.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You work in legal, healthcare, government, or security, where corporate or compliance policy makes a cloud audio service a non-starter, and you need a tool that can prove it stays local.</span></li>
                     </ul>
                 </div>
             </div>
@@ -300,6 +300,6 @@
 
     <x-prompt-cta
         :heading="'See for yourself.'"
-        :sub="'Free forever, no account, downloads in under a minute. If it&rsquo;s not for you, the licence is refundable for 14 days &mdash; no questions.'"
+        :sub="'Free forever, no account, downloads in under a minute. If it&rsquo;s not for you, the licence is refundable for 14 days. No questions.'"
     />
 </x-layouts.app>

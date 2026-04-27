@@ -19,7 +19,7 @@ export function AccessibilitySettings() {
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
 
-  // Hook order must be stable across renders — every hook in this component
+  // Hook order must be stable across renders, every hook in this component
   // runs unconditionally on the first line and any early return comes AFTER.
   // Previously the `if (!s) return null` guard sat above the useState/useEffect
   // below, which meant the very first render (before settings loaded) took a
@@ -30,7 +30,7 @@ export function AccessibilitySettings() {
   // Local draft state for the slider. Committing on every `onChange` while the
   // user drags meant the entire app re-flowed 20+ times per second (ui_scale
   // writes to `document.documentElement.style.fontSize`, which invalidates
-  // layout). That read as the whole window jittering side-to-side — the
+  // layout). That read as the whole window jittering side-to-side, the
   // slider itself would re-lay-out under the cursor as padding around it grew
   // and shrank. We now keep the draft value in component state and only
   // commit when the user releases the thumb (onPointerUp / onKeyUp).
@@ -62,7 +62,7 @@ export function AccessibilitySettings() {
       <div className="mt-6 space-y-4">
         <Card
           title="UI scale"
-          description="Scales the entire main window — text, padding, buttons, and icons — relative to the default. The floating bar is deliberately exempt so it stays the same physical size whatever you pick here."
+          description="Scales the entire main window, text, padding, buttons, and icons, relative to the default. The floating bar is deliberately exempt so it stays the same physical size whatever you pick here."
         >
           <Row label="Scale" description="Pick a preset or drag the slider for fine control.">
             <div className="flex flex-wrap items-center gap-2">
@@ -85,7 +85,7 @@ export function AccessibilitySettings() {
                 max={175}
                 step={5}
                 value={uiScale}
-                // Update local preview only while dragging — the visible
+                // Update local preview only while dragging, the visible
                 // number in the readout still tracks the thumb, but we don't
                 // touch the document font-size (and therefore don't re-flow
                 // the whole window) until the user lets go. This is what
@@ -107,7 +107,7 @@ export function AccessibilitySettings() {
         >
           <Row
             label="Reduce motion"
-            description="Minimise animations across Utterbar — the floating bar still appears, but the bouncy springs, bar-expand transitions, and launch pulse are suppressed. Framer Motion and CSS transitions both honour this."
+            description="Minimise animations across Utterbar, the floating bar still appears, but the bouncy springs, bar-expand transitions, and launch pulse are suppressed. Framer Motion and CSS transitions both honour this."
           >
             <Toggle
               checked={Boolean(g.reduce_motion)}
@@ -122,7 +122,7 @@ export function AccessibilitySettings() {
         >
           <Row
             label="High contrast"
-            description="Push dim greys toward full white (or full black on Paper), thicken hairline separators, and bump every border token to its stronger variant. Applies everywhere — main window, floating bar, onboarding."
+            description="Push dim greys toward full white (or full black on Paper), thicken hairline separators, and bump every border token to its stronger variant. Applies everywhere, main window, floating bar, onboarding."
           >
             <Toggle
               checked={Boolean(g.high_contrast)}
@@ -142,7 +142,7 @@ export function AccessibilitySettings() {
 
         <Card
           title="Transparency"
-          description="Windows and sticky headers use subtle backdrop-blur by default. Turn it off if it makes content hard to read — or if your GPU is working hard on other things."
+          description="Windows and sticky headers use subtle backdrop-blur by default. Turn it off if it makes content hard to read, or if your GPU is working hard on other things."
         >
           <Row
             label="Reduce transparency"

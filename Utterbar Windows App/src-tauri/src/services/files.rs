@@ -300,7 +300,18 @@ impl FileJobService {
                     sample_rate: decoded.sample_rate,
                     channels: 1,
                 },
-                AsrOptions::default(),
+                // Request word-level timings for subtitle export. No
+                // current provider populates `words: Some(...)` — the
+                // sherpa-rs 0.6 Rust wrapper drops the FFI's per-token
+                // timestamps. When a future provider does start
+                // returning real timings, the subtitle code path
+                // (`subtitles::cues_from_words`) auto-upgrades from
+                // proportional sentence-level timing to true word-
+                // level timing without further changes here.
+                AsrOptions {
+                    want_word_timings: true,
+                    ..Default::default()
+                },
             )
             .await
         {
@@ -357,6 +368,33 @@ impl FileJobService {
             self.fail(&job.id, &format!("write result: {e}"))?;
             emit(handle, &job.id, 0.95, FileJobStatus::Error);
             return Ok(());
+        }
+
+        // Subtitle sidecars (.srt + .vtt). Always emitted alongside
+        // the .txt — they're tiny text files, and a per-job toggle
+        // would mean either schema migration or a "I forgot the box"
+        // class of bug. If a user only wants the .txt they can ignore
+        // the others. See services/subtitles.rs for the timing-honesty
+        // discussion.
+        //
+        // Failure here is non-fatal: the .txt has already landed, the
+        // user has their transcript. We log + carry on.
+        let cues = if let Some(words) = asr.words.as_ref() {
+            crate::services::subtitles::cues_from_words(words)
+        } else {
+            crate::services::subtitles::cues_from_text(&processed, asr.duration_ms)
+        };
+        if !cues.is_empty() {
+            let srt_path = sidecar_path(&source, "srt");
+            let vtt_path = sidecar_path(&source, "vtt");
+            let srt = crate::services::subtitles::render_srt(&cues);
+            let vtt = crate::services::subtitles::render_vtt(&cues);
+            if let Err(e) = tokio::fs::write(&srt_path, &srt).await {
+                tracing::warn!(error = ?e, path = %srt_path.display(), "subtitle .srt write failed; continuing");
+            }
+            if let Err(e) = tokio::fs::write(&vtt_path, &vtt).await {
+                tracing::warn!(error = ?e, path = %vtt_path.display(), "subtitle .vtt write failed; continuing");
+            }
         }
 
         let rel = out_path.to_string_lossy().into_owned();

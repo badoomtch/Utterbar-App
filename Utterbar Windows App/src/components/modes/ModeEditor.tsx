@@ -7,16 +7,16 @@ import { invoke } from '@/lib/ipc';
 import { cn } from '@/lib/cn';
 
 /**
- * Mode editor modal. Persisted as opaque JSON via `upsert_mode` — the Rust
+ * Mode editor modal. Persisted as opaque JSON via `upsert_mode`, the Rust
  * side owns schema validation, the editor just surfaces the fields we
  * expose today.
  *
  * Per DESIGN_SYSTEM.md:
  *   • The modal shell sits on bg-1 with a 2px border-soft hairline. NO
- *     drop shadow — the dark backdrop behind it is the elevation.
+ *     drop shadow, the dark backdrop behind it is the elevation.
  *   • Inputs wrap the .ub-input class via the Input primitive (bg-0 inside
  *     bg-1 so they read as wells).
- *   • Chip pickers use .ub-chip / .ub-chip--active — no custom border
+ *   • Chip pickers use .ub-chip / .ub-chip--active, no custom border
  *     rings for the active one.
  *   • Footer CTA / Cancel use Ghost + CTA Buttons (no bespoke styling).
  */
@@ -160,14 +160,14 @@ export function ModeEditor({
               />
             </Field>
             {/* v0.6.6: the per-mode ASR model picker was removed. Globals
-                are authoritative — change the model in Settings → Models.
+                are authoritative, change the model in Settings → Models.
                 The field is still on the Mode struct for back-compat; it's
                 just ignored at dictation time. Hiding the editor keeps the
                 UI consistent with the runtime behaviour. */}
             <Field label="Target language (BCP-47)">
               <Input
                 value={draft.target_language ?? ''}
-                placeholder="e.g. en, es, ja — blank for auto"
+                placeholder="e.g. en, es, ja, blank for auto"
                 onChange={(e) => patch({ target_language: e.target.value || null })}
                 className="flex-1"
               />
@@ -199,7 +199,7 @@ export function ModeEditor({
           </Section>
 
           <Section title="Post-processing">
-            {/* `llm` is deliberately absent in 0.6 — the llama.cpp provider
+            {/* `llm` is deliberately absent in 0.6, the llama.cpp provider
                 isn't wired yet, so the option would silently fall back to
                 deterministic. Returns in 0.7 with the real LLM backend. */}
             <div className="flex flex-wrap gap-2">
@@ -250,11 +250,11 @@ export function ModeEditor({
           </Section>
 
           {/* v0.6.6: the per-mode Context Rules block was removed. Privacy
-              is authoritative — toggle clipboard / selection / active-app
+              is authoritative, toggle clipboard / selection / active-app
               context in Settings → Privacy. The struct fields are still
               persisted for back-compat with older Mode rows on disk, but
               they're no longer consulted at dictation time and the editor
-              no longer surfaces them. `patchContext` is now unused — kept
+              no longer surfaces them. `patchContext` is now unused, kept
               as a no-op alias in case old handlers reach it; next major
               version should drop it with the struct field. */}
 
@@ -394,7 +394,7 @@ export function ModeEditor({
 }
 
 /**
- * Section — nested sub-card inside the editor. Lives on bg-2 so there's a
+ * Section, nested sub-card inside the editor. Lives on bg-2 so there's a
  * clear hierarchy: modal shell (bg-1) → section (bg-2) → input wells (bg-0).
  */
 function Section({

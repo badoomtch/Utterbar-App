@@ -1,4 +1,4 @@
-<x-layouts.docs title="Vocabulary" description="Teach Utterbar your custom words and replacements so names, acronyms, and product terms come out right every time — applied locally, on-device.">
+<x-layouts.docs title="Vocabulary" description="Teach Utterbar your custom words and replacements so names, acronyms, and product terms come out right. Applied locally, on-device.">
     <h1 class="ub-docs-h1">Teach it your <x-hl>words</x-hl>.</h1>
     <p class="ub-lead mt-6">Teach Utterbar names, acronyms, and product terms. Fix recurring mis-transcriptions with literal or regex replacements.</p>
 

@@ -40,9 +40,9 @@
     <div class="mt-8">
         <h2 class="text-2xl">Trigger styles</h2>
         <ul class="mt-4 space-y-3 text-sm">
-            <li class="flex gap-3"><span style="color: var(--accent);"><x-icon name="check" size="16" stroke="2" /></span><span><strong style="color: var(--fg-hi);">Toggle</strong> &mdash; <span style="color: var(--muted);">press once to start, press again to stop.</span></span></li>
-            <li class="flex gap-3"><span style="color: var(--accent);"><x-icon name="check" size="16" stroke="2" /></span><span><strong style="color: var(--fg-hi);">PushToTalk</strong> &mdash; <span style="color: var(--muted);">press-and-release to capture a single burst, useful for short messages.</span></span></li>
-            <li class="flex gap-3"><span style="color: var(--accent);"><x-icon name="check" size="16" stroke="2" /></span><span><strong style="color: var(--fg-hi);">HoldToTalk</strong> &mdash; <span style="color: var(--muted);">records while held, stops on release. Walkie-talkie style.</span></span></li>
+            <li class="flex gap-3"><span style="color: var(--accent);"><x-icon name="check" size="16" stroke="2" /></span><span><strong style="color: var(--fg-hi);">Toggle</strong> . <span style="color: var(--muted);">press once to start, press again to stop.</span></span></li>
+            <li class="flex gap-3"><span style="color: var(--accent);"><x-icon name="check" size="16" stroke="2" /></span><span><strong style="color: var(--fg-hi);">PushToTalk</strong> . <span style="color: var(--muted);">press-and-release to capture a single burst, useful for short messages.</span></span></li>
+            <li class="flex gap-3"><span style="color: var(--accent);"><x-icon name="check" size="16" stroke="2" /></span><span><strong style="color: var(--fg-hi);">HoldToTalk</strong> . <span style="color: var(--muted);">records while held, stops on release. Walkie-talkie style.</span></span></li>
         </ul>
     </div>
 </x-layouts.docs>

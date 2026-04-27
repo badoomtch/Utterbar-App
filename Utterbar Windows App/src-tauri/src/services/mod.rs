@@ -1,6 +1,7 @@
 pub mod analytics;
 pub mod audio;
 pub mod audio_ducking;
+pub mod auto_activation;
 pub mod context;
 pub mod dialect;
 pub mod files;
@@ -15,6 +16,7 @@ pub mod models;
 pub mod modes;
 pub mod numbers;
 pub mod settings;
+pub mod subtitles;
 pub mod text_inject;
 pub mod tray;
 pub mod vocabulary;
