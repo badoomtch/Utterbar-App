@@ -90,11 +90,10 @@ impl SherpaZipformer {
                 ..Default::default()
             };
             tracing::info!(%model_id, "zipformer: ZipFormer::new calling into native");
-            let recognizer =
-                sherpa_rs::zipformer::ZipFormer::new(config).map_err(|e| {
-                    tracing::error!(%model_id, error = ?e, "zipformer init failed");
-                    anyhow!("zipformer init: {e:?}")
-                })?;
+            let recognizer = sherpa_rs::zipformer::ZipFormer::new(config).map_err(|e| {
+                tracing::error!(%model_id, error = ?e, "zipformer init failed");
+                anyhow!("zipformer init: {e:?}")
+            })?;
             tracing::info!(%model_id, "zipformer: recognizer constructed");
             let mut guard = inner
                 .lock()

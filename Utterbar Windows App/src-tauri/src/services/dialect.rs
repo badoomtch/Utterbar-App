@@ -282,7 +282,10 @@ mod tests {
     /// and cannot be picked deterministically.
     #[test]
     fn british_does_not_rewrite_check_to_cheque() {
-        let got = normalise("Check the code, hand me the check.", EnglishVariant::British);
+        let got = normalise(
+            "Check the code, hand me the check.",
+            EnglishVariant::British,
+        );
         // Whatever else the normaliser does, `check` must not become `cheque`.
         assert!(!got.contains("cheque"));
         assert!(got.contains("Check") || got.contains("check"));

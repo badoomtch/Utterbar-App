@@ -42,6 +42,21 @@ impl ModeService {
         let conn = self.db.conn()?;
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM modes", [], |r| r.get(0))?;
         if count > 0 {
+            // 0.13 upgrade: existing DBs already have a built-in "meeting"
+            // row but the V0003 ALTER set its is_meeting_mode to 0 (the
+            // column default). Flip it on so users who upgrade without
+            // wiping their DB get the new behaviour. Also clear any
+            // post-processing template we previously seeded — meeting
+            // mode skips post-processing at runtime, so a stale
+            // deterministic template would just confuse anyone who opens
+            // the editor expecting it to apply.
+            let _ = conn.execute(
+                "UPDATE modes
+                    SET is_meeting_mode = 1,
+                        post_processing = '{\"kind\":\"none\"}'
+                  WHERE id = 'meeting' AND is_builtin = 1 AND is_meeting_mode = 0",
+                [],
+            );
             return Ok(());
         }
         drop(conn);
@@ -53,14 +68,14 @@ impl ModeService {
 
     pub fn list(&self) -> Result<Vec<Mode>> {
         let conn = self.db.conn()?;
-        let mut stmt = conn.prepare("SELECT id,name,icon,is_builtin,is_favourite,sort_order,asr_model_id,target_language,post_processing,context_rules,auto_activation,shortcut_override,formatting,english_variant,created_at,updated_at FROM modes ORDER BY sort_order")?;
+        let mut stmt = conn.prepare("SELECT id,name,icon,is_builtin,is_favourite,sort_order,asr_model_id,target_language,post_processing,context_rules,auto_activation,shortcut_override,formatting,english_variant,is_meeting_mode,created_at,updated_at FROM modes ORDER BY sort_order")?;
         let rows = stmt.query_map([], row_to_mode)?;
         Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
     pub fn get(&self, id: &str) -> Result<Option<Mode>> {
         let conn = self.db.conn()?;
-        let mut stmt = conn.prepare("SELECT id,name,icon,is_builtin,is_favourite,sort_order,asr_model_id,target_language,post_processing,context_rules,auto_activation,shortcut_override,formatting,english_variant,created_at,updated_at FROM modes WHERE id=?1")?;
+        let mut stmt = conn.prepare("SELECT id,name,icon,is_builtin,is_favourite,sort_order,asr_model_id,target_language,post_processing,context_rules,auto_activation,shortcut_override,formatting,english_variant,is_meeting_mode,created_at,updated_at FROM modes WHERE id=?1")?;
         let mut rows = stmt.query(params![id])?;
         match rows.next()? {
             Some(row) => Ok(Some(row_to_mode(row)?)),
@@ -83,8 +98,8 @@ impl ModeService {
             .trim_matches('"')
             .to_string();
         conn.execute(
-            "INSERT INTO modes(id,name,icon,is_builtin,is_favourite,sort_order,asr_model_id,target_language,post_processing,context_rules,auto_activation,shortcut_override,formatting,english_variant,created_at,updated_at)
-             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+            "INSERT INTO modes(id,name,icon,is_builtin,is_favourite,sort_order,asr_model_id,target_language,post_processing,context_rules,auto_activation,shortcut_override,formatting,english_variant,is_meeting_mode,created_at,updated_at)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)
              ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name, icon=excluded.icon, is_favourite=excluded.is_favourite,
                 sort_order=excluded.sort_order, asr_model_id=excluded.asr_model_id,
@@ -92,6 +107,7 @@ impl ModeService {
                 context_rules=excluded.context_rules, auto_activation=excluded.auto_activation,
                 shortcut_override=excluded.shortcut_override, formatting=excluded.formatting,
                 english_variant=excluded.english_variant,
+                is_meeting_mode=excluded.is_meeting_mode,
                 updated_at=excluded.updated_at",
             params![
                 mode.id, mode.name, mode.icon, mode.is_builtin as i64, mode.is_favourite as i64, sort_order,
@@ -102,6 +118,7 @@ impl ModeService {
                 mode.shortcut_override.as_ref().map(|s| serde_json::to_string(s).unwrap()),
                 serde_json::to_string(&mode.formatting)?,
                 variant,
+                mode.is_meeting_mode as i64,
                 mode.created_at, mode.updated_at,
             ],
         )?;
@@ -195,8 +212,9 @@ fn row_to_mode(row: &rusqlite::Row) -> rusqlite::Result<Mode> {
         shortcut_override: shortcut.and_then(|s| serde_json::from_str(&s).ok()),
         formatting: serde_json::from_str(&fmt).unwrap_or_default(),
         english_variant,
-        created_at: row.get(14)?,
-        updated_at: row.get(15)?,
+        is_meeting_mode: row.get::<_, i64>(14)? != 0,
+        created_at: row.get(15)?,
+        updated_at: row.get(16)?,
     })
 }
 
@@ -251,6 +269,9 @@ fn builtin_modes() -> Vec<Mode> {
         // with the feature is flipping a mode to British/American in the
         // mode editor, which then persists the override.
         english_variant: crate::domain::EnglishVariant::Auto,
+        // Default off for built-ins. The seed below flips this on for the
+        // built-in "meeting" row so it works out of the box.
+        is_meeting_mode: false,
         created_at: 0,
         updated_at: 0,
     };
@@ -286,17 +307,23 @@ fn builtin_modes() -> Vec<Mode> {
             },
             base_fmt.clone(),
         ),
-        mk(
-            "meeting",
-            "Meeting",
-            "users",
-            PostProcessing::Deterministic {
-                template: "{text}".into(),
-            },
-            Formatting {
-                preserve_linebreaks: true,
-                ..base_fmt
-            },
-        ),
+        Mode {
+            is_meeting_mode: true,
+            ..mk(
+                "meeting",
+                "Meeting",
+                "users",
+                // Meeting mode skips post-processing at runtime
+                // regardless of this field, but keeping it as None makes
+                // the user's mental model match what actually happens —
+                // they don't open the mode editor and see a deterministic
+                // template that's silently ignored.
+                PostProcessing::None,
+                Formatting {
+                    preserve_linebreaks: true,
+                    ..base_fmt
+                },
+            )
+        },
     ]
 }

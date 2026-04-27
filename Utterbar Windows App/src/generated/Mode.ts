@@ -14,4 +14,16 @@ export type Mode = { id: string, name: string, icon: string, is_builtin: boolean
  * to swap them in post-processing. Deterministic dictionary swap runs in
  * microseconds and is safe on any transcript.
  */
-english_variant: EnglishVariant, created_at: bigint, updated_at: bigint, };
+english_variant: EnglishVariant, 
+/**
+ * Treat this mode as a meeting capture. When true, `start_recording`
+ * overrides the global capture_source to Mixed (mic + system audio)
+ * for the duration of the recording, and `stop_recording` slices the
+ * captured PCM into ~30 s windows and transcribes each window
+ * against the mode's offline ASR model rather than handing the whole
+ * buffer in one call. The chunked path bypasses the 15-min offline
+ * cap because no single transcribe call sees more than 30 s of
+ * audio. Post-processing is skipped — meetings want raw transcript,
+ * not LLM polish.
+ */
+is_meeting_mode: boolean, created_at: bigint, updated_at: bigint, };

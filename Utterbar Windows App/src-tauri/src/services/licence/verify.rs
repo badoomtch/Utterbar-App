@@ -25,7 +25,6 @@ pub const PUBLIC_KEY_BYTES_V2: [u8; 32] = [
     0x1c, 0x88, 0xc7, 0x50, 0xfc, 0x1f, 0x85, 0x78, 0x9a, 0x87, 0xec, 0x28, 0x62, 0x76, 0x3a, 0x57,
 ];
 
-
 /// Verify a signed blob and return the parsed payload. Fails closed â€” every
 /// branch that isn't "valid signature over the exact expected bytes" returns an
 /// `OrliqError::Licence { kind: "verification_failed", ... }` or `"malformed"`.
@@ -53,9 +52,7 @@ pub fn verify_signed_blob(blob: &[u8]) -> Result<LicencePayload, OrliqError> {
     if version != 2 {
         return Err(OrliqError::Licence {
             code: "verification_failed".to_string(),
-            message: format!(
-                "payload advertises key version {version}; this build only trusts v2"
-            ),
+            message: format!("payload advertises key version {version}; this build only trusts v2"),
         });
     }
 

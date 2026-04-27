@@ -230,9 +230,7 @@ impl LicenceCache {
     pub fn save(&self, rec: &CachedLicence) -> Result<()> {
         let entry = Self::entry()?;
         let json = serde_json::to_string(rec).context("encode cached licence")?;
-        let keyring_result = entry
-            .set_password(&json)
-            .context("write keyring entry");
+        let keyring_result = entry.set_password(&json).context("write keyring entry");
         let file_result = Self::save_to_file(rec);
 
         match (keyring_result, file_result) {
@@ -319,23 +317,13 @@ mod dpapi {
                 pbData: plaintext.as_ptr() as *mut u8,
             };
             let mut output = CRYPT_INTEGER_BLOB::default();
-            CryptProtectData(
-                &input,
-                None,
-                None,
-                None,
-                None,
-                0,
-                &mut output,
-            )
-            .map_err(|e| anyhow!("CryptProtectData: {e:?}"))?;
+            CryptProtectData(&input, None, None, None, None, 0, &mut output)
+                .map_err(|e| anyhow!("CryptProtectData: {e:?}"))?;
             let bytes = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
             // CryptProtectData allocates with LocalAlloc; we own the
             // pointer until LocalFree. Leaking it would be a steady
             // GDI-handle-style drip on long-running apps.
-            let _ = LocalFree(windows::Win32::Foundation::HLOCAL(
-                output.pbData as *mut _,
-            ));
+            let _ = LocalFree(windows::Win32::Foundation::HLOCAL(output.pbData as *mut _));
             Ok(bytes)
         }
     }
@@ -347,20 +335,10 @@ mod dpapi {
                 pbData: ciphertext.as_ptr() as *mut u8,
             };
             let mut output = CRYPT_INTEGER_BLOB::default();
-            CryptUnprotectData(
-                &input,
-                None,
-                None,
-                None,
-                None,
-                0,
-                &mut output,
-            )
-            .map_err(|e| anyhow!("CryptUnprotectData: {e:?}"))?;
+            CryptUnprotectData(&input, None, None, None, None, 0, &mut output)
+                .map_err(|e| anyhow!("CryptUnprotectData: {e:?}"))?;
             let bytes = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
-            let _ = LocalFree(windows::Win32::Foundation::HLOCAL(
-                output.pbData as *mut _,
-            ));
+            let _ = LocalFree(windows::Win32::Foundation::HLOCAL(output.pbData as *mut _));
             Ok(bytes)
         }
     }

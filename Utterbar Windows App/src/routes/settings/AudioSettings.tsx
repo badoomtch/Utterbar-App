@@ -263,6 +263,31 @@ export function AudioSettings() {
           </div>
         </Card>
 
+        {(s.audio.capture_source === 'system' || s.audio.capture_source === 'mixed') && (
+          // Cross-suggestion. The user has just opted into a system-audio
+          // capture, which is exactly what Meeting Mode automates. We
+          // surface a callout so the connection isn't missed — the link
+          // below jumps to /modes where they can flip the built-in
+          // "Meeting" mode on or set the flag on a custom mode. Only
+          // shown when the source is System or Mixed; the default
+          // Microphone capture has no need for the suggestion.
+          <Card
+            title="Heads up: Meeting Mode handles this for you"
+            description="When a mode is flagged as a Meeting, Utterbar always uses mic + system audio together (no need to set it here), splits long recordings into 30-second chunks so they don't OOM the recogniser, and skips post-processing so the transcript stays verbatim. The built-in 'Meeting' mode is set up that way out of the box."
+          >
+            <a
+              href="#/settings/modes"
+              onClick={(e) => {
+                e.preventDefault();
+                void invoke('show_main_at', { path: '/modes' });
+              }}
+              className="text-[13px] text-accent hover:underline"
+            >
+              Open Modes →
+            </a>
+          </Card>
+        )}
+
         <Card title="Input device">
           <Row
             label="Microphone"

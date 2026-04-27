@@ -367,10 +367,25 @@ mod tests {
     #[test]
     fn words_to_cues_breaks_on_pause() {
         let words = vec![
-            WordTiming { text: "hello".into(), start_ms: 0,    end_ms: 500,  confidence: None },
-            WordTiming { text: "world".into(), start_ms: 600,  end_ms: 1000, confidence: None },
+            WordTiming {
+                text: "hello".into(),
+                start_ms: 0,
+                end_ms: 500,
+                confidence: None,
+            },
+            WordTiming {
+                text: "world".into(),
+                start_ms: 600,
+                end_ms: 1000,
+                confidence: None,
+            },
             // 1000ms pause here
-            WordTiming { text: "again".into(), start_ms: 2000, end_ms: 2400, confidence: None },
+            WordTiming {
+                text: "again".into(),
+                start_ms: 2000,
+                end_ms: 2400,
+                confidence: None,
+            },
         ];
         let cues = cues_from_words(&words);
         assert_eq!(cues.len(), 2);

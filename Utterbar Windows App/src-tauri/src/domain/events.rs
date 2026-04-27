@@ -29,11 +29,17 @@ pub const EVT_DICTATION_BUSY: &str = "dictation:busy";
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DictationPhase {
     Idle,
-    Warming { model_id: String },
-    Listening { started_at_ms: i64 },
+    Warming {
+        model_id: String,
+    },
+    Listening {
+        started_at_ms: i64,
+    },
     Processing,
     Success,
-    Error { message: String },
+    Error {
+        message: String,
+    },
     Cancelled,
     /// The capture completed but produced no usable speech — either silence
     /// the gate caught before ASR, or the ASR returned an empty / all-filler

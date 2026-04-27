@@ -270,7 +270,8 @@ fn match_number_word(w: &str) -> Option<NumKind> {
             ("ninetieth", NumKind::Ordinal(90, "th")),
         ]
     });
-    map.iter().find_map(|(k, v)| if *k == w { Some(*v) } else { None })
+    map.iter()
+        .find_map(|(k, v)| if *k == w { Some(*v) } else { None })
 }
 
 /// Walk forward from `start` to find the longest valid numeric run.
@@ -364,12 +365,7 @@ fn scan_number_run(tokens: &[(Tok, &str)], start: usize) -> (usize, u64, &'stati
 
 /// Decide whether to actually apply the conversion. Multi-token runs
 /// always convert. Single Unit/Teen runs need contextual evidence.
-fn should_convert(
-    tokens: &[(Tok, &str)],
-    start: usize,
-    end: usize,
-    word_count: usize,
-) -> bool {
+fn should_convert(tokens: &[(Tok, &str)], start: usize, end: usize, word_count: usize) -> bool {
     // Multi-word runs are unambiguous.
     if word_count > 1 {
         return true;
@@ -382,7 +378,9 @@ fn should_convert(
     // (Catches "I had twenty" etc.)
     if matches!(
         tokens[start].0,
-        Tok::NumWord(NumKind::Ten(_)) | Tok::NumWord(NumKind::Hundred) | Tok::NumWord(NumKind::Big(_))
+        Tok::NumWord(NumKind::Ten(_))
+            | Tok::NumWord(NumKind::Hundred)
+            | Tok::NumWord(NumKind::Big(_))
     ) {
         return true;
     }
@@ -409,18 +407,56 @@ fn should_convert(
 }
 
 const NUMERIC_ANCHORS_BEFORE: &[&str] = &[
-    "page", "chapter", "section", "step", "room", "version", "v", "level",
-    "tier", "table", "row", "column", "track", "episode", "issue", "volume",
-    "rule", "item", "no", "number", "no.",
+    "page", "chapter", "section", "step", "room", "version", "v", "level", "tier", "table", "row",
+    "column", "track", "episode", "issue", "volume", "rule", "item", "no", "number", "no.",
 ];
 
 const NUMERIC_ANCHORS_AFTER: &[&str] = &[
-    "pounds", "pound", "dollars", "dollar", "euros", "euro", "pence", "cents",
-    "percent", "%", "kilos", "kilo", "kilograms", "kilogram", "kg", "grams",
-    "gram", "g", "metres", "meters", "metre", "meter", "m", "kilometres",
-    "kilometers", "km", "miles", "mile", "minutes", "minute", "seconds",
-    "second", "hours", "hour", "days", "day", "weeks", "week", "months",
-    "month", "years", "year", "o'clock", "am", "pm",
+    "pounds",
+    "pound",
+    "dollars",
+    "dollar",
+    "euros",
+    "euro",
+    "pence",
+    "cents",
+    "percent",
+    "%",
+    "kilos",
+    "kilo",
+    "kilograms",
+    "kilogram",
+    "kg",
+    "grams",
+    "gram",
+    "g",
+    "metres",
+    "meters",
+    "metre",
+    "meter",
+    "m",
+    "kilometres",
+    "kilometers",
+    "km",
+    "miles",
+    "mile",
+    "minutes",
+    "minute",
+    "seconds",
+    "second",
+    "hours",
+    "hour",
+    "days",
+    "day",
+    "weeks",
+    "week",
+    "months",
+    "month",
+    "years",
+    "year",
+    "o'clock",
+    "am",
+    "pm",
 ];
 
 fn prev_word_lower(tokens: &[(Tok, &str)], idx: usize) -> Option<String> {

@@ -42,7 +42,9 @@ pub async fn enqueue_path(
     if p.is_dir() {
         return enqueue_folder(state, path, mode_id, model_id).await;
     }
-    enqueue_file(state, path, mode_id, model_id).await.map(|_| 1)
+    enqueue_file(state, path, mode_id, model_id)
+        .await
+        .map(|_| 1)
 }
 
 /// Walk a folder recursively and enqueue every supported audio/video file
@@ -67,9 +69,7 @@ pub async fn enqueue_folder(
         return Err(pro_required("File transcription"));
     }
 
-    const ALLOWED: &[&str] = &[
-        "mp3", "wav", "m4a", "flac", "ogg", "mp4", "mov", "mkv",
-    ];
+    const ALLOWED: &[&str] = &["mp3", "wav", "m4a", "flac", "ogg", "mp4", "mov", "mkv"];
     const HARD_CAP: usize = 1_000;
 
     let root = std::path::PathBuf::from(&folder_path);
@@ -88,10 +88,7 @@ pub async fn enqueue_folder(
 
     let mut count = 0usize;
     for p in paths {
-        match state
-            .files
-            .enqueue(p, mode_id.clone(), model_id.clone())
-        {
+        match state.files.enqueue(p, mode_id.clone(), model_id.clone()) {
             Ok(_) => count += 1,
             Err(e) => {
                 tracing::warn!(?e, "enqueue_folder: per-file enqueue failed; continuing");
@@ -105,12 +102,7 @@ pub async fn enqueue_folder(
 /// crate in. Bounded by HARD_CAP — once we hit it, return immediately
 /// so a giant tree doesn't keep spinning. Symlinks are NOT followed —
 /// avoids accidental cycles and out-of-tree captures.
-fn walk_for_audio(
-    dir: &std::path::Path,
-    allowed: &[&str],
-    out: &mut Vec<String>,
-    hard_cap: usize,
-) {
+fn walk_for_audio(dir: &std::path::Path, allowed: &[&str], out: &mut Vec<String>, hard_cap: usize) {
     if out.len() >= hard_cap {
         return;
     }
@@ -162,10 +154,7 @@ pub async fn cancel_job(state: State<'_, Arc<AppState>>, id: String) -> CmdResul
 /// chunking. Errors when the job isn't done, the result_path is
 /// missing, or the file has been deleted/moved off-disk since.
 #[tauri::command]
-pub async fn read_job_transcript(
-    state: State<'_, Arc<AppState>>,
-    id: String,
-) -> CmdResult<String> {
+pub async fn read_job_transcript(state: State<'_, Arc<AppState>>, id: String) -> CmdResult<String> {
     let job = state
         .files
         .get(&id)
@@ -176,9 +165,11 @@ pub async fn read_job_transcript(
     let path = job.result_path.ok_or_else(|| OrliqError::Internal {
         message: "Transcript not available — the job may still be running or have failed.".into(),
     })?;
-    tokio::fs::read_to_string(&path).await.map_err(|e| OrliqError::Internal {
-        message: format!("Could not read transcript: {e}"),
-    })
+    tokio::fs::read_to_string(&path)
+        .await
+        .map_err(|e| OrliqError::Internal {
+            message: format!("Could not read transcript: {e}"),
+        })
 }
 
 /// Open Windows Explorer with the result file selected. Falls back to
@@ -186,10 +177,7 @@ pub async fn read_job_transcript(
 /// Uses `explorer /select,<path>` which is the standard idiom for
 /// "show in folder" on Windows.
 #[tauri::command]
-pub async fn reveal_job_in_folder(
-    state: State<'_, Arc<AppState>>,
-    id: String,
-) -> CmdResult<()> {
+pub async fn reveal_job_in_folder(state: State<'_, Arc<AppState>>, id: String) -> CmdResult<()> {
     let job = state
         .files
         .get(&id)

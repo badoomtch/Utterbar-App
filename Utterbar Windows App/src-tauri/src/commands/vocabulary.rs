@@ -359,9 +359,7 @@ const CF_UNICODETEXT: u32 = 13;
 fn read_clipboard_text() -> anyhow::Result<String> {
     use std::ptr::null_mut;
     use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND};
-    use windows::Win32::System::DataExchange::{
-        CloseClipboard, GetClipboardData, OpenClipboard,
-    };
+    use windows::Win32::System::DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard};
     use windows::Win32::System::Memory::{GlobalLock, GlobalUnlock};
 
     unsafe {
@@ -437,8 +435,8 @@ fn write_clipboard_text(text: &str) -> anyhow::Result<()> {
 #[cfg(windows)]
 fn synthesise_ctrl_c() -> anyhow::Result<()> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY,
-        VK_C, VK_CONTROL,
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_C,
+        VK_CONTROL,
     };
 
     fn key(vk: VIRTUAL_KEY, up: bool) -> INPUT {
@@ -448,7 +446,11 @@ fn synthesise_ctrl_c() -> anyhow::Result<()> {
                 ki: KEYBDINPUT {
                     wVk: vk,
                     wScan: 0,
-                    dwFlags: if up { KEYEVENTF_KEYUP } else { Default::default() },
+                    dwFlags: if up {
+                        KEYEVENTF_KEYUP
+                    } else {
+                        Default::default()
+                    },
                     time: 0,
                     dwExtraInfo: 0,
                 },

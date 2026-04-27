@@ -106,7 +106,10 @@ fn get_or_spawn() -> &'static UiaThread {
                 // hard fail and we log + exit the worker.
                 let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
                 if hr.is_err() {
-                    tracing::error!(?hr, "uia_thread: CoInitializeEx failed — UIA will be unavailable");
+                    tracing::error!(
+                        ?hr,
+                        "uia_thread: CoInitializeEx failed — UIA will be unavailable"
+                    );
                     // Drain any queued requests with None so callers don't
                     // block forever on reply channels.
                     for req in rx.iter() {

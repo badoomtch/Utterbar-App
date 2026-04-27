@@ -11,7 +11,7 @@ use crate::domain::{
     EVT_DICTATION_RESULT,
 };
 use crate::services::audio::meter;
-use crate::services::inference::{AsrOptions, AudioBuffer};
+use crate::services::inference::{AsrOptions, AsrResult, AudioBuffer};
 use crate::util::result::{CmdResult, OrliqError};
 use crate::util::time::now_ms;
 
@@ -96,7 +96,9 @@ pub async fn start_recording(
     if crate::services::policy::Policy::load().licence_required() {
         let status = state.licence.status().await;
         if !crate::util::gating::is_pro(&status) {
-            tracing::warn!("start_recording refused: RequireLicence policy active and licence is not Pro");
+            tracing::warn!(
+                "start_recording refused: RequireLicence policy active and licence is not Pro"
+            );
             return Err(OrliqError::User {
                 message: "Your IT administrator requires a Pro licence on this machine. Contact them to activate Utterbar.".into(),
             });
@@ -241,7 +243,34 @@ pub async fn start_recording(
     let settings = state.settings.snapshot().await;
 
     use crate::domain::settings::CaptureSource;
-    let source = settings.audio.capture_source;
+
+    // Meeting mode override. When the active mode is flagged as a meeting,
+    // force capture to Mixed (mic + system audio) regardless of the global
+    // capture_source preference. The override is per-recording — we don't
+    // mutate the persisted setting. A user who has set capture_source to
+    // System for everyday use, then runs a meeting once, gets Mixed for
+    // that recording and System back on the next non-meeting press.
+    //
+    // Resolved here at start_recording rather than at stop_recording so
+    // the loopback handle can be armed alongside the mic in the same
+    // start path. Stop time only sees the already-running streams.
+    let active_mode_for_capture = settings
+        .active_mode_id
+        .as_deref()
+        .and_then(|id| state.modes.get(id).ok().flatten());
+    let is_meeting = active_mode_for_capture
+        .as_ref()
+        .map(|m| m.is_meeting_mode)
+        .unwrap_or(false);
+    let source = if is_meeting {
+        tracing::info!(
+            mode = active_mode_for_capture.as_ref().map(|m| m.id.as_str()),
+            "start_recording: meeting mode — forcing Mixed capture (mic + loopback)"
+        );
+        CaptureSource::Mixed
+    } else {
+        settings.audio.capture_source
+    };
 
     // Track which side-effects have fired so we can roll them back if capture fails.
     // We only flip the visible phase to `Listening` once we know the mic (or loopback)
@@ -428,6 +457,174 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
     });
 }
 
+/// Meeting Mode chunked transcribe.
+///
+/// Slices the captured PCM into ~30 s windows with a 2 s overlap and
+/// runs each chunk through the offline ASR provider. The chunk
+/// boundary is wall-clock based (not silence-aware) — silence-aware
+/// chunking is a future polish; the 2 s overlap lets the recogniser
+/// stitch boundary words back together rather than cleaving them.
+///
+/// Why 30 s + 2 s: the offline transcribe path's failure mode is O(N)
+/// memory + accumulated decoder state inside ONNX Runtime. 30 s is
+/// well below the empirical crash floor (~30 min on the offline
+/// Zipformer, but per-call memory grows long before that). 2 s is
+/// roughly two-words of speech at conversational pace — enough to
+/// catch the boundary word in both chunks for the dedup pass.
+///
+/// Stitching: each non-first chunk has its first ~6.7 % of words
+/// dropped (the proportional overlap fraction, 2 s / 30 s). This is
+/// imperfect — words don't distribute perfectly evenly across an audio
+/// chunk — but bounded error and trivially correct. A future
+/// optimisation could move to longest-common-substring stitching once
+/// we have a representative test corpus.
+///
+/// duration_ms on the returned AsrResult is the wall-clock duration
+/// of the source audio (sum of chunk durations less overlaps). Other
+/// fields are taken from the first chunk's result; word_timings is
+/// dropped because per-chunk timings would need rebasing to remain
+/// useful and meeting-mode rows don't render them today.
+async fn transcribe_chunked(
+    state: &Arc<AppState>,
+    model_id: &str,
+    pcm: Vec<i16>,
+    sample_rate: u32,
+    target_language: Option<String>,
+    vocabulary_hints: Vec<String>,
+) -> anyhow::Result<AsrResult> {
+    const CHUNK_SECONDS: usize = 30;
+    const OVERLAP_SECONDS: usize = 2;
+
+    let chunk_samples = CHUNK_SECONDS * sample_rate as usize;
+    let overlap_samples = OVERLAP_SECONDS * sample_rate as usize;
+    let stride = chunk_samples.saturating_sub(overlap_samples);
+
+    let total = pcm.len();
+    if total == 0 {
+        return Err(anyhow::anyhow!("empty PCM buffer"));
+    }
+
+    // Single-chunk fast path. If the whole recording fits in one
+    // window, no chunking is necessary — just call transcribe directly
+    // and skip the stitching dance. Saves on logging noise too.
+    if total <= chunk_samples {
+        return state
+            .inference
+            .transcribe(
+                model_id,
+                AudioBuffer {
+                    pcm,
+                    sample_rate,
+                    channels: 1,
+                },
+                AsrOptions {
+                    language_hint: target_language,
+                    want_word_timings: false,
+                    vocabulary_hints,
+                },
+            )
+            .await;
+    }
+
+    let mut start = 0usize;
+    let mut chunk_index = 0u32;
+    let mut stitched = String::new();
+    let mut total_duration_ms: u32 = 0;
+    let mut first_lang: Option<String> = None;
+    let mut model_version = String::new();
+
+    while start < total {
+        let end = (start + chunk_samples).min(total);
+        let slice = pcm[start..end].to_vec();
+        let slice_secs = (end - start) as f32 / sample_rate as f32;
+        tracing::info!(
+            chunk_index,
+            start_sample = start,
+            end_sample = end,
+            duration_secs = slice_secs,
+            "meeting mode: transcribing chunk"
+        );
+
+        let result = state
+            .inference
+            .transcribe(
+                model_id,
+                AudioBuffer {
+                    pcm: slice,
+                    sample_rate,
+                    channels: 1,
+                },
+                AsrOptions {
+                    language_hint: target_language.clone(),
+                    want_word_timings: false,
+                    vocabulary_hints: vocabulary_hints.clone(),
+                },
+            )
+            .await?;
+
+        // Trim the leading overlap region from every chunk except the
+        // first. We don't have word-level timings (offline Zipformer
+        // doesn't emit them, Parakeet's are imperfect), so drop the
+        // first OVERLAP/CHUNK fraction of words. Conservative — better
+        // to drop a duplicate word at a boundary than to leave it in.
+        let chunk_text = if chunk_index == 0 {
+            result.text.clone()
+        } else {
+            let words: Vec<&str> = result.text.split_whitespace().collect();
+            let drop_count = (words.len() * OVERLAP_SECONDS / CHUNK_SECONDS).min(words.len());
+            words[drop_count..].join(" ")
+        };
+
+        if !chunk_text.trim().is_empty() {
+            if !stitched.is_empty() && !stitched.ends_with(' ') {
+                stitched.push(' ');
+            }
+            stitched.push_str(&chunk_text);
+        }
+
+        if first_lang.is_none() {
+            first_lang = result.language.clone();
+        }
+        if model_version.is_empty() {
+            model_version = result.model_version.clone();
+        }
+
+        // Sum non-overlapping audio time. The first chunk contributes
+        // its full duration; later chunks contribute only their
+        // post-overlap portion. The last chunk may be shorter than
+        // CHUNK_SECONDS — handle that by using the actual slice length.
+        let slice_ms = ((end - start) as u64 * 1000 / sample_rate as u64) as u32;
+        let contribution_ms = if chunk_index == 0 {
+            slice_ms
+        } else {
+            slice_ms.saturating_sub((OVERLAP_SECONDS as u32) * 1000)
+        };
+        total_duration_ms = total_duration_ms.saturating_add(contribution_ms);
+
+        if end >= total {
+            break;
+        }
+        start += stride;
+        chunk_index += 1;
+    }
+
+    tracing::info!(
+        chunks = chunk_index + 1,
+        chars = stitched.len(),
+        total_duration_ms,
+        "meeting mode: stitch complete"
+    );
+
+    Ok(AsrResult {
+        text: stitched,
+        words: None,
+        language: first_lang,
+        confidence: None,
+        model_version,
+        duration_ms: total_duration_ms,
+    })
+}
+
 #[tauri::command]
 pub async fn stop_recording(
     handle: AppHandle,
@@ -507,12 +704,8 @@ pub async fn stop_recording(
         .default_asr_model_id
         .clone()
         .unwrap_or_else(|| "stub".into());
-    let was_cold = state
-        .inference
-        .loaded_model_id()
-        .await
-        .as_deref()
-        != Some(early_target_model_id.as_str());
+    let was_cold =
+        state.inference.loaded_model_id().await.as_deref() != Some(early_target_model_id.as_str());
     if was_cold {
         tracing::info!(
             model_id = %early_target_model_id,
@@ -673,22 +866,44 @@ pub async fn stop_recording(
             set_phase(&handle, DictationPhase::Processing).await;
         }
     }
-    let asr_result = state
-        .inference
-        .transcribe(
+    // Meeting mode: chunk the audio into 30 s windows and transcribe
+    // each, stitching the results back together. The non-meeting path
+    // hands the whole buffer to transcribe() in a single call as
+    // before. Meeting mode bypasses the 15-min cap inside transcribe()
+    // because no single chunk hits it.
+    let asr_result = if mode.is_meeting_mode {
+        tracing::info!(
+            samples = final_.pcm.len(),
+            sample_rate = final_.sample_rate,
+            "stop_recording: meeting mode — chunked transcribe"
+        );
+        transcribe_chunked(
+            state.inner(),
             &model_id,
-            AudioBuffer {
-                pcm: final_.pcm,
-                sample_rate: final_.sample_rate,
-                channels: 1,
-            },
-            AsrOptions {
-                language_hint: mode.target_language.clone(),
-                want_word_timings: false,
-                vocabulary_hints: vocab_hints,
-            },
+            final_.pcm,
+            final_.sample_rate,
+            mode.target_language.clone(),
+            vocab_hints,
         )
-        .await;
+        .await
+    } else {
+        state
+            .inference
+            .transcribe(
+                &model_id,
+                AudioBuffer {
+                    pcm: final_.pcm,
+                    sample_rate: final_.sample_rate,
+                    channels: 1,
+                },
+                AsrOptions {
+                    language_hint: mode.target_language.clone(),
+                    want_word_timings: false,
+                    vocabulary_hints: vocab_hints,
+                },
+            )
+            .await
+    };
     // Clear the guard the instant the future settles. All exit paths
     // below (error, success) observe it cleared; any new recording that
     // comes in while the outer stop_recording is still doing text-inject
@@ -769,36 +984,61 @@ pub async fn stop_recording(
         crate::services::llm::ProcContext::default()
     };
 
-    let llm = crate::services::llm::best_available().await;
-    let mut processed = match &mode.post_processing {
-        crate::domain::PostProcessing::None => raw.clone(),
-        crate::domain::PostProcessing::Deterministic { .. } => {
-            crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
+    // Meeting mode: skip the entire post-processing pipeline. Meeting
+    // transcripts are reference material — the user wants the literal
+    // record of what was said, not LLM-polished prose. We still apply
+    // dialect normalisation (cheap dictionary swap, semantically a
+    // spelling fix not a rewrite) but skip:
+    //   - PostProcessing::Deterministic (filler removal, sentence
+    //     punctuation, sentence-case)
+    //   - PostProcessing::Llm (template-based rewrites)
+    //   - text_output.numbers_as_digits (a stylistic transform, not
+    //     useful for meeting verbatim)
+    //   - text_output.auto_capitalise (the raw transcript has
+    //     whatever case the ASR emitted, which is typically already
+    //     sentence-cased; forcing capitalise_first_letter on a
+    //     multi-paragraph meeting transcript only capitalises the very
+    //     first letter and reads as a no-op)
+    //   - text_output.trim_trailing_space (harmless either way)
+    //
+    // The user can still flip any of these on per-mode by un-flagging
+    // is_meeting_mode and using a non-meeting mode; meeting mode is the
+    // opinionated default for "press-record-talk-stop, get verbatim".
+    let mut processed = if mode.is_meeting_mode {
+        crate::services::dialect::normalise(&raw, mode.english_variant)
+    } else {
+        let llm = crate::services::llm::best_available().await;
+        let post = match &mode.post_processing {
+            crate::domain::PostProcessing::None => raw.clone(),
+            crate::domain::PostProcessing::Deterministic { .. } => {
+                crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
+            }
+            crate::domain::PostProcessing::Llm { prompt, .. } => llm
+                .rewrite(&raw, prompt, &ctx_snapshot)
+                .await
+                .unwrap_or(raw.clone()),
+        };
+
+        // English dialect normalisation. Parakeet is a monolingual English model trained
+        // mostly on North American data, so British users see "color" / "favorite" /
+        // "organize" come out of the ASR even when they spoke the BrE word. Deterministic
+        // dictionary swap fixes that for negligible cost. `Auto` is a passthrough — we
+        // never re-spell unless the mode opts in.
+        let mut p = crate::services::dialect::normalise(&post, mode.english_variant);
+
+        // Text-output settings. These are deliberately applied last, after any LLM/mode
+        // rewriting, so they're the final word on the string that hits the user's app.
+        if settings.text_output.numbers_as_digits {
+            p = crate::services::numbers::words_to_digits(&p);
         }
-        crate::domain::PostProcessing::Llm { prompt, .. } => llm
-            .rewrite(&raw, prompt, &ctx_snapshot)
-            .await
-            .unwrap_or(raw.clone()),
+        if settings.text_output.auto_capitalise {
+            p = capitalise_first_letter(&p);
+        }
+        if settings.text_output.trim_trailing_space {
+            p = p.trim_end().to_string();
+        }
+        p
     };
-
-    // English dialect normalisation. Parakeet is a monolingual English model trained
-    // mostly on North American data, so British users see "color" / "favorite" /
-    // "organize" come out of the ASR even when they spoke the BrE word. Deterministic
-    // dictionary swap fixes that for negligible cost. `Auto` is a passthrough — we
-    // never re-spell unless the mode opts in.
-    processed = crate::services::dialect::normalise(&processed, mode.english_variant);
-
-    // Text-output settings. These are deliberately applied last, after any LLM/mode
-    // rewriting, so they're the final word on the string that hits the user's app.
-    if settings.text_output.numbers_as_digits {
-        processed = crate::services::numbers::words_to_digits(&processed);
-    }
-    if settings.text_output.auto_capitalise {
-        processed = capitalise_first_letter(&processed);
-    }
-    if settings.text_output.trim_trailing_space {
-        processed = processed.trim_end().to_string();
-    }
 
     // Auto-space on paste: if the previous dictation in this same app didn't end with
     // whitespace and the new one starts with a letter/digit, prepend a space. Keeps

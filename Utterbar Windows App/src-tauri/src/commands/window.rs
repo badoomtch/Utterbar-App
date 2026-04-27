@@ -445,9 +445,7 @@ fn save_floating_position(w: &tauri::WebviewWindow) -> anyhow::Result<()> {
 /// real Windows work-area for each attached monitor (same rect
 /// `clamp_to_work_area` uses during normal drag) and reject any saved
 /// position that lands outside that rectangle.
-fn load_valid_floating_position(
-    w: &tauri::WebviewWindow,
-) -> anyhow::Result<Option<(i32, i32)>> {
+fn load_valid_floating_position(w: &tauri::WebviewWindow) -> anyhow::Result<Option<(i32, i32)>> {
     let path = position_file_path()?;
     if !path.exists() {
         return Ok(None);

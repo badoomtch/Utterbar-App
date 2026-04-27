@@ -37,8 +37,8 @@
 //!   rules, the watcher does the cheap exe/title/class read and bails.
 //!   No DB queries, no settings writes — effectively free.
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
@@ -200,10 +200,22 @@ mod tests {
         // expect — None/None match, identical Some/Some match,
         // any difference doesn't.
         type Sig = (Option<String>, Option<String>, Option<String>);
-        let a: Sig = (Some("notepad.exe".to_string()), Some("Untitled".to_string()), None);
-        let b: Sig = (Some("notepad.exe".to_string()), Some("Untitled".to_string()), None);
+        let a: Sig = (
+            Some("notepad.exe".to_string()),
+            Some("Untitled".to_string()),
+            None,
+        );
+        let b: Sig = (
+            Some("notepad.exe".to_string()),
+            Some("Untitled".to_string()),
+            None,
+        );
         assert_eq!(a, b);
-        let c: Sig = (Some("notepad.exe".to_string()), Some("file.txt".to_string()), None);
+        let c: Sig = (
+            Some("notepad.exe".to_string()),
+            Some("file.txt".to_string()),
+            None,
+        );
         assert_ne!(a, c);
     }
 }

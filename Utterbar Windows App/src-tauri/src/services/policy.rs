@@ -272,19 +272,41 @@ mod tests {
     #[test]
     fn block_model_downloads_helper() {
         assert!(!Policy::default().model_downloads_blocked());
-        let p = Policy { block_model_downloads: Some(true), ..Default::default() };
+        let p = Policy {
+            block_model_downloads: Some(true),
+            ..Default::default()
+        };
         assert!(p.model_downloads_blocked());
-        let p = Policy { block_model_downloads: Some(false), ..Default::default() };
+        let p = Policy {
+            block_model_downloads: Some(false),
+            ..Default::default()
+        };
         assert!(!p.model_downloads_blocked());
     }
 
     #[test]
     fn is_active_reports_correctly() {
         assert!(!Policy::default().is_active());
-        assert!(Policy { update_channel: Some("beta".into()), ..Default::default() }.is_active());
-        assert!(Policy { check_updates_automatically: Some(true), ..Default::default() }.is_active());
-        assert!(Policy { block_system_audio: Some(true), ..Default::default() }.is_active());
-        assert!(Policy { require_licence: Some(true), ..Default::default() }.is_active());
+        assert!(Policy {
+            update_channel: Some("beta".into()),
+            ..Default::default()
+        }
+        .is_active());
+        assert!(Policy {
+            check_updates_automatically: Some(true),
+            ..Default::default()
+        }
+        .is_active());
+        assert!(Policy {
+            block_system_audio: Some(true),
+            ..Default::default()
+        }
+        .is_active());
+        assert!(Policy {
+            require_licence: Some(true),
+            ..Default::default()
+        }
+        .is_active());
     }
 
     #[test]
@@ -292,7 +314,10 @@ mod tests {
         use crate::domain::settings::CaptureSource;
         let mut s = Settings::default();
         s.audio.capture_source = CaptureSource::System;
-        let p = Policy { block_system_audio: Some(true), ..Default::default() };
+        let p = Policy {
+            block_system_audio: Some(true),
+            ..Default::default()
+        };
         p.apply_to(&mut s);
         assert_eq!(s.audio.capture_source, CaptureSource::Microphone);
 
@@ -310,7 +335,10 @@ mod tests {
         // Explicit `false` (admin opted out) is NOT the same as `None`
         // (no policy set) — but neither should override the user's
         // System pick. apply_to only forces when the policy is `Some(true)`.
-        let p = Policy { block_system_audio: Some(false), ..Default::default() };
+        let p = Policy {
+            block_system_audio: Some(false),
+            ..Default::default()
+        };
         p.apply_to(&mut s);
         assert_eq!(s.audio.capture_source, CaptureSource::System);
     }
@@ -318,7 +346,15 @@ mod tests {
     #[test]
     fn licence_required_helper() {
         assert!(!Policy::default().licence_required());
-        assert!(Policy { require_licence: Some(true), ..Default::default() }.licence_required());
-        assert!(!Policy { require_licence: Some(false), ..Default::default() }.licence_required());
+        assert!(Policy {
+            require_licence: Some(true),
+            ..Default::default()
+        }
+        .licence_required());
+        assert!(!Policy {
+            require_licence: Some(false),
+            ..Default::default()
+        }
+        .licence_required());
     }
 }

@@ -154,8 +154,7 @@ impl InferenceOrchestrator {
         // is owned by the caller — we don't take it on early-return) and
         // can split it manually if they need to transcribe today.
         const MAX_TRANSCRIBE_SECONDS: u32 = 5 * 60; // 5 minutes
-        let duration_seconds =
-            (audio.pcm.len() as u64 / audio.sample_rate.max(1) as u64) as u32;
+        let duration_seconds = (audio.pcm.len() as u64 / audio.sample_rate.max(1) as u64) as u32;
         if duration_seconds > MAX_TRANSCRIBE_SECONDS {
             tracing::warn!(
                 model_id,

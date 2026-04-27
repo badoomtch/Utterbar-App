@@ -54,6 +54,14 @@ export type EditableMode = {
     preserve_linebreaks: boolean;
   };
   english_variant?: 'auto' | 'american' | 'british';
+  /**
+   * When true, this mode behaves as a meeting capture: capture_source
+   * is forced to Mixed (mic + system audio) for the recording, the
+   * audio is chunked into 30-second windows for transcription so long
+   * recordings don't OOM the offline decoder, and post-processing is
+   * skipped (meetings want raw transcript, not LLM-polished prose).
+   */
+  is_meeting_mode?: boolean;
   created_at: number;
   updated_at: number;
 };
@@ -227,6 +235,28 @@ export function ModeEditor({
                 </div>
               </div>
             </Field>
+          </Section>
+
+          <Section
+            title="Meeting mode"
+            description="When on, this mode is built for capturing meetings instead of dictation. Recording always uses both your mic and system audio together (so you can transcribe a Zoom or Teams call without a virtual cable). Long recordings are split into 30-second chunks and transcribed piece by piece, so a 45-minute meeting won't crash the recogniser or hit the 15-minute offline cap. Post-processing is skipped — you get the raw transcript, not LLM-polished prose."
+          >
+            <label className="flex items-center gap-2 text-[13px] text-fg">
+              <input
+                type="checkbox"
+                checked={!!draft.is_meeting_mode}
+                onChange={(e) => patch({ is_meeting_mode: e.target.checked })}
+                className="accent-[var(--accent)]"
+              />
+              Treat this mode as a meeting capture
+            </label>
+            {draft.is_meeting_mode && (
+              <div className="rounded-input bg-bg-2 p-3 text-[11px] leading-relaxed text-muted">
+                Output style and the global text-output toggles (numbers as digits,
+                auto-capitalise, trim trailing space) are bypassed when meeting mode is on.
+                English variant still applies because it's a spelling fix, not a rewrite.
+              </div>
+            )}
           </Section>
 
           <Section

@@ -415,17 +415,17 @@ fn main() {
 fn install_seh_handler(log_dir: std::path::PathBuf) {
     use std::io::Write;
     use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
     use windows::Win32::Foundation::{HANDLE, HMODULE};
     use windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_WRITE, FILE_SHARE_NONE, OPEN_ALWAYS,
     };
     use windows::Win32::System::Diagnostics::Debug::{
-        AddVectoredExceptionHandler, MiniDumpNormal, MiniDumpWithDataSegs,
-        MiniDumpWithHandleData, MiniDumpWithProcessThreadData, MiniDumpWithThreadInfo,
-        MiniDumpWriteDump, EXCEPTION_POINTERS, MINIDUMP_EXCEPTION_INFORMATION, MINIDUMP_TYPE,
+        AddVectoredExceptionHandler, MiniDumpNormal, MiniDumpWithDataSegs, MiniDumpWithHandleData,
+        MiniDumpWithProcessThreadData, MiniDumpWithThreadInfo, MiniDumpWriteDump,
+        EXCEPTION_POINTERS, MINIDUMP_EXCEPTION_INFORMATION, MINIDUMP_TYPE,
     };
     use windows::Win32::System::Threading::{GetCurrentProcess, GetCurrentProcessId};
-    use windows::core::PCWSTR;
 
     static LOG_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
     let _ = LOG_DIR.set(log_dir);
@@ -434,8 +434,7 @@ fn install_seh_handler(log_dir: std::path::PathBuf) {
     // it's our-own-process writing to disk during an exception), we don't
     // want to recursively spawn more dumps. AtomicBool set true on first
     // entry, never cleared; second entry bails straight to CONTINUE_SEARCH.
-    static IN_HANDLER: std::sync::atomic::AtomicBool =
-        std::sync::atomic::AtomicBool::new(false);
+    static IN_HANDLER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
     unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         // EXCEPTION_CONTINUE_SEARCH = 0 — we only LOG + write the dump,

@@ -66,7 +66,9 @@ impl HistoryService {
             // Status is serialised the same way as on insert — a JSON
             // string of the enum variant ("\"success\"" / "\"error\"" /
             // "\"cancelled\"").
-            args.push(Box::new(serde_json::to_string(&st).unwrap_or_else(|_| "\"success\"".into())));
+            args.push(Box::new(
+                serde_json::to_string(&st).unwrap_or_else(|_| "\"success\"".into()),
+            ));
         }
         sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
         args.push(Box::new(filter.limit.unwrap_or(200)));

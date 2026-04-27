@@ -41,12 +41,7 @@ pub struct SherpaWhisper {
 }
 
 impl SherpaWhisper {
-    pub fn new(
-        model_id: String,
-        model_dir: PathBuf,
-        language: String,
-        provider: String,
-    ) -> Self {
+    pub fn new(model_id: String, model_dir: PathBuf, language: String, provider: String) -> Self {
         Self {
             model_id,
             model_dir,
@@ -77,20 +72,19 @@ impl SherpaWhisper {
             .or_else(|_| first_with_suffix(&self.model_dir, "-encoder.onnx"))?;
         let decoder = first_with_suffix(&self.model_dir, "-decoder.int8.onnx")
             .or_else(|_| first_with_suffix(&self.model_dir, "-decoder.onnx"))?;
-        let tokens = first_with_suffix(&self.model_dir, "-tokens.txt")
-            .or_else(|_| {
-                // Fallback for bundles using the bare `tokens.txt`
-                // naming (older or community builds).
-                let candidate = self.model_dir.join("tokens.txt");
-                if candidate.exists() {
-                    Ok(candidate)
-                } else {
-                    Err(anyhow!(
-                        "no *-tokens.txt or tokens.txt in {}",
-                        self.model_dir.display()
-                    ))
-                }
-            })?;
+        let tokens = first_with_suffix(&self.model_dir, "-tokens.txt").or_else(|_| {
+            // Fallback for bundles using the bare `tokens.txt`
+            // naming (older or community builds).
+            let candidate = self.model_dir.join("tokens.txt");
+            if candidate.exists() {
+                Ok(candidate)
+            } else {
+                Err(anyhow!(
+                    "no *-tokens.txt or tokens.txt in {}",
+                    self.model_dir.display()
+                ))
+            }
+        })?;
         Ok((encoder, decoder, tokens))
     }
 
@@ -147,11 +141,10 @@ impl SherpaWhisper {
                 ..Default::default()
             };
             tracing::info!(%model_id, "whisper: WhisperRecognizer::new calling into native");
-            let recognizer =
-                sherpa_rs::whisper::WhisperRecognizer::new(config).map_err(|e| {
-                    tracing::error!(%model_id, error = ?e, "whisper init failed");
-                    anyhow!("whisper init: {e:?}")
-                })?;
+            let recognizer = sherpa_rs::whisper::WhisperRecognizer::new(config).map_err(|e| {
+                tracing::error!(%model_id, error = ?e, "whisper init failed");
+                anyhow!("whisper init: {e:?}")
+            })?;
             tracing::info!(%model_id, "whisper: recognizer constructed");
             let mut guard = inner
                 .lock()
@@ -178,8 +171,8 @@ impl AsrProvider for SherpaWhisper {
         // code Whisper recognises (it falls back to auto on unknown
         // input). Returning a representative subset is honest enough.
         &[
-            "auto", "en", "fr", "de", "es", "it", "pt", "nl", "pl", "tr",
-            "ja", "ko", "zh", "ru", "ar", "hi", "id", "th", "vi",
+            "auto", "en", "fr", "de", "es", "it", "pt", "nl", "pl", "tr", "ja", "ko", "zh", "ru",
+            "ar", "hi", "id", "th", "vi",
         ]
     }
 
@@ -347,9 +340,9 @@ fn is_whisper_hallucination(text: &str) -> bool {
     let bytes = trimmed.as_bytes();
     let single_bracket = (bytes.first() == Some(&b'[') && bytes.last() == Some(&b']'))
         || (bytes.first() == Some(&b'(') && bytes.last() == Some(&b')'));
-    let mostly_music_glyphs = trimmed.chars().all(|c| {
-        c == '♪' || c == '♫' || c == ' ' || c == '\t' || c == '.' || c == ','
-    });
+    let mostly_music_glyphs = trimmed
+        .chars()
+        .all(|c| c == '♪' || c == '♫' || c == ' ' || c == '\t' || c == '.' || c == ',');
     if (single_bracket || mostly_music_glyphs) && trimmed.chars().count() <= 64 {
         return true;
     }

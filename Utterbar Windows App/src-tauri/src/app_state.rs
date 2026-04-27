@@ -125,13 +125,12 @@ impl AppState {
                 // Read the on-disk paths before deleting so we can
                 // rm them after. `path` is relative to models_root.
                 let mut to_remove: Vec<String> = Vec::new();
-                if let Ok(mut stmt) = conn.prepare(
-                    "SELECT path FROM models WHERE id IN (?1, ?2) AND path IS NOT NULL",
-                ) {
-                    let rows = stmt.query_map(
-                        rusqlite::params![V2_INT8, V2_FP16],
-                        |r| r.get::<_, String>(0),
-                    );
+                if let Ok(mut stmt) = conn
+                    .prepare("SELECT path FROM models WHERE id IN (?1, ?2) AND path IS NOT NULL")
+                {
+                    let rows = stmt.query_map(rusqlite::params![V2_INT8, V2_FP16], |r| {
+                        r.get::<_, String>(0)
+                    });
                     if let Ok(rows) = rows {
                         for row in rows.flatten() {
                             to_remove.push(row);
