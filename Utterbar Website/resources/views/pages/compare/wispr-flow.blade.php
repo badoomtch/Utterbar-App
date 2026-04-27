@@ -51,6 +51,12 @@
             'edge'     => 'utterbar',
         ],
         [
+            'topic'    => 'Languages',
+            'utterbar' => '30+ out of the box. English uses Parakeet for speed; the rest use Whisper. All processed on your PC.',
+            'wispr'    => 'Multilingual transcription, but every word goes through their cloud.',
+            'edge'     => 'tie',
+        ],
+        [
             'topic'    => 'File transcription',
             'utterbar' => 'Yes, Pro tier. Drop a recording, get a plain-text transcript next to the source file.',
             'wispr'    => 'Not advertised on the consumer plans.',

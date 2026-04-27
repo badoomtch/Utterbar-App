@@ -10,6 +10,12 @@
             'video' => 'feature-press-speak-done',
         ],
         [
+            'title' => 'Talk to AI at the speed of speech.',
+            'body'  => 'Claude, ChatGPT, Gemini, Copilot, the local model you run yourself &mdash; whatever assistant lives in your browser, Utterbar dictates straight into it. People speak about three times faster than they type, and the assistant doesn\'t care which way the question arrived. Faster prompts, longer context, fewer wrist breaks.',
+            'wins'  => ['Works with every assistant in any browser', 'No browser extension, no API key, no integration', 'You speak, the prompt appears, the answer streams back'],
+            'video' => 'feature-talk-to-ai',
+        ],
+        [
             'title' => 'Local means local.',
             'body'  => 'Your voice is transcribed on your own machine. It does not leave. Not for &ldquo;processing&rdquo;, not for &ldquo;analytics&rdquo;, not for anything. Nothing can leak because nothing goes anywhere.',
             'wins'  => ['No cloud', 'No account', 'No telemetry'],
@@ -26,6 +32,12 @@
             'body'  => 'Dictate a casual message, get a casual message. Into meeting notes, you get verbatim capture with line breaks. Switch mode in a click or by hotkey &mdash; one per job, one keystroke.',
             'wins'  => ['Three built-in modes', 'Switch in a click or by hotkey', 'Unlimited custom modes on Pro'],
             'video' => 'feature-modes',
+        ],
+        [
+            'title' => 'Speaks 30+ languages.',
+            'body'  => 'English uses Parakeet, the fastest engine on the planet for English. Anything else uses Whisper &mdash; French, German, Spanish, Italian, Portuguese, Dutch, Polish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and 17 more. All of it on your PC, none of it on someone else\'s server.',
+            'wins'  => ['30+ languages out of the box', 'Auto-detect or pin a default', 'Same offline guarantee in every language'],
+            'video' => 'feature-multilingual',
         ],
         [
             'title' => 'Catches what your PC is playing, too.',
@@ -60,7 +72,7 @@
     ];
 @endphp
 
-<x-layouts.app title="Features" description="Nine things that make Utterbar different: press-to-talk hotkeys, local-only transcription, auto-paste into any Windows app, modes, vocabulary, system audio, file transcription, and more.">
+<x-layouts.app title="Features" description="Eleven things that make Utterbar different: press-to-talk hotkeys, AI-assistant dictation, local-only transcription, 30+ languages, auto-paste into any Windows app, modes, vocabulary, system audio, file transcription, and more.">
 
     {{-- Hero --}}
     <section class="pt-20 md:pt-28 pb-12">
@@ -70,7 +82,7 @@
                     What <x-wordmark /> actually does.
                 </h1>
                 <p class="ub-lead mt-8 max-w-xl">
-                    Nine things worth paying attention to. Everything else gets out of the way.
+                    Eleven things worth paying attention to. Everything else gets out of the way.
                 </p>
             </div>
         </div>

@@ -58,98 +58,196 @@ export function Press02FloatingBarListening() {
 }
 
 // ---------- press-03 — main shell dashboard (card only) ------------------
+//
+// The eight metric tiles match the real shipping Dashboard layout (4×2
+// grid; first row uses the accent stripe on tile 1 + a moss stripe on
+// tile 4 — matching the route's actual visual hierarchy). Numbers are
+// snapshotted from real usage on 2026-04-27 so the still reads as a
+// real install rather than fabricated marketing data — the tiny
+// inconsistency between "words this week" and "words all time" being
+// equal is a real artefact of the app being newly installed (the
+// account hasn't yet rolled past one week of history). Refresh these
+// numbers when re-rendering for a future release.
 export function Press03MainShellDashboard() {
   return (
-    <AbsoluteFill style={{ background: tokens.bg0, fontFamily: fonts.sans, padding: '110px 120px 90px' }}>
-      <div style={{ fontFamily: fonts.mono, fontSize: 18, letterSpacing: '0.18em', textTransform: 'uppercase', color: tokens.muted, marginBottom: 10 }}>
+    <AbsoluteFill style={{ background: tokens.bg0, fontFamily: fonts.sans, padding: '90px 100px 90px' }}>
+      {/* Eyebrow + page title — match the live route's header strip. */}
+      <div style={{ fontFamily: fonts.mono, fontSize: 16, letterSpacing: '0.18em', textTransform: 'uppercase', color: tokens.muted, marginBottom: 14 }}>
+        Overview
+      </div>
+      <div style={{ fontSize: 56, fontWeight: 700, color: tokens.fgHi, letterSpacing: '-0.025em', marginBottom: 10, lineHeight: 1.05 }}>
         Dashboard
       </div>
-      <div style={{ fontSize: 52, fontWeight: 700, color: tokens.fgHi, letterSpacing: '-0.02em', marginBottom: 8 }}>
-        Your time saved, at a glance.
-      </div>
-      <div style={{ fontSize: 22, color: tokens.muted, marginBottom: 48 }}>
-        Every dictation is logged locally so you can see what the app is saving you.
+      <div style={{ fontSize: 20, color: tokens.muted, marginBottom: 44 }}>
+        Your local-only dictation stats. Nothing here leaves your machine.
       </div>
 
-      {/* Key metrics — large tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 22, marginBottom: 42 }}>
-        <BigMetric value="47" label="Today" accent />
-        <BigMetric value="23 min" label="Saved today" />
-        <BigMetric value="312" label="This week" />
-        <BigMetric value="4 h 18 m" label="Saved this week" moss />
-      </div>
-
-      {/* Recent activity block */}
-      <div style={{ background: tokens.bg1, borderRadius: 22, padding: '32px 36px', border: `1px solid ${tokens.border}` }}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: tokens.fgHi, marginBottom: 4 }}>Recent activity</div>
-        <div style={{ fontSize: 15, color: tokens.muted, marginBottom: 24 }}>Last five dictations.</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {RECENT.map((r, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: tokens.accent, flexShrink: 0 }} />
-              <div
-                style={{
-                  flex: 1,
-                  fontSize: 18,
-                  color: tokens.fg,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {r.text}
-              </div>
-              <div style={{ fontFamily: fonts.mono, fontSize: 13, color: tokens.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                {r.mode} · {r.duration}
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Tiles — 4 across, 2 rows. First row carries today/this-week,
+          second row carries all-time + activity. Accent stripe on
+          tile 1 (today's words — the one tile a returning user looks
+          at first) and a moss stripe on tile 4 (saved-this-week — the
+          payoff metric). Other six tiles are neutral. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18, marginBottom: 0 }}>
+        {/* Row 1 */}
+        <DashTile
+          label="Words today"
+          value="457"
+          sub="19 dictations"
+          icon="✦"
+          stripe="accent"
+        />
+        <DashTile
+          label="Words this week"
+          value="35,966"
+          sub="1,315 dictations"
+          icon="↗"
+        />
+        <DashTile
+          label="Time saved today"
+          value="2 min"
+          sub="vs. typing baseline"
+          icon="⏱"
+        />
+        <DashTile
+          label="Avg speaking WPM"
+          value="153"
+          sub="7-day average"
+          icon="◑"
+        />
+        {/* Row 2 */}
+        <DashTile
+          label="Words all time"
+          value="35,966"
+          sub="1,315 dictations · since 22 Apr 2026"
+          icon="#"
+        />
+        <DashTile
+          label="Time saved all time"
+          value="2h 29m"
+          sub="vs. typing baseline"
+          icon="◷"
+          stripe="moss"
+        />
+        <DashTile
+          label="Active days"
+          value="6"
+          sub="current streak: 6 days"
+          icon="⚡"
+          stripe="amber"
+        />
+        <DashTile
+          label="Time spoken"
+          value="3h 55m"
+          sub="total time the mic was on"
+          icon="▤"
+        />
       </div>
     </AbsoluteFill>
   );
 }
 
-function BigMetric({ value, label, accent = false, moss = false }: { value: string; label: string; accent?: boolean; moss?: boolean }) {
-  const colour = accent ? tokens.accent : moss ? tokens.moss : tokens.fgHi;
+function DashTile({
+  label,
+  value,
+  sub,
+  icon,
+  stripe,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  icon?: string;
+  stripe?: 'accent' | 'moss' | 'amber';
+}) {
+  const stripeColor =
+    stripe === 'accent' ? tokens.accent
+      : stripe === 'moss' ? tokens.moss
+      : stripe === 'amber' ? '#F59E0B'
+      : null;
   return (
     <div
       style={{
         background: tokens.bg1,
-        borderRadius: 20,
-        padding: '28px 30px',
+        borderRadius: 18,
+        padding: '22px 24px 24px',
         position: 'relative',
         border: `1px solid ${tokens.border}`,
+        minHeight: 150,
       }}
     >
-      {accent && (
+      {stripeColor && (
         <span
           style={{
             position: 'absolute',
             left: 0,
-            top: 28,
-            bottom: 28,
+            top: 22,
+            bottom: 24,
             width: 3,
             borderRadius: 999,
-            background: tokens.accent,
+            background: stripeColor,
           }}
         />
       )}
-      <div style={{ fontSize: 46, fontWeight: 700, color: colour, letterSpacing: '-0.02em', paddingLeft: 10 }}>{value}</div>
-      <div style={{ marginTop: 8, fontSize: 14, color: tokens.muted, paddingLeft: 10, fontFamily: fonts.mono, textTransform: 'uppercase', letterSpacing: '0.14em' }}>
-        {label}
+      {/* Top row: label + icon */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, paddingLeft: stripeColor ? 12 : 0 }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: tokens.muted,
+            fontFamily: fonts.mono,
+            textTransform: 'uppercase',
+            letterSpacing: '0.14em',
+            lineHeight: 1.35,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          {label}
+        </div>
+        {icon && (
+          <span
+            style={{
+              fontSize: 14,
+              color: tokens.muted,
+              opacity: 0.55,
+              flexShrink: 0,
+              marginTop: 1,
+            }}
+          >
+            {icon}
+          </span>
+        )}
+      </div>
+      {/* Big value */}
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: 40,
+          fontWeight: 700,
+          color: tokens.fgHi,
+          letterSpacing: '-0.025em',
+          fontFamily: fonts.mono,
+          lineHeight: 1.05,
+          paddingLeft: stripeColor ? 12 : 0,
+        }}
+      >
+        {value}
+      </div>
+      {/* Sub-caption */}
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: 13,
+          color: tokens.muted,
+          lineHeight: 1.4,
+          paddingLeft: stripeColor ? 12 : 0,
+        }}
+      >
+        {sub}
       </div>
     </div>
   );
 }
-
-const RECENT = [
-  { text: "Quick heads up — pushing launch to Tuesday. QA flagged two auth-flow issues.", mode: 'Message', duration: '00:08' },
-  { text: "Feature hypothesis: users who complete onboarding in under two minutes…", mode: 'Voice-to-text', duration: '00:12' },
-  { text: '• Launch pushed to Tuesday  • QA flagged 2 issues in auth flow', mode: 'Meeting', duration: '00:22' },
-  { text: "Thanks for the review — addressed all the comments and re-requested.", mode: 'Message', duration: '00:05' },
-  { text: "So basically we need to push the launch because QA flagged two issues…", mode: 'Voice-to-text', duration: '00:09' },
-];
 
 // ---------- press-04 — vocabulary (card only) ----------------------------
 export function Press04Vocabulary() {

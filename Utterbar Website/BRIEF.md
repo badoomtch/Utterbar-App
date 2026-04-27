@@ -22,7 +22,9 @@ Anchors for every page:
 
 - **Local-only.** No cloud. Audio never leaves the machine. Say it loudly and repeatedly.
 - **Windows-first.** macOS users have Superwhisper; Utterbar is built for Windows from day one (no Electron, no WSL, no Python shim in the hot path — Tauri + Rust).
-- **Fast.** Parakeet TDT (0.6B v2) runs on CPU or GPU; real sentences finish transcribing in well under a second on a modern laptop. DirectML lights up any DX12 GPU (NVIDIA / AMD / Intel); CUDA path for NVIDIA-only users.
+- **Talks to your AI assistant.** Claude / ChatGPT / Gemini / Copilot / your own local model — Utterbar types into whichever app has the cursor, so any chat input becomes a voice input. No browser extension, no API key, no integration. This is one of the strongest reasons people install the app; lead with it on home + features.
+- **Multilingual.** 30+ languages out of the box. English uses Parakeet (faster + more accurate at the same size); other languages use Whisper. Same offline guarantee in every language.
+- **Fast.** Parakeet TDT (0.6B v3) runs on CPU or GPU; real sentences finish transcribing in well under a second on a modern laptop. DirectML lights up any DX12 GPU (NVIDIA / AMD / Intel); CUDA path for NVIDIA-only users.
 - **Works with every app.** Anything that accepts keystrokes accepts Utterbar output. UIPI-locked / elevated targets fall back to per-character keystroke injection automatically.
 - **Modes.** Different post-processing per context (Voice-to-text, Message, Meeting are the shipping built-ins as of writing — check the app's seed file before listing modes by name in copy).
 - **Capture anything that plays on the PC.** Mic, system-audio (WASAPI loopback, no virtual cable needed), or both summed.
@@ -89,10 +91,12 @@ Reusable across home + docs/FAQ. Edit in lockstep when the underlying behaviour 
    Same category, same conviction about local-only ASR, but Windows-native from the ground up. We don't shim through Python, we use sherpa-onnx (ONNX Runtime) directly, and the installer is smaller.
 
 5. **What about Whisper?**
-   We ship with Parakeet TDT because it's faster and more accurate on English than Whisper small/medium. Whisper support is on the roadmap for multilingual modes.
+   We ship Parakeet TDT for English (faster + more accurate at the same size) AND Whisper for everything else. The app picks the right engine per language; users don't have to think about it.
 
 5a. **What languages are supported?**
-    Today, English only. Multilingual is on the roadmap — we'd rather ship one language well than five badly.
+    Over 30 out of the box: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and more. English uses Parakeet by default; everything else uses Whisper. All processed locally — no exceptions per language. Auto-detect is on by default; pin a language in Settings → Models for a small speed gain.
+
+    *Marketing rule:* claim **"30+ languages"** in copy, not "99". Whisper supports more on paper but quality drops sharply outside the top 30, and a 99-language claim invites disappointment in the long tail. Lead with audience-flavoured language ("Speaks 30+ languages. None of them leaves your PC.") not the count alone.
 
 6. **Can I use this in Teams / Zoom / Discord?**
    Yes, as long as you're typing into the chat box. Utterbar does not (and will not) inject your voice into a call — it transcribes your voice and injects the text. Your colleagues won't hear anything Utterbar does.

@@ -9,17 +9,18 @@
     ];
 
     $faqs = [
-        ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run \u2014 and those are logged so you can read them.'],
+        ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run — and those are logged so you can read them.'],
         ['q' => 'Which Windows versions work?', 'a' => 'Windows 10 22H2 and Windows 11, x86_64. WebView2 is required (already on Windows 11; auto-bootstrapped on Windows 10).'],
         ['q' => 'Do I need a GPU?', 'a' => 'No. The default Parakeet v3 build runs comfortably on any modern CPU. GPU acceleration (DirectML on any DX12 card, CUDA on NVIDIA) is supported and speeds things up if you have one, but it isn\'t required.'],
-        ['q' => 'What languages are supported?', 'a' => 'English on Parakeet (the default, fastest), plus around 99 languages on Whisper (free for the base model, Pro for the higher-accuracy small build). Auto-detect is on by default; pin a specific language in Settings \u2192 Models for a small speed gain.'],
-        ['q' => 'How does it compare to the Mac-native ones?', 'a' => 'Same philosophy, different platform. The Mac alternatives are great if you\'re on Mac. Utterbar is Windows-native from day one \u2014 no Python shim, no Electron wrapper, smaller installer. Different camp, same conviction about local.'],
-        ['q' => 'Why not a more common speech model?', 'a' => 'The one I picked is faster and more accurate on English than the common alternatives at the same size. Other models come in later for multilingual support.'],
+        ['q' => 'What languages does it support?', 'a' => 'Over 30 out of the box — English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and more. English uses Parakeet by default for speed; everything else uses Whisper. Pick a default in Settings → Models, or leave it on auto-detect.'],
+        ['q' => 'Does it work with Claude / ChatGPT / Gemini / Copilot?', 'a' => 'Yes. Utterbar isn\'t an integration — it types into whichever app has the cursor. So if your AI assistant lives in a browser tab or a desktop app, click the chat input, hold the hotkey, ask your question. The text lands in the input box exactly as if you\'d typed it. Works with every assistant; no API keys, no extensions, no per-app setup.'],
+        ['q' => 'How does it compare to the Mac-native ones?', 'a' => 'Same philosophy, different platform. The Mac alternatives are great if you\'re on Mac. Utterbar is Windows-native from day one — no Python shim, no Electron wrapper, smaller installer. Different camp, same conviction about local.'],
+        ['q' => 'Why three engines instead of one?', 'a' => 'Each one is best at something different. Parakeet is fastest and most accurate on English. Whisper covers 30+ other languages. Zipformer is the smallest, for older PCs. The app picks sensibly by default; you can override in Settings → Models.'],
         ['q' => 'Can I use this in video-call and chat apps?', 'a' => 'Only for typing into the chat box. Utterbar transcribes your voice into text; it won\'t (and will never) inject audio into a call. Your colleagues hear nothing from Utterbar.'],
         ['q' => 'Does it work offline?', 'a' => 'Yes. Pull your ethernet cable mid-sentence and nothing changes. The app doesn\'t authenticate against anything.'],
         ['q' => 'Will there be a macOS version?', 'a' => 'Eventually, after Windows 1.0 ships. Mac already has decent local-only options; I\'d rather make Windows actually good first.'],
         ['q' => 'What happens to my data when I uninstall?', 'a' => '<code>%APPDATA%\\Utterbar\\</code> stays on disk so you can re-install without losing history. Delete the folder yourself for a clean wipe.'],
-        ['q' => 'Prove it really runs local.', 'a' => 'Start the app. Unplug your ethernet. Keep dictating. That\'s the proof. If you want harder evidence, sniff the network during a session \u2014 there isn\'t any after the model is downloaded.'],
+        ['q' => 'Prove it really runs local.', 'a' => 'Start the app. Unplug your ethernet. Keep dictating. That\'s the proof. If you want harder evidence, sniff the network during a session — there isn\'t any after the model is downloaded.'],
     ];
 @endphp
 
@@ -109,6 +110,14 @@
                 {{-- Punchy subhead: cyan full-stops, thin weight --}}
                 <p class="mt-6" style="font-size: clamp(1.5rem, 3.2vw, 2.5rem); letter-spacing: -0.03em; line-height: 1.15; font-weight: 300; color: var(--fg);">
                     No cloud<span style="color: var(--accent);">.</span> No nonsense<span style="color: var(--accent);">.</span>
+                </p>
+
+                {{-- Quiet third line: positions the product as for-anyone-who-speaks
+                     without competing with the headline. Sits in muted weight + a
+                     half-step smaller than the cyan-stop line, so the eye reads
+                     hero → tagline → reassurance, not three things shouting at once. --}}
+                <p class="mt-4 max-w-xl" style="font-size: clamp(1rem, 1.5vw, 1.125rem); line-height: 1.5; color: var(--muted);">
+                    Speaks 30+ languages. None of them ever leaves your PC.
                 </p>
 
                 <div class="mt-12 flex flex-wrap gap-3">
@@ -362,6 +371,32 @@
         </div>
     </x-section>
 
+    {{-- Talk-to-AI showcase. Sits high on the page because for a large
+         slice of buyers this is the single concrete reason to install
+         the app — type-replacement-into-LLM-chat is a daily friction
+         that voice removes entirely. The section frames it as
+         "whichever assistant you already use" so neither vendor lock-in
+         nor extension-installation enters the buyer's head. --}}
+    <section class="py-20 md:py-28">
+        <div class="ub-container">
+            <div class="max-w-3xl mb-10 md:mb-12">
+                <p class="ub-eyebrow">For everyone who lives in a chat box</p>
+                <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
+                    Talk to <x-hl>AI</x-hl> at the speed of speech.
+                </h2>
+                <p class="ub-lead mt-6 max-w-2xl">
+                    Claude, ChatGPT, Gemini, Copilot, the local model you run yourself &mdash; whatever assistant lives in your browser, Utterbar dictates straight into it. People speak about three times faster than they type, and the assistant doesn&rsquo;t care which way the question arrived. Faster prompts, longer context, far fewer wrist breaks.
+                </p>
+                <p class="mt-4 max-w-2xl text-sm" style="color: var(--muted);">
+                    No browser extension. No API key. No integration. Press the hotkey, ask the question, the answer streams back.
+                </p>
+            </div>
+            <div class="max-w-5xl mx-auto">
+                <x-video-embed id="feature-talk-to-ai" />
+            </div>
+        </div>
+    </section>
+
     {{-- The app itself --}}
     <section class="py-20 md:py-28">
         <div class="ub-container">
@@ -374,7 +409,7 @@
                     Dashboard for session metrics, modes you actually use, a vocabulary that learns your names. Dark theme out of the box, native feel throughout.
                 </p>
             </div>
-            <div class="max-w-3xl mx-auto">
+            <div class="max-w-5xl mx-auto">
                 <x-still id="press-03-main-shell-dashboard" />
             </div>
         </div>
@@ -436,7 +471,7 @@
                     </div>
                     <p class="mt-2 text-sm" style="color: var(--muted);">No account. No trial clock.</p>
                     <ul class="mt-6 space-y-2.5">
-                        @foreach (['Unlimited dictation, any length', 'Every built-in mode, deterministic post-processing', 'Mic, system-audio, and mixed capture', 'Vocabulary, history, privacy controls'] as $f)
+                        @foreach (['Unlimited dictation, any length', '30+ languages, all on-device', 'Every built-in mode, deterministic post-processing', 'Mic, system-audio, and mixed capture', 'Vocabulary, history, privacy controls'] as $f)
                             <li class="flex items-start gap-2.5 text-sm">
                                 <span class="mt-0.5 shrink-0" style="color: var(--muted);"><x-icon name="check" size="16" stroke="2" /></span>
                                 <span style="color: var(--fg);">{{ $f }}</span>

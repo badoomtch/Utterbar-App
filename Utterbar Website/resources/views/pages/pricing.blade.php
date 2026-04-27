@@ -2,7 +2,7 @@
     $freeFeatures = [
         'Unlimited dictation, any length',
         'Parakeet v3 (English, compact) &mdash; ~460 MB, runs on any modern CPU',
-        'Whisper base (multilingual, ~99 languages) &mdash; ~145 MB',
+        'Whisper base (multilingual, 30+ languages) &mdash; ~145 MB',
         'Zipformer (English, lightweight) &mdash; ~220 MB, smallest footprint',
         'All seven hotkey slots',
         'All three built-in modes',

@@ -29,7 +29,9 @@ import { HeroPillLoop } from './compositions/HeroPillLoop';
 import { FeaturePressSpeakDone } from './compositions/FeaturePressSpeakDone';
 import { FeatureWorksAnywhere } from './compositions/FeatureWorksAnywhere';
 import { FeatureModes } from './compositions/FeatureModes';
+import { FeatureMultilingual } from './compositions/FeatureMultilingual';
 import { FeatureSystemAudio } from './compositions/FeatureSystemAudio';
+import { FeatureTalkToAI } from './compositions/FeatureTalkToAI';
 import { FeatureVocabulary } from './compositions/FeatureVocabulary';
 import { FeatureLocalPrivacy } from './compositions/FeatureLocalPrivacy';
 import { FeatureFileTranscription } from './compositions/FeatureFileTranscription';
@@ -63,7 +65,7 @@ const VIDEO_UI = { width: 1440, height: 900, fps: 30 };
 //     top-down, so the frame is sized to hug the content height
 //     rather than leaving a tall empty stripe at the bottom.
 const STILL_PILL = { width: 2200, height: 1400, fps: 30 };
-const STILL_UI_DASHBOARD = { width: 2200, height: 1180, fps: 30 };
+const STILL_UI_DASHBOARD = { width: 2200, height: 1080, fps: 30 };
 const STILL_UI_VOCAB = { width: 2200, height: 1280, fps: 30 };
 const STILL_UI_FILES = { width: 2200, height: 1380, fps: 30 };
 
@@ -101,6 +103,12 @@ export function RemotionRoot() {
         {...VIDEO_UI}
       />
       <Composition
+        id="feature-multilingual"
+        component={FeatureMultilingual}
+        durationInFrames={SEC(12)}
+        {...VIDEO_UI}
+      />
+      <Composition
         id="feature-system-audio"
         component={FeatureSystemAudio}
         durationInFrames={SEC(6)}
@@ -115,13 +123,19 @@ export function RemotionRoot() {
       <Composition
         id="feature-local-privacy"
         component={FeatureLocalPrivacy}
-        durationInFrames={SEC(6)}
+        durationInFrames={SEC(8)}
         {...VIDEO_UI}
       />
       <Composition
         id="feature-file-transcription"
         component={FeatureFileTranscription}
-        durationInFrames={SEC(7)}
+        durationInFrames={SEC(12)}
+        {...VIDEO_UI}
+      />
+      <Composition
+        id="feature-talk-to-ai"
+        component={FeatureTalkToAI}
+        durationInFrames={SEC(10)}
         {...VIDEO_UI}
       />
       <Composition

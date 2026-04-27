@@ -48,6 +48,14 @@ return [
             'alt'              => 'A raw transcript at the top; Voice-to-text, Message, and Meeting panels populate below it.',
             'loops'            => false,
         ],
+        'feature-multilingual' => [
+            'title'            => '30+ languages, all on your PC',
+            'duration_seconds' => 12,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => "The Utterbar pill listening; a language chip cycles English, French, Japanese, Spanish; transcripts type out in each language into the same field.",
+            'loops'            => false,
+        ],
         'feature-system-audio' => [
             'title'            => 'Transcribe what your PC is playing',
             'duration_seconds' => 6,
@@ -66,18 +74,26 @@ return [
         ],
         'feature-local-privacy' => [
             'title'            => 'Local by default',
-            'duration_seconds' => 6,
+            'duration_seconds' => 8,
             'width'            => 1440,
             'height'           => 900,
-            'alt'              => 'The real Privacy settings — three context toggles all off, plus the on-disk paths where data lives.',
-            'loops'            => false,
+            'alt'              => "A 'Your PC' panel holds Audio, Transcripts, Vocabulary, History — connected by an internal cyan loop. A thin outbound line lights up briefly for each of four small network calls (update check, licence check, pricing, model download).",
+            'loops'            => true,
         ],
         'feature-file-transcription' => [
             'title'            => 'Batch file transcription',
-            'duration_seconds' => 7,
+            'duration_seconds' => 12,
             'width'            => 1440,
             'height'           => 900,
-            'alt'              => 'Files dropzone with a queue of three jobs moving through queued, running, and done.',
+            'alt'              => 'Files dropzone with a queue of three jobs moving through queued, running, and done — then the user opens the finished transcript in a modal with Copy and Show in folder actions.',
+            'loops'            => false,
+        ],
+        'feature-talk-to-ai' => [
+            'title'            => 'Talk to your AI assistant at the speed of speech',
+            'duration_seconds' => 10,
+            'width'            => 1440,
+            'height'           => 900,
+            'alt'              => 'The Utterbar pill listening; a spoken question lands in a generic AI-chat input box and an assistant reply types back in.',
             'loops'            => false,
         ],
         'feature-history-retranscribe' => [
@@ -94,7 +110,7 @@ return [
             'width'            => 1600,
             'height'           => 520,
             'alt'              => "A row of six accent swatches cycles, and the pill's LED + waveform change colour to match.",
-            'loops'            => false,
+            'loops'            => true,
         ],
     ],
 
@@ -114,8 +130,8 @@ return [
         'press-03-main-shell-dashboard' => [
             'title'  => 'Main app — Dashboard',
             'width'  => 2200,
-            'height' => 1180,
-            'alt'    => 'Dashboard metrics and recent-activity card from the main Utterbar window.',
+            'height' => 1080,
+            'alt'    => 'The Utterbar Dashboard showing eight tiles of real local-only usage stats: words today, words this week, time saved, average speaking WPM, and all-time totals.',
         ],
         'press-04-vocabulary' => [
             'title'  => 'Main app — Vocabulary',

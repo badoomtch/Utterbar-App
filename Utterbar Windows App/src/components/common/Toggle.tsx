@@ -5,27 +5,25 @@ import { cn } from '@/lib/cn';
  * app uses this component. If a switch ever looks "off" elsewhere, the
  * fix lives here, not in a one-off override.
  *
- * Geometry (audited 2026-04-27, fourth pass — see history at the bottom
- * of this comment for the full saga). Numbers chosen so the on/off knob
- * positions are mirror-symmetric AND the visible track shape stays the
- * same in both states:
+ * Geometry — fifth pass, 2026-04-27. Previous attempts used Tailwind
+ * `translate-x-[Npx]` against a flex parent and kept producing the same
+ * visual bug: the ON-state knob protruded past the right edge of the
+ * cyan track. The arithmetic looked right on paper but something in the
+ * flex/translate/border-box stack was offsetting the child by ~2px more
+ * than expected at runtime. Rather than keep guessing, this version
+ * uses absolute positioning with explicit `left` — pixel-perfect, no
+ * flexbox interaction, no translate, can't drift.
  *
- *   Track       w-11 h-6      → 44×24 outer (border-box)
- *   Border      1px each side → 42×22 content box, present in BOTH states
- *   Knob        h-[18px] w-[18px]
- *   Inset       2px each side from the content box
- *   Travel      content_w - knob - 2*inset = 42 - 18 - 4 = 20px
+ * Track:        44 × 24, 1px border (border-box), 22px radius (full pill)
+ * Inner usable: 42 × 22 (track minus border)
+ * Knob:         18 × 18, absolute-positioned within the track
+ * OFF position: left: 2px              → knob spans 2 → 20 (within 0..42)
+ * ON  position: left: calc(100% - 20px) → knob spans 22 → 40 (within 0..42)
  *
- *   OFF      translate-x-[2px]   → 2px inset from left
- *   ON       translate-x-[22px]  → 22+18 = 40, 2px from right
- *
- * The previous version used `border-transparent` for the ON state, which
- * was mathematically symmetric but perceptually asymmetric: a transparent
- * border meant the cyan fill bled to the OUTER edge of the track, so the
- * ON knob's 2px right gap looked like it was sitting on the very rim
- * while the OFF knob's 2px left gap had a visible grey border to butt
- * against. Fix: keep a same-coloured (accent) border in the ON state so
- * the visible track terminates at the same place in both states.
+ * Both states leave a 2px gap from the inner border. Both states keep
+ * a same-coloured 1px border so the visible track ends in the same
+ * place regardless of state. Vertical: knob is 18, inner height is 22,
+ * so 2px above/below — top: 2px does it.
  *
  * Focus ring: 2px cyan outline per DESIGN_SYSTEM §6.1, no glow.
  */
@@ -49,21 +47,31 @@ export function Toggle({
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-pill border transition-colors duration-180',
+        'relative inline-block shrink-0 rounded-pill border transition-colors duration-180',
         'focus-visible:outline-2 focus-visible:outline focus-visible:outline-accent focus-visible:outline-offset-2',
         checked
           ? 'bg-accent border-accent'
           : 'bg-bg-2 border-border-strong hover:border-accent/40',
         disabled && 'cursor-not-allowed opacity-50',
       )}
+      style={{ width: 44, height: 24, boxSizing: 'border-box' }}
     >
       <span
+        aria-hidden="true"
         className={cn(
-          'pointer-events-none inline-block h-[18px] w-[18px] rounded-full transition-all duration-180',
-          checked
-            ? 'translate-x-[22px] bg-[#06121A] shadow-[0_1px_2px_rgba(0,0,0,0.35)]'
-            : 'translate-x-[2px] bg-fg-dim',
+          'absolute pointer-events-none rounded-full transition-all duration-180',
+          checked ? 'bg-[#06121A] shadow-[0_1px_2px_rgba(0,0,0,0.35)]' : 'bg-fg-dim',
         )}
+        style={{
+          width: 18,
+          height: 18,
+          top: 2,
+          // Position from the left in OFF state, from the right in ON
+          // state. Using `right` for ON so the gap-from-edge matches OFF
+          // exactly, regardless of how the browser resolves border-box.
+          left: checked ? 'auto' : 2,
+          right: checked ? 2 : 'auto',
+        }}
       />
     </button>
   );
