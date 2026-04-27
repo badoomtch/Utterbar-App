@@ -115,6 +115,12 @@ pub async fn reprocess_history(
         app_title: source.app_title.clone(),
         context_payload: source.context_payload.clone(),
         word_timings: source.word_timings.clone(),
+        // Reprocess always produces a dictation row, even if the source
+        // was a meeting. The point of reprocess is to re-run a different
+        // mode's post-processing pipeline; meeting mode skips post-
+        // processing, so a reprocessed row is by definition a dictation
+        // and belongs on /history rather than /meetings.
+        is_meeting: false,
     };
     state.history.insert(&entry).map_err(OrliqError::from)?;
     Ok(entry)

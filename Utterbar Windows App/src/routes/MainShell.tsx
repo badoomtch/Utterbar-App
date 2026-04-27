@@ -20,6 +20,7 @@ import {
   Settings2,
   Shapes,
   ShieldCheck,
+  Users,
   SlidersHorizontal,
   Info,
   Minimize2,
@@ -31,6 +32,7 @@ import { PostUpdateToast, UpdateToast } from '@/components/common/UpdateToast';
 import { cn } from '@/lib/cn';
 import { Dashboard } from '@/routes/Dashboard';
 import { HistoryRoute } from '@/routes/HistoryRoute';
+import { MeetingsRoute } from '@/routes/MeetingsRoute';
 import { ModesRoute } from '@/routes/ModesRoute';
 import { VocabularyRoute } from '@/routes/VocabularyRoute';
 import { FilesRoute } from '@/routes/FilesRoute';
@@ -49,6 +51,7 @@ import { LicenceSettings } from '@/routes/settings/LicenceSettings';
 const NAV_PRIMARY = [
   { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
   { to: '/history', label: 'History', icon: HistoryIcon },
+  { to: '/meetings', label: 'Meetings', icon: Users },
   { to: '/modes', label: 'Modes', icon: Shapes },
   { to: '/vocabulary', label: 'Vocabulary', icon: Layers },
   { to: '/files', label: 'Files', icon: FileAudio },
@@ -192,6 +195,7 @@ export function MainShell() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/history" element={<HistoryRoute />} />
+          <Route path="/meetings" element={<MeetingsRoute />} />
           <Route path="/modes" element={<ModesRoute />} />
           <Route path="/vocabulary" element={<VocabularyRoute />} />
           <Route path="/files" element={<FilesRoute />} />

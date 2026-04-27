@@ -7,4 +7,13 @@ export type HistoryFilter = { mode_id: string | null, app_exe: string | null, se
  * Stored as a HistoryStatus to keep the wire shape symmetric with the
  * row column.
  */
-status: HistoryStatus | null, limit: bigint | null, offset: bigint | null, };
+status: HistoryStatus | null, 
+/**
+ * Filter by meeting flag.
+ *   * None — any row (legacy behaviour, used by callers that don't
+ *     care about the split)
+ *   * Some(true) — only meeting rows; powers /meetings
+ *   * Some(false) — only dictation rows; powers /history (so old
+ *     meetings stop polluting the dictation list)
+ */
+is_meeting: boolean | null, limit: bigint | null, offset: bigint | null, };

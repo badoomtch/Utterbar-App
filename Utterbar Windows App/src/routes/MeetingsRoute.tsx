@@ -1,0 +1,335 @@
+import { useEffect, useState } from 'react';
+import { ArrowLeft, Copy, Download, Trash2, Users, Clock, FileText, Sparkles } from 'lucide-react';
+
+import { PageHeader } from '@/components/common/PageHeader';
+import { invoke } from '@/lib/ipc';
+import { cn } from '@/lib/cn';
+import type { HistoryEntry } from '@/generated/HistoryEntry';
+
+/**
+ * Meetings page. Renders the small subset of history rows that came
+ * from Meeting Mode (`is_meeting = 1` in the DB) as a card-based list
+ * rather than the dense table /history uses for dictations.
+ *
+ * Two views, controlled by `selectedId` local state:
+ *   - List: card per meeting with date, duration, speaker turn breakdown
+ *     (derived from the transcript's `**You**:` / `**Other**:` tags),
+ *     and a one-line preview pulled from the first chunk's body.
+ *   - Detail: full timestamped transcript, copy/export buttons, summary
+ *     placeholder (LLM lands in v0.14.1).
+ *
+ * No reprocess button — the meeting transcribe pipeline isn't a
+ * post-processing pass; rerunning it would mean re-chunking the audio
+ * and that's an audio-level operation. Audio playback may come later
+ * when `retain_audio` is on (deferred from v0.14.0).
+ */
+export function MeetingsRoute() {
+  const [meetings, setMeetings] = useState<HistoryEntry[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    return invoke<HistoryEntry[]>('list_history', {
+      filter: {
+        is_meeting: true,
+        limit: 200,
+      },
+    })
+      .then((rows) => setMeetings(rows ?? []))
+      .catch(() => setMeetings([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const selected = meetings.find((m) => m.id === selectedId) ?? null;
+
+  if (selected) {
+    return <MeetingDetail entry={selected} onBack={() => setSelectedId(null)} onDeleted={() => {
+      setSelectedId(null);
+      void load();
+    }} />;
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-[880px] px-6 py-6">
+      <PageHeader
+        title="Meetings"
+        subtitle="Recordings from Meeting Mode. Use Meeting Mode (Settings → Modes → Meeting) to record a call or long-form session."
+      />
+
+      {loading ? (
+        <div className="mt-6 text-sm text-muted">Loading…</div>
+      ) : meetings.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="mt-6 space-y-3">
+          {meetings.map((m) => (
+            <MeetingCard
+              key={m.id}
+              entry={m}
+              onClick={() => setSelectedId(m.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="mt-12 rounded-input bg-bg-2 p-8 text-center">
+      <Users className="mx-auto h-10 w-10 text-muted" />
+      <h3 className="mt-3 text-base font-medium text-fg">No meetings yet</h3>
+      <p className="mt-2 text-sm text-muted">
+        Switch to Meeting Mode (Settings → Modes → Meeting), press your hotkey, and
+        speak. Meetings save here when you stop recording — both your microphone and
+        your system audio are captured automatically, with timestamps and speaker tags.
+      </p>
+    </div>
+  );
+}
+
+function MeetingCard({ entry, onClick }: { entry: HistoryEntry; onClick: () => void }) {
+  // Number(...) because ts-rs emits bigint for i64 fields.
+  const createdAt = new Date(Number(entry.created_at));
+  const durationSec = Math.max(1, Math.round(Number(entry.audio_duration_ms) / 1000));
+  const mm = Math.floor(durationSec / 60);
+  const ss = durationSec % 60;
+  const breakdown = countSpeakerTurns(entry.processed_text);
+  // First non-empty line of the body, stripped of timestamp + tag, capped
+  // at ~120 chars. Gives a glanceable "what was this about" preview.
+  const preview = firstLine(entry.processed_text);
+
+  return (
+    <button
+      onClick={onClick}
+      className="block w-full rounded-input bg-bg-2 p-4 text-left transition-colors hover:bg-bg-2/80"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3 text-[12px] text-muted">
+            <span>{createdAt.toLocaleString()}</span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {mm}:{ss.toString().padStart(2, '0')}
+            </span>
+            {(breakdown.you > 0 || breakdown.other > 0) && (
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                You: {breakdown.you} · Other: {breakdown.other}
+              </span>
+            )}
+          </div>
+          <div className="mt-2 truncate text-sm text-fg">{preview || '(empty transcript)'}</div>
+        </div>
+        <div className="text-[11px] text-muted">
+          {entry.mode_name_snapshot}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function MeetingDetail({
+  entry,
+  onBack,
+  onDeleted,
+}: {
+  entry: HistoryEntry;
+  onBack: () => void;
+  onDeleted: () => void;
+}) {
+  const createdAt = new Date(Number(entry.created_at));
+  const durationSec = Math.max(1, Math.round(Number(entry.audio_duration_ms) / 1000));
+  const mm = Math.floor(durationSec / 60);
+  const ss = durationSec % 60;
+  const breakdown = countSpeakerTurns(entry.processed_text);
+
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    await navigator.clipboard.writeText(entry.processed_text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  };
+
+  const onExportTxt = async () => {
+    await downloadAs(`meeting-${formatStamp(createdAt)}.txt`, entry.processed_text, 'text/plain');
+  };
+
+  const onExportMd = async () => {
+    // Markdown export adds a small front-matter block so a future re-import
+    // (or an LLM consuming the file) has the metadata it needs without
+    // having to re-derive it from the body. Renders cleanly in any
+    // markdown viewer that ignores unknown YAML.
+    const md =
+      `---\n` +
+      `date: ${createdAt.toISOString()}\n` +
+      `duration: ${mm}:${ss.toString().padStart(2, '0')}\n` +
+      `mode: ${entry.mode_name_snapshot}\n` +
+      `---\n\n` +
+      `# Meeting transcript\n\n` +
+      entry.processed_text +
+      `\n`;
+    await downloadAs(`meeting-${formatStamp(createdAt)}.md`, md, 'text/markdown');
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm('Delete this meeting transcript? This cannot be undone.')) return;
+    await invoke('delete_history_entry', { id: entry.id });
+    onDeleted();
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[880px] px-6 py-6">
+      <button
+        onClick={onBack}
+        className="mb-4 inline-flex items-center gap-2 text-sm text-muted hover:text-fg"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to meetings
+      </button>
+
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-medium text-fg">
+            {createdAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+          </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {mm}:{ss.toString().padStart(2, '0')}
+            </span>
+            {(breakdown.you > 0 || breakdown.other > 0) && (
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                You: {breakdown.you} · Other: {breakdown.other}
+              </span>
+            )}
+            <span>Model: {entry.asr_model_id}</span>
+            <span>Mode: {entry.mode_name_snapshot}</span>
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <ActionButton onClick={onCopy} icon={Copy} label={copied ? 'Copied' : 'Copy'} />
+          <ActionButton onClick={onExportTxt} icon={Download} label=".txt" />
+          <ActionButton onClick={onExportMd} icon={FileText} label=".md" />
+          <ActionButton onClick={onDelete} icon={Trash2} label="Delete" tone="danger" />
+        </div>
+      </div>
+
+      {/* Summary placeholder. The offline LLM (llama.cpp + small instruct
+          model) lands in v0.14.1 with the actual summarisation pipeline.
+          For v0.14.0 we render a disabled placeholder so the section
+          exists in the UI even though the feature isn't live yet — that
+          way the v0.14.1 ship adds nothing visible apart from the button
+          becoming clickable. */}
+      <div className="mt-6 rounded-input bg-bg-2 p-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-fg">
+          <Sparkles className="h-4 w-4" />
+          Summary
+        </div>
+        <p className="mt-2 text-[13px] text-muted">
+          Auto-generated meeting summary. Available in v0.14.1 once the offline LLM
+          model ships — runs locally, no cloud round-trip.
+        </p>
+      </div>
+
+      {/* Transcript. Pre + whitespace-pre-wrap so the [mm:ss] timestamp
+          prefixes and `**Tag**:` markers stack cleanly with chunk
+          paragraph breaks intact (the chunker already inserts \n\n
+          between chunks). */}
+      <div className="mt-6">
+        <div className="mb-2 text-sm font-medium text-fg">Transcript</div>
+        <pre className="whitespace-pre-wrap rounded-input bg-bg-2 p-4 font-mono text-[13px] leading-relaxed text-fg">
+          {entry.processed_text || '(empty)'}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+function ActionButton({
+  onClick,
+  icon: Icon,
+  label,
+  tone = 'default',
+}: {
+  onClick: () => void;
+  icon: typeof Copy;
+  label: string;
+  tone?: 'default' | 'danger';
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 rounded-input px-3 py-1.5 text-[12px] transition-colors',
+        tone === 'danger'
+          ? 'bg-bg-2 text-muted hover:bg-rose-500/10 hover:text-rose-400'
+          : 'bg-bg-2 text-fg hover:bg-bg-2/80',
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+}
+
+/**
+ * Count `**You**` and `**Other**` speaker turns in the transcript.
+ * Imperfect because the markers are part of the transcript body, but
+ * the regex below skips matches that aren't at the start of a chunk
+ * paragraph — we look for the boundary that always follows a chunk
+ * timestamp like `[mm:ss] **You**:`.
+ */
+function countSpeakerTurns(transcript: string): { you: number; other: number } {
+  const youRe = /\[\d{2}:\d{2}\]\s+\*\*You\*\*:/g;
+  const otherRe = /\[\d{2}:\d{2}\]\s+\*\*Other\*\*:/g;
+  return {
+    you: (transcript.match(youRe) ?? []).length,
+    other: (transcript.match(otherRe) ?? []).length,
+  };
+}
+
+/** First non-empty line of body, stripped of `[mm:ss] **Tag**:` prefix. */
+function firstLine(transcript: string): string {
+  const lines = transcript.split('\n').map((l) => l.trim()).filter(Boolean);
+  const first = lines[0] ?? '';
+  // Strip "[mm:ss] **Tag**: " prefix if present so the preview shows
+  // actual content not metadata.
+  return first.replace(/^\[\d{2}:\d{2}\]\s+(\*\*\w+\*\*:\s+)?/, '').slice(0, 120);
+}
+
+/** "2026-04-28T11-30-15" — filename-safe ISO-ish stamp. */
+function formatStamp(d: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`
+  );
+}
+
+/** Trigger a browser download with `text` as the file body. Tauri's
+ * webview supports the standard a[download] flow. */
+async function downloadAs(filename: string, text: string, mime: string) {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    // Revoke after the click handler has had a chance to start the
+    // download. 0-tick timeout is enough — browsers preserve the
+    // blob reference for the in-flight download.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+}

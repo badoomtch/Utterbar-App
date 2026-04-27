@@ -22,6 +22,12 @@ pub struct HistoryEntry {
     pub app_title: Option<String>,
     pub context_payload: Option<String>,
     pub word_timings: Option<String>,
+    /// True when this row was produced by Meeting Mode. Drives the
+    /// /meetings route filter — meeting rows live there, dictations
+    /// live on /history. Set at insert time from the active mode's
+    /// `is_meeting_mode` flag; never updated after.
+    #[serde(default)]
+    pub is_meeting: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -46,6 +52,14 @@ pub struct HistoryFilter {
     /// row column.
     #[serde(default)]
     pub status: Option<HistoryStatus>,
+    /// Filter by meeting flag.
+    ///   * None — any row (legacy behaviour, used by callers that don't
+    ///     care about the split)
+    ///   * Some(true) — only meeting rows; powers /meetings
+    ///   * Some(false) — only dictation rows; powers /history (so old
+    ///     meetings stop polluting the dictation list)
+    #[serde(default)]
+    pub is_meeting: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }

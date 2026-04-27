@@ -20,8 +20,8 @@ impl HistoryService {
     pub fn insert(&self, entry: &HistoryEntry) -> Result<()> {
         let conn = self.db.conn()?;
         conn.execute(
-            "INSERT INTO history(id,created_at,mode_id,mode_name_snapshot,asr_model_id,asr_model_version,audio_path,audio_duration_ms,raw_text,processed_text,language,processing_ms,status,error_message,app_exe,app_title,context_payload,word_timings)
-             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)",
+            "INSERT INTO history(id,created_at,mode_id,mode_name_snapshot,asr_model_id,asr_model_version,audio_path,audio_duration_ms,raw_text,processed_text,language,processing_ms,status,error_message,app_exe,app_title,context_payload,word_timings,is_meeting)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)",
             params![
                 entry.id, entry.created_at, entry.mode_id, entry.mode_name_snapshot,
                 entry.asr_model_id, entry.asr_model_version, entry.audio_path, entry.audio_duration_ms,
@@ -29,6 +29,7 @@ impl HistoryService {
                 serde_json::to_string(&entry.status)?,
                 entry.error_message, entry.app_exe, entry.app_title,
                 entry.context_payload, entry.word_timings,
+                entry.is_meeting as i32,
             ],
         )?;
         Ok(())
@@ -36,7 +37,7 @@ impl HistoryService {
 
     pub fn list(&self, filter: HistoryFilter) -> Result<Vec<HistoryEntry>> {
         let mut sql = String::from(
-            "SELECT id,created_at,mode_id,mode_name_snapshot,asr_model_id,asr_model_version,audio_path,audio_duration_ms,raw_text,processed_text,language,processing_ms,status,error_message,app_exe,app_title,context_payload,word_timings FROM history WHERE 1=1"
+            "SELECT id,created_at,mode_id,mode_name_snapshot,asr_model_id,asr_model_version,audio_path,audio_duration_ms,raw_text,processed_text,language,processing_ms,status,error_message,app_exe,app_title,context_payload,word_timings,is_meeting FROM history WHERE 1=1"
         );
         let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         if let Some(m) = filter.mode_id {
@@ -70,6 +71,10 @@ impl HistoryService {
                 serde_json::to_string(&st).unwrap_or_else(|_| "\"success\"".into()),
             ));
         }
+        if let Some(meeting) = filter.is_meeting {
+            sql.push_str(" AND is_meeting = ?");
+            args.push(Box::new(meeting as i32));
+        }
         sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
         args.push(Box::new(filter.limit.unwrap_or(200)));
         args.push(Box::new(filter.offset.unwrap_or(0)));
@@ -87,7 +92,7 @@ impl HistoryService {
     pub fn get(&self, id: &str) -> Result<Option<HistoryEntry>> {
         let conn = self.db.conn()?;
         let mut stmt = conn.prepare(
-            "SELECT id,created_at,mode_id,mode_name_snapshot,asr_model_id,asr_model_version,audio_path,audio_duration_ms,raw_text,processed_text,language,processing_ms,status,error_message,app_exe,app_title,context_payload,word_timings FROM history WHERE id=?1"
+            "SELECT id,created_at,mode_id,mode_name_snapshot,asr_model_id,asr_model_version,audio_path,audio_duration_ms,raw_text,processed_text,language,processing_ms,status,error_message,app_exe,app_title,context_payload,word_timings,is_meeting FROM history WHERE id=?1"
         )?;
         let mut rows = stmt.query(params![id])?;
         match rows.next()? {
@@ -144,5 +149,6 @@ fn row_to_history(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
         app_title: row.get(15)?,
         context_payload: row.get(16)?,
         word_timings: row.get(17)?,
+        is_meeting: row.get::<_, i32>(18)? != 0,
     })
 }

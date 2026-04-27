@@ -118,6 +118,12 @@ export function HistoryRoute() {
         mode_id: modeId,
         app_exe: appExe,
         from_ms,
+        // Exclude meeting rows. They live on /meetings (v0.14+) — the
+        // shape is too different to mix with dictation rows in this
+        // table view (timestamped multi-paragraph transcript vs.
+        // one-shot single-line dictation). The new /meetings page is
+        // the destination for those.
+        is_meeting: false,
         limit: 200,
       },
     })

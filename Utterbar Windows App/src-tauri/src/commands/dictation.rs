@@ -1227,6 +1227,7 @@ pub async fn stop_recording(
             app_title: None,
             context_payload: None,
             word_timings: None,
+            is_meeting: mode.is_meeting_mode,
         });
     }
 
@@ -1287,6 +1288,7 @@ pub async fn stop_recording(
         app_title: ctx_snapshot.app_title.clone(),
         context_payload,
         word_timings: None,
+        is_meeting: mode.is_meeting_mode,
     };
     state.history.insert(&entry).map_err(OrliqError::from)?;
 
