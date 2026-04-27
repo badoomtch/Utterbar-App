@@ -85,4 +85,11 @@ pub enum ModelEngine {
     /// Zipformer streaming via sherpa_rs::zipformer::ZipFormer.
     /// English, fast cold start. Wired in v0.8.2 onwards.
     Zipformer,
+    /// Streaming-mode Zipformer via the local OnlineRecognizer wrapper
+    /// at services::inference::streaming. Real-time chunked inference,
+    /// constant ~50 MB memory regardless of recording length. The fix
+    /// for the long-recording crash class (see STREAMING_PLAN.md).
+    /// English only at the time of writing; multilingual streaming
+    /// variants would land as separate catalogue rows.
+    ZipformerStreaming,
 }

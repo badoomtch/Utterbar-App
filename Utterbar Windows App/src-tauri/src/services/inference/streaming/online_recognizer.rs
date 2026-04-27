@@ -290,6 +290,10 @@ impl OnlineRecognizer {
     /// the decoded transcript. Useful when an utterance ends and the
     /// caller wants to start a new one without creating a fresh
     /// stream (which would require re-loading some per-stream state).
+    /// Not currently used — the orchestrator creates a fresh stream
+    /// per recording — but kept for the Phase 2 case where a long
+    /// recording might be split into utterances at VAD boundaries.
+    #[allow(dead_code)]
     pub fn reset(&self, stream: &OnlineStream) {
         unsafe { sys::SherpaOnnxOnlineStreamReset(self.raw, stream.raw) }
     }

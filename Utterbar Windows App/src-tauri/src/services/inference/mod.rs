@@ -5,6 +5,7 @@ pub mod py_sidecar;
 pub mod sherpa_parakeet;
 pub mod sherpa_whisper;
 pub mod sherpa_zipformer;
+pub mod sherpa_zipformer_streaming;
 pub mod streaming;
 pub mod stub;
 
@@ -432,5 +433,12 @@ async fn build_provider(
             model_dir,
             provider_string.to_string(),
         ))),
+        ModelEngine::ZipformerStreaming => Ok(Arc::new(
+            sherpa_zipformer_streaming::SherpaZipformerStreaming::new(
+                model_id.to_string(),
+                model_dir,
+                provider_string.to_string(),
+            ),
+        )),
     }
 }
