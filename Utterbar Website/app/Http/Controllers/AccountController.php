@@ -41,7 +41,7 @@ class AccountController extends Controller
         } catch (\Throwable $e) {
             return redirect()->route('account')->with('flash', [
                 'type' => 'error',
-                'text' => 'Email delivery failed. Try again in a minute, or contact hello@utterbar.com.',
+                'text' => 'Email delivery failed. Try again in a minute, or contact hello@ddraig.dev.',
             ]);
         }
 

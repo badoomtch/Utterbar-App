@@ -11,7 +11,11 @@ return [
     'version'  => '0.10.0',
 
     'email' => [
-        'contact' => 'hello@utterbar.com',
+        // 2026-04-27: outbound email moved off utterbar.com to the studio
+        // domain ddraig.dev (Resend-verified, DKIM+SPF passing). The website
+        // canonical domain is still utterbar.com — only the email address
+        // changed. Replies go to the same inbox.
+        'contact' => 'hello@ddraig.dev',
     ],
 
     'description' => 'Utterbar is a Windows-native, local-only dictation app. Press a hotkey, speak, type anywhere. Offline, private, fast.',

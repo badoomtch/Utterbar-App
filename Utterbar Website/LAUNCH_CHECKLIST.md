@@ -140,7 +140,7 @@ This is app Claude's turf, but it needs to happen before the download link works
 
 Currently Laravel logs to `stderr` on Cloudways. Find them via `tail -f ~/public_html/storage/logs/laravel.log` on the Cloudways shell. That's fine for day 1, not fine for week 1.
 
-- [ ] Wire a log channel for 500s → Slack webhook or email (Resend can do this — send to `hello@utterbar.com` with level filter `error`). ~20 minute change, say the word and I'll do it.
+- [ ] Wire a log channel for 500s → Slack webhook or email (Resend can do this — send to `hello@ddraig.dev` with level filter `error`). ~20 minute change, say the word and I'll do it.
 - [ ] Consider Sentry ([sentry.io](https://sentry.io)) — free tier handles 5k events/month, one-line Laravel integration. Worth it once you have 100 paying customers.
 
 ### C2. Watch the `/admin` dashboard

@@ -4,7 +4,7 @@
     $subjectPrefill = request()->query('subject', '');
 @endphp
 
-<x-layouts.app title="Contact" description="Get in touch with Jay at hello@utterbar.com. Questions, feature ideas, bug reports, partnership pitches — one inbox, one person, usually a reply within a day.">
+<x-layouts.app title="Contact" description="Get in touch with Jay at hello@ddraig.dev. Questions, feature ideas, bug reports, partnership pitches — one inbox, one person, usually a reply within a day.">
     <section class="relative overflow-hidden">
         <div class="ub-hero-glow" aria-hidden="true"></div>
         <div class="relative ub-container pt-20 md:pt-28 pb-12">
@@ -39,7 +39,7 @@
                                     </span>
                                     <p class="font-semibold" style="color: var(--fg-hi); font-size: 1.125rem; letter-spacing: -0.015em;" x-text="message"></p>
                                     <p class="text-sm mt-2" style="color: var(--muted); max-width: 36ch;">
-                                        I&rsquo;ll reply from <span style="color: var(--accent);">hello@utterbar.com</span>. Check junk if it takes more than a day.
+                                        I&rsquo;ll reply from <span style="color: var(--accent);">hello@ddraig.dev</span>. Check junk if it takes more than a day.
                                     </p>
                                 </div>
                             </div>
@@ -158,7 +158,7 @@
                 consent: false,
                 busy: false,
                 submitted: @json((bool) $alreadySent),
-                message: @json($statusMessage ?? "Got it. I'll reply from hello@utterbar.com within a day or two."),
+                message: @json($statusMessage ?? "Got it. I'll reply from hello@ddraig.dev within a day or two."),
                 error: '',
                 async submit(e) {
                     this.error = '';

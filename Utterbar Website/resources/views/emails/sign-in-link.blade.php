@@ -77,7 +77,7 @@
                     <tr>
                         <td style="padding:20px 32px 28px 32px;">
                             <p style="margin:0; font-size:12px; color:#7A8A99; font-family:'SF Mono',Menlo,Consolas,monospace; letter-spacing:0.02em;">
-                                utterbar.com &middot; hello@utterbar.com
+                                utterbar.com &middot; hello@ddraig.dev
                             </p>
                         </td>
                     </tr>

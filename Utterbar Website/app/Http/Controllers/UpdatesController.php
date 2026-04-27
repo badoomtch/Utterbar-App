@@ -130,7 +130,7 @@ class UpdatesController extends Controller
             return view('pages.updates-status', [
                 'status' => 'ok',
                 'title'  => "You're already on the list.",
-                'body'   => "Nothing to do — we'll email you from hello@utterbar.com when there's a new release worth installing.",
+                'body'   => "Nothing to do — we'll email you from hello@ddraig.dev when there's a new release worth installing.",
             ]);
         }
         return view('pages.updates-confirm', [
@@ -177,7 +177,7 @@ class UpdatesController extends Controller
         return view('pages.updates-status', [
             'status' => 'ok',
             'title'  => "You're on the list.",
-            'body'   => "We'll email you from hello@utterbar.com when there's a new release worth installing.",
+            'body'   => "We'll email you from hello@ddraig.dev when there's a new release worth installing.",
         ]);
     }
 

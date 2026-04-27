@@ -70,7 +70,7 @@
                                 Or <a href="{{ $unsubscribeUrl }}" style="color:#22D3EE;">remove {{ $email }} immediately</a>.
                             </p>
                             <p style="margin:0; font-size:12px; color:#7A8A99; font-family:'SF Mono',Menlo,Consolas,monospace; letter-spacing:0.02em;">
-                                utterbar.com &middot; hello@utterbar.com
+                                utterbar.com &middot; hello@ddraig.dev
                             </p>
                         </td>
                     </tr>

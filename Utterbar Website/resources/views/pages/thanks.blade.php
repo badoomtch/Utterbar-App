@@ -23,7 +23,7 @@
                 <div class="mt-10 ub-card text-left" style="padding: 1.75rem 2rem;">
                     <p class="ub-eyebrow mb-3">Next step</p>
                     <ol class="space-y-3 text-sm" style="color: var(--fg);">
-                        <li>1. Open the email from <span style="color: var(--accent);">hello@utterbar.com</span></li>
+                        <li>1. Open the email from <span style="color: var(--accent);">hello@ddraig.dev</span></li>
                         <li>2. Copy the licence key (<span class="font-mono" style="color: var(--fg-hi);">UB-XXXX-XXXX-XXXX-XXXX-XXXX</span>)</li>
                         <li>3. Paste it into Utterbar &rarr; Settings &rarr; Licence</li>
                     </ol>

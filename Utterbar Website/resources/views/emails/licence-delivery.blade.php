@@ -131,7 +131,7 @@
                                 Lost this email later? Visit <a href="https://utterbar.com/licence" style="color:#22D3EE; text-decoration:none;">utterbar.com/licence</a>, enter {{ $email }}, and we&rsquo;ll send a magic link to manage your licence and devices.
                             </p>
                             <p style="margin:0; font-size:12px; color:#7A8A99; font-family:'SF Mono',Menlo,Consolas,monospace; letter-spacing:0.02em;">
-                                utterbar.com &middot; hello@utterbar.com
+                                utterbar.com &middot; hello@ddraig.dev
                             </p>
                         </td>
                     </tr>

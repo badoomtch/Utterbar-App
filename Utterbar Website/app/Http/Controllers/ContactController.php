@@ -45,7 +45,7 @@ class ContactController extends Controller
             ]);
         }
 
-        $message = "Got it. I'll reply from hello@utterbar.com within a day or two.";
+        $message = "Got it. I'll reply from hello@ddraig.dev within a day or two.";
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json(['ok' => true, 'message' => $message]);
