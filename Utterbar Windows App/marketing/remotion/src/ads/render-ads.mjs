@@ -1,15 +1,26 @@
 /**
- * Batch-render all 12 social ads from the AdsRoot to MP4 in marketing/
+ * Batch-render the social ads from the AdsRoot to MP4 in marketing/
  * remotion/out/ads/. Mirrors the existing render.mjs (which renders the
  * landscape pack from Root.tsx) but points at src/ads/index.ts and
  * outputs vertical 1080×1920 H.264.
  *
  * Run from the marketing/remotion/ directory:
- *   node src/ads/render-ads.mjs            # all 12
- *   node src/ads/render-ads.mjs ad-01-stop-typing  # one
+ *   node src/ads/render-ads.mjs                     # all ads, MP4 only
+ *   node src/ads/render-ads.mjs ad-01-stop-typing   # one ad
+ *   node src/ads/render-ads.mjs ad-13-the-product   # the hero ad
+ *
+ * Posters: the hero ad gets a poster PNG dropped next to the MP4
+ * (out/ads/<id>-poster.png) at the frame defined by POSTER_FRAMES below.
+ * The 12 social ads don't get posters — they're scrolled past on TikTok
+ * /Reels, not embedded as <video poster=...>.
  */
 import { bundle } from '@remotion/bundler';
-import { renderMedia, selectComposition, openBrowser } from '@remotion/renderer';
+import {
+  renderMedia,
+  renderStill,
+  selectComposition,
+  openBrowser,
+} from '@remotion/renderer';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +44,25 @@ const ALL_IDS = [
   'ad-10-price-once',
   'ad-11-no-account',
   'ad-12-founders-note',
+  'ad-13-the-product',
+  'ad-14-local-dictation',
 ];
+
+// Frames where a still poster reads cleanly. For ad-13 we want the
+// "shaped output" moment — beat 3, around f(B2_END=8.5) + 36 + 14 = 305:
+// the pill has settled back to idle after success, the shaped transcript
+// panel is fully laid out with its full sentence visible. Reads as the
+// product-promise frame: speak, get clean text. Frame 320 gives a
+// little extra hold for the still to feel composed.
+const POSTER_FRAMES = {
+  'ad-13-the-product': 320,
+  // Shot 2 of ad-14, frame 200 (=6.67s). Shot 2 starts at global frame
+  // 75; the dictated sentence finishes its 0.5s paste-in by frame 198
+  // (global), and the field's accent glow holds through frame 222.
+  // Frame 200 = full sentence locked in, glow at peak — the strongest
+  // single-frame summary of the ad.
+  'ad-14-local-dictation': 200,
+};
 
 const target = process.argv[2];
 const ids = target ? [target] : ALL_IDS;
@@ -79,6 +108,24 @@ for (const id of ids) {
       concurrency: null,
     });
     console.log(`    done in ${((Date.now() - t) / 1000).toFixed(1)}s → ${outPath}`);
+
+    // Poster — only for ids registered in POSTER_FRAMES. Reuse the
+    // composition handle from the video render. The website uses this
+    // as <video poster> so the player surface looks like the product
+    // before play.
+    if (POSTER_FRAMES[id] !== undefined) {
+      const posterPath = path.join(OUT_DIR, `${id}-poster.png`);
+      const tp = Date.now();
+      await renderStill({
+        composition,
+        serveUrl,
+        output: posterPath,
+        frame: POSTER_FRAMES[id],
+        imageFormat: 'png',
+        puppeteerInstance: browser,
+      });
+      console.log(`    poster done in ${((Date.now() - tp) / 1000).toFixed(1)}s → ${posterPath}`);
+    }
   } catch (err) {
     console.error(`    FAILED: ${err?.message ?? err}`);
     failures.push({ id, error: err });
