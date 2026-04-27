@@ -29,6 +29,36 @@
         </p>
     </div>
 
+    <h3 id="installer-return-codes" class="mt-10 ub-docs-h3" style="font-size: 1.25rem; font-weight: 600; color: var(--fg-hi); letter-spacing: -0.015em;">Installer return codes</h3>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        The NSIS installer follows standard NSIS exit-code conventions. The codes below are what fleet-deployment tools (SCCM, Intune, PDQ, Microsoft Store) can rely on:
+    </p>
+    <table class="mt-4 w-full text-sm" style="color: var(--fg);">
+        <thead>
+            <tr style="border-bottom: 1px solid var(--border-strong);">
+                <th class="py-2 pr-4 text-left ub-eyebrow" style="color: var(--muted);">Code</th>
+                <th class="py-2 text-left ub-eyebrow" style="color: var(--muted);">Meaning</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); color: var(--fg-hi);">0</td>
+                <td class="py-3" style="color: var(--muted);">Install completed successfully.</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); color: var(--fg-hi);">1223</td>
+                <td class="py-3" style="color: var(--muted);">User cancelled the install (standard <code class="text-xs">ERROR_CANCELLED</code>).</td>
+            </tr>
+            <tr>
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); color: var(--fg-hi);">non-zero (other)</td>
+                <td class="py-3" style="color: var(--muted);">Generic install failure. NSIS does not distinguish between disk-full, file-system-permission, or anti-virus quarantine — they all bubble up as a non-zero exit. Investigate via the system Event Log if a deployment tool reports a failure.</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--muted); font-size: 0.95rem;">
+        The installer never requires a reboot, never prompts for elevation (per-user install), never registers a system service, and never makes a network call during install &mdash; everything that touches the network happens after the user runs the app for the first time.
+    </p>
+
     <h2 class="mt-14 ub-docs-h2">File locations</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
         Everything Utterbar writes lives under <code class="font-mono text-sm" style="color: var(--accent);">%APPDATA%\Utterbar\</code> per Windows user. The app does not write to <code class="font-mono text-sm" style="color: var(--accent);">Program Files</code>, <code class="font-mono text-sm" style="color: var(--accent);">ProgramData</code>, or anywhere outside the user&rsquo;s profile.

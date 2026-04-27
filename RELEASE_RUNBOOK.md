@@ -31,11 +31,13 @@ If any precondition fails: stop and resolve before touching anything else. Parti
 
 ## 1. Pick the version number
 
-Semver, pre-1.0 so MINOR bumps are normal:
+Semver, pre-1.0, with channel-encoded-in-version convention (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)):
 
-- **PATCH** (`0.6.1 → 0.6.2`) — bug fixes only, no new user-visible features, no schema changes. Safe for everyone to auto-update to.
-- **MINOR** (`0.6.x → 0.7.0`) — new features, new Pro-gated behaviour, new settings, or anything that would surprise a user reading the release notes. Also used for Ed25519 keypair rotation (see [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md)).
+- **MINOR** (`0.x.0`) — mainline / stable channel. Bundles whatever betas have soaked since the previous mainline. This is what `/download`, the "latest" pill, and the Microsoft Store listing point at. **Always ship with `--announce --tag "latest"`.**
+- **PATCH** (`0.x.y` where `y > 0`) — beta channel. Used for soak releases between mainline minors. **Always ship with `--beta`, never `--tag "latest"`.** Don't `--announce` unless you've confirmed the beta-subscriber list is what you want.
 - **MAJOR** (`0.x → 1.0`) — reserved for the "we ship this to the public" launch.
+
+So the typical rhythm is: feature work lands on a series of `0.x.1`, `0.x.2`, `0.x.3` betas; once the line has soaked, cut `0.(x+1).0` mainline that promotes the lot to stable. Don't ship features straight to mainline without a beta soak — even when "obviously safe", because that's the same intuition that shipped v0.6.1.
 
 Decision must be made BEFORE any file is edited. Write it down in the PR description or release notes header.
 
@@ -151,9 +153,19 @@ cd "Utterbar Windows App"
 ```
 
 Flags:
-- `--announce` — sends the release email to confirmed update-subscribers. Include unless you explicitly want a silent release.
-- `--tag "latest"` — displays the cyan "latest" pill next to the version on `/download`. Include for stable releases.
-- `--beta` — channel=beta instead of stable. Do not use for user-facing releases yet (no beta audience).
+- `--announce` — sends the release email to confirmed update-subscribers. Include for **mainline (`0.x.0`)** releases. For **beta (`0.x.y`)** releases, include only if you've explicitly decided this beta is broad enough to warrant a notification email; default is to skip.
+- `--tag "latest"` — displays the cyan "latest" pill next to the version on `/download`. **Mainline only.** Never on a beta — `latest` is supposed to mean "the version everyone should be on".
+- `--beta` — channel=beta instead of stable. **Required for any `0.x.y` patch release** (per [CLAUDE.md §5.7](CLAUDE.md) versioning convention). Mainline minors omit it.
+
+So the two canonical invocations are:
+
+```bash
+# Mainline (0.x.0) — what users on stable see
+./scripts/publish-release.sh 0.12.0 ... --announce --tag "latest"
+
+# Beta soak (0.x.y, y > 0) — only beta-channel users see it
+./scripts/publish-release.sh 0.12.1 ... --beta
+```
 
 ### What the script does (for debugging)
 
