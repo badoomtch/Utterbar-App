@@ -7,6 +7,7 @@
         ['key' => 'releases',    'label' => 'Releases',    'href' => route('admin.releases.index')],
         ['key' => 'subscribers', 'label' => 'Subscribers', 'href' => route('admin.subscribers.index')],
         ['key' => 'contacts',    'label' => 'Contacts',    'href' => route('admin.contacts.index')],
+        ['key' => 'business',    'label' => 'Business',    'href' => route('admin.business.index')],
         ['key' => 'analytics',   'label' => 'Analytics',   'href' => route('admin.analytics.index')],
         ['key' => 'tips',        'label' => 'Tips',        'href' => route('admin.tips.index')],
     ];

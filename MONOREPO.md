@@ -725,6 +725,38 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 - Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed.
 - Multi-engine ASR live: Parakeet-TDT (default), Whisper (CPU-pinned, multilingual), Zipformer.
 
+### B2B / business surface (2026-04-27, in-tree)
+- **Marketing:** `/business` landing page (privacy + deployment +
+  predictable licensing angle, pitched at call centres, legal,
+  healthcare, internal IT). Volume-pricing block on `/pricing`
+  (Team £29/seat, Business £19/seat, Enterprise contact). All one-time,
+  no subscription.
+- **Lead capture:** `/business/contact` typed enquiry form
+  (name, company, email, seat count, use case, typed compliance/
+  deployment requirement checkboxes). Persists to a separate
+  `business_enquiries` table with admin index/show + status update
+  at `/admin/business`. Email goes to `AdminNotify`.
+- **IT documentation:** `/docs/it-deployment` covers system reqs,
+  silent NSIS install, exact network egress (5 calls enumerated),
+  air-gapped deployment, group-policy registry pinning, code-signing
+  status (honest "not yet"), licence/seat model.
+- **Group-policy registry overlay (desktop app):**
+  [src-tauri/src/services/policy.rs](Utterbar%20Windows%20App/src-tauri/src/services/policy.rs).
+  Reads `HKLM\SOFTWARE\Policies\Utterbar` at boot (HKCU as per-user
+  fallback, HKLM wins on conflict). Three pinnable values:
+  `UpdateChannel` (REG_SZ: stable|beta), `CheckUpdatesAutomatically`
+  (REG_DWORD: 0|1), `BlockModelDownloads` (REG_DWORD: 0|1). Wired
+  into `SettingsStore::snapshot()` so policy overlays user settings
+  on every read, and into `ModelRegistry::install()` so a pinned
+  block surfaces a clear refusal. Unit-tested.
+- **What we deliberately did NOT build:** SAML/SSO, an enterprise
+  admin dashboard, cloud dictation portals, a Salesforce/Jira
+  integration, SOC2 badges, anything that would replace the local-only
+  story. Air-gapped activation deferred to "on request" until we have
+  a confirmed buyer asking for it. Self-serve checkout still
+  hard-locked to 1 seat (Personal); Team and above flow through
+  enquiry so Jay hand-mints a licence with the right `max_devices`.
+
 ### Website
 - Live on Cloudways. All contract endpoints deployed:
   - `GET /api/pricing` → `£39.99 GBP`.

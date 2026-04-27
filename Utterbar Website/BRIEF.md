@@ -127,7 +127,7 @@ Reusable across home + docs/FAQ. Edit in lockstep when the underlying behaviour 
 - Do not add a chatbot widget.
 - Do not add a newsletter widget. Update emails go through the existing `update_subscribers` system tied to release announcements.
 - Do not use stock photos of people wearing headsets. Illustrations or product shots only.
-- Do not list a Team tier, a monthly subscription, or any price other than the one-time Pro figure that's live in [../MONOREPO.md](../MONOREPO.md). Pricing changes start in code (`STRIPE_PRO_*` env, `pricing.rs`, `useProPrice.ts`) and the website's `/api/pricing` endpoint, not in copy.
+- Do not introduce monthly subscriptions or any consumer/Pro price other than the one-time Pro figure that's live in [../MONOREPO.md](../MONOREPO.md). Consumer pricing changes start in code (`STRIPE_PRO_*` env, `pricing.rs`, `useProPrice.ts`) and the website's `/api/pricing` endpoint, not in copy. Volume tiers (Team / Business / Enterprise) are listed on `/pricing` and `/business` and routed through `/business/contact`; Jay hand-mints those licences. Self-serve checkout stays single-seat.
 - Do not reference `utterbar.app` anywhere — `.app` is not owned. The domain is `utterbar.com`.
 
 ---
@@ -140,5 +140,6 @@ When in doubt: **less copy, more white space, more cyan, more British English, m
 
 ## 6. Change log
 
+- **2026-04-27** — B2B pass: dropped the no-Team-tier rule. Volume pricing is live on `/pricing` (Team £29 / Business £19 / Enterprise contact, all one-time, no subscription) and the dedicated `/business` page now positions Utterbar for call centres, legal, healthcare and internal IT. Self-serve checkout still single-seat by design. The local-only / no-cloud / no-account ethos is unchanged and remains the spine of the business pitch.
 - **2026-04-26** — Stripped concrete pricing, route inventory, page-by-page copy specs, deployment claims, contact email addresses, accessibility/perf budgets, and the v0.3-era status section. BRIEF.md is now positioning / tone / brand / FAQ only. Anything implementation-level was either already covered elsewhere (MONOREPO, TODO, DESIGN_SYSTEM, RELEASE_RUNBOOK) or had drifted faster than anyone updated this file.
 - **2026-04-22** — Earlier rewrite to remove fictional model names and align feature lists with v0.3.5. Superseded by the 2026-04-26 trim.

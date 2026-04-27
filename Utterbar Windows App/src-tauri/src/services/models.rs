@@ -114,6 +114,17 @@ impl ModelRegistry {
 
     /// Download + verify + extract + register a model. Emits `model:progress` throughout.
     pub async fn install(&self, handle: &AppHandle, id: &str) -> Result<ModelInfo> {
+        // Group-policy gate. An IT admin can pin
+        // `BlockModelDownloads=1` under HKLM\SOFTWARE\Policies\Utterbar
+        // for environments where models must come from an internal
+        // mirror, not the public release URLs. The catalogue UI shows
+        // the override so the user understands why the button refused.
+        if crate::services::policy::Policy::load().model_downloads_blocked() {
+            return Err(anyhow!(
+                "model downloads are disabled by your IT administrator (group policy: BlockModelDownloads)"
+            ));
+        }
+
         let catalogue = self.catalogue.read().await.clone();
         let entry = catalogue
             .iter()

@@ -13,6 +13,7 @@
             ['Privacy controls', 'Global toggles for clipboard, selection, and active-app context.', route('docs.privacy-controls'), 'lock'],
             ['Troubleshooting', 'When transcription goes quiet, slow, or weird.', route('docs.troubleshooting'), 'alert-circle'],
             ['FAQ', 'The questions we always get.', route('docs.faq'), 'info'],
+            ['IT deployment', 'For the IT team rolling Utterbar out across a fleet.', route('docs.it-deployment'), 'shield'],
         ] as [$title, $body, $href, $icon])
             <a href="{{ $href }}" class="ub-card ub-card-rail flex items-start gap-4 no-underline">
                 <span class="inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0" style="background: var(--bg-2); color: var(--accent);">

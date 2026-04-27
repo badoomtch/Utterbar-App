@@ -182,7 +182,7 @@
                 Lifetime licence &middot; three devices &middot; refund within 14 days, no questions.
             </p>
 
-            {{-- Tip jar for the Free tier — sits below the pricing tiles
+            {{-- Tip jar for the Free tier. Sits below the pricing tiles
                  so anyone choosing Free still has a visible way to chip
                  in. Same component as home + download. Auto-hides when
                  STRIPE_TIP_PRICE_ID isn't set. --}}
@@ -192,7 +192,59 @@
         </div>
     </section>
 
-    {{-- What Pro unlocks — file transcription demo + Files route still --}}
+    {{-- Volume / business pricing. Three visible tiers, fourth is
+         contact-us. Lives BELOW the consumer Free/Pro block so the
+         home buyer doesn't have to wade through team pricing to get
+         to "download for £0". --}}
+    <section class="py-20 md:py-24" style="background: var(--bg-1);">
+        <div class="ub-container">
+            <div class="max-w-3xl mb-12">
+                <p class="ub-eyebrow">Buying for a team?</p>
+                <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
+                    Volume pricing, <x-hl>still lifetime</x-hl>.
+                </h2>
+                <p class="ub-lead mt-6 max-w-2xl">
+                    Same product, per seat, in plain GBP. Pay by card or invoice. Volume discounts kick in at three seats and again at twenty-five. No subscription, no per-user accounts to provision.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl">
+                <div class="ub-card">
+                    <p class="ub-eyebrow mb-3">Team</p>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-extrabold tracking-tight" style="color: var(--fg-hi);">&pound;29</span>
+                        <span class="text-sm" style="color: var(--muted);">per seat</span>
+                    </div>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">3 to 24 seats, lifetime.</p>
+                </div>
+                <div class="ub-card relative" style="background:
+                        radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%),
+                        var(--bg-2);">
+                    <p class="ub-eyebrow mb-3" style="color: var(--accent);">Business</p>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-extrabold tracking-tight ub-gradient-text">&pound;19</span>
+                        <span class="text-sm" style="color: var(--muted);">per seat</span>
+                    </div>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">25 to 249 seats, lifetime.</p>
+                </div>
+                <div class="ub-card">
+                    <p class="ub-eyebrow mb-3">Enterprise</p>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-2xl font-extrabold tracking-tight" style="color: var(--fg-hi);">Talk to us</span>
+                    </div>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">250+ seats, custom quote.</p>
+                </div>
+            </div>
+
+            <div class="mt-10 flex flex-wrap items-center gap-4">
+                <a href="{{ route('business.contact') }}" class="ub-btn ub-btn-cta">Get a quote</a>
+                <a href="{{ route('business') }}" class="ub-btn ub-btn-ghost">See the business page</a>
+                <a href="{{ route('docs.it-deployment') }}" class="ub-btn ub-btn-ghost">IT deployment notes</a>
+            </div>
+        </div>
+    </section>
+
+    {{-- What Pro unlocks. File transcription demo + Files route still. --}}
     <section class="py-20 md:py-24">
         <div class="ub-container">
             <div class="max-w-3xl mx-auto text-center mb-12 md:mb-14">

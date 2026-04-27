@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Api\LicenceApiController;
 use App\Http\Controllers\Api\PricingApiController;
 use App\Http\Controllers\Api\UpdaterApiController;
+use App\Http\Controllers\BusinessEnquiryController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DownloadController;
@@ -50,6 +51,16 @@ Route::get('/blog/{slug}',   [PageController::class, 'blogShow'])
 
 Route::get('/what-is-local-dictation', [PageController::class, 'whatIsLocalDictation'])->name('what-is-local-dictation');
 
+// Business / volume sales path. The landing page is editorial; the
+// /business/contact form posts to /api/business/enquiry. Kept on
+// separate routes so the typed B2B leads don't drown in general
+// support volume.
+Route::get('/business', [PageController::class, 'business'])->name('business');
+Route::get('/business/contact', [BusinessEnquiryController::class, 'show'])->name('business.contact');
+Route::post('/api/business/enquiry', [BusinessEnquiryController::class, 'store'])
+    ->middleware('throttle:4,1')
+    ->name('business.store');
+
 Route::prefix('compare')->name('compare.')->group(function () {
     Route::get('/', [PageController::class, 'compareIndex'])->name('index');
     Route::get('/wispr-flow', [PageController::class, 'compareWisprFlow'])->name('wispr-flow');
@@ -64,6 +75,7 @@ Route::prefix('docs')->name('docs.')->group(function () {
     Route::get('/privacy-controls', [PageController::class, 'docsPrivacyControls'])->name('privacy-controls');
     Route::get('/troubleshooting', [PageController::class, 'docsTroubleshooting'])->name('troubleshooting');
     Route::get('/faq', [PageController::class, 'docsFaq'])->name('faq');
+    Route::get('/it-deployment', [PageController::class, 'docsItDeployment'])->name('it-deployment');
 });
 
 Route::prefix('legal')->name('legal.')->group(function () {
@@ -192,6 +204,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/contacts',       [\App\Http\Controllers\Admin\ContactController::class, 'index'])->name('contacts.index');
     Route::get('/contacts/{id}',  [\App\Http\Controllers\Admin\ContactController::class, 'show'])
         ->whereNumber('id')->name('contacts.show');
+
+    // Business enquiries — sales leads from /business/contact. Kept
+    // separate from the general /admin/contacts list so the operator
+    // can triage them on different timelines.
+    Route::get('/business',                 [\App\Http\Controllers\Admin\BusinessEnquiryController::class, 'index'])->name('business.index');
+    Route::get('/business/{id}',            [\App\Http\Controllers\Admin\BusinessEnquiryController::class, 'show'])
+        ->whereNumber('id')->name('business.show');
+    Route::post('/business/{id}/status',    [\App\Http\Controllers\Admin\BusinessEnquiryController::class, 'updateStatus'])
+        ->whereNumber('id')->name('business.status');
 
     // Analytics — unique downloads per release, country split, daily trend.
     Route::get('/analytics',      [\App\Http\Controllers\Admin\AnalyticsController::class, 'index'])->name('analytics.index');

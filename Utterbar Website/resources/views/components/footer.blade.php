@@ -5,6 +5,7 @@
             ['How it works', route('how-it-works')],
             ['Privacy', route('privacy')],
             ['Pricing', route('pricing')],
+            ['For business', route('business')],
             ['Compare', route('compare.index')],
             ['Changelog', route('changelog')],
             ['Roadmap', route('roadmap')],
@@ -15,6 +16,7 @@
             ['Vocabulary', route('docs.vocabulary')],
             ['Shortcuts', route('docs.shortcuts')],
             ['Troubleshooting', route('docs.troubleshooting')],
+            ['IT deployment', route('docs.it-deployment')],
         ],
         // Sign-in deliberately omitted: it's an auth surface, not a marketing
         // page, and putting it on every public page wasted internal link

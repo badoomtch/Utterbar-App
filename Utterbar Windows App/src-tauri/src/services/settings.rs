@@ -17,10 +17,12 @@ use anyhow::{Context, Result};
 use tokio::sync::RwLock;
 
 use crate::domain::Settings;
+use crate::services::policy::Policy;
 
 pub struct SettingsStore {
     path: PathBuf,
     cache: RwLock<Settings>,
+    policy: Policy,
 }
 
 impl SettingsStore {
@@ -81,11 +83,29 @@ impl SettingsStore {
         Ok(Self {
             path,
             cache: RwLock::new(cache),
+            policy: Policy::load(),
         })
     }
 
+    /// Read-only access to the policy resolved at boot. Lets callers
+    /// (e.g. the model installer) check `block_model_downloads` without
+    /// re-reading the registry, and lets the UI surface a "managed by
+    /// your IT admin" hint via `Policy::is_active()`. Currently unused
+    /// from Rust — the model installer goes via `Policy::load()`
+    /// directly because it doesn't have a `SettingsStore` handle —
+    /// kept as the canonical accessor for the upcoming IPC command.
+    #[allow(dead_code)]
+    pub fn policy(&self) -> &Policy {
+        &self.policy
+    }
+
     pub async fn snapshot(&self) -> Settings {
-        self.cache.read().await.clone()
+        let mut s = self.cache.read().await.clone();
+        // Policy overrides apply on every read so a user clicking a
+        // policy-pinned control gets their click ignored on the very
+        // next snapshot, not just at boot.
+        self.policy.apply_to(&mut s);
+        s
     }
 
     pub async fn update<F>(&self, mutator: F) -> Result<Settings>

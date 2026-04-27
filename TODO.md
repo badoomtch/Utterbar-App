@@ -4,7 +4,7 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-27 (post-0.9.0 beta ship + audit pack).**
+**Last updated: 2026-04-27 (B2B/business pass staged in-tree).**
 
 ---
 
@@ -62,6 +62,28 @@ claiming any of this is live.
   legal Blade views modified across the board.
 - `config/marketing.php`, `routes/web.php`, `deploy-website.ps1`,
   `app.js`, `still.blade.php`, `video-embed.blade.php` modified.
+
+**B2B / business pass (2026-04-27, staged):**
+- New website surfaces: `/business` landing page, `/business/contact`
+  typed enquiry form, `/docs/it-deployment` deployment doc, plus a
+  volume-pricing block on `/pricing` (Team / Business / Enterprise).
+- Backend: `BusinessEnquiryController`, `Admin/BusinessEnquiryController`,
+  `BusinessEnquiry` model + `business_enquiries` table migration,
+  `BusinessEnquirySubmission` mailable, admin index/show views with
+  status update, `BusinessEnquiry` admin nav tab.
+- Self-serve checkout stays at 1 seat (Personal). Team/Business
+  flow through enquiry → Jay hand-mints a licence with the
+  appropriate `max_devices`. No SAML, no SSO, no fake enterprise
+  console.
+- Desktop app: `src-tauri/src/services/policy.rs` — group-policy
+  registry overlay reading `HKLM\SOFTWARE\Policies\Utterbar`
+  (HKCU as per-user fallback). Three pinnable values shipped:
+  `UpdateChannel`, `CheckUpdatesAutomatically`, `BlockModelDownloads`.
+  Wired into `SettingsStore::snapshot()` (overlays on every read)
+  and into `ModelRegistry::install()` (refuses downloads when
+  `BlockModelDownloads=1`). 6 unit tests pass.
+- Migration `2026_04_27_140000_create_business_enquiries_table.php`
+  has not yet run on production.
 
 **Desktop app:**
 - v0.7.3 release notes (auto-update flow rework — toast on focus,

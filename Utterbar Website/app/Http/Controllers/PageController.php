@@ -51,6 +51,8 @@ class PageController extends Controller
     // page that explains on-device speech recognition without selling.
     public function whatIsLocalDictation() { return view('pages.what-is-local-dictation'); }
 
+    public function business() { return view('pages.business'); }
+
     public function docsIndex() { return view('pages.docs.index'); }
     public function docsGettingStarted() { return view('pages.docs.getting-started'); }
     public function docsModes() { return view('pages.docs.modes'); }
@@ -59,6 +61,7 @@ class PageController extends Controller
     public function docsPrivacyControls() { return view('pages.docs.privacy-controls'); }
     public function docsTroubleshooting() { return view('pages.docs.troubleshooting'); }
     public function docsFaq() { return view('pages.docs.faq'); }
+    public function docsItDeployment() { return view('pages.docs.it-deployment'); }
 
     public function legalPrivacy() { return view('pages.legal.privacy'); }
     public function legalTerms() { return view('pages.legal.terms'); }
