@@ -57,6 +57,34 @@ export type EditableMode = {
   updated_at: number;
 };
 
+/**
+ * Output-style options exposed in the editor. Each entry is a user-facing
+ * label paired with a one-line blurb explaining what it does to text.
+ *
+ * Internally these map to the `PostProcessing` discriminated union:
+ *   - 'none'         → { kind: 'none' }
+ *   - 'deterministic'→ { kind: 'deterministic', template: '{text}' }
+ *   - 'llm' is read-only / legacy; it's not surfaced as a chip but the
+ *     editor still renders the prompt field if an existing mode reports it.
+ *
+ * The labels deliberately avoid engineering terms ("post-processing",
+ * "deterministic", "template literal"). Competitor surveys (Wispr Flow,
+ * Superwhisper, MacWhisper) all frame this as a writing style, not a
+ * pipeline; we follow suit.
+ */
+const OUTPUT_STYLES: { kind: 'none' | 'deterministic'; label: string; blurb: string }[] = [
+  {
+    kind: 'none',
+    label: 'Plain',
+    blurb: 'Type what you said, exactly as you said it.',
+  },
+  {
+    kind: 'deterministic',
+    label: 'Templated',
+    blurb: 'Wrap the dictation in a fixed format. Useful for chat prefixes, code comments, ticket replies.',
+  },
+];
+
 const ENGLISH_VARIANTS: {
   id: NonNullable<EditableMode['english_variant']>;
   label: string;
@@ -198,40 +226,54 @@ export function ModeEditor({
             </Field>
           </Section>
 
-          <Section title="Post-processing">
+          <Section
+            title="Output style"
+            description="How the dictation is shaped before it lands in the focused app. Plain leaves it alone. Templated wraps it in a fixed format you choose."
+          >
             {/* `llm` is deliberately absent in 0.6, the llama.cpp provider
                 isn't wired yet, so the option would silently fall back to
                 deterministic. Returns in 0.7 with the real LLM backend. */}
             <div className="flex flex-wrap gap-2">
-              {(['none', 'deterministic'] as const).map((k) => (
-                <button
-                  key={k}
-                  onClick={() =>
-                    patchPost(
-                      k === 'none'
-                        ? { kind: 'none' }
-                        : { kind: 'deterministic', template: '{text}' },
-                    )
-                  }
-                  className={cn(
-                    'ub-chip capitalize',
-                    draft.post_processing.kind === k && 'ub-chip--active',
-                  )}
-                >
-                  {k}
-                </button>
-              ))}
+              {OUTPUT_STYLES.map((s) => {
+                const active = draft.post_processing.kind === s.kind;
+                return (
+                  <button
+                    key={s.kind}
+                    onClick={() =>
+                      patchPost(
+                        s.kind === 'none'
+                          ? { kind: 'none' }
+                          : { kind: 'deterministic', template: '{text}' },
+                      )
+                    }
+                    className={cn('ub-chip', active && 'ub-chip--active')}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-[11px] leading-relaxed text-muted">
+              {OUTPUT_STYLES.find((s) => s.kind === draft.post_processing.kind)?.blurb}
             </div>
             {draft.post_processing.kind === 'deterministic' && (
-              <Field label="Template">
-                <Input
-                  value={draft.post_processing.template}
-                  onChange={(e) =>
-                    patchPost({ kind: 'deterministic', template: e.target.value })
-                  }
-                  className="flex-1"
-                />
-              </Field>
+              <>
+                <Field label="Format">
+                  <Input
+                    value={draft.post_processing.template}
+                    onChange={(e) =>
+                      patchPost({ kind: 'deterministic', template: e.target.value })
+                    }
+                    placeholder="{text}"
+                    className="flex-1"
+                  />
+                </Field>
+                <div className="text-[11px] leading-relaxed text-muted">
+                  Use <code className="font-mono">{'{text}'}</code> where the
+                  dictation goes. Anything else is added literally.
+                </div>
+                <TemplatePreview template={draft.post_processing.template} />
+              </>
             )}
             {draft.post_processing.kind === 'llm' && (
               // An existing mode on disk could still report `kind: 'llm'`
@@ -424,6 +466,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex items-center gap-3">
       <div className="w-44 text-[12px] text-muted">{label}</div>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Live preview of a Templated output. Substitutes `{text}` with a sample
+ * sentence so the user sees the result of their format string without
+ * having to dictate, save, dictate again. Mirrors the same substitution
+ * the dictation pipeline performs (see services/text_inject in the
+ * Rust side); we only model `{text}` because that's the only token the
+ * runtime expands today.
+ */
+function TemplatePreview({ template }: { template: string }) {
+  const SAMPLE = 'Hello world';
+  const rendered = template.includes('{text}')
+    ? template.replace(/\{text\}/g, SAMPLE)
+    : template; // No token? Show the raw template; the runtime would do the same.
+  return (
+    <div className="rounded-input bg-bg-0 p-3">
+      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-fg-dim mb-1.5">
+        Preview · sample: "{SAMPLE}"
+      </div>
+      <div className="text-[13px] text-fg-hi break-words">
+        {rendered || <span className="text-fg-dim">empty</span>}
+      </div>
     </div>
   );
 }

@@ -172,7 +172,7 @@ export function ModesRoute() {
                 <div className="font-mono text-[11px] text-fg-dim truncate">
                   {m.is_builtin ? 'Built-in' : 'Custom'}
                   {m.asr_model_id ? ` · ${m.asr_model_id}` : ''}
-                  {` · ${m.post_processing.kind}`}
+                  {` · ${outputStyleLabel(m.post_processing.kind)}`}
                 </div>
               </div>
 
@@ -278,6 +278,25 @@ function IconBtn({
       {children}
     </button>
   );
+}
+
+/**
+ * Friendly label for a mode's post-processing kind, shown in the
+ * metadata strip on each row. Avoids leaking internal vocabulary
+ * ('none', 'deterministic') into the user-facing list.
+ *
+ * Kept in sync with OUTPUT_STYLES in components/modes/ModeEditor.tsx —
+ * if you add a third style there, add the label here too.
+ */
+function outputStyleLabel(kind: 'none' | 'deterministic' | 'llm'): string {
+  switch (kind) {
+    case 'none':
+      return 'Plain';
+    case 'deterministic':
+      return 'Templated';
+    case 'llm':
+      return 'AI rewrite';
+  }
 }
 
 function ModeIcon({ id }: { id: string }) {
