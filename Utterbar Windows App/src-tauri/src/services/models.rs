@@ -475,46 +475,5 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 9,
             requires_pro: false,
         },
-        // Streaming Zipformer English — the engine that fixes the long-
-        // recording crash class. Constant ~50 MB memory during a 40-min
-        // meeting; tokens emit live as the user speaks; no end-of-recording
-        // processing delay. Tarball ships fp32 + int8 ONNX exports; the
-        // streaming provider explicitly picks .int8.onnx for the smaller
-        // footprint and faster CPU inference. Same accuracy ceiling as the
-        // offline Zipformer above (~7); the trade is real-time experience.
-        // Will be re-overridden by Phase 2's offline refinement pass.
-        //
-        // Filenames inside the tarball (verified 2026-04-27 from a real
-        // download — see STREAMING_PLAN.md):
-        //   encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx  (70 MB)
-        //   decoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx  (540 KB)
-        //   joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx   (259 KB)
-        //   tokens.txt
-        ModelInfo {
-            id: "sherpa-streaming-zipformer-en".into(),
-            kind: ModelKind::Asr,
-            display_name: "Zipformer Streaming (English, real-time)".into(),
-            description: "Real-time streaming English model. Transcribes as you speak with bounded memory — works on any recording length. Lower accuracy than offline Zipformer; pair with Phase 2's offline refinement pass for the best of both.".into(),
-            version: "2023-06-26".into(),
-            // Tarball is 296 MB but on-disk after extract is larger because
-            // we keep both fp32 and int8 ONNX files (the int8 alone is what
-            // the provider loads). The figure below is post-extract size.
-            size_bytes: 333_910_000,
-            backend: ModelBackend::Onnx,
-            engine: ModelEngine::ZipformerStreaming,
-            languages: vec!["en".into()],
-            installed: false,
-            path: None,
-            // Pinned 2026-04-27 against the live k2-fsa release asset.
-            sha256: "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282".into(),
-            download_url: Some(
-                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
-                    .into(),
-            ),
-            recommended: false,
-            accuracy_score: 7,
-            speed_score: 10,
-            requires_pro: false,
-        },
     ]
 }

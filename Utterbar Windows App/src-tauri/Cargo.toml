@@ -94,11 +94,6 @@ tauri-plugin-global-shortcut = "2"
 # (see .cargo/config.toml), so sherpa-rs-sys skips its cmake build entirely. Runtime
 # DLLs are shipped next to utterbar.exe by the NSIS installer hook.
 sherpa-rs = { version = "0.6", default-features = false }
-# sherpa-rs-sys is a transitive dep of sherpa-rs but we use it directly for the
-# online streaming API (`SherpaOnnxCreateOnlineRecognizer`, etc) — sherpa-rs only
-# wraps the offline recogniser. Pinning to the same minor as sherpa-rs so the
-# C ABI versions match. See services/inference/streaming/online_recognizer.rs.
-sherpa-rs-sys = { version = "0.6", default-features = false }
 
 # Windows-specific
 [target.'cfg(windows)'.dependencies]
