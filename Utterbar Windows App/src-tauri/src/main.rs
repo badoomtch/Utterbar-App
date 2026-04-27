@@ -119,6 +119,7 @@ fn main() {
             commands::modes::duplicate_mode,
             commands::modes::set_active_mode,
             commands::modes::get_active_mode,
+            commands::modes::current_focused_window,
             // models
             commands::models::list_installed_models,
             commands::models::list_available_models,

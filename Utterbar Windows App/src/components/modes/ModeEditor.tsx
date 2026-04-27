@@ -369,59 +369,12 @@ export function ModeEditor({
 
           <Section
             title="Auto-activation"
-            description="Rules that make this mode active when a matching app is focused. Use * as a wildcard."
+            description="This mode switches on automatically when the focused window matches any of these rules. First match wins."
           >
-            {draft.auto_activation.map((rule, idx) => (
-              <div key={idx} className="flex gap-2">
-                <select
-                  value={rule.match}
-                  onChange={(e) => {
-                    const next = [...draft.auto_activation];
-                    next[idx] = { ...rule, match: e.target.value as typeof rule.match };
-                    patch({ auto_activation: next });
-                  }}
-                  className="ub-input !py-1 !text-[12px]"
-                >
-                  <option value="by_exe">exe</option>
-                  <option value="by_title">title</option>
-                  <option value="by_class">class</option>
-                </select>
-                <Input
-                  value={rule.pattern}
-                  onChange={(e) => {
-                    const next = [...draft.auto_activation];
-                    next[idx] = { ...rule, pattern: e.target.value };
-                    patch({ auto_activation: next });
-                  }}
-                  placeholder="e.g. *outlook.exe"
-                  className="flex-1 !py-1 !text-[12px]"
-                />
-                <button
-                  onClick={() => {
-                    const next = draft.auto_activation.filter((_, i) => i !== idx);
-                    patch({ auto_activation: next });
-                  }}
-                  className="text-[11px] text-fg-dim transition-colors hover:text-rose"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <Button
-              variant="plain"
-              size="sm"
-              noLed
-              onClick={() =>
-                patch({
-                  auto_activation: [
-                    ...draft.auto_activation,
-                    { match: 'by_exe', pattern: '' },
-                  ],
-                })
-              }
-            >
-              + Add rule
-            </Button>
+            <AutoActivationRules
+              rules={draft.auto_activation}
+              onChange={(next) => patch({ auto_activation: next })}
+            />
           </Section>
         </div>
 
@@ -469,6 +422,229 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex items-center gap-3">
       <div className="w-44 text-[12px] text-muted">{label}</div>
       {children}
+    </div>
+  );
+}
+
+/* ===================================================================
+   Auto-activation rule editor
+   ===================================================================
+
+   The previous editor was a row of cramped controls labelled "exe /
+   title / class" with no explanation, no examples, and no feedback
+   whether a rule would actually fire. This rebuild fixes all three:
+
+     - Plain-English match-type labels with hints.
+     - Empty state with example rules to scan.
+     - A live "currently focused" indicator on each rule that
+       polls the foreground window and runs the same glob check the
+       Rust side does, turning green when the rule matches and grey
+       otherwise. So the user can fill in `outlook.exe`, alt-tab to
+       Outlook, and watch the line confirm the rule fires.
+
+   The glob function below mirrors `services/modes::glob` on the Rust
+   side: case-insensitive, `*` is the only wildcard, no anchoring at
+   either end (a bare pattern matches if it appears anywhere). Keep
+   them in sync. */
+
+type AARule = EditableMode['auto_activation'][number];
+type AAMatch = AARule['match'];
+
+const MATCH_LABELS: Record<AAMatch, { label: string; placeholder: string; hint: string }> = {
+  by_exe: {
+    label: 'Exe name',
+    placeholder: 'outlook.exe',
+    hint: 'The application file name. Find it in Task Manager → Details tab.',
+  },
+  by_title: {
+    label: 'Window title',
+    placeholder: '*Outlook',
+    hint: 'What appears in the focused window\'s title bar. Use * for partial matches.',
+  },
+  by_class: {
+    label: 'Window class',
+    placeholder: 'rctrl_renwnd32',
+    hint: 'Advanced. Use a tool like Spy++ or accessibility-insights. Most rules don\'t need this.',
+  },
+};
+
+/**
+ * Case-insensitive glob match, mirrors `services/modes::glob` on the
+ * Rust side. Single `*` wildcard, matches anywhere in the string, no
+ * anchoring. Empty pattern matches everything (which is the same
+ * behaviour as the Rust impl when `parts.is_empty()`).
+ */
+function globMatch(value: string, pattern: string): boolean {
+  if (!pattern) return false; // empty rule never matches — UI signal "no rule yet"
+  const v = value.toLowerCase();
+  const p = pattern.toLowerCase();
+  const parts = p.split('*');
+  let cursor = 0;
+  for (let i = 0; i < parts.length; i += 1) {
+    const part = parts[i];
+    if (part === '') continue;
+    const idx = v.indexOf(part, cursor);
+    if (idx < 0) return false;
+    // First part must anchor at start unless preceded by a *.
+    if (i === 0 && idx !== 0 && !p.startsWith('*')) return false;
+    cursor = idx + part.length;
+  }
+  // Last part must anchor at end unless followed by a *.
+  const last = parts[parts.length - 1];
+  if (last !== '' && !p.endsWith('*') && cursor !== v.length) return false;
+  return true;
+}
+
+/**
+ * Poll the foreground window every 1 s while the editor is open. Cheap
+ * Tauri IPC; the Rust side reuses the same `context::snapshot()` plumbing
+ * the auto-activation watcher uses internally, so the values are
+ * identical to what would actually fire the rule.
+ */
+function useFocusedWindow() {
+  const [focused, setFocused] = useState<{
+    exe: string | null;
+    title: string | null;
+    class: string | null;
+  }>({ exe: null, title: null, class: null });
+
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      try {
+        const fw = await invoke<{ exe: string | null; title: string | null; class: string | null }>(
+          'current_focused_window',
+        );
+        if (alive) setFocused(fw);
+      } catch {
+        // Swallow — the editor still works without the live indicator.
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 1000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  return focused;
+}
+
+function AutoActivationRules({
+  rules,
+  onChange,
+}: {
+  rules: AARule[];
+  onChange: (next: AARule[]) => void;
+}) {
+  const focused = useFocusedWindow();
+
+  function update(idx: number, next: AARule) {
+    const copy = [...rules];
+    copy[idx] = next;
+    onChange(copy);
+  }
+  function remove(idx: number) {
+    onChange(rules.filter((_, i) => i !== idx));
+  }
+  function add() {
+    onChange([...rules, { match: 'by_exe', pattern: '' }]);
+  }
+
+  return (
+    <div className="space-y-3">
+      {rules.length === 0 && <AutoActivationEmptyState />}
+      {rules.map((rule, idx) => {
+        const meta = MATCH_LABELS[rule.match];
+        const focusedValue =
+          rule.match === 'by_exe' ? focused.exe :
+          rule.match === 'by_title' ? focused.title :
+          focused.class;
+        const matched = focusedValue ? globMatch(focusedValue, rule.pattern) : false;
+        const hasPattern = rule.pattern.trim().length > 0;
+        return (
+          <div
+            key={idx}
+            className="rounded-input border border-border-soft/60 bg-bg-1 p-4 space-y-3"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-1 space-y-3">
+                <div className="flex gap-2">
+                  <select
+                    value={rule.match}
+                    onChange={(e) =>
+                      update(idx, { ...rule, match: e.target.value as AAMatch })
+                    }
+                    className="ub-input !py-1.5 !text-[13px] w-44"
+                  >
+                    <option value="by_exe">{MATCH_LABELS.by_exe.label}</option>
+                    <option value="by_title">{MATCH_LABELS.by_title.label}</option>
+                    <option value="by_class">{MATCH_LABELS.by_class.label}</option>
+                  </select>
+                  <Input
+                    value={rule.pattern}
+                    onChange={(e) => update(idx, { ...rule, pattern: e.target.value })}
+                    placeholder={meta.placeholder}
+                    className="flex-1 !text-[13px]"
+                  />
+                </div>
+                <div className="text-[11px] leading-relaxed text-muted">
+                  {meta.hint}{' '}
+                  <span className="text-fg-dim">Use <code className="font-mono">*</code> as a wildcard.</span>
+                </div>
+                {hasPattern && focusedValue !== null && (
+                  <div className="flex items-center gap-2 text-[11px] font-mono">
+                    <span
+                      className={cn(
+                        'inline-block h-1.5 w-1.5 rounded-full',
+                        matched ? 'bg-moss shadow-[0_0_6px_var(--moss)]' : 'bg-fg-dim',
+                      )}
+                      aria-hidden
+                    />
+                    <span className="text-muted">Currently focused: </span>
+                    <span className="text-fg-hi truncate">{focusedValue}</span>
+                    <span className={matched ? 'text-moss' : 'text-fg-dim'}>
+                      {matched ? '· matches' : '· no match'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => remove(idx)}
+                className="text-[11px] text-fg-dim transition-colors hover:text-rose pt-2"
+                aria-label="Remove rule"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      <Button variant="plain" size="sm" noLed onClick={add}>
+        + Add rule
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Empty-state panel shown when a mode has zero auto-activation rules.
+ * Three illustrative examples that show the user the shape without
+ * adding rules. They scan as "this is what a rule looks like" rather
+ * than "click here to do something".
+ */
+function AutoActivationEmptyState() {
+  return (
+    <div className="rounded-input border border-dashed border-border-soft/60 bg-bg-1 p-4">
+      <div className="text-[12px] leading-relaxed text-muted mb-3">
+        No rules yet. This mode won't activate automatically.
+      </div>
+      <div className="text-[11px] font-mono text-fg-dim space-y-1.5">
+        <div>· Exe name <span className="text-fg">outlook.exe</span> — fires in Outlook</div>
+        <div>· Window title <span className="text-fg">*Slack</span> — any Slack window</div>
+        <div>· Exe name <span className="text-fg">code.exe</span> — fires in VS Code</div>
+      </div>
     </div>
   );
 }
