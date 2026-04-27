@@ -5,9 +5,12 @@
 > contract between them.
 
 **Status:** safety patches landed in v0.12.1-beta (capture cap lifted to
-8 hours, transcribe-input guard added, silent truncation fixed). Phase 1
-work has not started. The 5-minute transcribe guard exists *until*
-Phase 1 ships; once streaming works the guard is removed.
+8 hours, transcribe-input guard added, silent truncation fixed). Phase 1A
+(streaming wrapper) and Phase 1B.1 (trait scaffolding) landed
+in commits 9820575 and cc42b64. **Phase 1B.2 is the next session's
+opener** — see "Where to pick up" at the bottom. The 5-minute transcribe
+guard remains in place until 1B-1E lands and a smoke test on a 40-min
+recording confirms the streaming path is live.
 
 **Trigger:** v0.12.0 user reproduced a hard crash on a 40-minute meeting
 (mic + system audio mixed). Process ballooned to 12 GB RAM, processed for
@@ -369,6 +372,87 @@ moment. Ships as v0.15.0-beta or later — only after Phase 2 is solid.
   https://github.com/k2-fsa/sherpa-onnx/blob/master/sherpa-onnx/c-api/c-api.h
 - Sherpa-onnx streaming Parakeet model card:
   https://k2-fsa.github.io/sherpa/onnx/pretrained_models/online-transducer/zipformer-transducer.html
+
+---
+
+## Where to pick up (next session)
+
+**Phase 1A is complete.** The safe Rust wrapper for sherpa's
+`OnlineRecognizer` lives at
+[src-tauri/src/services/inference/streaming/online_recognizer.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/streaming/online_recognizer.rs).
+Cargo check + clippy are clean. The wrapper is dead-code from the
+binary's perspective until 1B wires it in.
+
+**Phase 1B.1 is complete.** `StreamingAsrProvider` + `StreamingSession`
+traits are in
+[provider.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/provider.rs)
+alongside the existing `AsrProvider`. Marked `#[allow(dead_code)]`
+because no impl exists yet.
+
+**Phase 1B.2 is the next ticket.** Steps in order:
+
+1. **Download the streaming Zipformer model and pin its SHA-256.**
+   The model is at
+   `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2`.
+   Untar; inspect the file layout (the offline Zipformer has names
+   like `encoder-epoch-99-avg-1.onnx`; the streaming variant has its
+   own naming convention — get the actual filenames from the tarball
+   before writing the provider).
+
+2. **Add the streaming Zipformer to the model catalogue** in
+   [services/models.rs](Utterbar%20Windows%20App/src-tauri/src/services/models.rs).
+   New entry with `engine: ModelEngine::ZipformerStreaming` (add this
+   variant to the enum if it doesn't exist), the SHA from step 1, and
+   the URL above.
+
+3. **Write `services/inference/sherpa_zipformer_streaming.rs`** —
+   the `StreamingAsrProvider` impl. Pattern: holds the
+   `OnlineRecognizer` from Phase 1A, `start_session()` calls
+   `recognizer.create_stream()` and wraps the resulting
+   `OnlineStream` in a `StreamingSession` impl that converts i16 →
+   f32, pushes via `accept_waveform`, drives the decoder with
+   `is_ready` / `decode`, and reads via `result()`.
+
+4. **Plumb the new provider into `build_provider`** in
+   [services/inference/mod.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/mod.rs).
+   Map `ModelEngine::ZipformerStreaming` → the new provider.
+
+5. **Add `EVT_STREAMING_TEXT`** to
+   [domain/events.rs](Utterbar%20Windows%20App/src-tauri/src/domain/events.rs).
+   Payload: `{ text: String, is_final: bool }`.
+
+6. **Wire `start_recording` in
+   [commands/dictation.rs](Utterbar%20Windows%20App/src-tauri/src/commands/dictation.rs)** —
+   if the loaded provider implements `StreamingAsrProvider`, spawn a
+   task that drains `capture::frames_rx` (already exists, marked
+   `#[allow(dead_code)]` with a comment "kept for the streaming ASR
+   path we expect to wire up next" — this is that path). Each
+   ~100-500 ms chunk → `session.accept_chunk()` → emit
+   `EVT_STREAMING_TEXT` if the result grew. On `stop_recording`,
+   `session.finish()`, write to history.
+
+7. **Phase 1C** — UI work. Floating bar gets a small text region that
+   fills with the live transcript; History writes the streaming text
+   as the body and marks the entry `pending_refinement: true` so
+   Phase 2 has something to flip.
+
+8. **Phase 1D** — once 1B-1E pass an end-to-end 40-min recording,
+   remove the 5-minute guard at the top of
+   [services/inference/mod.rs `transcribe()`](Utterbar%20Windows%20App/src-tauri/src/services/inference/mod.rs).
+
+9. **Phase 1E** — the smoke test. Record 40 min mic+loopback, expect
+   memory under 500 MB throughout, transcript appearing live, no
+   crash, history entry complete with `pending_refinement: true`.
+
+The riskiest piece is step 6 — the async task lifecycle. The capture
+side already has `frames_rx` and the streaming session is just an
+async consumer of that channel. The hard parts are: (a) what happens
+when the user cancels, (b) what happens when an `accept_chunk`
+errors mid-recording, (c) ensuring the streaming task is properly
+joined before `start_recording` returns success.
+
+Use the existing tokio `select!` pattern that the rest of the
+dictation flow uses; don't invent new task plumbing.
 
 ---
 
