@@ -5,6 +5,7 @@ pub mod py_sidecar;
 pub mod sherpa_parakeet;
 pub mod sherpa_whisper;
 pub mod sherpa_zipformer;
+pub mod streaming;
 pub mod stub;
 
 use std::path::PathBuf;
