@@ -630,9 +630,16 @@ function AutoActivationRules({
 
 /**
  * Empty-state panel shown when a mode has zero auto-activation rules.
- * Three illustrative examples that show the user the shape without
- * adding rules. They scan as "this is what a rule looks like" rather
- * than "click here to do something".
+ * Three illustrative examples — one per match type — so the user sees
+ * what each rule shape looks like without having to add rules first.
+ *
+ * Showing all three types matters: a previous version showed three
+ * "Exe name" examples which left users wondering when they'd ever
+ * need "Window title" or "Window class". The Window-class example
+ * uses Chrome_WidgetWin_1 specifically because that's the class used
+ * by every Electron app (Slack, Discord, VS Code, Notion, Teams),
+ * which is the most plausible reason a user reaches for class-matching
+ * over exe-matching.
  */
 function AutoActivationEmptyState() {
   return (
@@ -641,9 +648,21 @@ function AutoActivationEmptyState() {
         No rules yet. This mode won't activate automatically.
       </div>
       <div className="text-[11px] font-mono text-fg-dim space-y-1.5">
-        <div>· Exe name <span className="text-fg">outlook.exe</span> — fires in Outlook</div>
-        <div>· Window title <span className="text-fg">*Slack</span> — any Slack window</div>
-        <div>· Exe name <span className="text-fg">code.exe</span> — fires in VS Code</div>
+        <div>
+          &middot; Exe name <span className="text-fg">outlook.exe</span>{' '}
+          fires in Outlook
+        </div>
+        <div>
+          &middot; Window title <span className="text-fg">*Slack</span>{' '}
+          fires in any Slack window
+        </div>
+        <div>
+          &middot; Window class <span className="text-fg">Chrome_WidgetWin_1</span>{' '}
+          fires in any Electron app (VS Code, Discord, Notion)
+        </div>
+      </div>
+      <div className="mt-3 text-[11px] leading-relaxed text-muted">
+        Click <span className="text-fg-hi">+ Add rule</span> below to start.
       </div>
     </div>
   );
