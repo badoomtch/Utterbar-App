@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { AlertTriangle, Check, Copy, ExternalLink, Laptop, ShieldX } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Check, Copy, Eye, EyeOff, ExternalLink, Laptop, ShieldX } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 
 import { Button } from '@/components/common/Button';
@@ -20,6 +20,37 @@ import {
 
 const PRICING_URL = 'https://utterbar.com/pricing';
 const ACCOUNT_URL = 'https://utterbar.com/account';
+
+/**
+ * Auto-rehide window when the licence key is revealed via the eye toggle.
+ * 30 s is enough to read it aloud or copy it manually, short enough that
+ * an unattended screen doesn't sit unmasked indefinitely.
+ */
+const REVEAL_TIMEOUT_MS = 30_000;
+
+/**
+ * Mask a licence key for display, preserving the dash structure so the
+ * field doesn't visibly resize when toggled.
+ *
+ * Real key shape: `UB-XXXX-XXXX-XXXX-XXXX-XXXX` (the `UB-` prefix is
+ * brand-recognisable and worth keeping visible; only the random parts
+ * carry sensitive entropy).
+ *
+ * Implementation: replace every char after the first dash with `•`. The
+ * first dash itself and all subsequent dashes pass through, so the
+ * groups stay visually aligned with the unmasked form.
+ */
+function maskLicenceKey(key: string): string {
+  // Keep the first segment (typically "UB") then mask everything after.
+  const firstDash = key.indexOf('-');
+  if (firstDash < 0) {
+    // No dash in the key — fall back to dotting everything.
+    return '•'.repeat(key.length);
+  }
+  const head = key.slice(0, firstDash + 1); // includes the dash itself
+  const tail = key.slice(firstDash + 1);
+  return head + tail.replace(/[^-]/g, '•');
+}
 // 2026-04-27: outbound email moved off utterbar.com to the studio
 // domain ddraig.dev. The website is still utterbar.com (PRICING_URL,
 // ACCOUNT_URL above) — only the support inbox changed.
@@ -298,6 +329,39 @@ function ProPanel({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<LicenceError | null>(null);
 
+  // Licence key is masked by default. Eye toggle reveals; auto-rehides
+  // after REVEAL_TIMEOUT_MS so an unattended screen doesn't leak the key.
+  // The timer ref lives across renders so we can cancel it when the user
+  // manually re-hides (avoids a stale rehide firing after they've already
+  // toggled state again).
+  const [revealed, setRevealed] = useState(false);
+  const revealTimeoutRef = useRef<number | null>(null);
+
+  function clearRevealTimer() {
+    if (revealTimeoutRef.current !== null) {
+      window.clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
+  }
+
+  function toggleReveal() {
+    clearRevealTimer();
+    if (revealed) {
+      setRevealed(false);
+    } else {
+      setRevealed(true);
+      revealTimeoutRef.current = window.setTimeout(() => {
+        setRevealed(false);
+        revealTimeoutRef.current = null;
+      }, REVEAL_TIMEOUT_MS);
+    }
+  }
+
+  // Cancel any pending rehide on unmount, otherwise the timer fires
+  // against a stale setRevealed and React warns about state on an
+  // unmounted component.
+  useEffect(() => clearRevealTimer, []);
+
   const { this_device, other_devices } = useMemo(() => partitionDevices(status.devices), [
     status.devices,
   ]);
@@ -337,9 +401,34 @@ function ProPanel({
       <Card rail>
         <div className="ub-eyebrow mb-2">Your licence</div>
         <div className="flex items-center gap-3">
-          <code className="font-mono text-[15px] tracking-[0.02em] text-fg-hi break-all">
-            {status.display_key}
+          <code
+            className="font-mono text-[15px] tracking-[0.02em] text-fg-hi break-all"
+            // aria-label always uses the real key so screen readers can
+            // hear it on focus regardless of visual masking; sighted
+            // users see the masked form. The masked form is decorative.
+            aria-label={`Licence key ${status.display_key}`}
+          >
+            {revealed ? status.display_key : maskLicenceKey(status.display_key)}
           </code>
+          <button
+            onClick={toggleReveal}
+            className="group inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:bg-bg-2 hover:text-fg-hi"
+            aria-label={revealed ? 'Hide licence key' : 'Show licence key'}
+            aria-pressed={revealed}
+            title={revealed ? 'Hide' : 'Show'}
+          >
+            {revealed ? (
+              <>
+                <EyeOff className="h-3.5 w-3.5" />
+                Hide
+              </>
+            ) : (
+              <>
+                <Eye className="h-3.5 w-3.5" />
+                Show
+              </>
+            )}
+          </button>
           <button
             onClick={() => void copyKey()}
             className="group inline-flex items-center gap-1.5 rounded-[8px] px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:bg-bg-2 hover:text-fg-hi"
