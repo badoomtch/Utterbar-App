@@ -237,7 +237,7 @@ You find out a shipped build crashes / has a regression / breaks activation. Res
 
 ## 10. What this runbook does NOT cover
 
-- **Ed25519 keypair rotation** — that's [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md). v0.7.0 shipped still trusting the sandbox keypair; rotation is outstanding.
+- **Ed25519 keypair rotation** — completed 2026-04-26. The licence keypair is now v2 in production and the v1 sandbox key is accepted transitionally on the client. The updater pipeline has its own separate Ed25519 key (operator-local). To rotate again in future, see [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md) and the helper script [scripts/rotate-licence-key.ps1](scripts/rotate-licence-key.ps1).
 - **Code signing** — we ship unsigned EXEs today. SmartScreen warnings are expected. Cert plan is in [LAUNCH_CHECKLIST.md §A1](Utterbar%20Website/LAUNCH_CHECKLIST.md).
 - **Stripe price changes** — those don't need a new app build. Update `STRIPE_PRO_PRICE_ID` in server `.env`.
 - **Website-only changes** — there's no parallel runbook yet; deploy via `pscp`/`plink` per [MONOREPO.md §2 build commands](MONOREPO.md).

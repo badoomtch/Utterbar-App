@@ -35,8 +35,8 @@ type ModelInfo = {
 };
 
 /** Human label for the engine field. Used on each model card so users
- *  can see at a glance which family a model comes from. Parakeet-TDT
- *  + Whisper are live; Zipformer lands in a later release. */
+ *  can see at a glance which family a model comes from. All three
+ *  engines (Parakeet-TDT, Whisper, Zipformer) are live as of v0.8.x. */
 const ENGINE_LABEL: Record<string, string> = {
   'parakeet-tdt': 'Parakeet · NVIDIA',
   whisper: 'Whisper · OpenAI',

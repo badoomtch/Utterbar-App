@@ -4,40 +4,21 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-26 (post-0.8.0 catalogue refactor).**
+**Last updated: 2026-04-27 (post-0.9.0 beta ship + audit pack).**
 
 ---
 
 ## Where we are right now
 
-**Last publicly shipped app version: v0.7.8** (file transcription
-review — clickable rows, transcript modal, copy / show in folder /
-delete). Tip jar is live on home + pricing + download. GA4 is
-consent-gated. Per-page OG images, admin tip dashboard, /blog with
-file-backed Markdown posts.
+**Last publicly shipped stable: v0.8.7** (admin release row id=19, 2026-04-26). Stable channel currently spans v0.7.0 → v0.8.7. Tip jar live on home + pricing + download. GA4 consent-gated. Per-page OG images, admin tip + analytics + licence + subscriber dashboards, /blog with file-backed Markdown posts, /compare/* SEO pages, multi-engine ASR (Parakeet TDT + Whisper + Zipformer) all wired and shipping.
 
-**In-tree app version: v0.8.0** — multi-engine inference scaffolding.
-- New `ModelEngine` enum on `ModelInfo` (Parakeet-TDT / Whisper /
-  Zipformer). Inference layer dispatches on it; only Parakeet is
-  wired today, Whisper + Zipformer return errors so a user can't
-  install one and crash.
-- Catalogue trimmed to two entries: Parakeet v3 int8 (Free,
-  Recommended) and Parakeet v3 fp16 (Pro, GPU-only).
-- Parakeet v2 (int8 + fp16) **dropped entirely**. Settings + DB
-  migrations rewrite any v2 reference to v3 on first run; the v2
-  files on disk are left alone (the user paid the download).
-- Models settings page shows engine label per row.
-- Onboarding: filter is now `!requires_pro` only (no more `-v2-` exclusion).
-- Pricing page reflects Pro = fp16 access, batch transcription,
-  unlimited custom modes etc.
-- Honest copy on /home FAQ: English-only today, Whisper multilingual
-  in v0.8.1 per the three-release roadmap.
+**Beta channel:**
+- **v0.8.8** (id=20, unsigned) — Whisper CPU-pin + `[Music]` filter.
+- **v0.9.0** (id=21, **Ed25519-signed**) — security hardening pass: signed updater metadata, downgrade-prevention + dl.utterbar.com URL pin, DPAPI-encrypted licence cache, dual-key licence verification (V1 sandbox + V2 live), pinned model SHA-256s, admin-API audit log + tighter throttles, Settings IA (Update channel moved into General).
 
-**Roadmap for the rest of 0.8.x:**
-- **v0.8.1**: Whisper engine wired, multilingual support, language
-  picker on Whisper models, onboarding picker gets a multilingual
-  third option.
-- **v0.8.2**: Zipformer engine wired (fast English, smaller).
+**In-tree app version: v0.9.0** across `package.json`, `Cargo.toml`, `tauri.conf.json` — same as the beta-published binary.
+
+**Stable updater feed quirk:** the new server-side eligibility filter requires `updater_signature` set when `UPDATER_PUBLIC_KEY_B64` is configured. None of the legacy v0.7/v0.8.6/v0.8.7 stable rows are signed, so `/api/updater/check?channel=stable` returns `available:false` for every stable user until a signed v0.9.x stable row is published. **Plan:** soak v0.9.0 on beta for 1–2 weeks, then re-publish without `--beta`.
 
 **Website:** deployed. All cross-side contract endpoints live:
 - `GET /api/pricing` returns `£39.99 GBP`.
@@ -51,11 +32,9 @@ file-backed Markdown posts.
 - Per-page OG image generator at `/og/image`.
 - Download analytics + tip dashboard at `/admin/{analytics,tips}`.
 
-**Versions in tree (verified):**
-- App `package.json` / `Cargo.toml` / `tauri.conf.json`: `0.8.0`
-  (in-flight at time of writing — about to bump + build + publish).
-- Website `config/site.php`: `0.7.8` (informational; real release
-  data served from the `releases` table).
+**Versions in tree (verified 2026-04-27):**
+- App `package.json` / `Cargo.toml` / `tauri.conf.json`: `0.9.0` (matches beta-published binary).
+- Website `config/site.php`: `0.8.7` (informational fallback; real release data served from the `releases` table).
 
 ---
 

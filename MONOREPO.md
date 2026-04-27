@@ -585,12 +585,21 @@ Shipped in v0.7.0. The old `$29` string in [releases/0.6.1.md](Utterbar%20Window
 
 Script now uses `--data-binary "@$TMP_PAYLOAD"` with a temp file. Also explicitly includes `r2_key` in the payload so the server doesn't fall back to the legacy key. See [publish-release.sh](Utterbar%20Windows%20App/scripts/publish-release.sh).
 
-### 10.6 Idle RAM 4.9 GB spike (user flagged 2026-04-23)
+### 10.6 Idle RAM 4.9 GB spike (user flagged 2026-04-23, demoted 2026-04-27)
 
-Running Utterbar (main + webview) shows ~4.9 GB committed at idle. Previous baseline was ~400–700 MB. Not a slow leak; appears on launch. Top hypotheses ranked:
+**Status:** demoted to "watching, not active." Two of the top hypotheses are ruled out by code review and the report has not been reproduced on v0.8.x or v0.9.0:
 
-1. **llama.cpp context loaded globally at boot.** 7B quant ≈ 4–5 GB — exact size match. Check [services/llm/llama_cpp.rs](Utterbar%20Windows%20App/src-tauri/src/services/llm/) — when is the context instantiated? Should be on-demand.
-2. **sherpa-onnx / Parakeet session allocated non-lazily.** If ONNX runtime flipped from mmap to heap, 3–4× on-disk size. Check `services/inference/sherpa_parakeet.rs` for `use_arena = true` / `graph_optimization_level` changes.
+- llama.cpp is feature-gated off (`Cargo.toml: llama = ["dep:llama-cpp-2"]`, optional, not in default features). Shipped binaries don't link it.
+- sherpa-onnx Parakeet session is built on-demand inside `transcribe()` flow — `inference/mod.rs` uses a write lock + lazy `provider.warm()`, not eager init.
+
+If the spike resurfaces on v0.9.0+: attach VMMap to the running wry process, screenshot the heap commit by region, and reopen this section. Hypotheses #3 (recording-buffer leak) and #4 (WebView2 over-commit) remain plausible but unreproduced.
+
+Original report kept below for context.
+
+**Original 2026-04-23 report.** Running Utterbar (main + webview) showed ~4.9 GB committed at idle. Previous baseline was ~400–700 MB. Not a slow leak; appeared on launch. Top hypotheses ranked at the time:
+
+1. **llama.cpp context loaded globally at boot.** 7B quant ≈ 4–5 GB — exact size match. Check [services/llm/llama_cpp.rs](Utterbar%20Windows%20App/src-tauri/src/services/llm/) — when is the context instantiated? Should be on-demand. **RULED OUT** by feature-gating.
+2. **sherpa-onnx / Parakeet session allocated non-lazily.** If ONNX runtime flipped from mmap to heap, 3–4× on-disk size. Check `services/inference/sherpa_parakeet.rs` for `use_arena = true` / `graph_optimization_level` changes. **RULED OUT** by code review.
 3. **Recording buffer not freed after transcription.** Check `services/audio/capture.rs` + `preprocess.rs` — ringbuf should be bounded.
 4. **WebView2 over-commit.** Usually caps at ~500 MB so probably not the whole story.
 
@@ -705,38 +714,35 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 
 ---
 
-## 12. Current state (2026-04-26, post-v0.7.2 ship)
+## 12. Current state (2026-04-27, post-v0.9.0 beta ship)
 
 ### Desktop app
-- **Last publicly-shipped version:** `v0.7.2` — registered on the website's admin release API on 2026-04-25. Shown on `/download`, returned by `/api/updater/check` for any older client. Release notes: [releases/0.7.2.md](Utterbar%20Windows%20App/releases/0.7.2.md). v0.7.2 is a targeted scroll-fix follow-up to v0.7.1: Settings + Onboarding scroll containers now derive height from the document root rather than `100vh` so the inner scroller sees the real viewport.
-- **v0.7.1 history.** Published, but its R2 object was overwritten with the v0.7.2 scroll-fix binary; v0.7.1 release notes ([releases/0.7.1.md](Utterbar%20Windows%20App/releases/0.7.1.md)) are retained for context.
-- **In-tree version:** `v0.7.3` (manifests bumped — `package.json`, `Cargo.toml`, `tauri.conf.json` all read 0.7.3; release notes drafted at [releases/0.7.3.md](Utterbar%20Windows%20App/releases/0.7.3.md)). **Not yet built / uploaded / registered.** The v0.7.3 work is a pass on the auto-update flow: toast triggers on main-window focus + Settings open + launch, manual "Check now" button drives the same toast, onboarding adds an explicit consent step for update checks. Treat as in-flight until the runbook says otherwise.
+- **Last publicly-shipped stable:** `v0.8.7` (admin release row id=19, 2026-04-26). Shown on `/download`. Stable channel covers v0.7.0 → v0.8.7.
+- **Beta channel:** `v0.8.8` (id=20, unsigned) and `v0.9.0` (id=21, **Ed25519-signed**).
+- **In-tree version:** `v0.9.0` across `package.json`, `Cargo.toml`, `tauri.conf.json` — same as the beta-published binary.
 - v0.6.1 was pulled (crashes); v0.6.2–v0.6.9 were internal-only iterations. All their user-facing fixes rolled forward into v0.7.0.
 - **Tauri IPC crash** — patched via vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). See §10.9.
 - Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed.
+- Multi-engine ASR live: Parakeet-TDT (default), Whisper (CPU-pinned, multilingual), Zipformer.
 
 ### Website
 - Live on Cloudways. All contract endpoints deployed:
   - `GET /api/pricing` → `£39.99 GBP`.
-  - `GET /api/updater/check?current=<v>` → v0.7.2 upgrade info for older clients.
-  - `POST /api/licence/{fetch,activate,deactivate,heartbeat}` → working.
-  - `POST /api/stripe/webhook` → live; mints licences on `checkout.session.completed`.
+  - `GET /api/updater/check?current=<v>&channel=<stable|beta>` — returns the latest **eligibility-filtered** row for the channel. Eligibility now includes `updater_signature IS NOT NULL` when `UPDATER_PUBLIC_KEY_B64` is configured. Net effect today: stable returns `available:false` (no signed stable row yet); beta returns v0.9.0.
+  - `POST /api/licence/{fetch,activate,deactivate,heartbeat}` → working under v2 keypair.
+  - `POST /api/stripe/webhook` → live; mints licences on `checkout.session.completed` under v2 keypair.
+  - `POST /api/admin/releases` → admin token + audit log + signed-metadata required when key is configured.
 - Sign-in + update-subscriber tokens hashed; staged rotation in place.
 - Release table populated; `/changelog` + `/download` render from it.
-- `config/site.php` `version` is now `0.7.2` (informational — tracks the last shipped app version, not the website). Status-strip "preview" label dropped on 2026-04-26.
+- `config/site.php` `version` is `0.8.7` (informational — tracks last shipped stable).
 - 58 PHP tests still only one-machine-green, not CI-verified. Re-run before each deploy.
-- Deploy: `Utterbar Website/scripts/deploy-website.ps1` with `$env:CLOUDWAYS_PASSWORD` set.
-
-### In-flight (uncommitted at 2026-04-26)
-- **Waitlist removal.** `WaitlistController`, `WaitlistEntry` model, `WaitlistConfirmation` mailable, `/waitlist` route + page, `waitlist-form` Blade component, and the `2026_04_24_110000_drop_waitlist_entries_table.php` migration are all deleted/staged for deletion. Migration has not yet run on production — the waitlist is dead in-tree, alive on production until deployed.
-- **Admin surface expansion.** New `Admin/ContactController`, `Admin/LicenceController`, `Admin/SubscriberController` with views under `pages/admin/{contacts,licences,subscribers}/` and a new `admin-nav` Blade component. New `LicenceRemint` artisan command.
-- **New marketing pages.** `pages/compare/*` and `pages/what-is-local-dictation.blade.php`.
-- **App auto-update flow rework** as part of the v0.7.3 in-tree work (see Desktop app above) — new `src/state/update.ts` store, modified `MainShell.tsx`, `Onboarding.tsx`, `GeneralSettings.tsx`, `ModelsSettings.tsx`, `UpdateToast.tsx`. Rust-side: `pricing.rs`, `inference/mod.rs`, `licence/verify.rs` modified.
-- **Remotion bundle** — `HowItWorks` and `OnboardingWalkthrough` compositions deleted; new `StatePillStatic.tsx`; manifest + `out/` regenerated.
+- Deploy: `Utterbar Website/scripts/deploy-website.ps1`.
 
 ### Environment
 - Stripe: **live mode**, £39.99 GBP, Stripe Tax on, adaptive pricing on.
-- Ed25519 keypair: **sandbox still in use on live**. Rotation flagged in [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md).
+- **Licence keypair:** rotated to v2 on 2026-04-26. `LICENCE_PAYLOAD_VERSION=2` server-side. Both v1 and v2 public keys baked into the desktop app at [verify.rs](Utterbar%20Windows%20App/src-tauri/src/services/licence/verify.rs) — verification picks by payload version byte. v1 sunset planned ~6 weeks after v0.9.0 saturates.
+- **Updater keypair:** separate Ed25519 key, operator-local. Private key in `~/.utterbar-deploy/.env` only. Public key in server `.env` and baked into [updater.rs](Utterbar%20Windows%20App/src-tauri/src/commands/updater.rs).
+- Licence cache: DPAPI-encrypted at rest (`%APPDATA%\Utterbar\licence.json` wrapped via `CryptProtectData`); legacy plaintext caches auto-upgrade on next save.
 - R2 CDN: `dl.utterbar.com` — installers at `releases/<v>/Utterbar-Setup-<v>.exe` (+ legacy `Utterbar-Setup.exe` alias for the versioned-key validator fix).
 - Admin notify: `hello@utterbar.com`.
 
@@ -747,13 +753,13 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 Ranked by user-impact, current priorities:
 
 1. **Ed25519 key rotation.** Sandbox keypair is still trusted by shipped clients. Plan + execute per [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md). Needs careful roll-out so existing v0.7.0 installs don't silently break.
-2. **Legal pages refresh** — `legal/privacy.blade.php` + `legal/terms.blade.php` still describe the site as storing only waitlist emails. With Stripe live they need a pass to mention purchase records, licence keys, device fingerprints.
+2. ~~**Legal pages refresh**~~ — done. `legal/privacy.blade.php` now lists purchase records, device activations, and the fingerprint-hash policy.
 3. **File a comment on upstream [tauri#10001](https://github.com/tauri-apps/tauri/issues/10001)** with the minidumps' symbolicated stacks + failure bucket. Helps upstream.
 4. **Admin dashboard cohesion** — no releases link from `/admin`, no licence-revoke UI. Website-only, ships whenever.
 5. **Remotion video quality pass** — current renders are slow, zoomed-out, bordered, waveform speed wrong. Separate dedicated session. Consider R2-backed CDN delivery.
 6. **Clean up orphan R2 objects** — legacy `releases/<v>/Utterbar-Setup.exe` copies from the double-upload era. Safe to delete from the bucket now the versioned-key validator ships.
-7. **4.9 GB idle RAM investigation** (§10.6) — not investigated yet; requires VMMap attach.
-8. **Waitlist tidy-up** — waitlist form is still embedded site-wide but its value proposition is now "changelog in your inbox". A proper pass would rename the component, drop `showUseCase`, and reword the confirmation email.
+7. **4.9 GB idle RAM** (§10.6) — demoted to "watching." Top hypotheses ruled out by code review and not reproduced on v0.9.0+. If it surfaces, VMMap-attach + reopen.
+8. ~~**Waitlist tidy-up**~~ — done. Waitlist controller, model, mailable, view, and the drop-table migration shipped earlier this session; the table is gone on production.
 
 ---
 
