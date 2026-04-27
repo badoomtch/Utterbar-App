@@ -1,36 +1,40 @@
 @php
     $columns = [
         'Now' => [
-            ['title' => 'Signed release pipeline',        'desc' => 'Code-signed MSI + NSIS binaries. Unsigned today.'],
-            ['title' => 'Auto-update installer flow',     'desc' => 'The toggle exists in settings; the installer round-trip is what\'s left.'],
-            ['title' => 'File-transcription drag-drop',   'desc' => 'Decoder + ASR pipeline already work end-to-end. Polished drop-zone UX is on the punch-list.'],
-            ['title' => 'First-run onboarding + model-download UX', 'desc' => 'The first 30 seconds of the app need to feel less like a README.'],
+            ['title' => 'Custom model imports',           'desc' => 'Drop a sherpa-onnx tarball, get a new model. Today the catalogue is fixed; opening it up so users can bring their own engines.'],
+            ['title' => 'Vocabulary docs + UX polish',    'desc' => 'The vocabulary engine is fully wired but the docs and surfaces still need a proper guide and a few rough-edge fixes before 1.0.'],
         ],
         'Next' => [
-            ['title' => 'macOS build',                    'desc' => 'Second-class port once Windows 1.0 ships. Mac already has decent local-only options meanwhile.'],
-            ['title' => 'File transcription batch mode',  'desc' => 'Drop a folder, walk away, come back to transcripts for every file inside.'],
-            ['title' => 'Custom model imports',           'desc' => 'Drop a sherpa-onnx tarball, get a new model. Today the catalogue is fixed.'],
-            ['title' => 'Multilingual Parakeet',          'desc' => 'The 0.6B v2 models in the catalogue are English-only. Multilingual variants come next.'],
+            ['title' => 'macOS build',                    'desc' => 'Second-class port once Windows 1.0 ships. The core ASR + post-processing pipeline is portable; system integration (audio, hotkeys, paste) is the rewrite.'],
+            ['title' => 'Bilingual dictation modes',      'desc' => 'Switch language mid-sentence without changing mode. Whisper already supports it under the hood; the UX needs to catch up.'],
+            ['title' => 'Code-editor extension',          'desc' => 'True in-IDE cursor injection, not keystroke simulation. VS Code first, JetBrains after.'],
         ],
         'Later' => [
             ['title' => 'Linux build',                    'desc' => 'Third-class. No ETA.'],
-            ['title' => 'Bilingual dictation modes',      'desc' => 'Switch language mid-sentence without changing mode.'],
             ['title' => 'Mobile remote',                  'desc' => 'Press-to-talk from your phone into the active desktop session.'],
-            ['title' => 'Code-editor extension',          'desc' => 'True in-IDE cursor injection, not keystroke simulation.'],
         ],
     ];
 
     $shipped = [
-        ['title' => 'Local LLM post-processor',          'desc' => 'llama.cpp feature-gated at compile time with a deterministic fallback. Tone / format / summarise.'],
-        ['title' => 'Cycle-mode, open-settings, open-history global hotkeys', 'desc' => 'All seven hotkey slots individually rebindable.'],
+        ['title' => 'Multi-engine ASR',                  'desc' => 'Parakeet-TDT (default English), Whisper (multilingual base + small), Zipformer (fast English). Pick per-mode or globally.'],
+        ['title' => 'Auto-update with signed metadata',  'desc' => 'Updater verifies an Ed25519 signature over release metadata before downloading; SHA-256-checks the binary; refuses anything older than what\'s installed; only pulls from dl.utterbar.com.'],
+        ['title' => 'Stable + Beta channels',            'desc' => 'Two tracks: Stable for everyone, Beta for early adopters. Toggle in Settings &rarr; General &rarr; Updates.'],
+        ['title' => 'File transcription',                'desc' => 'Drop an audio or video file in, get a transcript. Queues, history, retranscribe.'],
+        ['title' => 'First-run onboarding + model picker', 'desc' => 'Three-engine picker on first launch with download progress. No more cold-boot README moment.'],
+        ['title' => 'Vocabulary capture',                'desc' => '"Add to vocab" from any dictation; literal + regex replacements; hinted words for ASR decoding.'],
         ['title' => 'WASAPI system-audio capture',       'desc' => 'Direct loopback on the default render endpoint. No virtual-cable install. Mic / system / mixed.'],
+        ['title' => 'Cycle-mode + 6 other global hotkeys', 'desc' => 'All seven hotkey slots individually rebindable.'],
         ['title' => 'Adaptive noise suppression',        'desc' => 'DC blocker &rarr; high-pass &rarr; adaptive gate, in-house, calibrates from the quietest 20% of the frame.'],
         ['title' => 'Keystroke fallback for UIPI-blocked targets', 'desc' => 'If clipboard paste is blocked (RDP, elevated apps), per-character Unicode keystroke injection takes over automatically.'],
         ['title' => 'Shift-to-auto-send',                'desc' => 'Hold Shift while dictating to fire Enter after the paste. For chat-box dictation.'],
         ['title' => 'Retain-audio with day slider',      'desc' => '1&ndash;90 day retention. Off by default. Pruning runs on every new dictation.'],
-        ['title' => 'Reduce-motion accessibility',       'desc' => 'Kills transitions across the app for users who ask for it in Windows settings or the app.'],
+        ['title' => 'Reduce-motion + high-contrast accessibility', 'desc' => 'Honours Windows reduce-motion + offers in-app overrides for high contrast and larger focus rings.'],
         ['title' => 'Synthesised sound cues + toasts',   'desc' => 'Start / stop / error beeps generated in-app via WebAudio; no sample files. Windows toast notifications for non-blocking feedback.'],
-        ['title' => 'Themes + accents, bar visibility, size, outline', 'desc' => 'Three themes &times; six accents. Bar hides / appears on record / stays. Compact or Standard, with or without outline.'],
+        ['title' => 'Themes + accents, bar visibility, size, outline', 'desc' => 'Three themes &times; six accents (plus custom Pro). Bar hides / appears on record / stays. Compact or Standard, with or without outline.'],
+    ];
+
+    $parked = [
+        ['title' => 'Code-signed installer',             'desc' => 'Permanently parked. The cert cost outweighs the SmartScreen warning, which fades on its own as install volume builds.'],
     ];
 
     $badges = ['Now' => 'var(--accent)', 'Next' => 'var(--fg-hi)', 'Later' => 'var(--muted)'];
@@ -66,12 +70,12 @@
     </section>
 
     {{-- Shipped --}}
-    <section class="pb-20 pt-4 border-t" style="border-color: var(--border);">
+    <section class="pb-12 pt-4 border-t" style="border-color: var(--border);">
         <div class="ub-container">
             <div class="flex items-baseline gap-3 mb-6 pt-8">
                 <span style="color: var(--ok);"><x-icon name="check" size="20" stroke="2.4" /></span>
                 <h2 class="text-2xl">Shipped</h2>
-                <span class="font-mono text-xs" style="color: var(--muted);">{{ count($shipped) }} &middot; in v{{ config('site.version') }}</span>
+                <span class="font-mono text-xs" style="color: var(--muted);">{{ count($shipped) }} items &middot; live in the latest release</span>
             </div>
             <p class="max-w-2xl mb-6 text-sm" style="color: var(--muted);">
                 Already in the app. Listed here so the pages above stop implying these are still a promise.
@@ -86,6 +90,28 @@
                                 <p class="mt-1 text-sm" style="color: var(--muted);">{!! $item['desc'] !!}</p>
                             </div>
                         </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </section>
+
+    {{-- Parked --}}
+    <section class="pb-20 pt-4 border-t" style="border-color: var(--border);">
+        <div class="ub-container">
+            <div class="flex items-baseline gap-3 mb-6 pt-8">
+                <span class="inline-block w-2 h-2 rounded-full" style="background: var(--muted);"></span>
+                <h2 class="text-2xl">Parked</h2>
+                <span class="font-mono text-xs" style="color: var(--muted);">{{ count($parked) }}</span>
+            </div>
+            <p class="max-w-2xl mb-6 text-sm" style="color: var(--muted);">
+                Considered, decided against for now, here so nobody asks twice.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                @foreach ($parked as $item)
+                    <div class="ub-card" style="padding: 1rem 1.25rem; opacity: 0.85;">
+                        <p class="font-semibold text-sm" style="color: var(--fg-hi);">{{ $item['title'] }}</p>
+                        <p class="mt-1 text-sm" style="color: var(--muted);">{!! $item['desc'] !!}</p>
                     </div>
                 @endforeach
             </div>

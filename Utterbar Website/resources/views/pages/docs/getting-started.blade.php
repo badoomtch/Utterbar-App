@@ -10,7 +10,7 @@
             Download the installer from the <a href="{{ route('download') }}" style="color: var(--accent);">download page</a>. It&rsquo;s a single <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">.exe</code>, around 11&nbsp;MB. Run it. Utterbar installs to your local app data folder &mdash; no admin rights required, no system services, no registry pollution beyond the start-menu shortcut.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-            Windows 10 22H2 or Windows 11, x86_64. WebView2 is required &mdash; it&rsquo;s already on every Windows 11 machine and auto-bootstrapped on Windows 10. If you see a SmartScreen warning the first time, that&rsquo;s because the installer isn&rsquo;t code-signed yet (signing is on the roadmap). Click &ldquo;More info&rdquo; → &ldquo;Run anyway&rdquo;.
+            Windows 10 22H2 or Windows 11, x86_64. WebView2 is required &mdash; it&rsquo;s already on every Windows 11 machine and auto-bootstrapped on Windows 10. If you see a SmartScreen warning the first time, that&rsquo;s because the installer isn&rsquo;t code-signed. Click &ldquo;More info&rdquo; → &ldquo;Run anyway&rdquo;. SmartScreen learns over time; once enough installs go through, the warning goes away on its own.
         </p>
 
         <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">

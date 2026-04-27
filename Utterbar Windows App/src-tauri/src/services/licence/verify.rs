@@ -11,31 +11,15 @@ use sha2::{Digest, Sha256};
 use crate::domain::licence::LicencePayload;
 use crate::util::result::OrliqError;
 
-/// Ed25519 sandbox public key — payload version byte 1.
-///
-/// This is the SANDBOX key that shipped with v0.6.x–v0.8.x. We accept it
-/// transitionally so existing installs keep working while the live key
-/// (v2) rolls out via `licence:remint --all` on the server. After v0.9.0
-/// saturates the install base (≥6 weeks), drop this constant and the
-/// `try_with` fallback in `verify_signed_blob` so only v2 licences
-/// verify.
-pub const PUBLIC_KEY_BYTES_V1: [u8; 32] = [
-    0xea, 0x5e, 0x9b, 0x4f, 0x93, 0x55, 0x33, 0x18, 0x89, 0xf8, 0x04, 0x10, 0xc0, 0xc2, 0x89, 0xa7,
-    0xe1, 0x02, 0x32, 0xf0, 0x97, 0x76, 0xa2, 0x2b, 0xdb, 0x2b, 0x1d, 0x53, 0x27, 0x63, 0x2b, 0x04,
-];
-
 /// Ed25519 LIVE public key — payload version byte 2.
 ///
-/// Generated for the live cut-over. The matching private key lives only
-/// on the production licence-signing server (.env: LICENCE_PRIVATE_KEY_B64).
-/// MUST be filled in before shipping the build that depends on it — a
-/// build with all-zeros here will reject every v2 licence (no signature
-/// can verify against the identity public key under `verify_strict`).
+/// The matching private key lives only on the production licence-signing
+/// server (.env: LICENCE_PRIVATE_KEY_B64).
 ///
-/// Generate via `php artisan licence:keygen` on a clean machine (NEVER
-/// production) and paste the public-key bytes here AND
-/// LICENCE_PUBLIC_KEY_B64 + LICENCE_PRIVATE_KEY_B64 into the server .env.
-/// Also bump LICENCE_PAYLOAD_VERSION=2 server-side.
+/// Sandbox V1 (payload version 1) was retired in v0.10.0. The single
+/// outstanding licence (the developer's own) was reminted under V2 on
+/// 2026-04-26 alongside the keypair rotation. Anything still presenting
+/// a V1 payload is treated as untrusted — fail closed.
 pub const PUBLIC_KEY_BYTES_V2: [u8; 32] = [
     0x10, 0x9c, 0x54, 0x05, 0x46, 0x44, 0x12, 0xf6, 0x16, 0xdc, 0x07, 0x6b, 0x50, 0xac, 0x94, 0x60,
     0x1c, 0x88, 0xc7, 0x50, 0xfc, 0x1f, 0x85, 0x78, 0x9a, 0x87, 0xec, 0x28, 0x62, 0x76, 0x3a, 0x57,
@@ -62,25 +46,20 @@ pub fn verify_signed_blob(blob: &[u8]) -> Result<LicencePayload, OrliqError> {
     })?;
     let digest = Sha256::digest(payload_bytes);
 
-    // Pick the verifying key by the payload's version byte. v1 is the
-    // sandbox keypair, v2 is the live keypair. Anything else is treated
-    // as "no key we trust signed this" — fail closed. We deliberately
-    // do NOT fall back across versions: a v2 payload with a v1 signature
-    // is malformed, not a valid licence, and accepting it would defeat
-    // the rotation entirely.
+    // Single trusted key family: V2. Sandbox V1 was retired in v0.10.0
+    // (see the constant docs above). Anything advertising a different
+    // payload version is treated as untrusted — fail closed.
     let version = payload_bytes[0];
-    let pubkey = match version {
-        1 => &PUBLIC_KEY_BYTES_V1,
-        2 => &PUBLIC_KEY_BYTES_V2,
-        other => {
-            return Err(OrliqError::Licence {
-                code: "verification_failed".to_string(),
-                message: format!("payload advertises unknown key version {other}"),
-            });
-        }
-    };
+    if version != 2 {
+        return Err(OrliqError::Licence {
+            code: "verification_failed".to_string(),
+            message: format!(
+                "payload advertises key version {version}; this build only trusts v2"
+            ),
+        });
+    }
 
-    let vk = VerifyingKey::from_bytes(pubkey).map_err(|e| OrliqError::Licence {
+    let vk = VerifyingKey::from_bytes(&PUBLIC_KEY_BYTES_V2).map_err(|e| OrliqError::Licence {
         code: "internal".to_string(),
         message: format!("bundled public key rejected: {e}"),
     })?;
@@ -88,7 +67,7 @@ pub fn verify_signed_blob(blob: &[u8]) -> Result<LicencePayload, OrliqError> {
     vk.verify(digest.as_slice(), &sig)
         .map_err(|_| OrliqError::Licence {
             code: "verification_failed".to_string(),
-            message: format!("signature did not verify against bundled v{version} public key"),
+            message: "signature did not verify against bundled v2 public key".to_string(),
         })?;
 
     parse_payload(payload_bytes)

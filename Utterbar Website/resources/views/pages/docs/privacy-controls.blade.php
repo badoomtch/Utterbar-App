@@ -20,5 +20,5 @@
         @endforeach
     </div>
 
-    <div class="mt-10 ub-card"><p class="text-sm" style="color: var(--muted);">None of these toggles changes whether audio leaves your machine — it never does. They only affect what local context the post-processor can see.</p></div>
+    <div class="mt-10 ub-card"><p class="text-sm" style="color: var(--muted);">None of these toggles changes whether audio leaves your machine — it never does. They only affect what local context the post-processor can see. The app does make a handful of network calls (licence checks, update checks, model downloads, pricing lookup) but never sends audio, transcripts, vocabulary, or history. Full breakdown on the <a href="{{ route('legal.privacy') }}" style="color: var(--accent);">privacy policy</a>.</p></div>
 </x-layouts.docs>

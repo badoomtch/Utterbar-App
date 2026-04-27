@@ -8,7 +8,7 @@ return [
     // this string is only used as a fallback for templates (roadmap, schema.org)
     // when the latest-release lookup misses. Bump on every public stable ship
     // so the fallback isn't months behind reality.
-    'version'  => '0.8.7',
+    'version'  => '0.10.0',
 
     'email' => [
         'contact' => 'hello@utterbar.com',
