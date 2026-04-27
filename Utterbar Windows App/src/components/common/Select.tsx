@@ -146,11 +146,21 @@ export function Select<T extends string>({
             else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); btnRef.current?.focus(); }
           }}
           className={cn(
-            // Menu sits on bg-2 with a very quiet border. No shadow — depth
+            // Menu sits on bg-2 with a very quiet border. No shadow; depth
             // comes from the tonal lift, not from a drop-shadow. Radius
             // matches card-minor (14px lg alias) so it reads as "the same
             // family as a card, smaller".
-            'absolute z-50 mt-1.5 max-h-72 w-full overflow-auto rounded-lg',
+            //
+            // Width: at LEAST as wide as the trigger button (so it never
+            // looks detached), but allowed to grow to fit the longest
+            // option label up to the viewport width. The previous version
+            // pinned to `w-full` of the trigger, which clipped option
+            // labels to single characters when the trigger lived inside
+            // a tight filter chip (History route's Mode / App pills).
+            // `whitespace-nowrap` on the wrapper means each option lays
+            // out at its natural width, the menu grows to enclose them.
+            'absolute z-50 mt-1.5 max-h-72 overflow-auto rounded-lg',
+            'min-w-full max-w-[min(28rem,calc(100vw-2rem))] whitespace-nowrap',
             'border border-border-soft bg-bg-2 p-1',
           )}
         >
@@ -184,9 +194,9 @@ export function Select<T extends string>({
                   )}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate">{o.label}</div>
+                  <div>{o.label}</div>
                   {o.caption && (
-                    <div className="truncate text-[11px] text-fg-dim">{o.caption}</div>
+                    <div className="text-[11px] text-fg-dim">{o.caption}</div>
                   )}
                 </div>
               </button>

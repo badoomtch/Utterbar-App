@@ -94,11 +94,19 @@ fi
 echo "→ publishing metadata to $UTTERBAR_API_BASE…"
 # Include `r2_key` explicitly so the server doesn't fall back to its
 # legacy default of `releases/{version}/Utterbar-Setup.exe` (unversioned).
-# The admin API then verifies that KEY exists in R2 — which matches the
-# key we just uploaded to above ($KEY). Without this, the server
-# defaulted to the legacy key, saw no file there, and returned
-# `file_not_in_bucket` every time.
-PAYLOAD=$(jq -n \
+# The admin API then verifies that KEY exists in R2 (the key we just
+# uploaded to above, $KEY). Without this, the server defaulted to the
+# legacy key, saw no file there, and returned `file_not_in_bucket`
+# every time.
+#
+# MSYS_NO_PATHCONV=1 disables Git-Bash on Windows from auto-converting
+# argument values that look like Unix paths. Ed25519 signatures are
+# random base64; ~1 in 4 of them happens to start with `/` and triggers
+# MSYS to silently rewrite the value to `C:/Program Files/Git/<rest>`,
+# producing an invalid signature the server can't verify. Found this
+# during the v0.11.1 publish; before that, lucky signatures didn't
+# start with `/` and the bug didn't surface.
+PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n \
     --arg v "$VERSION" \
     --arg ch "$CHANNEL" \
     --arg r2 "$KEY" \

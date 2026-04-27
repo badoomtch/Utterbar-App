@@ -184,8 +184,13 @@ export function ModelsSettings() {
         subtitle="Parakeet ASR models. Downloaded once, stored locally, never uploaded anywhere."
       />
 
+      {/* Single source of truth for card spacing. Matches the convention
+          used in GeneralSettings, AdvancedSettings, etc. Per-card `mt-*`
+          margins were inconsistent (one card had none) and produced
+          flush-touching cards. Don't reintroduce them. */}
+      <div className="mt-6 space-y-4">
+
       <Card
-        className="mt-6"
         title="Default model"
         description="Used by any mode that hasn't pinned a specific model. Modes can still override this, the setting here is the fallback your whole app uses by default."
         aside={<ModelRuntimeBadge loadedId={loadedId} />}
@@ -239,7 +244,6 @@ export function ModelsSettings() {
       )}
 
       <Card
-        className="mt-4"
         title="Keep-warm duration"
         description="The first dictation after a cold start loads the model into memory, that one takes a few seconds. Subsequent dictations while the model is warm feel near-instant. We keep the model loaded for a while after each use so you don't pay the cold-start cost on every burst of speech."
       >
@@ -300,7 +304,7 @@ export function ModelsSettings() {
         </p>
       </Card>
 
-      <Card className="mt-4">
+      <Card>
         <ul className="divide-y divide-border-soft/50">
           {items.map((m) => {
             const prog = progress[m.id];
@@ -390,6 +394,8 @@ export function ModelsSettings() {
           })}
         </ul>
       </Card>
+
+      </div>
     </div>
   );
 }
