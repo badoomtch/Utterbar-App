@@ -1,0 +1,34 @@
+# Repo-root .gitattributes
+#
+# Locked rules for files whose BYTE CONTENT must stay identical
+# across checkouts on different platforms. Anything not listed here
+# falls back to git's default `text=auto` behaviour.
+#
+# Why this exists: v0.15.1 shipped to beta with a CRLF-converted
+# copy of `V0006__history_speaker_names.sql` baked into the binary
+# via refinery's `embed_migrations!`. v0.15.0 had been built from
+# the same file in its LF form. Refinery hashes the migration's
+# SQL content and compares against the hash recorded in the user's
+# DB; LF vs CRLF produces different hashes; v0.15.1 panicked at
+# bootstrap with "applied migration V6__history_speaker_names is
+# different than filesystem one V6__history_speaker_names" on
+# every machine that had run v0.15.0 first.
+#
+# The git-stored bytes are LF on every commit (see
+# `git ls-files --eol`). The bug was a Windows working-tree
+# rewrite via `core.autocrlf=true` between two `tauri build`
+# invocations. Pinning `eol=lf` here forces the working tree to
+# match the index regardless of the local autocrlf setting.
+
+# Refinery-bundled migrations. NEVER touch these without
+# understanding the consequences — once shipped, the bytes are
+# part of the contract with every user's DB.
+*.sql text eol=lf
+
+# Release notes: bundled into the binary via include_str! and
+# rendered in Settings → Updates. Line-ending drift wouldn't crash
+# anything (no hash check), but the rendering would noticeably
+# change between platforms. Lock for stable rendering. Glob from
+# any depth (covers `Utterbar Windows App/releases/<v>.md` without
+# fighting gitattributes' escaping rules for spaces in paths).
+**/releases/*.md text eol=lf

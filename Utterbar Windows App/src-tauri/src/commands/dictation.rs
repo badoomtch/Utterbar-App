@@ -3347,4 +3347,119 @@ mod diarised_helpers_tests {
         assert!(!stitched.contains("**Speaker 1:**"));
         assert!(!stitched.contains("**Speaker 2:**"));
     }
+
+    // ── v0.15.2 hotfix: refinery migration byte-stability pins ──────
+    //
+    // v0.15.1 panicked at startup on every machine that had run
+    // v0.15.0 first because Windows core.autocrlf rewrote
+    // V0006__history_speaker_names.sql from LF (git index) to CRLF
+    // (working tree) between two `tauri build` runs. v0.15.0 was
+    // built from LF bytes; v0.15.1 was built from CRLF bytes;
+    // refinery hashes the migration content and the user DB
+    // recorded the LF hash. v0.15.1 boot panicked.
+    //
+    // The systemic fix is `.gitattributes` pinning `*.sql text
+    // eol=lf` so the working tree always matches the index. The
+    // belt-and-braces fix is the test below: pin the SHA-256 of
+    // the bundled bytes of V0006 (and as a forward guard, every
+    // subsequent migration) so any future drift fails CI before
+    // it can ship a binary that won't launch.
+    //
+    // include_bytes!() resolves at compile time from the same
+    // path refinery's embed_migrations!() does, so what these
+    // tests hash is exactly what the binary is shipping.
+
+    /// Compute the SHA-256 hex of a byte slice. Local to this
+    /// module so the test mod doesn't need to leak a helper into
+    /// production code.
+    fn sha256_hex(bytes: &[u8]) -> String {
+        use sha2::{Digest, Sha256};
+        let mut h = Sha256::new();
+        h.update(bytes);
+        hex::encode(h.finalize())
+    }
+
+    /// **The v0.15.2 regression target.** Pins V0006 to the LF
+    /// byte content that v0.15.0 originally shipped. Any future
+    /// edit (intentional or accidental) fails CI; the operator
+    /// either updates the pin (acknowledging they understand the
+    /// hash will change, all user DBs running v0.15.x will be
+    /// unable to launch the new binary, and a separate strategy
+    /// is needed) or reverts the change.
+    ///
+    /// Also reads the file at runtime — if the bytes the binary
+    /// was compiled with somehow drift between cargo's `include_str!`
+    /// resolution and refinery's `embed_migrations!` resolution
+    /// (they shouldn't, but belt-and-braces), the cross-check
+    /// here would catch it.
+    #[test]
+    fn v0006_migration_sha256_is_pinned_to_v0150_bytes() {
+        const PINNED: &str = "b3ae4db25d4afb126e27a4644d16da46f1d8770643182b45cd4233e77dbb5e1d";
+        const V0006: &[u8] = include_bytes!("../db/migrations/V0006__history_speaker_names.sql");
+        let actual = sha256_hex(V0006);
+        assert_eq!(
+            actual, PINNED,
+            "V0006__history_speaker_names.sql byte content has drifted — \
+             this almost certainly means CRLF contamination has crept back in. \
+             Run `git ls-files --eol -- 'Utterbar Windows App/src-tauri/src/db/migrations/'` \
+             to confirm; if `w/crlf` shows up, delete the file and `git checkout --` it. \
+             If the change is intentional (rare), update PINNED to the new value AND \
+             plan how every existing user DB will recover from the inevitable \
+             refinery hash mismatch on their next launch."
+        );
+    }
+
+    /// Forward guard: every other migration also gets a SHA pin
+    /// so a refinery panic on V0001-V0005 (same root cause class)
+    /// gets caught at unit-test time rather than user-launch time.
+    /// Pins computed against the current LF working tree; if any
+    /// of these change in a future commit the test surfaces it.
+    ///
+    /// To recompute after an intentional change:
+    ///   sha256sum 'Utterbar Windows App/src-tauri/src/db/migrations/<file>.sql'
+    /// (and read the v0006 test's failure message — same advice
+    /// applies for V0001-V0005 if the change is intentional.)
+    #[test]
+    fn all_migrations_byte_pins() {
+        let pins: &[(&str, &[u8], &str)] = &[
+            (
+                "V0001__init.sql",
+                include_bytes!("../db/migrations/V0001__init.sql"),
+                "7ee607c7b41953dfab6e59f1b012e84930ec499e4a53531db5b2719d7e627a6c",
+            ),
+            (
+                "V0002__modes_english_variant.sql",
+                include_bytes!("../db/migrations/V0002__modes_english_variant.sql"),
+                "abb7ad691884583a963848919ce81169ca58a4052e647e65a41ab6b2cf642c85",
+            ),
+            (
+                "V0003__history_streaming.sql",
+                include_bytes!("../db/migrations/V0003__history_streaming.sql"),
+                "7957ccafd9ed214aa25f93de04366063da18d0b0ace4f3e7de05006c4753da7a",
+            ),
+            (
+                "V0004__modes_meeting_mode.sql",
+                include_bytes!("../db/migrations/V0004__modes_meeting_mode.sql"),
+                "abd5a135181ad5ac720a7ea6e45cab851bf0c39744748ddd00ece5a51b7948af",
+            ),
+            (
+                "V0005__history_is_meeting.sql",
+                include_bytes!("../db/migrations/V0005__history_is_meeting.sql"),
+                "b8eef182592b002ce1758a79f0fd87255143f08a9f0768705d72f540feb0c0f5",
+            ),
+            (
+                "V0006__history_speaker_names.sql",
+                include_bytes!("../db/migrations/V0006__history_speaker_names.sql"),
+                "b3ae4db25d4afb126e27a4644d16da46f1d8770643182b45cd4233e77dbb5e1d",
+            ),
+        ];
+        for (name, bytes, expected) in pins {
+            let actual = sha256_hex(bytes);
+            assert_eq!(
+                &actual, expected,
+                "migration {name} byte content drifted from pinned SHA — \
+                 see the v0006 test above for the recovery procedure"
+            );
+        }
+    }
 }

@@ -7,10 +7,16 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::Connection;
 
-mod embedded {
+// Made `pub(crate)` so `db::repair`'s end-to-end test can run the
+// migrations runner against an in-memory SQLite. The macro itself
+// stays inside the inner module so production code paths still go
+// through `Db::run_migrations`.
+pub(crate) mod embedded {
     use refinery::embed_migrations;
     embed_migrations!("src/db/migrations");
 }
+
+pub mod repair;
 
 pub struct Db {
     pub pool: Pool<SqliteConnectionManager>,
@@ -36,6 +42,18 @@ impl Db {
     pub fn run_migrations(&self) -> Result<()> {
         let mut conn = self.pool.get()?;
         let conn: &mut Connection = &mut conn;
+
+        // v0.15.2 pre-refinery repair: corrects the V6 checksum
+        // on DBs that had v0.15.1 as their first 0.15.x launch
+        // (line-ending drift between v0.15.0 LF and v0.15.1 CRLF
+        // builds — see services/db/repair.rs for the full story).
+        // Single-purpose, single-row, single-checksum-pair. If the
+        // repair surfaces an unknown / unexpected state it leaves
+        // the row alone; refinery's normal divergence panic then
+        // fires with the correct error rather than being masked.
+        let outcome = repair::repair_known_v6_history_speaker_names_line_ending_checksum(conn)?;
+        tracing::info!(?outcome, "db::run_migrations v6-checksum repair");
+
         embedded::migrations::runner().run(conn)?;
         Ok(())
     }
