@@ -12,7 +12,10 @@ import { cn } from '@/lib/cn';
 import { useLicence, isPro } from '@/state/licence';
 
 type Mode = EditableMode;
-type ModelInfo = { id: string; display_name: string };
+// Local narrow shape over the Rust ModelInfo. Only the fields the
+// editor actually consumes; `installed` lets the meeting-mode copy
+// tell the user whether Whisper Large is ready to auto-route to.
+type ModelInfo = { id: string; display_name: string; installed: boolean };
 
 /**
  * Modes, output-shaping presets.

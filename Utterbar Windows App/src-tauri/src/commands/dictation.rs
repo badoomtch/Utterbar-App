@@ -463,6 +463,42 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
 /// two RMS values against each other and saving the sqrt is cheaper).
 /// Bounds-safe — clamps end to pcm.len() and returns 0.0 on empty range
 /// so a missing-side capture trivially loses the tag race.
+/// Resolve which ASR model to use for this dictation. One source of
+/// truth for the early-warm probe, the cold-load Warming pill, and the
+/// final transcribe call — they must all read the same value or the UI
+/// flashes the wrong "Initialising model" copy when the user has
+/// Meeting mode auto-routing to a different model than the global.
+///
+/// Rules:
+///   * Meeting modes auto-route to Whisper Large v3 when it's
+///     installed. The user shouldn't have to switch the global model
+///     dropdown when they pick Meeting mode; the mode itself implies
+///     "I want the best accuracy regardless of speed".
+///   * Everything else uses the global default. The mode-level
+///     `asr_model_id` field is still ignored at runtime (removed as a
+///     runtime override in v0.6.6; field stays on disk for back-
+///     compat).
+///   * Fallback is the literal string "stub", same sentinel the
+///     orchestrator already routes to a no-op provider when no real
+///     model is configured. Surfacing it in the UI as a model id is
+///     fine: the dictation flow surfaces the standard "no model
+///     installed" prompt before any sherpa call happens.
+fn resolve_target_model_id(
+    mode: &crate::domain::Mode,
+    settings: &crate::domain::Settings,
+    models: &crate::services::models::ModelRegistry,
+) -> String {
+    const WHISPER_LARGE: &str = "sherpa-whisper-large-v3";
+    if mode.is_meeting_mode && models.is_installed(WHISPER_LARGE) {
+        return WHISPER_LARGE.to_string();
+    }
+    settings
+        .models
+        .default_asr_model_id
+        .clone()
+        .unwrap_or_else(|| "stub".into())
+}
+
 fn rms_over(pcm: &[i16], start: usize, end: usize) -> f64 {
     let lo = start.min(pcm.len());
     let hi = end.min(pcm.len());
@@ -672,44 +708,43 @@ async fn transcribe_chunked(
             let mm = chunk_text_start_secs / 60;
             let ss = chunk_text_start_secs % 60;
 
-            // Speaker tag, only when both sides were captured. Compare
-            // this chunk's loopback RMS against the recording's own
-            // loopback noise floor: if the loopback is producing real
-            // signal in this window (above floor * THRESHOLD_MULT), tag
-            // **Other** because system audio was speaking; otherwise
-            // tag **You** because only the mic had signal.
+            // Speaker-tag heuristic computation, log-only in v0.14.3.
             //
-            // We deliberately ignore the mic's RMS here. In a typical
-            // meeting setup the mic picks up the loopback bleeding from
-            // the user's speakers, so any RMS comparison that includes
-            // the mic gets gamed. The threshold-against-own-floor check
-            // is asymmetric — "did the system audio produce signal at
-            // all?" — and isn't fooled by mic cross-talk.
-            let speaker_tag = match (mic_pcm.as_ref(), loop_pcm.as_ref(), loopback_floor) {
-                (Some(_mic), Some(lp), Some(floor)) => {
-                    let lp_rms = rms_over(lp, start, end);
-                    let threshold = floor * THRESHOLD_MULT;
-                    if lp_rms > threshold {
-                        Some("**Other**")
-                    } else {
-                        Some("**You**")
-                    }
-                }
-                _ => None,
-            };
+            // The previous "loopback above its own floor" rule got the
+            // tag wrong on real recordings: in a typical setup the mic
+            // picks up bleed from the speakers, the loopback can be
+            // empty (output device is headphones, BT, or virtual
+            // routing), and the threshold scaling was on mean-square
+            // not RMS. Suppressing the **You** / **Other** prefix
+            // until the v0.14.4 signal-above-baseline heuristic ships,
+            // because wrong labels are worse than no labels.
+            //
+            // The per-side RMS values are still emitted to the log so
+            // the v0.14.4 calibration work has real-recording data to
+            // tune against without re-running everyone's tests.
+            if let (Some(mic), Some(lp), Some(floor)) =
+                (mic_pcm.as_ref(), loop_pcm.as_ref(), loopback_floor)
+            {
+                let mic_rms = rms_over(mic, start, end);
+                let lp_rms = rms_over(lp, start, end);
+                tracing::info!(
+                    chunk_index,
+                    mic_rms,
+                    lp_rms,
+                    loopback_floor = floor,
+                    "meeting mode: per-side energy (logged only; tags suppressed)"
+                );
+            }
 
             // One chunk per paragraph for legibility. Empty line between
             // chunks so a long meeting reads as a stack of timestamped
-            // turns rather than a wall of text.
+            // turns rather than a wall of text. Just the timestamp for
+            // now; speaker tag returns in v0.14.4 with a heuristic
+            // that actually works.
             if !stitched.is_empty() {
                 stitched.push_str("\n\n");
             }
             stitched.push_str(&format!("[{:02}:{:02}]", mm, ss));
-            if let Some(tag) = speaker_tag {
-                stitched.push(' ');
-                stitched.push_str(tag);
-                stitched.push(':');
-            }
             stitched.push(' ');
             stitched.push_str(&chunk_text);
         }
@@ -816,50 +851,54 @@ pub async fn stop_recording(
         "audio captured"
     );
 
-    // v0.6.7 cold-load phase: decide Warming vs Processing *once*, up-front,
-    // and emit exactly that phase — not Processing-then-Warming-then-Processing.
+    // Resolve the target model id ONCE, before the cold-load probe, so
+    // every downstream consumer (early Warming label, ensure_loaded
+    // call, final transcribe, history row) reads the same value.
     //
-    // The earlier (v0.6.7 initial) fix emitted Processing unconditionally
-    // here and only flipped to Warming later once we'd resolved the model id
-    // from settings. On a cold load the audio-preprocessing block between
-    // the two set_phase calls was fast-but-not-instant (settings snapshot +
-    // noise suppress + silence trim + normalise over ~100k samples), which
-    // meant the user saw Processing flash for a moment before the
-    // Initialising-model label appeared. On subsequent warm dictations
-    // they'd see Processing → (nothing) → Processing which was harmless
-    // but redundant emits.
+    // Resolution rules (see `resolve_target_model_id` below):
+    //   * Meeting modes auto-route to Whisper Large v3 when it's
+    //     installed. The user doesn't have to pick a meeting model
+    //     manually; meeting mode picks the best one available.
+    //   * All other modes use the global `default_asr_model_id`.
     //
-    // Fix: probe the orchestrator BEFORE the Processing emit — using the
-    // pre-resolved `default_asr_model_id` from an early settings snapshot
-    // — so the FIRST phase the user sees after "audio captured" is the
-    // correct one. A second, redundant Processing emit is skipped on the
-    // cold path (the `was_cold` branch below handles it) and omitted
-    // entirely on the warm path (we already set Processing here).
+    // The mode-level `asr_model_id` field on the Mode struct is still
+    // ignored at runtime (removed as a runtime override in v0.6.6;
+    // the field stays on disk for back-compat with old DB rows).
     //
-    // Any divergence between `default_asr_model_id` resolved here and the
-    // `model_id` resolved later via mode + vocabulary lookup would mean
-    // the probe raced the real target. The mode-level `asr_model_id`
-    // override was removed in v0.6.6, so the two paths now use the same
-    // global setting — they cannot diverge.
-    let early_target_model_id = state
-        .settings
-        .snapshot()
-        .await
-        .models
-        .default_asr_model_id
+    // Why the probe must use the same id as the final transcribe:
+    // before this, the early probe read `default_asr_model_id` and the
+    // final read the same — coincidentally identical. With the meeting
+    // override they could diverge (probe reads default Parakeet,
+    // transcribe routes to Whisper Large) and the user would see
+    // "Processing" flash before the real "Initialising model" cold-load
+    // pill. Resolving once and reusing the binding sidesteps that.
+    let pre_settings = state.settings.snapshot().await;
+    let pre_active_mode_id = pre_settings
+        .active_mode_id
         .clone()
-        .unwrap_or_else(|| "stub".into());
+        .unwrap_or_else(|| "voice-to-text".into());
+    let pre_active_mode = state
+        .modes
+        .get(&pre_active_mode_id)
+        .ok()
+        .flatten()
+        .ok_or_else(|| OrliqError::User {
+            message: "active mode not found".into(),
+        })?;
+    let resolved_model_id = resolve_target_model_id(&pre_active_mode, &pre_settings, &state.models);
     let was_cold =
-        state.inference.loaded_model_id().await.as_deref() != Some(early_target_model_id.as_str());
+        state.inference.loaded_model_id().await.as_deref() != Some(resolved_model_id.as_str());
     if was_cold {
         tracing::info!(
-            model_id = %early_target_model_id,
+            model_id = %resolved_model_id,
+            mode_id = %pre_active_mode.id,
+            is_meeting_mode = pre_active_mode.is_meeting_mode,
             "cold-load detected at stop_recording entry — emitting Warming, skipping initial Processing"
         );
         set_phase(
             &handle,
             DictationPhase::Warming {
-                model_id: early_target_model_id.clone(),
+                model_id: resolved_model_id.clone(),
             },
         )
         .await;
@@ -898,31 +937,14 @@ pub async fn stop_recording(
         }
     }
 
+    // Re-snapshot settings here because audio preprocessing took a
+    // measurable amount of time on long recordings, and the user may
+    // have toggled a setting (privacy, text-output) in another window
+    // since the cold-load probe at the top. The mode + resolved model
+    // come from the earlier snapshot — those don't change mid-stop.
     let settings = state.settings.snapshot().await;
-    let active_mode_id = settings
-        .active_mode_id
-        .clone()
-        .unwrap_or_else(|| "voice-to-text".into());
-    let mode = state
-        .modes
-        .get(&active_mode_id)
-        .ok()
-        .flatten()
-        .ok_or_else(|| OrliqError::User {
-            message: "active mode not found".into(),
-        })?;
-
-    // v0.6.6: globals are authoritative. Previously `mode.asr_model_id`
-    // could override the default, which meant the per-mode picker silently
-    // disagreed with the global Models setting. The field is still in the
-    // persisted Mode struct for backwards compatibility with older DB rows
-    // — it's just ignored at runtime. The UI's per-mode model picker has
-    // been hidden. Users who want a different model change it globally.
-    let model_id = settings
-        .models
-        .default_asr_model_id
-        .clone()
-        .unwrap_or_else(|| "stub".into());
+    let mode = pre_active_mode.clone();
+    let model_id = resolved_model_id.clone();
 
     let vocab_hints = state
         .vocabulary
@@ -963,29 +985,17 @@ pub async fn stop_recording(
     let started = now_ms();
     tracing::info!(%model_id, mode_id = %mode.id, "inference.transcribe begin");
 
-    // v0.6.7 cold-load: the Warming vs Processing decision was made up-front
-    // at the top of stop_recording (see `was_cold` / `early_target_model_id`
-    // above). `was_cold` came from the orchestrator's `loaded_model_id` probe
-    // against `default_asr_model_id` from an early settings snapshot. The
-    // mode-level `asr_model_id` override was removed in v0.6.6, so that
-    // early probe and the final `model_id` resolved from mode + vocab are
-    // the same value — no divergence.
+    // Cold-load: Warming vs Processing was decided at the top of
+    // stop_recording from the resolved model id. `model_id` here is
+    // the same `resolved_model_id` value the early probe used (we
+    // cloned it out above), so probe and transcribe trivially agree.
+    // Nothing more to assert.
     //
-    // All that's left on the cold path is to run `ensure_loaded` explicitly
-    // before transcribe, then snap the phase to Processing the instant the
-    // native warm finishes. `transcribe` does ensure_loaded internally too,
-    // but that path doesn't give us a UI hook between warm-start and
-    // inference-start — so we call it here.
-    //
-    // Debug assertion: if these ever diverge (e.g. a future mode-specific
-    // model override is re-introduced), the cold-load probe was wrong.
-    // A release mismatch is still safe — `transcribe` re-runs
-    // `ensure_loaded` and the worst case is a one-dictation phase
-    // mislabel, not a crash.
-    debug_assert_eq!(
-        model_id, early_target_model_id,
-        "cold-load probe model id must match the final transcribe target"
-    );
+    // All that's left on the cold path is to run `ensure_loaded`
+    // explicitly before transcribe, then snap the phase to Processing
+    // the instant the native warm finishes. `transcribe` does
+    // ensure_loaded internally too, but that path doesn't give us a UI
+    // hook between warm-start and inference-start — so we call it here.
 
     // Set the transcribe-in-flight guard. `start_recording` rejects
     // while this is true so a new recording can't race the current

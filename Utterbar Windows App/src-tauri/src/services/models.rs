@@ -63,6 +63,30 @@ impl ModelRegistry {
         out
     }
 
+    /// Cheap "is this model on disk?" check. One DB read against the
+    /// `models` table; the path is verified to exist on disk so a stale
+    /// row pointing at a manually-deleted directory returns false.
+    /// Used by `dictation.rs` to decide whether Meeting Mode can
+    /// auto-route to Whisper Large without falling back to the global
+    /// default.
+    pub fn is_installed(&self, id: &str) -> bool {
+        let conn = match self.db.conn() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+        let path: Option<String> = conn
+            .query_row(
+                "SELECT path FROM models WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .ok();
+        match path {
+            Some(rel) => self.models_dir.join(rel).exists(),
+            None => false,
+        }
+    }
+
     pub fn list_installed(&self) -> Result<Vec<ModelInfo>> {
         let conn = self.db.conn()?;
         let mut stmt = conn.prepare(

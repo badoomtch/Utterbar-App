@@ -118,15 +118,18 @@ const ENGLISH_VARIANTS: {
 
 export function ModeEditor({
   mode,
-  // `models` was read by the removed per-mode ASR picker. Keeping the
-  // prop in the signature so callers don't need to change their
-  // render site; the underscore prefix silences the unused-var lint.
-  models: _models,
+  models,
   onClose,
   onSaved,
 }: {
   mode: EditableMode;
-  models: Array<{ id: string; display_name: string }>;
+  // The catalogue with each model's installed flag. The per-mode
+  // ASR picker that originally consumed this prop was removed in
+  // v0.6.6; the meeting-mode auto-routing copy reintroduced a real
+  // need for `installed` so the editor can tell the user whether
+  // Meeting mode will pick up Whisper Large automatically or whether
+  // they need to install it first.
+  models: Array<{ id: string; display_name: string; installed: boolean }>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -239,7 +242,7 @@ export function ModeEditor({
 
           <Section
             title="Meeting mode"
-            description="When on, this mode is built for capturing meetings instead of dictation. Recording always uses both your mic and system audio together (so you can transcribe a Zoom or Teams call without a virtual cable). Long recordings are split into 30-second chunks and transcribed piece by piece, so a 45-minute meeting won't crash the recogniser or hit the 15-minute offline cap. Post-processing is skipped — you get the raw transcript, not LLM-polished prose."
+            description="When on, this mode is built for capturing meetings instead of dictation. Recording always uses both your mic and system audio together, so you can transcribe a Zoom or Teams call without a virtual cable. Long recordings are split into 30-second chunks and transcribed piece by piece, so a 45-minute meeting will not crash the recogniser or hit the 15-minute offline cap. Post-processing is skipped, you get the raw transcript, not LLM-polished prose."
           >
             <label className="flex items-center gap-2 text-[13px] text-fg">
               <input
@@ -251,10 +254,25 @@ export function ModeEditor({
               Treat this mode as a meeting capture
             </label>
             {draft.is_meeting_mode && (
-              <div className="rounded-input bg-bg-2 p-3 text-[11px] leading-relaxed text-muted">
-                Output style and the global text-output toggles (numbers as digits,
-                auto-capitalise, trim trailing space) are bypassed when meeting mode is on.
-                English variant still applies because it's a spelling fix, not a rewrite.
+              <div className="space-y-2">
+                {/* Whisper Large auto-routing info. When the user picks
+                    Meeting mode the app silently swaps to Whisper Large
+                    v3 if it's installed, regardless of the global
+                    default model. Surfacing this in the editor stops
+                    the user from changing the global model dropdown
+                    "to fix" their meeting accuracy when they don't
+                    need to. */}
+                <div className="rounded-input bg-bg-2 p-3 text-[12px] leading-relaxed text-fg">
+                  {models.some((m) => m.id === 'sherpa-whisper-large-v3' && m.installed)
+                    ? 'Meeting mode uses Whisper Large v3 for best accuracy.'
+                    : 'Meeting mode uses Whisper Large v3 when installed. Install it in Settings → Models for best meeting accuracy.'}
+                </div>
+                <div className="rounded-input bg-bg-2 p-3 text-[11px] leading-relaxed text-muted">
+                  Output style and the global text-output toggles (numbers as digits,
+                  auto-capitalise, trim trailing space) are bypassed when meeting mode
+                  is on. English variant still applies because it's a spelling fix,
+                  not a rewrite.
+                </div>
               </div>
             )}
           </Section>
