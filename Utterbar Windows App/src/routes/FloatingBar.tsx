@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
+import { BarModeSwitch } from '@/components/bar/BarModeSwitch';
 import { StatePill } from '@/components/bar/StatePill';
 import { UtterbarMiniMark } from '@/components/bar/UtterbarMiniMark';
 import { EVT } from '@/lib/events';
@@ -713,8 +714,8 @@ export function FloatingBar() {
           isCompact ? 'h-[44px]' : 'h-[52px]',
           expanded
             ? isCompact
-              ? 'pl-1.5 pr-1 gap-2 min-w-[340px] justify-between'
-              : 'pl-3 pr-2 gap-2.5 min-w-[460px] justify-between'
+              ? 'pl-1.5 pr-1 gap-2 min-w-[460px] justify-between'
+              : 'pl-3 pr-2 gap-2.5 min-w-[600px] justify-between'
             : isCompact
               ? 'px-2 gap-1.5'
               : 'px-3 gap-2.5',
@@ -892,13 +893,19 @@ export function FloatingBar() {
                 </>
               ) : (
                 <>
-                  {/* Non-listening expanded state: StatePill shows the phase
-                      (Ready / Warming / Processing / Inserted / Error /
-                      Cancelled) and the action row offers Record + History +
-                      Settings. */}
-                  <div className="flex flex-1 items-center justify-start">
+                  {/* Non-listening expanded state. Layout left-to-right:
+                      StatePill (current phase: Ready / Warming / etc.),
+                      mode quick-switch chips (favourites + built-ins,
+                      capped at 5), divider, then the action cluster
+                      (Record / Copy / Settings). The mode switcher only
+                      renders here, not in the listening state, because
+                      switching mid-recording would race the audio
+                      pipeline against an active capture. */}
+                  <div className="flex flex-1 items-center justify-start gap-2">
                     <StatePill phase={phase} />
                   </div>
+                  <BarModeSwitch compact={isCompact} />
+                  <Divider />
                   <div className="flex items-center gap-1">
                     <BarButton
                       onClick={onToggle}

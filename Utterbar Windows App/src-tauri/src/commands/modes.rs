@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use ts_rs::TS;
 
 use crate::app_state::AppState;
-use crate::domain::Mode;
+use crate::domain::{Mode, EVT_SETTINGS_CHANGED};
 use crate::services::tray;
 use crate::util::gating::{is_pro, pro_required};
 use crate::util::result::{CmdResult, OrliqError};
@@ -81,12 +81,22 @@ pub async fn duplicate_mode(
 }
 
 #[tauri::command]
-pub async fn set_active_mode(state: State<'_, Arc<AppState>>, id: String) -> CmdResult<()> {
-    state
+pub async fn set_active_mode(
+    handle: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    id: String,
+) -> CmdResult<()> {
+    let updated = state
         .settings
         .update(|s| s.active_mode_id = Some(id.clone()))
         .await
         .map_err(OrliqError::from)?;
+    // Mirror the emit pattern used by `commands::settings::update_settings`
+    // so any open window that subscribes to settings stays in sync.
+    // Without this, the Modes route's "active" indicator and the floating
+    // bar's mode quick-switcher could disagree about which mode is live
+    // after the user picks one from the bar.
+    let _ = handle.emit(EVT_SETTINGS_CHANGED, &updated);
     Ok(())
 }
 

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Copy, Download, Trash2, Users, Clock, FileText, Sparkles } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/PageHeader';
-import { invoke } from '@/lib/ipc';
+import { invoke, listen } from '@/lib/ipc';
+import { EVT } from '@/lib/events';
 import { cn } from '@/lib/cn';
 import type { HistoryEntry } from '@/generated/HistoryEntry';
 
@@ -50,6 +51,23 @@ export function MeetingsRoute() {
     void load();
   }, []);
 
+  // Refresh when a new meeting transcript is committed. Rust emits
+  // `dictation:result` after the history row is inserted; the payload
+  // is the full HistoryEntry. We filter on `is_meeting` so dictation
+  // entries don't trigger a redundant Meetings reload — they go to
+  // /history, not here. Event-driven so the user staying on /meetings
+  // sees the new row arrive without clicking around.
+  useEffect(() => {
+    const p = listen<HistoryEntry>(EVT.dictationResult, (e) => {
+      if (e.payload?.is_meeting) {
+        void load();
+      }
+    });
+    return () => {
+      void p.then((u) => u()).catch(() => undefined);
+    };
+  }, []);
+
   const selected = meetings.find((m) => m.id === selectedId) ?? null;
 
   if (selected) {
@@ -77,6 +95,18 @@ export function MeetingsRoute() {
               key={m.id}
               entry={m}
               onClick={() => setSelectedId(m.id)}
+              onDelete={async () => {
+                if (
+                  !window.confirm(
+                    'Delete this meeting transcript? This cannot be undone.',
+                  )
+                ) {
+                  return;
+                }
+                await invoke('delete_history_entry', { id: m.id });
+                if (selectedId === m.id) setSelectedId(null);
+                void load();
+              }}
             />
           ))}
         </div>
@@ -99,7 +129,15 @@ function EmptyState() {
   );
 }
 
-function MeetingCard({ entry, onClick }: { entry: HistoryEntry; onClick: () => void }) {
+function MeetingCard({
+  entry,
+  onClick,
+  onDelete,
+}: {
+  entry: HistoryEntry;
+  onClick: () => void;
+  onDelete: () => void;
+}) {
   // Number(...) because ts-rs emits bigint for i64 fields.
   const createdAt = new Date(Number(entry.created_at));
   const durationSec = Math.max(1, Math.round(Number(entry.audio_duration_ms) / 1000));
@@ -110,10 +148,23 @@ function MeetingCard({ entry, onClick }: { entry: HistoryEntry; onClick: () => v
   // at ~120 chars. Gives a glanceable "what was this about" preview.
   const preview = firstLine(entry.processed_text);
 
+  // Outer is a div with role=button rather than a <button> so the inner
+  // delete affordance can also be a real button without nesting buttons
+  // (invalid HTML, breaks keyboard navigation in unhelpful ways). Keyboard
+  // and ARIA semantics preserved by hand: tabIndex + role + Enter/Space
+  // handler.
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="block w-full rounded-input bg-bg-2 p-4 text-left transition-colors hover:bg-bg-2/80"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="group block w-full cursor-pointer rounded-input bg-bg-2 p-4 text-left transition-colors hover:bg-bg-2/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -132,11 +183,27 @@ function MeetingCard({ entry, onClick }: { entry: HistoryEntry; onClick: () => v
           </div>
           <div className="mt-2 truncate text-sm text-fg">{preview || '(empty transcript)'}</div>
         </div>
-        <div className="text-[11px] text-muted">
-          {entry.mode_name_snapshot}
+        <div className="flex shrink-0 items-start gap-2">
+          <div className="text-[11px] text-muted">{entry.mode_name_snapshot}</div>
+          {/* Delete affordance. Hidden until card hover or focus to keep
+              the list calm on first read; revealed when the user is
+              already focused on this row. stopPropagation so the click
+              doesn't bubble up and open the detail view. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            aria-label="Delete meeting"
+            title="Delete meeting"
+            className="shrink-0 rounded p-1 text-muted opacity-0 transition-opacity hover:bg-rose-500/10 hover:text-rose-400 focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

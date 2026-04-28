@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { invoke } from '@/lib/ipc';
+import { invoke, listen } from '@/lib/ipc';
+import { EVT } from '@/lib/events';
 
 export type Mode = {
   id: string;
@@ -10,6 +11,7 @@ export type Mode = {
   sort_order: number;
   asr_model_id: string | null;
   target_language: string | null;
+  is_meeting_mode?: boolean;
 };
 
 type ModesStore = {
@@ -34,3 +36,15 @@ export const useModes = create<ModesStore>((set) => ({
     set({ activeId: id });
   },
 }));
+
+// Cross-window sync. Settings emits `settings:changed` whenever the
+// settings object is updated, including via `set_active_mode`. We
+// re-pull the active id from the payload so a mode switch in one
+// window (e.g. the floating bar's quick switcher) is reflected in
+// every other open window (Modes route, etc.) without each one having
+// to subscribe individually. The full mode list is loaded lazily; if
+// it hasn't been loaded yet, the snapshot here just updates activeId.
+void listen<{ active_mode_id?: string | null }>(EVT.settingsChanged, (e) => {
+  const next = e.payload?.active_mode_id ?? null;
+  useModes.setState((s) => (s.activeId === next ? s : { ...s, activeId: next }));
+});
