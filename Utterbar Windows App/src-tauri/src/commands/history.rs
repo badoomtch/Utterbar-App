@@ -121,6 +121,9 @@ pub async fn reprocess_history(
         // processing, so a reprocessed row is by definition a dictation
         // and belongs on /history rather than /meetings.
         is_meeting: false,
+        // Reprocessed rows are dictations: no `**Speaker N:**` tokens
+        // for a rename map to substitute against. None.
+        speaker_names: None,
     };
     state.history.insert(&entry).map_err(OrliqError::from)?;
     Ok(entry)

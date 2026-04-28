@@ -58,6 +58,27 @@ pub struct AppState {
     /// The frontend fan-out gate is the primary fix; this is defence in
     /// depth so a future regression can't re-introduce the same crash.
     pub recording_in_progress: AtomicBool,
+    /// Unix ms of the last `recording_in_progress = true` transition.
+    /// Mirrors `transcribe_started_at_ms` below: lets the
+    /// re-entry guard in `start_recording` time-gate stale-heal so a
+    /// duplicate hotkey landing during a normal start/capture
+    /// transition (no flags held, capture not yet observable) doesn't
+    /// pre-empt the in-flight start. 0 means "no recording in flight".
+    /// Writes only happen when `recording_in_progress` is being
+    /// toggled, so no separate lock. Stored as i64 to match `now_ms()`.
+    ///
+    /// Why this is needed (round-5 fix): the re-entry guard samples
+    /// `start_recording_pending`, `audio.current().await`, and
+    /// `meeting_preflight_in_progress` non-atomically across an
+    /// `await`. Even with `start_recording_pending` claimed via CAS
+    /// before the first await, a duplicate call landing AFTER the
+    /// in-flight start drops the pending flag and BEFORE
+    /// `audio.current()` reflects the just-armed capture would see
+    /// `(pending=false, capture=None)` and stale-heal a flag that is
+    /// not stale at all. Time-gating self-heal closes that window:
+    /// the flag is only treated as stale when it has been held for
+    /// `RECORDING_STALE_MS` (well past any normal start latency).
+    pub recording_in_progress_started_at_ms: std::sync::atomic::AtomicI64,
     /// Transcribe-in-flight guard. Set when `stop_recording` hands audio
     /// off to the inference orchestrator, cleared when `stop_recording`
     /// returns. `start_recording` rejects while this is true — the user
@@ -77,6 +98,65 @@ pub struct AppState {
     /// "no transcribe in flight". Writes only happen when
     /// `transcribe_in_progress` is being toggled, so no separate lock.
     pub transcribe_started_at_ms: std::sync::atomic::AtomicI64,
+    /// `start_recording` lifecycle CAS-mutex (v0.15.0+).
+    ///
+    /// Claimed via `compare_exchange(false, true)` immediately after
+    /// the `recording_in_progress` CAS succeeds, BEFORE any await.
+    /// Held through every subsequent await (settings snapshot,
+    /// meeting-mode model checks, diariser asset prep, mic/loopback
+    /// arming) until `start_recording` returns — by any path,
+    /// including error/panic. Cleared by an RAII guard
+    /// (`StartPendingGuard` in dictation.rs) so unwind safety
+    /// doesn't depend on every early-return remembering to flip the
+    /// flag.
+    ///
+    /// Why CAS rather than `store(true)` (round-5 fix):
+    /// `recording_in_progress` and this flag are claimed by separate
+    /// atomic ops, so a pathological scheduling could land two
+    /// concurrent calls between the two ops on the same start. A
+    /// CAS on the second flag turns "guard claim" into a true
+    /// mutex-acquire — only one start owns the pending state at a
+    /// time. If the CAS fails the start refuses to proceed, even
+    /// though it won the `recording_in_progress` race; the
+    /// already-in-flight start is the canonical owner.
+    ///
+    /// Why a separate flag from `recording_in_progress`:
+    ///   * `recording_in_progress` is also held high after start
+    ///     completes, all the way through the user's recording until
+    ///     `stop_recording` drops it. It can't tell us "is a START
+    ///     command in flight right now?" by itself.
+    ///   * The pre-v0.15 stale-self-heal looked at
+    ///     `(recording_in_progress=true && capture=None)` and treated
+    ///     it as a desync. With awaits between the CAS and capture
+    ///     arming (the meeting preflight is up to ~47 MB of network
+    ///     I/O; even non-meeting starts await `settings.snapshot()`
+    ///     and `audio.start_capture()`), that pair can legitimately
+    ///     mean "another start is in its prep window — please wait."
+    ///     Without this flag, a second hotkey during the prep window
+    ///     passes the self-heal and races duplicate capture armament.
+    ///
+    /// Together with `meeting_preflight_in_progress` below this lets
+    /// the re-entry path distinguish three rejection cases when the
+    /// `recording_in_progress` CAS fails: active capture, generic
+    /// start-pending, meeting-preflight (the only case where we
+    /// surface the diariser-specific message).
+    pub start_recording_pending: AtomicBool,
+    /// Meeting-mode diariser asset-prep marker (v0.15.0+).
+    ///
+    /// A NARROW sub-flag inside the `start_recording_pending` window:
+    /// true only while `diarize_assets::ensure_assets_ready` is
+    /// running (the ~47 MB network/disk operation), false otherwise.
+    /// Doesn't gate re-entry by itself — `start_recording_pending`
+    /// already does that. Used purely to let `decide_reentry`
+    /// surface the better-targeted "Preparing meeting models — try
+    /// again in a moment." message while the diariser download is in
+    /// flight, so the user knows the wait is data-bound rather than
+    /// a generic startup glitch. Outside the diariser preflight the
+    /// generic "Recording is starting" message is correct.
+    ///
+    /// Cleared by its own RAII guard — drop runs on success, error,
+    /// and panic alike.
+    pub meeting_preflight_in_progress: AtomicBool,
     handle: RwLock<Option<AppHandle>>,
 }
 
@@ -245,8 +325,11 @@ impl AppState {
             media,
             licence,
             recording_in_progress: AtomicBool::new(false),
+            recording_in_progress_started_at_ms: std::sync::atomic::AtomicI64::new(0),
             transcribe_in_progress: AtomicBool::new(false),
             transcribe_started_at_ms: std::sync::atomic::AtomicI64::new(0),
+            start_recording_pending: AtomicBool::new(false),
+            meeting_preflight_in_progress: AtomicBool::new(false),
             handle: RwLock::new(None),
         })
     }

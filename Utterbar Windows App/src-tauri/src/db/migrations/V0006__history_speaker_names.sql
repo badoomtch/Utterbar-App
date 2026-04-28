@@ -1,0 +1,21 @@
+-- Per-meeting speaker rename map. Set post-transcribe by the user
+-- when they edit a label on the Meetings page; consumed at render
+-- time + export time to substitute `**Speaker N:**` tokens in the
+-- raw transcript with the user's chosen name.
+--
+-- Storage: nullable JSON object keyed by integer speaker id (as
+-- string), e.g. `{"1": "Jay", "2": "Customer"}`. Null means "no
+-- rename — render the raw `**Speaker N:**` labels". Old v0.14.x
+-- meeting rows also have null here (the diariser wasn't there, so
+-- their `processed_text` has no `**Speaker N:**` tokens to
+-- substitute anyway — null is correct, no migration needed).
+--
+-- The raw `processed_text` column stays canonical: rename is purely
+-- a render-time substitution. Re-rename works (replace map);
+-- clear-rename works (set null); database backup/restore round-trips
+-- without losing rename state OR transcript content.
+--
+-- No index needed — speaker_names is read alongside the row by id
+-- (already keyed by primary key). The /meetings list query doesn't
+-- filter on it.
+ALTER TABLE history ADD COLUMN speaker_names TEXT NULL;

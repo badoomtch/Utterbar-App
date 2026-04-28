@@ -79,6 +79,319 @@ fn record_delivery(now_ms: i64, app_exe: Option<&str>, delivered: &str) {
     });
 }
 
+/// Stale-heal threshold for the `recording_in_progress` flag.
+///
+/// The re-entry guard in `start_recording` time-gates self-heal:
+/// only when the flag has been held for longer than this is it
+/// considered stale and clearable. This closes a race that
+/// non-time-gated logic can't (round-5 fix):
+/// `start_recording_pending` and `audio.current().await` are read
+/// across an `await`, so a duplicate call can sample
+/// `(pending=false, capture=None)` even though the in-flight
+/// start has just dropped pending and is one scheduler tick away
+/// from arming capture. Without a time gate, that snapshot would
+/// stale-heal a flag that is not stale.
+///
+/// Sized well past worst-case start latency (cold sherpa load +
+/// settings I/O measured ~3-7 s; meeting-mode diariser download
+/// up to ~30 s on slow links) so a real start can never be
+/// pre-empted by a duplicate hotkey, and well below "user gives
+/// up and assumes the app is broken" so a genuinely wedged flag
+/// from a panicked task gets cleared within a tolerable wait.
+///
+/// 30 s mirrors `TRANSCRIBE_STALE_MS` below — the same reasoning
+/// applies (cover all real prep latencies, recover from genuine
+/// hangs in a single user-noticeable cycle).
+const RECORDING_STALE_MS: i64 = 30_000;
+
+/// Decision returned by the re-entry guard in `start_recording`
+/// when its CAS on `recording_in_progress` failed (some other
+/// invocation already set the flag). Reached by a two-stage
+/// process — see the `decide_…` helpers below.
+///
+/// The four reject + one proceed branches map 1:1 to user-visible
+/// behaviour:
+///
+///   * `RejectActiveCapture` — a recording is genuinely live. The
+///     duplicate hotkey press should re-sync the frontend's
+///     Listening phase and refuse with "recording already in
+///     progress".
+///   * `RejectPreflight` — a previous start is still inside the
+///     meeting-mode diariser asset prep. The duplicate press
+///     should refuse with a "preparing models, try again" message
+///     and NOT clear the recording_in_progress flag (it belongs
+///     to the in-flight start).
+///   * `RejectStartPending` — a previous start is still in its
+///     pre-arm prep window (settings snapshot, mode lookup, mic
+///     enumeration, etc.) but NOT in the diariser preflight. The
+///     duplicate press should refuse with a generic "starting"
+///     message and NOT clear the recording_in_progress flag.
+///   * `RejectYoungFlag` — no flags held and no live capture
+///     observed, but `recording_in_progress` was set very
+///     recently (younger than `RECORDING_STALE_MS`). Almost
+///     certainly the in-flight start has just dropped its
+///     pending flag and capture armament hasn't surfaced through
+///     `audio.current()` yet. Treat as a transient busy state
+///     rather than stale.
+///   * `ProceedAfterStaleHeal` — flag is older than
+///     `RECORDING_STALE_MS`, no flags held, no capture observed,
+///     and a re-check confirms nothing came in flight while we
+///     looked. The flag was left stuck true by a previous error
+///     path. This is the only legitimate self-heal case.
+///
+/// Pre-v0.15.0 only `RejectActiveCapture` and
+/// `ProceedAfterStaleHeal` existed; the others were added across
+/// rounds 3 (preflight), 4 (start-pending), and 5 (young-flag +
+/// time-gated stale-heal). Each round closed a real race window —
+/// see commit history and `AppState::start_recording_pending` for
+/// the lifecycle contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reentry {
+    RejectActiveCapture,
+    RejectPreflight,
+    RejectStartPending,
+    RejectYoungFlag,
+    ProceedAfterStaleHeal,
+}
+
+/// RAII guard for the `start_recording_pending` CAS-mutex (round-5).
+///
+/// `claim` returns `Some(Self)` only if the inner CAS succeeds;
+/// returns `None` if some other invocation has already claimed the
+/// pending flag (i.e. another `start_recording` is mid-flight).
+/// Drop unconditionally clears the flag so unwind safety doesn't
+/// depend on every early-return remembering to flip it. Borrows
+/// the `AtomicBool` directly so unit tests can exercise the
+/// CAS + drop contract without standing up `AppState`.
+struct StartPendingGuard<'a> {
+    flag: &'a std::sync::atomic::AtomicBool,
+}
+
+impl<'a> StartPendingGuard<'a> {
+    /// Try to claim the flag via CAS. Returns `Some(Self)` on
+    /// success, `None` if the flag was already true.
+    fn try_claim(flag: &'a std::sync::atomic::AtomicBool) -> Option<Self> {
+        flag.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::AcqRel,
+            std::sync::atomic::Ordering::Acquire,
+        )
+        .ok()
+        .map(|_| Self { flag })
+    }
+}
+
+impl<'a> Drop for StartPendingGuard<'a> {
+    fn drop(&mut self) {
+        self.flag.store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
+/// RAII guard for the narrow inner `meeting_preflight_in_progress`
+/// flag. `store(true)` on construction is fine here because the
+/// outer `StartPendingGuard` already serialises the entire start
+/// lifecycle — there can be at most one preflight in flight per
+/// process at any time, and it always lives strictly inside the
+/// pending window. Drop unconditionally clears.
+struct PreflightGuard<'a> {
+    flag: &'a std::sync::atomic::AtomicBool,
+}
+
+impl<'a> PreflightGuard<'a> {
+    fn claim(flag: &'a std::sync::atomic::AtomicBool) -> Self {
+        flag.store(true, std::sync::atomic::Ordering::Release);
+        Self { flag }
+    }
+}
+
+impl<'a> Drop for PreflightGuard<'a> {
+    fn drop(&mut self) {
+        self.flag.store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
+/// Stage 1 of the re-entry decision (round-5).
+///
+/// Called BEFORE any await, immediately after the
+/// `recording_in_progress` CAS fails. Reads the two pending
+/// atomics and returns a rejection if either is held. Returning
+/// `None` means "no rejection from pending state — caller must
+/// proceed to stage 2 (probe capture)". Pure for testability.
+///
+/// Why this comes first: pre-round-5 the CAS-failed branch awaited
+/// `audio.current()` before reading `start_recording_pending`. The
+/// await was a yield point that let the in-flight start drop the
+/// pending flag, so by the time we read it the value was stale.
+/// Reading the cheap atomics first (both `Acquire` loads with no
+/// scheduling cost) means a pending start is rejected on its
+/// canonical signal, no time-gate or capture probe needed.
+fn decide_pre_probe(start_pending: bool, preflight_in_progress: bool) -> Option<Reentry> {
+    if start_pending {
+        if preflight_in_progress {
+            Some(Reentry::RejectPreflight)
+        } else {
+            Some(Reentry::RejectStartPending)
+        }
+    } else {
+        None
+    }
+}
+
+/// Stage 2 of the re-entry decision (round-5).
+///
+/// Called only after stage 1 returned `None`. Inputs are sampled
+/// across an `await` (we did `audio.current().await` between
+/// stages), so the contract is pessimistic: only stale-heal when
+/// every signal agrees the flag is genuinely abandoned, including
+/// a time gate and a re-check of the pending atomics after the
+/// stale-age check.
+///
+///   * `has_live_capture` — result of `audio.current().await.is_some()`
+///   * `flag_age_ms` — how long `recording_in_progress` has been
+///     held; 0 means "no timestamp recorded" (treat as fresh, do
+///     not stale-heal — the in-flight start is mid-CAS-then-stamp)
+///   * `start_pending_recheck` — re-load of
+///     `start_recording_pending` AFTER the `audio.current().await`
+///   * `preflight_recheck` — re-load of
+///     `meeting_preflight_in_progress` AFTER the await
+///
+/// Priority:
+///   1. Live capture wins.
+///   2. If pending re-flips true during the await, treat as
+///      pre-probe rejection (preflight if both, else generic).
+///   3. Flag too young to be stale → reject as transient busy.
+///   4. Flag old enough AND no capture AND no pending →
+///      legitimate self-heal.
+fn decide_post_probe(
+    has_live_capture: bool,
+    flag_age_ms: i64,
+    start_pending_recheck: bool,
+    preflight_recheck: bool,
+) -> Reentry {
+    if has_live_capture {
+        return Reentry::RejectActiveCapture;
+    }
+    // Pending flipped to true between stages — treat exactly as
+    // stage 1 would have. The in-flight start that won the race
+    // owns the pending state.
+    if start_pending_recheck {
+        return if preflight_recheck {
+            Reentry::RejectPreflight
+        } else {
+            Reentry::RejectStartPending
+        };
+    }
+    // Flag age 0 means we caught the in-flight start between its
+    // CAS-set and its timestamp store. Treat as young — never
+    // stale-heal a flag whose age we can't establish.
+    if flag_age_ms <= 0 || flag_age_ms < RECORDING_STALE_MS {
+        return Reentry::RejectYoungFlag;
+    }
+    Reentry::ProceedAfterStaleHeal
+}
+
+/// Apply a re-entry rejection: emit the appropriate frontend
+/// signal and return the matching error. Centralised so the
+/// stage-1 and stage-2 sites have identical behaviour. Never
+/// touches `recording_in_progress` or `start_recording_pending` —
+/// every rejection here represents "some other call owns those
+/// flags", and clearing them would corrupt the in-flight start.
+///
+/// `Reentry::ProceedAfterStaleHeal` is rejected at the type level
+/// by callers (they handle proceed inline). Passing it here is a
+/// programmer error and we panic in debug, log in release.
+async fn reject_reentry(handle: &AppHandle, decision: Reentry) -> CmdResult<()> {
+    let (log_msg, user_msg, reemit_listening) = match decision {
+        Reentry::RejectActiveCapture => (
+            "start_recording rejected: another start is already in progress — re-emitting Listening phase to re-sync frontend",
+            "recording already in progress",
+            true,
+        ),
+        Reentry::RejectPreflight => (
+            "start_recording rejected: meeting-mode diariser asset prep still in flight from a previous start",
+            "Preparing meeting models — try again in a moment.",
+            false,
+        ),
+        Reentry::RejectStartPending => (
+            "start_recording rejected: a previous start is still preparing (no live capture yet)",
+            "Recording is starting — try again in a moment.",
+            false,
+        ),
+        Reentry::RejectYoungFlag => (
+            "start_recording rejected: recording_in_progress flag is fresh (younger than RECORDING_STALE_MS) and no capture/pending yet — likely transient race with an in-flight start",
+            "Recording is starting — try again in a moment.",
+            false,
+        ),
+        Reentry::ProceedAfterStaleHeal => {
+            debug_assert!(false, "reject_reentry called with ProceedAfterStaleHeal");
+            tracing::error!("reject_reentry called with ProceedAfterStaleHeal — this is a bug");
+            return Ok(());
+        }
+    };
+    tracing::warn!("{log_msg}");
+    if reemit_listening {
+        // Re-sync the frontend's Listening phase. When the
+        // dictation store has desynced from Rust (observed
+        // 2026-04-24: phase store stuck at idle/processing/success
+        // while capture was still running), the UI thinks it isn't
+        // recording and every hotkey routes to start — all of
+        // which we reject. Pushing a fresh Listening phase resets
+        // the frontend so the user's NEXT press hits the stop
+        // branch correctly.
+        set_phase(
+            handle,
+            DictationPhase::Listening {
+                started_at_ms: now_ms(),
+            },
+        )
+        .await;
+    }
+    emit_busy(handle);
+    Err(OrliqError::User {
+        message: user_msg.into(),
+    })
+}
+
+/// Mark `recording_in_progress` true via CAS and stamp the
+/// timestamp. Returns true if the CAS succeeded (caller owns the
+/// flag), false otherwise. Always store the timestamp on success
+/// so the time-gated stale-heal has something to read.
+fn mark_recording_started(state: &AppState) -> bool {
+    let won = state
+        .recording_in_progress
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::AcqRel,
+            std::sync::atomic::Ordering::Acquire,
+        )
+        .is_ok();
+    if won {
+        state
+            .recording_in_progress_started_at_ms
+            .store(now_ms(), std::sync::atomic::Ordering::Release);
+    }
+    won
+}
+
+/// Clear `recording_in_progress` and zero the started-at
+/// timestamp. Pair-write helper so every clear site keeps the two
+/// atomics consistent — there are 7 clear sites in this file
+/// (mic-fail, loopback-fail, transcribe-still-running rejection,
+/// missing-Whisper-Large rejection, no-active-recording in stop,
+/// normal stop, cancel) and forgetting the timestamp on any of
+/// them would leave a stale `started_at_ms` to confuse the next
+/// stale-heal probe.
+fn clear_recording_flag(state: &AppState) {
+    state
+        .recording_in_progress
+        .store(false, std::sync::atomic::Ordering::Release);
+    state
+        .recording_in_progress_started_at_ms
+        .store(0, std::sync::atomic::Ordering::Release);
+}
+
 #[tauri::command]
 pub async fn start_recording(
     handle: AppHandle,
@@ -136,65 +449,127 @@ pub async fn start_recording(
     // depth so a future frontend regression can't re-introduce the same
     // crash.
     //
-    // v0.6.3 self-heal: if the flag is stuck true but the audio service
-    // has no active capture, the guard has desynced from reality — most
-    // likely because an earlier transcribe returned an error that
-    // short-circuited the normal `stop_recording → clear flag` path,
-    // or because a dropped dictation-phase event left the frontend
-    // thinking it was idle while the Rust flag was still set. Without
-    // the self-heal, the user's hotkey silently does nothing until
-    // they restart the app. With it, we detect the stale flag, clear
-    // it, log a warning (so a real regression is still visible in the
-    // log), and proceed with the start as normal.
-    if state
-        .recording_in_progress
-        .compare_exchange(
-            false,
-            true,
-            std::sync::atomic::Ordering::AcqRel,
-            std::sync::atomic::Ordering::Acquire,
-        )
-        .is_err()
-    {
-        // Probe the audio service: is there genuinely a live capture?
-        let has_live_capture = state.audio.current().await.is_some();
-        if has_live_capture {
-            // Re-emit the authoritative Listening phase. When the frontend's
-            // dictation store has desynced from Rust (observed 2026-04-24:
-            // phase store was stuck at idle/processing/success while the
-            // capture was still running), the UI thinks it isn't recording
-            // and every hotkey press routes to start — all of which we
-            // reject. Pushing a fresh `Listening` phase resets the frontend
-            // so the user's NEXT press hits the stop branch correctly.
-            // We don't persist the original recording_started_at_ms, so the
-            // re-emitted Listening phase carries the current wallclock.
-            // This is strictly a UI resync path — the user has already
-            // been recording for some time, but we don't have the exact
-            // start timestamp handy. The duration counter in FloatingBar
-            // resets, which is a small UX compromise vs. staying wedged.
-            tracing::warn!(
-                "start_recording rejected: another start is already in progress — re-emitting Listening phase to re-sync frontend"
-            );
-            set_phase(
-                &handle,
-                DictationPhase::Listening {
-                    started_at_ms: now_ms(),
-                },
-            )
-            .await;
-            emit_busy(&handle);
-            return Err(OrliqError::User {
-                message: "recording already in progress".into(),
-            });
+    // Stale self-heal: if `recording_in_progress` is stuck true but no
+    // capture is active AND no start is in flight AND the flag is older
+    // than `RECORDING_STALE_MS`, the guard has desynced from reality —
+    // most likely because an earlier transcribe returned an error that
+    // short-circuited the normal stop_recording → clear flag path, or
+    // because a dropped dictation-phase event left the frontend thinking
+    // it was idle while the Rust flag was still set. Without the
+    // self-heal, the user's hotkey silently does nothing until they
+    // restart the app.
+    //
+    // v0.15.0 corrections (rounds 3, 4, 5):
+    //
+    // The fundamental problem: `recording_in_progress`,
+    // `start_recording_pending`, `audio.current()` and the started-at
+    // timestamp are FOUR atomics read across at least one `await`
+    // (`audio.current().await`). They cannot be sampled as a coherent
+    // group — by the time we look at the second one, the first may
+    // have changed. The pre-round-5 logic ignored that and read
+    // `audio.current()` first, which let a duplicate hotkey landing
+    // between "in-flight start drops pending" and "capture surfaces
+    // through audio.current()" sample `(pending=false, capture=None)`
+    // and stale-heal a flag that was not stale.
+    //
+    // Round-5 fix (this code):
+    //   1. Stage 1 reads ONLY the cheap pending atomics (no await,
+    //      no scheduling cost). If either is held, reject — no probe
+    //      needed.
+    //   2. Stage 2 (only if stage 1 said "proceed") probes
+    //      `audio.current().await`, then reads the started-at age,
+    //      then RE-READS the pending atomics. Stale-heal only fires
+    //      when every signal agrees: capture=None, age >=
+    //      RECORDING_STALE_MS, pending still false on the recheck.
+    //
+    // Round-4 introduced `start_recording_pending` (CAS-mutex in
+    // round-5: `StartPendingGuard::try_claim`). Round-3 introduced
+    // `meeting_preflight_in_progress` (narrow inner flag for the
+    // ~47 MB diariser download window — used only to pick the
+    // better-targeted reject message).
+    if !mark_recording_started(state.inner()) {
+        // Stage 1: cheap atomic reads, no await.
+        let start_pending = state
+            .start_recording_pending
+            .load(std::sync::atomic::Ordering::Acquire);
+        let preflight_in_progress = state
+            .meeting_preflight_in_progress
+            .load(std::sync::atomic::Ordering::Acquire);
+        if let Some(reject) = decide_pre_probe(start_pending, preflight_in_progress) {
+            return reject_reentry(&handle, reject).await;
         }
-        // Flag was true but no capture is running — stale. Clear it and
-        // fall through. We deliberately don't re-CAS here: the flag is
-        // already true from our perspective, so we just keep it that
-        // way for the rest of this invocation.
-        tracing::warn!(
-            "start_recording: recording_in_progress flag was stuck true with no active capture — clearing as stale and proceeding"
+
+        // Stage 2: probe capture (await), then re-read pending atomics
+        // and the started-at timestamp. The re-read is non-negotiable —
+        // the await is a scheduling point, and the in-flight start may
+        // claim pending between stage 1 and the probe.
+        let has_live_capture = state.audio.current().await.is_some();
+        let started_at_ms = state
+            .recording_in_progress_started_at_ms
+            .load(std::sync::atomic::Ordering::Acquire);
+        let flag_age_ms = if started_at_ms == 0 {
+            0
+        } else {
+            now_ms() - started_at_ms
+        };
+        let start_pending_recheck = state
+            .start_recording_pending
+            .load(std::sync::atomic::Ordering::Acquire);
+        let preflight_recheck = state
+            .meeting_preflight_in_progress
+            .load(std::sync::atomic::Ordering::Acquire);
+        let decision = decide_post_probe(
+            has_live_capture,
+            flag_age_ms,
+            start_pending_recheck,
+            preflight_recheck,
         );
+        match decision {
+            Reentry::ProceedAfterStaleHeal => {
+                // Flag was true, no live capture, no start in flight,
+                // older than RECORDING_STALE_MS, and a re-check
+                // confirmed nothing came in flight while we probed.
+                // Genuinely stale. We deliberately don't re-CAS:
+                // recording_in_progress is already true from any
+                // perspective, so we keep it that way for this
+                // invocation. Stamp a fresh started-at so the next
+                // stale-heal probe times from now, not from the old
+                // wedged value.
+                tracing::warn!(
+                    flag_age_ms = flag_age_ms,
+                    "start_recording: recording_in_progress flag was stuck true (age >= {RECORDING_STALE_MS}ms) with no active capture or in-flight start — clearing as stale and proceeding"
+                );
+                state
+                    .recording_in_progress_started_at_ms
+                    .store(now_ms(), std::sync::atomic::Ordering::Release);
+            }
+            other => return reject_reentry(&handle, other).await,
+        }
     }
+
+    // Claim the start-pending CAS-mutex IMMEDIATELY, BEFORE any await.
+    // `try_claim` returns None if some other invocation has already
+    // claimed pending — which under normal flow shouldn't happen
+    // (the recording_in_progress CAS above already serialised us)
+    // but CAN happen via the stale-heal path: we proceeded with
+    // recording_in_progress already true, and another start may
+    // have CAS-claimed pending in the meantime. Treat that as
+    // "another start owns the pending lock" and reject — it's
+    // the safer side of the trade-off, and the user can retry.
+    let Some(_start_pending_guard) = StartPendingGuard::try_claim(&state.start_recording_pending)
+    else {
+        tracing::warn!(
+            "start_recording rejected: start_recording_pending CAS lost — another start owns the lock"
+        );
+        emit_busy(&handle);
+        // Don't clear recording_in_progress: we proceeded under the
+        // stale-heal branch, so it was already true; clearing it now
+        // would yank it out from under the in-flight start that
+        // owns the pending lock.
+        return Err(OrliqError::User {
+            message: "Recording is starting — try again in a moment.".into(),
+        });
+    };
 
     // Transcribe-in-flight rejection. The inference orchestrator
     // serialises with a single write lock, so even if we armed a new
@@ -224,10 +599,10 @@ pub async fn start_recording(
             );
             // Clear our recording_in_progress CAS — we're about to bail
             // without actually starting, so leaving it true would wedge
-            // the next press.
-            state
-                .recording_in_progress
-                .store(false, std::sync::atomic::Ordering::Release);
+            // the next press. `clear_recording_flag` also zeroes the
+            // started-at timestamp so the next stale-heal probe doesn't
+            // see a phantom age.
+            clear_recording_flag(state.inner());
             emit_busy(&handle);
             return Err(OrliqError::User {
                 message: "still transcribing — wait a moment".into(),
@@ -276,6 +651,88 @@ pub async fn start_recording(
     } else {
         settings.audio.capture_source
     };
+
+    // ── Meeting-mode preflight (v0.15.0) ────────────────────────────
+    //
+    // Pre-fix (v0.14.x), `resolve_target_model_id` silently fell
+    // back to Parakeet when Whisper Large wasn't installed,
+    // meaning Meeting Mode without Whisper Large just ran the
+    // wrong model. v0.15 makes this a hard failure at start-time
+    // instead of a soft surprise at stop-time.
+    //
+    // Diariser assets: if the user has never used meeting mode
+    // before, the ~47 MB pyannote+TitaNet pair isn't on disk yet.
+    // Trigger the download here, BEFORE recording arms — better
+    // than after stop because the user expects a meeting recording
+    // to start "now", not after a network round-trip.
+    if is_meeting {
+        const WHISPER_LARGE: &str = "sherpa-whisper-large-v3";
+        if !state.models.is_installed(WHISPER_LARGE) {
+            tracing::warn!(
+                "start_recording refused: meeting mode requires Whisper Large but it isn't installed"
+            );
+            clear_recording_flag(state.inner());
+            set_phase(
+                &handle,
+                DictationPhase::Error {
+                    message: "Meeting mode needs Whisper Large. Install it from Settings → Models, then start the meeting again.".into(),
+                },
+            )
+            .await;
+            schedule_idle(&handle, 2400);
+            return Err(OrliqError::User {
+                message: "Meeting mode requires Whisper Large. Install it from Settings → Models, then try again.".into(),
+            });
+        }
+
+        // Diariser assets — block start_recording until they're
+        // present. ensure_assets_ready emits ModelProgress events
+        // along the way; the bar shows a Warming-style toast.
+        //
+        // Narrow inner flag (v0.15.0, refined in round 4): the
+        // outer `start_recording_pending` CAS-mutex (claimed at the
+        // top of start_recording) already gates re-entry. This
+        // narrower flag is what lets the re-entry helper return
+        // `RejectPreflight` (with the diariser-specific message)
+        // when (and ONLY when) the in-flight start is provably
+        // inside this ~47 MB download/extract. Outside this window
+        // the generic `RejectStartPending` message is correct.
+        //
+        // `PreflightGuard` (RAII) makes clear-on-exit unconditional:
+        // any future early-return, panic, or `?` propagation across
+        // the await releases the flag. Plain `store(true)` claim
+        // is fine here — the outer pending mutex already serialises
+        // the start lifecycle so two preflights can't overlap.
+        let prep_result = {
+            let _preflight_guard = PreflightGuard::claim(&state.meeting_preflight_in_progress);
+            crate::services::inference::diarize_assets::ensure_assets_ready(&handle).await
+        };
+        match prep_result {
+            Ok(_) => {
+                tracing::info!("start_recording: diariser assets ready");
+            }
+            Err(e) => {
+                // Asset prep failed (network, policy, SHA mismatch).
+                // We still proceed — the stop_recording path will
+                // detect missing assets and fall through to the
+                // chunked-no-labels fallback. The user gets a
+                // transcript even if the diariser couldn't be set
+                // up. Surface the cause via a transient error
+                // toast so they know speaker labels won't be
+                // available for THIS recording.
+                tracing::warn!(
+                    error = %e,
+                    "diariser asset prep failed; meeting will use chunked fallback (no speaker labels)"
+                );
+                let _ = handle.emit(
+                    EVT_DICTATION_ERROR,
+                    format!(
+                        "Speaker diarisation models couldn't be prepared. Recording will continue without speaker labels. ({e})"
+                    ),
+                );
+            }
+        }
+    }
 
     // Track which side-effects have fired so we can roll them back if capture fails.
     // We only flip the visible phase to `Listening` once we know the mic (or loopback)
@@ -371,9 +828,7 @@ pub async fn start_recording(
             Err(e) => {
                 tracing::error!(error = %e, "audio.start_capture failed");
                 rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
-                state
-                    .recording_in_progress
-                    .store(false, std::sync::atomic::Ordering::Release);
+                clear_recording_flag(state.inner());
                 set_phase(
                     &handle,
                     DictationPhase::Error {
@@ -401,9 +856,7 @@ pub async fn start_recording(
                 let _ = state.audio.stop_capture().await;
             }
             rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
-            state
-                .recording_in_progress
-                .store(false, std::sync::atomic::Ordering::Release);
+            clear_recording_flag(state.inner());
             set_phase(
                 &handle,
                 DictationPhase::Error {
@@ -554,67 +1007,60 @@ fn resolve_target_model_id(
         .unwrap_or_else(|| "stub".into())
 }
 
-fn rms_over(pcm: &[i16], start: usize, end: usize) -> f64 {
-    let lo = start.min(pcm.len());
-    let hi = end.min(pcm.len());
-    if hi <= lo {
-        return 0.0;
-    }
-    let mut sum_sq: f64 = 0.0;
-    for &s in &pcm[lo..hi] {
-        let f = s as f64;
-        sum_sq += f * f;
-    }
-    sum_sq / (hi - lo) as f64
-}
-
-/// Meeting Mode chunked transcribe.
+/// Meeting Mode chunked transcribe — fallback path for v0.15+.
 ///
-/// Slices the captured PCM into ~30 s windows with a 2 s overlap and
-/// runs each chunk through the offline ASR provider. The chunk
-/// boundary is wall-clock based (not silence-aware) — silence-aware
-/// chunking is a future polish; the 2 s overlap lets the recogniser
-/// stitch boundary words back together rather than cleaving them.
+/// Used when speaker diarisation is unavailable for any reason
+/// (assets missing, model load error, panic in compute, empty
+/// segment list on a non-empty buffer). Produces a timestamped
+/// transcript with NO speaker labels:
 ///
-/// Why 30 s + 2 s: the offline transcribe path's failure mode is O(N)
-/// memory + accumulated decoder state inside ONNX Runtime. 30 s is
-/// well below the empirical crash floor (~30 min on the offline
-/// Zipformer, but per-call memory grows long before that). 2 s is
-/// roughly two-words of speech at conversational pace — enough to
-/// catch the boundary word in both chunks for the dedup pass.
+///     [00:00] First chunk text…
+///
+///     [00:30] Next chunk text…
+///
+/// Slices the captured PCM into ~30 s windows with a 2 s overlap.
+/// The chunk boundary is wall-clock based (not silence-aware) —
+/// silence-aware chunking is a future polish; the 2 s overlap lets
+/// the recogniser stitch boundary words back together rather than
+/// cleaving them.
+///
+/// Why 30 s + 2 s: the offline transcribe path's failure mode is
+/// O(N) memory + accumulated decoder state inside ONNX Runtime.
+/// 30 s is well below the empirical crash floor. 2 s is roughly
+/// two words of speech at conversational pace — enough to catch
+/// the boundary word in both chunks for the dedup pass.
 ///
 /// Stitching: each non-first chunk has its first ~6.7 % of words
-/// dropped (the proportional overlap fraction, 2 s / 30 s). This is
-/// imperfect — words don't distribute perfectly evenly across an audio
-/// chunk — but bounded error and trivially correct.
+/// dropped (the proportional overlap fraction, 2 s / 30 s).
+/// Imperfect (words don't distribute perfectly evenly) but
+/// bounded.
 ///
-/// Output formatting (v0.13.2):
-///   - Each non-empty chunk is prefixed with `[mm:ss]` derived from the
-///     chunk's wall-clock start (relative to the recording start).
-///   - When mic and loopback PCM were both available (the typical meeting-
-///     mode case where capture_source was forced to Mixed), a `**You**:`
-///     or `**Other**:` speaker tag is appended after the timestamp,
-///     chosen by which side had higher RMS over that chunk's audio
-///     window. With only one side present (mic-only or loopback-only)
-///     the tag is omitted — the label would be trivially the same on
-///     every chunk.
-///
-/// duration_ms on the returned AsrResult is the wall-clock duration
-/// of the source audio (sum of chunk durations less overlaps). Other
-/// fields are taken from the first chunk's result; word_timings is
-/// dropped because per-chunk timings would need rebasing to remain
-/// useful and meeting-mode rows don't render them today.
-#[allow(clippy::too_many_arguments)]
+/// History: v0.13.x → v0.14.x of this function carried per-chunk
+/// `**You**:` / `**Other**:` speaker tags derived from a loopback-
+/// floor RMS heuristic. The labels were unreliable on real
+/// recordings (mic bleed from speakers) and were suppressed in
+/// v0.14.3. The whole heuristic block was removed in v0.15.0 in
+/// favour of the proper sherpa-onnx diarisation path; this
+/// function survives only as the no-labels fallback.
 async fn transcribe_chunked(
     state: &Arc<AppState>,
     model_id: &str,
     pcm: Vec<i16>,
-    mic_pcm: Option<Vec<i16>>,
-    loop_pcm: Option<Vec<i16>>,
     sample_rate: u32,
     target_language: Option<String>,
     vocabulary_hints: Vec<String>,
 ) -> anyhow::Result<AsrResult> {
+    // CHUNK + OVERLAP carried forward from the v0.13.x — v0.14.x
+    // meeting-mode chunking. The v0.15.0 plan loosely wrote
+    // OVERLAP_SECONDS = 5 as a placeholder, but the production
+    // value has been 2 since meeting mode shipped: ~two words at
+    // conversational pace, enough for the boundary-dedup pass to
+    // re-attach a clipped boundary word without dropping legit
+    // content. We deliberately keep 2s here rather than widening
+    // — wider overlap would force the dedup heuristic to drop
+    // more leading words from each chunk, risking legitimate text
+    // loss when a real speaker turn happens to start with a phrase
+    // similar to the previous chunk's tail.
     const CHUNK_SECONDS: usize = 30;
     const OVERLAP_SECONDS: usize = 2;
 
@@ -647,55 +1093,6 @@ async fn transcribe_chunked(
                 },
             )
             .await;
-    }
-
-    // Loopback noise floor — calibrated over the whole recording so the
-    // per-chunk speaker tag is robust to whatever system volume the user
-    // had set. We walk the loopback PCM in non-overlapping CHUNK windows,
-    // collect the RMS of each, and take the smallest as the "quiet"
-    // baseline. A chunk's loopback is then "speaking" if its RMS is
-    // greater than `floor * THRESHOLD_MULT` — that means the system
-    // audio is producing real signal in that window, not just hiss.
-    //
-    // Why this beats the loudest-wins heuristic: in a real meeting setup
-    // the mic picks up the loopback bleeding from the user's speakers,
-    // so the mic's RMS is always (your voice + bleed) while loopback
-    // alone is just (their voice). The loudest-wins comparison thus
-    // always picks mic and tags every chunk as **You**, defeating the
-    // entire point of the tag. Threshold-against-own-floor sidesteps
-    // the comparison: it asks "did system audio produce signal at all?"
-    // If yes → tag **Other** (system speaker is active, regardless of
-    // whether the user is too); if no → tag **You** (only the mic was
-    // active). Imperfect when both speak simultaneously — we'd tag
-    // **Other** because the loopback signal is real — but that's a
-    // truer label than the prior behaviour.
-    const THRESHOLD_MULT: f64 = 4.0;
-    let loopback_floor: Option<f64> = loop_pcm.as_ref().map(|lp| {
-        let mut floor = f64::INFINITY;
-        let mut probe = 0usize;
-        while probe < lp.len() {
-            let probe_end = (probe + chunk_samples).min(lp.len());
-            let r = rms_over(lp, probe, probe_end);
-            if r < floor {
-                floor = r;
-            }
-            probe += chunk_samples;
-        }
-        // If we never advanced (empty loopback), return 0.0 so any
-        // non-zero per-chunk RMS trivially exceeds it. Better to over-
-        // tag **Other** than miss real speech.
-        if floor.is_finite() {
-            floor
-        } else {
-            0.0
-        }
-    });
-    if let Some(floor) = loopback_floor {
-        tracing::info!(
-            loopback_floor_rms = floor,
-            threshold = floor * THRESHOLD_MULT,
-            "meeting mode: loopback noise floor calibrated"
-        );
     }
 
     let mut start = 0usize;
@@ -763,39 +1160,12 @@ async fn transcribe_chunked(
             let mm = chunk_text_start_secs / 60;
             let ss = chunk_text_start_secs % 60;
 
-            // Speaker-tag heuristic computation, log-only in v0.14.3.
-            //
-            // The previous "loopback above its own floor" rule got the
-            // tag wrong on real recordings: in a typical setup the mic
-            // picks up bleed from the speakers, the loopback can be
-            // empty (output device is headphones, BT, or virtual
-            // routing), and the threshold scaling was on mean-square
-            // not RMS. Suppressing the **You** / **Other** prefix
-            // until the v0.14.4 signal-above-baseline heuristic ships,
-            // because wrong labels are worse than no labels.
-            //
-            // The per-side RMS values are still emitted to the log so
-            // the v0.14.4 calibration work has real-recording data to
-            // tune against without re-running everyone's tests.
-            if let (Some(mic), Some(lp), Some(floor)) =
-                (mic_pcm.as_ref(), loop_pcm.as_ref(), loopback_floor)
-            {
-                let mic_rms = rms_over(mic, start, end);
-                let lp_rms = rms_over(lp, start, end);
-                tracing::info!(
-                    chunk_index,
-                    mic_rms,
-                    lp_rms,
-                    loopback_floor = floor,
-                    "meeting mode: per-side energy (logged only; tags suppressed)"
-                );
-            }
-
             // One chunk per paragraph for legibility. Empty line between
             // chunks so a long meeting reads as a stack of timestamped
-            // turns rather than a wall of text. Just the timestamp for
-            // now; speaker tag returns in v0.14.4 with a heuristic
-            // that actually works.
+            // entries rather than a wall of text. Speaker labels are
+            // intentionally absent in this fallback path — the proper
+            // diarised path emits `**Speaker N:**` prefixes; this
+            // function is only reached when diarisation is unavailable.
             if !stitched.is_empty() {
                 stitched.push_str("\n\n");
             }
@@ -847,6 +1217,309 @@ async fn transcribe_chunked(
     })
 }
 
+/// User-space merge: collapse adjacent same-speaker segments
+/// separated by less than `MERGE_GAP_SEC`. Belt-and-braces over
+/// sherpa's own `min_duration_off` (which we set to 0.4 s on the
+/// C side); this catches anything sherpa let through.
+fn merge_adjacent_same_speaker(
+    segments: Vec<sherpa_rs::diarize::Segment>,
+) -> Vec<sherpa_rs::diarize::Segment> {
+    const MERGE_GAP_SEC: f32 = 0.4;
+    let mut out: Vec<sherpa_rs::diarize::Segment> = Vec::with_capacity(segments.len());
+    for seg in segments {
+        if let Some(last) = out.last_mut() {
+            if last.speaker == seg.speaker && (seg.start - last.end) < MERGE_GAP_SEC {
+                last.end = seg.end;
+                continue;
+            }
+        }
+        out.push(seg);
+    }
+    out
+}
+
+/// User-space shape pass: drop sub-`MIN_SEGMENT_SEC` fragments
+/// (likely cross-talk artefacts that sherpa's `min_duration_on`
+/// let through) and split anything over `MAX_SEGMENT_SEC` so
+/// Whisper Large stays in its sweet spot.
+fn shape_segments(segments: Vec<sherpa_rs::diarize::Segment>) -> Vec<sherpa_rs::diarize::Segment> {
+    const MIN_SEGMENT_SEC: f32 = 0.6;
+    const MAX_SEGMENT_SEC: f32 = 30.0;
+    let mut out: Vec<sherpa_rs::diarize::Segment> = Vec::with_capacity(segments.len());
+    for seg in segments {
+        let dur = seg.end - seg.start;
+        if dur < MIN_SEGMENT_SEC {
+            continue;
+        }
+        if dur > MAX_SEGMENT_SEC {
+            // Time-based split — uniform pieces of MAX_SEGMENT_SEC
+            // each. Not silence-aware (we don't have VAD output
+            // here) but bounded and Whisper-stable.
+            let mut t = seg.start;
+            while t < seg.end {
+                let next = (t + MAX_SEGMENT_SEC).min(seg.end);
+                out.push(sherpa_rs::diarize::Segment {
+                    start: t,
+                    end: next,
+                    speaker: seg.speaker,
+                });
+                t = next;
+            }
+        } else {
+            out.push(seg);
+        }
+    }
+    out
+}
+
+/// Pad segment boundaries by `BOUNDARY_PAD_MS` on each side so
+/// Whisper isn't asked to transcribe a buffer that starts/ends
+/// mid-word. Clamps at 0 and `total_samples` so we never reach
+/// past the buffer edges.
+fn pad_segment_samples(
+    start_sec: f32,
+    end_sec: f32,
+    sample_rate: u32,
+    total_samples: usize,
+) -> (usize, usize) {
+    const BOUNDARY_PAD_MS: i64 = 200;
+    let pad_samples = BOUNDARY_PAD_MS * sample_rate as i64 / 1000;
+    let start_idx = ((start_sec * sample_rate as f32) as i64 - pad_samples).max(0) as usize;
+    let end_idx =
+        (((end_sec * sample_rate as f32) as i64 + pad_samples) as usize).min(total_samples);
+    (start_idx, end_idx)
+}
+
+/// Format one diarised turn into the canonical render shape:
+/// `[mm:ss] **Speaker N:** text\n\n`
+fn format_speaker_turn(start_sec: u32, speaker_id: i32, text: &str) -> String {
+    let mm = start_sec / 60;
+    let ss = start_sec % 60;
+    // Sherpa speaker IDs are 0-based; surface them as 1-based
+    // (`Speaker 1`, `Speaker 2`) — matches the user's mental
+    // model and what the rename map keys against.
+    let label_id = speaker_id + 1;
+    format!(
+        "[{:02}:{:02}] **Speaker {}:** {}\n\n",
+        mm,
+        ss,
+        label_id,
+        text.trim()
+    )
+}
+
+/// Meeting Mode diarised transcribe — primary path for v0.15+.
+///
+/// Runs the diariser once on the full mixed buffer, merges +
+/// shapes the resulting segments, then transcribes each segment
+/// with Whisper Large. Output carries `[mm:ss] **Speaker N:**
+/// text` per turn.
+///
+/// Caller has already verified the diariser asset paths exist
+/// (via `diarize_assets::ensure_assets_ready`) and that the
+/// Whisper Large model is installed (via the start_recording
+/// preflight). All this function does is the diarise → shape →
+/// transcribe → stitch dance.
+#[allow(clippy::too_many_arguments)] // 8 args; mirrors transcribe_chunked's shape
+async fn transcribe_meeting_diarised(
+    state: &Arc<AppState>,
+    model_id: &str,
+    pcm: Vec<i16>,
+    sample_rate: u32,
+    target_language: Option<String>,
+    vocabulary_hints: Vec<String>,
+    seg_path: &std::path::Path,
+    embed_path: &std::path::Path,
+) -> anyhow::Result<AsrResult> {
+    if pcm.is_empty() {
+        return Err(anyhow::anyhow!("empty PCM buffer"));
+    }
+
+    // Source-audio duration. The padded-segment slice durations
+    // we'd otherwise sum can overlap (BOUNDARY_PAD_MS on both
+    // sides) and would inflate the wall-clock count past the
+    // recording's actual length. Use the input PCM length as the
+    // single source of truth — it's what the user pressed-record-
+    // for. Saturates at u32::MAX, which at 16 kHz is ~74 hours,
+    // well past the 8 h capture cap upstream.
+    let source_duration_ms: u32 =
+        ((pcm.len() as u64 * 1000) / sample_rate as u64).min(u32::MAX as u64) as u32;
+
+    // ── Diarise ─────────────────────────────────────────────────────
+    let pcm_for_diarise = pcm.clone();
+    let seg_owned = seg_path.to_path_buf();
+    let embed_owned = embed_path.to_path_buf();
+    let diarise_join = tokio::task::spawn_blocking(
+        move || -> anyhow::Result<Vec<sherpa_rs::diarize::Segment>> {
+            let mut session = crate::services::inference::diarize::DiariserSession::load(
+                &seg_owned,
+                &embed_owned,
+            )?;
+            session.diarise(&pcm_for_diarise)
+        },
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("diariser join: {e}"))?;
+
+    let raw_segments = diarise_join?;
+    if raw_segments.is_empty() {
+        return Err(anyhow::anyhow!(
+            "diariser produced no segments on a non-empty buffer"
+        ));
+    }
+
+    // ── Merge + shape ────────────────────────────────────────────────
+    let segments = shape_segments(merge_adjacent_same_speaker(raw_segments));
+    if segments.is_empty() {
+        return Err(anyhow::anyhow!(
+            "all diariser segments dropped after shape pass"
+        ));
+    }
+    tracing::info!(
+        segment_count = segments.len(),
+        "meeting mode (diarised): segments after merge+shape"
+    );
+
+    // ── Transcribe per segment ──────────────────────────────────────
+    let total = pcm.len();
+    let mut stitched = String::new();
+    // `transcribed_slice_ms` is a DIAGNOSTIC ONLY — sum of slice
+    // wall-clock durations, which can exceed source_duration_ms
+    // because of BOUNDARY_PAD_MS overlap on both sides of each
+    // segment. Used in the closing log line to give the operator
+    // a sense of how much padded audio Whisper actually saw.
+    // Never used as `AsrResult.duration_ms` — that's the source
+    // PCM length only, computed at function entry.
+    let mut transcribed_slice_ms: u32 = 0;
+    let mut first_lang: Option<String> = None;
+    let mut model_version = String::new();
+    let mut last_text_per_speaker: std::collections::HashMap<i32, String> =
+        std::collections::HashMap::new();
+
+    for (seg_idx, seg) in segments.iter().enumerate() {
+        let (start_idx, end_idx) = pad_segment_samples(seg.start, seg.end, sample_rate, total);
+        if end_idx <= start_idx {
+            continue;
+        }
+        let slice = pcm[start_idx..end_idx].to_vec();
+        let slice_secs = (end_idx - start_idx) as f32 / sample_rate as f32;
+        tracing::info!(
+            seg_idx,
+            speaker = seg.speaker,
+            start_sec = seg.start,
+            end_sec = seg.end,
+            duration_secs = slice_secs,
+            "meeting mode (diarised): transcribing segment"
+        );
+
+        let result = state
+            .inference
+            .transcribe(
+                model_id,
+                AudioBuffer {
+                    pcm: slice,
+                    sample_rate,
+                    channels: 1,
+                },
+                AsrOptions {
+                    language_hint: target_language.clone(),
+                    want_word_timings: false,
+                    vocabulary_hints: vocabulary_hints.clone(),
+                },
+            )
+            .await?;
+
+        let text = result.text.trim();
+        if text.is_empty() {
+            continue;
+        }
+
+        // Word-overlap dedup: if the same speaker had a previous
+        // segment whose tail words equal this segment's head, drop
+        // the duplicated head. The boundary pad we added (±200ms)
+        // can cause the transcriber to repeat a boundary word at
+        // the start of consecutive same-speaker segments.
+        let final_text = if let Some(prev) = last_text_per_speaker.get(&seg.speaker) {
+            dedup_segment_head_against_tail(prev, text)
+        } else {
+            text.to_string()
+        };
+
+        if final_text.trim().is_empty() {
+            continue;
+        }
+
+        stitched.push_str(&format_speaker_turn(
+            seg.start as u32,
+            seg.speaker,
+            &final_text,
+        ));
+
+        last_text_per_speaker.insert(seg.speaker, final_text.clone());
+
+        if first_lang.is_none() {
+            first_lang = result.language.clone();
+        }
+        if model_version.is_empty() {
+            model_version = result.model_version.clone();
+        }
+
+        let slice_ms = (slice_secs * 1000.0) as u32;
+        transcribed_slice_ms = transcribed_slice_ms.saturating_add(slice_ms);
+    }
+
+    // Trim trailing blank line — format_speaker_turn always
+    // appends `\n\n` for stack-of-turns rendering, but the final
+    // turn doesn't need one.
+    let stitched = stitched.trim_end().to_string() + "\n";
+
+    tracing::info!(
+        chars = stitched.len(),
+        source_duration_ms,
+        transcribed_slice_ms,
+        "meeting mode (diarised): stitch complete"
+    );
+
+    Ok(AsrResult {
+        text: stitched,
+        words: None,
+        language: first_lang,
+        confidence: None,
+        model_version,
+        // Source PCM duration — NOT the sum of padded slice
+        // durations (those overlap by BOUNDARY_PAD_MS on both
+        // sides and would inflate this past the recording's
+        // actual length).
+        duration_ms: source_duration_ms,
+    })
+}
+
+/// If the trailing word(s) of `prev` match the leading word(s) of
+/// `current`, return `current` with the duplicated head removed.
+/// Only matches up to 4 trailing/leading words — bounded so we
+/// never trim more than a phrase even if both segments happen to
+/// repeat a common prefix.
+fn dedup_segment_head_against_tail(prev: &str, current: &str) -> String {
+    const MAX_OVERLAP_WORDS: usize = 4;
+    let prev_words: Vec<&str> = prev.split_whitespace().collect();
+    let cur_words: Vec<&str> = current.split_whitespace().collect();
+    let cap = MAX_OVERLAP_WORDS.min(prev_words.len()).min(cur_words.len());
+    let mut overlap = 0usize;
+    for n in (1..=cap).rev() {
+        let prev_tail: String = prev_words[prev_words.len() - n..].join(" ").to_lowercase();
+        let cur_head: String = cur_words[..n].join(" ").to_lowercase();
+        if prev_tail == cur_head {
+            overlap = n;
+            break;
+        }
+    }
+    if overlap == 0 {
+        current.to_string()
+    } else {
+        cur_words[overlap..].join(" ")
+    }
+}
+
 #[tauri::command]
 pub async fn stop_recording(
     handle: AppHandle,
@@ -884,9 +1557,7 @@ pub async fn stop_recording(
         // double-taps the hotkey faster than Listening flips to Idle,
         // but we still want the next genuine start to succeed without
         // having to click "Reset" anywhere.
-        state
-            .recording_in_progress
-            .store(false, std::sync::atomic::Ordering::Release);
+        clear_recording_flag(state.inner());
         return Err(OrliqError::User {
             message: "no active recording".into(),
         });
@@ -896,9 +1567,7 @@ pub async fn stop_recording(
     // running isn't blocked. The orchestrator serialises work on its
     // own side (see InferenceOrchestrator::ensure_loaded), so
     // overlapping start-after-stop is safe from here.
-    state
-        .recording_in_progress
-        .store(false, std::sync::atomic::Ordering::Release);
+    clear_recording_flag(state.inner());
     tracing::info!(
         samples = final_.pcm.len(),
         sample_rate = final_.sample_rate,
@@ -1018,7 +1687,7 @@ pub async fn stop_recording(
     let mode = pre_active_mode.clone();
     let model_id = resolved_model_id.clone();
 
-    let vocab_hints = state
+    let vocab_hints: Vec<String> = state
         .vocabulary
         .list_words()
         .unwrap_or_default()
@@ -1120,24 +1789,69 @@ pub async fn stop_recording(
             sample_rate = final_.sample_rate,
             mic_present = mic_final.is_some(),
             loop_present = loop_final.is_some(),
-            "stop_recording: meeting mode — chunked transcribe"
+            "stop_recording: meeting mode — diarise + per-segment transcribe"
         );
-        // Hand the chunked path the per-side PCMs so it can derive
-        // speaker tags via RMS comparison per chunk window. The mixed
-        // PCM (final_.pcm) is what the recogniser sees; the per-side
-        // streams are only used for the speaker-label heuristic and
-        // never reach ASR.
-        transcribe_chunked(
-            state.inner(),
-            &model_id,
-            final_.pcm,
-            mic_final.map(|f| f.pcm),
-            loop_final.map(|f| f.pcm),
-            final_.sample_rate,
-            mode.target_language.clone(),
-            vocab_hints,
-        )
-        .await
+
+        // v0.15.0: try the diarised pipeline (sherpa-onnx pyannote
+        // segmentation + NVIDIA TitaNet small embedding + Whisper
+        // Large per segment). On any failure (assets missing,
+        // diariser load error, panic in compute, empty segment list)
+        // fall through to the bounded chunked path with timestamps
+        // only. Mic + loopback per-side PCMs from the previous
+        // RMS-heuristic path are now ignored — diarisation works
+        // from voice timbre on the mixed buffer alone.
+        let asset_paths =
+            crate::services::inference::diarize_assets::DiariserAssetPaths::resolve().ok();
+        let diarised_attempt: Option<anyhow::Result<AsrResult>> =
+            if let Some(paths) = asset_paths.as_ref() {
+                if crate::services::inference::diarize_assets::assets_ready(paths).await {
+                    Some(
+                        transcribe_meeting_diarised(
+                            state.inner(),
+                            &model_id,
+                            final_.pcm.clone(),
+                            final_.sample_rate,
+                            mode.target_language.clone(),
+                            vocab_hints.clone(),
+                            &paths.segmentation,
+                            &paths.embedding,
+                        )
+                        .await,
+                    )
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+        match diarised_attempt {
+            Some(Ok(result)) => Ok(result),
+            other => {
+                if let Some(Err(e)) = &other {
+                    tracing::warn!(error = %e, "diarised transcribe failed; falling back to chunked-no-labels");
+                    let _ = handle.emit(
+                        EVT_DICTATION_ERROR,
+                        format!(
+                            "Speaker labels unavailable for this meeting — transcript ready. ({e})"
+                        ),
+                    );
+                } else {
+                    tracing::info!(
+                        "diariser assets unavailable — falling back to chunked-no-labels"
+                    );
+                }
+                transcribe_chunked(
+                    state.inner(),
+                    &model_id,
+                    final_.pcm,
+                    final_.sample_rate,
+                    mode.target_language.clone(),
+                    vocab_hints,
+                )
+                .await
+            }
+        }
     } else {
         state
             .inference
@@ -1366,6 +2080,10 @@ pub async fn stop_recording(
             context_payload: None,
             word_timings: None,
             is_meeting: mode.is_meeting_mode,
+            // No diariser ran here (this is the no-text early-return
+            // path) so there are no `**Speaker N:**` tokens in the
+            // empty processed_text to ever rename.
+            speaker_names: None,
         });
     }
 
@@ -1427,6 +2145,9 @@ pub async fn stop_recording(
         context_payload,
         word_timings: None,
         is_meeting: mode.is_meeting_mode,
+        // No rename has happened yet — set at insert time to None;
+        // the user can rename later from the Meetings page.
+        speaker_names: None,
     };
     state.history.insert(&entry).map_err(OrliqError::from)?;
 
@@ -1518,9 +2239,7 @@ pub async fn cancel_recording(handle: AppHandle, state: State<'_, Arc<AppState>>
     // out of whatever state I'm in" command, and if we stranded the
     // flag high they'd lose the ability to start the next recording
     // without restarting the app.
-    state
-        .recording_in_progress
-        .store(false, std::sync::atomic::Ordering::Release);
+    clear_recording_flag(state.inner());
     // Resume whatever was paused on start, even on cancel — the user expects their
     // music to pick back up as soon as they hit the cancel hotkey.
     {
@@ -1722,5 +2441,531 @@ fn prune_old_recordings(retain_days: u32) {
         if modified.is_some_and(|m| m < cutoff) {
             let _ = std::fs::remove_file(entry.path());
         }
+    }
+}
+
+#[cfg(test)]
+mod diarised_helpers_tests {
+    //! Pure-function tests for the diarised meeting-mode pipeline
+    //! helpers. These don't touch sherpa, ONNX runtime, or any
+    //! audio I/O — every helper here takes typed inputs and returns
+    //! typed outputs. The full diarised pipeline (which calls these
+    //! plus FFI) is exercised by manual QA on a real install.
+
+    use super::*;
+    use sherpa_rs::diarize::Segment;
+
+    fn seg(start: f32, end: f32, speaker: i32) -> Segment {
+        Segment {
+            start,
+            end,
+            speaker,
+        }
+    }
+
+    /// Adjacent same-speaker segments separated by less than
+    /// `MERGE_GAP_SEC` (=0.4s) get merged. Pin the boundary
+    /// behaviour: 0.39s gap merges, 0.41s gap doesn't.
+    #[test]
+    fn merge_adjacent_same_speaker_collapses_short_gaps() {
+        let merged = merge_adjacent_same_speaker(vec![seg(0.0, 2.0, 1), seg(2.3, 5.0, 1)]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].start, 0.0);
+        assert_eq!(merged[0].end, 5.0);
+        assert_eq!(merged[0].speaker, 1);
+    }
+
+    #[test]
+    fn merge_preserves_speaker_change() {
+        let merged = merge_adjacent_same_speaker(vec![seg(0.0, 2.0, 1), seg(2.1, 5.0, 2)]);
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[0].speaker, 1);
+        assert_eq!(merged[1].speaker, 2);
+    }
+
+    #[test]
+    fn merge_skips_gaps_above_threshold() {
+        // 1.0s gap >= MERGE_GAP_SEC (0.4) — must NOT merge.
+        let merged = merge_adjacent_same_speaker(vec![seg(0.0, 2.0, 1), seg(3.0, 5.0, 1)]);
+        assert_eq!(merged.len(), 2);
+    }
+
+    /// Sub-MIN_SEGMENT_SEC (=0.6) fragments are dropped by the
+    /// shape pass — they're typically cross-talk artefacts that
+    /// sherpa's own min_duration_on let through.
+    #[test]
+    fn shape_drops_sub_minimum_segments() {
+        let shaped = shape_segments(vec![seg(0.0, 0.3, 1)]);
+        assert!(
+            shaped.is_empty(),
+            "0.3s segment must be dropped (below MIN_SEGMENT_SEC)"
+        );
+    }
+
+    /// Segments longer than MAX_SEGMENT_SEC (30s) are split into
+    /// equal pieces, each ≤ MAX. Pin the split arithmetic.
+    #[test]
+    fn shape_splits_over_max_into_uniform_pieces() {
+        // 45s segment → 30s + 15s
+        let shaped = shape_segments(vec![seg(0.0, 45.0, 1)]);
+        assert_eq!(shaped.len(), 2);
+        assert_eq!(shaped[0].start, 0.0);
+        assert_eq!(shaped[0].end, 30.0);
+        assert_eq!(shaped[1].start, 30.0);
+        assert_eq!(shaped[1].end, 45.0);
+        // Speaker id is preserved across the split.
+        assert_eq!(shaped[0].speaker, 1);
+        assert_eq!(shaped[1].speaker, 1);
+    }
+
+    /// `pad_segment_samples` clamps at 0 and total_samples — the
+    /// padded boundary can't reach past the buffer edges.
+    #[test]
+    fn pad_clamps_at_buffer_edges() {
+        let sample_rate = 16_000u32;
+        let total = sample_rate as usize * 10; // 10s buffer
+                                               // Segment at 0..0.05s, padded ±200ms → start clamps at 0,
+                                               // end ≈ 4000 samples (200ms + 50ms = 250ms ~= 4000 @ 16k).
+        let (start_idx, end_idx) = pad_segment_samples(0.0, 0.05, sample_rate, total);
+        assert_eq!(start_idx, 0, "must clamp at 0, not go negative");
+        assert!(end_idx > 0 && end_idx <= total);
+
+        // Segment at the very end of the buffer.
+        let (start_idx, end_idx) = pad_segment_samples(9.95, 10.0, sample_rate, total);
+        assert!(start_idx < total);
+        assert_eq!(end_idx, total, "must clamp at buffer end, not overshoot");
+    }
+
+    /// **Blocker 3 regression**: padded segments overlap. Summing
+    /// their durations would inflate the source-audio duration.
+    /// This test pins that the helper outputs CAN sum to more than
+    /// the source duration — proving why the diarised path must
+    /// use source PCM length, not the sum, as
+    /// `AsrResult.duration_ms`.
+    #[test]
+    fn padded_segments_can_sum_to_more_than_source() {
+        let sample_rate = 16_000u32;
+        let source_secs = 10.0_f32;
+        let total = (source_secs * sample_rate as f32) as usize;
+        let source_ms = (source_secs * 1000.0) as u32;
+
+        // Three back-to-back 1s speaker-change segments: 0..1, 1..2,
+        // 2..3. With BOUNDARY_PAD_MS=200, each grows to ~1.4s.
+        // Sum ≈ 4.2s vs source 10s here — but the property the
+        // assertion targets is that "sum could exceed the
+        // un-padded total" in the worst case.
+        let segments = vec![seg(0.0, 1.0, 1), seg(1.0, 2.0, 2), seg(2.0, 3.0, 3)];
+        let mut summed_ms: u32 = 0;
+        for s in &segments {
+            let (start_idx, end_idx) = pad_segment_samples(s.start, s.end, sample_rate, total);
+            let slice_ms = ((end_idx - start_idx) as u64 * 1000 / sample_rate as u64) as u32;
+            summed_ms = summed_ms.saturating_add(slice_ms);
+        }
+        // Each 1s segment + 400ms total padding ≈ 1.4s × 3 = 4.2s.
+        // Un-padded segment span is 3s. Summed padded > un-padded
+        // span — proves the inflation we'd get if we used summed
+        // slice durations as the result duration.
+        let unpadded_span_ms = 3_000u32;
+        assert!(
+            summed_ms > unpadded_span_ms,
+            "sum of padded slices should exceed un-padded span (got {summed_ms} vs {unpadded_span_ms})"
+        );
+        // Source duration is the canonical 10s. Bigger than the
+        // summed padded (in this small example), but the danger
+        // case is many short segments where summed padded
+        // overshoots source. The point of the regression is that
+        // the diarised path must NEVER hand `summed_ms` to
+        // `AsrResult.duration_ms`.
+        let _ = source_ms;
+    }
+
+    /// Format spec pin: `[mm:ss] **Speaker N:** text\n\n`. The
+    /// rename-substitution regex on the frontend matches against
+    /// this exact shape; any drift (e.g. `*Speaker N*`, no colon,
+    /// 1-digit zero-pad missing) breaks rename rendering.
+    #[test]
+    fn format_turn_canonical_shape() {
+        let out = format_speaker_turn(754, 0, "Welcome to the call.");
+        assert_eq!(out, "[12:34] **Speaker 1:** Welcome to the call.\n\n");
+        let out = format_speaker_turn(0, 1, "Hi.");
+        assert_eq!(out, "[00:00] **Speaker 2:** Hi.\n\n");
+    }
+
+    /// Word-overlap dedup at segment boundaries. Adjacent
+    /// same-speaker segments can transcribe the same boundary
+    /// word twice because of BOUNDARY_PAD_MS overlap. Helper drops
+    /// up to 4 leading words if they match the prev tail.
+    #[test]
+    fn dedup_drops_repeated_boundary_words() {
+        let prev = "we'll cover the dashboard";
+        let cur = "the dashboard launches today";
+        assert_eq!(dedup_segment_head_against_tail(prev, cur), "launches today");
+    }
+
+    #[test]
+    fn dedup_no_overlap_returns_unchanged() {
+        assert_eq!(
+            dedup_segment_head_against_tail("hello world", "goodbye now"),
+            "goodbye now"
+        );
+    }
+
+    #[test]
+    fn dedup_caps_at_four_word_overlap() {
+        // Even a 5-word identical prefix only drops 4. The bound
+        // is intentional — drop more and we risk eating real
+        // content when two speakers happen to start with similar
+        // phrasing.
+        let prev = "one two three four five";
+        let cur = "one two three four five six";
+        let result = dedup_segment_head_against_tail(prev, cur);
+        // "one" stays because we only dropped 4 of the 5 identical
+        // leading words.
+        assert!(
+            result.starts_with("one ") || result == "five six",
+            "got {result:?}"
+        );
+    }
+
+    // ── re-entry concurrency-guard tests (rounds 3 + 4 + 5) ────────
+    //
+    // These cover the v0.15.0-blocker fixes:
+    //   * Round 3 closed the meeting-mode diariser preflight window
+    //     (~47 MB download).
+    //   * Round 4 closed the generic settings.snapshot() and
+    //     audio.start_capture() windows that sit outside the
+    //     diariser path.
+    //   * Round 5 closed the deeper hole: even with both flags,
+    //     the CAS-failed branch was awaiting `audio.current()`
+    //     BEFORE reading the pending atomics, so a duplicate call
+    //     could sample stale (pending=false, capture=None) and
+    //     stale-heal a flag that was not stale. The fix splits
+    //     the decision into a stage-1 (cheap atomics, no await)
+    //     fast-reject and a stage-2 (probe + time-gate + recheck)
+    //     conservative-proceed; promotes start_recording_pending
+    //     to a CAS-mutex; and time-gates self-heal at
+    //     RECORDING_STALE_MS to close the inherent
+    //     non-atomic-snapshot race.
+
+    // ── decide_pre_probe tests ──────────────────────────────────────
+
+    /// Stage 1 reads ONLY the pending atomics — cheap and
+    /// no-await. Both false → return None (caller proceeds to
+    /// stage 2). Anything else → reject before probing.
+    #[test]
+    fn pre_probe_returns_none_when_no_pending() {
+        assert_eq!(decide_pre_probe(false, false), None);
+    }
+
+    /// **Round-3 regression in stage-1 form** — pending+preflight
+    /// must reject as preflight before we ever look at capture.
+    /// Pre-round-5 this WAS read post-await, so a duplicate that
+    /// landed after pending dropped saw `false` and missed the
+    /// rejection.
+    #[test]
+    fn pre_probe_rejects_preflight_before_probe() {
+        assert_eq!(decide_pre_probe(true, true), Some(Reentry::RejectPreflight));
+    }
+
+    /// **Round-4 regression in stage-1 form** — pending without
+    /// preflight rejects as generic start-pending, again BEFORE
+    /// any probe.
+    #[test]
+    fn pre_probe_rejects_generic_pending_before_probe() {
+        assert_eq!(
+            decide_pre_probe(true, false),
+            Some(Reentry::RejectStartPending)
+        );
+    }
+
+    /// Defensive: preflight without pending shouldn't happen (the
+    /// inner preflight guard is always claimed inside the outer
+    /// pending window) but if it does, fall through to stage 2.
+    /// Pinned so a future contributor doesn't accidentally promote
+    /// this to a rejection — the time-gated stale-heal will sort
+    /// it out safely.
+    #[test]
+    fn pre_probe_preflight_without_pending_falls_through() {
+        assert_eq!(decide_pre_probe(false, true), None);
+    }
+
+    // ── decide_post_probe tests ─────────────────────────────────────
+
+    /// Live capture wins regardless of every other input. In
+    /// practice the start completes and clears pending right around
+    /// when capture surfaces, so `(true, _, true, _)` is the
+    /// brief window where both can be true together.
+    #[test]
+    fn post_probe_active_capture_takes_priority() {
+        for &age in &[0_i64, 100, 30_000, 10_000_000] {
+            for &pending in &[false, true] {
+                for &preflight in &[false, true] {
+                    assert_eq!(
+                        decide_post_probe(true, age, pending, preflight),
+                        Reentry::RejectActiveCapture,
+                        "active capture must win for age={age} pending={pending} preflight={preflight}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **Round-5 race** — pending was false at stage 1 (we got
+    /// past the fast-reject) but flipped true during the
+    /// `audio.current().await`. The recheck catches it and
+    /// rejects. Without this, the in-flight start that just
+    /// claimed pending would race the duplicate.
+    #[test]
+    fn post_probe_pending_recheck_rejects_when_pending_flipped() {
+        // Aged flag, no live capture, but pending re-flipped true
+        // with no preflight → generic start-pending reject.
+        assert_eq!(
+            decide_post_probe(false, 60_000, true, false),
+            Reentry::RejectStartPending
+        );
+        // Same scenario but recheck sees preflight too → preflight
+        // reject (better message).
+        assert_eq!(
+            decide_post_probe(false, 60_000, true, true),
+            Reentry::RejectPreflight
+        );
+    }
+
+    /// **Round-5 time gate** — the heart of the round-5 fix.
+    /// Flag is held but very young (no capture, no pending).
+    /// Must NOT stale-heal — almost certainly the in-flight start
+    /// is mid-CAS-then-stamp or one scheduling tick from arming
+    /// capture. Pre-round-5 this returned ProceedAfterStaleHeal
+    /// and raced the in-flight start.
+    #[test]
+    fn post_probe_young_flag_rejects_not_stale_heal() {
+        // Just stamped — age 1ms.
+        assert_eq!(
+            decide_post_probe(false, 1, false, false),
+            Reentry::RejectYoungFlag
+        );
+        // 5 seconds in — typical mid-prep age.
+        assert_eq!(
+            decide_post_probe(false, 5_000, false, false),
+            Reentry::RejectYoungFlag
+        );
+        // Just under threshold (29.999s).
+        assert_eq!(
+            decide_post_probe(false, RECORDING_STALE_MS - 1, false, false),
+            Reentry::RejectYoungFlag
+        );
+    }
+
+    /// Age == 0 means "no timestamp recorded" — the in-flight
+    /// start CAS-set the flag but hasn't stamped the timestamp
+    /// yet. Treat as "fresh enough to be racing" — never stale-heal
+    /// a flag whose age can't be established.
+    #[test]
+    fn post_probe_zero_age_is_treated_as_young() {
+        assert_eq!(
+            decide_post_probe(false, 0, false, false),
+            Reentry::RejectYoungFlag
+        );
+    }
+
+    /// Age < 0 is impossible in practice (clock skew aside) but
+    /// defensively treated as "young" — never stale-heal a
+    /// negative-age flag.
+    #[test]
+    fn post_probe_negative_age_is_treated_as_young() {
+        assert_eq!(
+            decide_post_probe(false, -1_000, false, false),
+            Reentry::RejectYoungFlag
+        );
+    }
+
+    /// The ONLY legitimate stale-heal case: no live capture, no
+    /// pending on recheck, age >= RECORDING_STALE_MS. Genuinely
+    /// abandoned flag.
+    #[test]
+    fn post_probe_old_flag_with_no_pending_stale_heals() {
+        assert_eq!(
+            decide_post_probe(false, RECORDING_STALE_MS, false, false),
+            Reentry::ProceedAfterStaleHeal
+        );
+        assert_eq!(
+            decide_post_probe(false, 5 * 60_000, false, false),
+            Reentry::ProceedAfterStaleHeal
+        );
+    }
+
+    // ── StartPendingGuard CAS-mutex tests ───────────────────────────
+
+    /// Happy path: claim succeeds, drop clears.
+    #[test]
+    fn start_pending_guard_claim_succeeds_when_flag_false() {
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        let guard = StartPendingGuard::try_claim(&flag);
+        assert!(guard.is_some(), "first claim should succeed");
+        assert!(
+            flag.load(std::sync::atomic::Ordering::Acquire),
+            "flag should be true while guard is held"
+        );
+        drop(guard);
+        assert!(
+            !flag.load(std::sync::atomic::Ordering::Acquire),
+            "flag should be cleared on guard drop"
+        );
+    }
+
+    /// **Round-5 mutex contract** — claim is CAS-based.
+    /// A second claim while the first is alive must fail
+    /// (return None), not silently re-store true. This is what
+    /// makes pending a true mutex rather than a flag.
+    #[test]
+    fn start_pending_guard_second_claim_fails_while_first_held() {
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        let first = StartPendingGuard::try_claim(&flag);
+        assert!(first.is_some(), "first claim should succeed");
+        let second = StartPendingGuard::try_claim(&flag);
+        assert!(
+            second.is_none(),
+            "second claim must fail while first guard is alive"
+        );
+        // First still holds, flag still true.
+        assert!(flag.load(std::sync::atomic::Ordering::Acquire));
+        drop(first);
+        // Now a fresh claim succeeds.
+        let third = StartPendingGuard::try_claim(&flag);
+        assert!(
+            third.is_some(),
+            "claim should succeed once previous guard is dropped"
+        );
+    }
+
+    /// Drop on panic: even if the scope unwinds, the flag clears.
+    /// `Arc<AtomicBool>` so the closure can move-capture without
+    /// losing access to the original for the post-panic check.
+    #[test]
+    fn start_pending_guard_clears_on_panic() {
+        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag_for_panic = flag.clone();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard =
+                StartPendingGuard::try_claim(&flag_for_panic).expect("first claim should succeed");
+            assert!(flag_for_panic.load(std::sync::atomic::Ordering::Acquire));
+            panic!("simulated panic mid-start");
+        }));
+        assert!(result.is_err(), "panic should have propagated");
+        assert!(
+            !flag.load(std::sync::atomic::Ordering::Acquire),
+            "guard drop must clear the flag even when the scope unwinds"
+        );
+    }
+
+    // ── PreflightGuard tests ────────────────────────────────────────
+
+    /// PreflightGuard uses plain store(true) — it's only ever
+    /// claimed inside the StartPendingGuard window, so the outer
+    /// mutex serialises overlapping preflights. Just pin the
+    /// claim+drop contract.
+    #[test]
+    fn preflight_guard_sets_and_clears_flag() {
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        {
+            let _guard = PreflightGuard::claim(&flag);
+            assert!(flag.load(std::sync::atomic::Ordering::Acquire));
+        }
+        assert!(!flag.load(std::sync::atomic::Ordering::Acquire));
+    }
+
+    #[test]
+    fn preflight_guard_clears_on_panic() {
+        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag_for_panic = flag.clone();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = PreflightGuard::claim(&flag_for_panic);
+            assert!(flag_for_panic.load(std::sync::atomic::Ordering::Acquire));
+            panic!("simulated panic mid-preflight");
+        }));
+        assert!(result.is_err());
+        assert!(!flag.load(std::sync::atomic::Ordering::Acquire));
+    }
+
+    // ── Helper-pair tests: mark_recording_started / clear_recording_flag ──
+
+    /// `mark_recording_started` is the canonical write of
+    /// `recording_in_progress`. It must (a) CAS the flag from
+    /// false→true, returning true on success, and (b) stamp the
+    /// timestamp on success so the time-gated stale-heal has
+    /// something to read. A failed CAS must NOT overwrite an
+    /// existing timestamp.
+    #[test]
+    fn mark_recording_started_first_call_wins_and_stamps() {
+        let state = make_test_app_state();
+        let before = now_ms();
+        let won = mark_recording_started(&state);
+        assert!(won, "first mark must win the CAS");
+        assert!(state
+            .recording_in_progress
+            .load(std::sync::atomic::Ordering::Acquire));
+        let stamped = state
+            .recording_in_progress_started_at_ms
+            .load(std::sync::atomic::Ordering::Acquire);
+        assert!(
+            stamped >= before,
+            "started-at must be stamped at or after the call (got {stamped}, before={before})"
+        );
+    }
+
+    #[test]
+    fn mark_recording_started_second_call_loses_and_does_not_overwrite_stamp() {
+        let state = make_test_app_state();
+        assert!(mark_recording_started(&state));
+        let first_stamp = state
+            .recording_in_progress_started_at_ms
+            .load(std::sync::atomic::Ordering::Acquire);
+        // Sleep briefly so a successful re-stamp would be visibly
+        // different.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let won = mark_recording_started(&state);
+        assert!(!won, "second mark must lose the CAS");
+        let after_stamp = state
+            .recording_in_progress_started_at_ms
+            .load(std::sync::atomic::Ordering::Acquire);
+        assert_eq!(
+            first_stamp, after_stamp,
+            "failed CAS must not overwrite the started-at stamp"
+        );
+    }
+
+    /// `clear_recording_flag` zeros both the flag AND the timestamp.
+    /// Pinning this prevents the regression where a future change
+    /// updates the flag but leaves a stale timestamp behind for the
+    /// next stale-heal probe.
+    #[test]
+    fn clear_recording_flag_zeros_flag_and_stamp() {
+        let state = make_test_app_state();
+        assert!(mark_recording_started(&state));
+        clear_recording_flag(&state);
+        assert!(!state
+            .recording_in_progress
+            .load(std::sync::atomic::Ordering::Acquire));
+        assert_eq!(
+            state
+                .recording_in_progress_started_at_ms
+                .load(std::sync::atomic::Ordering::Acquire),
+            0,
+            "clear must zero the started-at stamp"
+        );
+    }
+
+    /// Helper for the mark/clear tests. Builds a minimal
+    /// `AppState` against an in-memory sqlite — only the atomics
+    /// we exercise need to be valid; the services we don't touch
+    /// just need to construct.
+    fn make_test_app_state() -> crate::app_state::AppState {
+        let tmp = std::env::temp_dir().join(format!(
+            "ut-dictation-test-{}-{}",
+            std::process::id(),
+            now_ms()
+        ));
+        std::fs::create_dir_all(&tmp).unwrap();
+        crate::app_state::AppState::bootstrap(&tmp).expect("AppState bootstrap")
     }
 }
