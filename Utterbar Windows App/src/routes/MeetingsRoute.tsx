@@ -15,13 +15,18 @@ import type { HistoryEntry } from '@/generated/HistoryEntry';
  *   - List: card per meeting with date, duration, speaker turn breakdown
  *     (derived from the transcript's `**You**:` / `**Other**:` tags),
  *     and a one-line preview pulled from the first chunk's body.
- *   - Detail: full timestamped transcript, copy/export buttons, summary
- *     placeholder (LLM lands in v0.14.1).
+ *   - Detail: full timestamped transcript, copy/export buttons, and a
+ *     dormant Summary section. The summary feature is not implemented:
+ *     the offline LLM backend it depends on (llama.cpp + a small
+ *     instruction-tuned model) has not been wired in this branch. The
+ *     section exists in the DOM as a placeholder so the detail layout
+ *     doesn't reshape when the feature does land.
  *
- * No reprocess button — the meeting transcribe pipeline isn't a
- * post-processing pass; rerunning it would mean re-chunking the audio
- * and that's an audio-level operation. Audio playback may come later
- * when `retain_audio` is on (deferred from v0.14.0).
+ * No reprocess button. The meeting transcribe pipeline isn't a
+ * post-processing pass: rerunning it would mean re-chunking the audio,
+ * which is an audio-level operation. Audio playback in the detail view
+ * is also not wired yet. It would need an asset:// scheme bridge and a
+ * player component.
  */
 export function MeetingsRoute() {
   const [meetings, setMeetings] = useState<HistoryEntry[]>([]);
@@ -87,7 +92,7 @@ function EmptyState() {
       <h3 className="mt-3 text-base font-medium text-fg">No meetings yet</h3>
       <p className="mt-2 text-sm text-muted">
         Switch to Meeting Mode (Settings → Modes → Meeting), press your hotkey, and
-        speak. Meetings save here when you stop recording — both your microphone and
+        speak. Meetings save here when you stop recording. Both your microphone and
         your system audio are captured automatically, with timestamps and speaker tags.
       </p>
     </div>
@@ -222,20 +227,21 @@ function MeetingDetail({
         </div>
       </div>
 
-      {/* Summary placeholder. The offline LLM (llama.cpp + small instruct
-          model) lands in v0.14.1 with the actual summarisation pipeline.
-          For v0.14.0 we render a disabled placeholder so the section
-          exists in the UI even though the feature isn't live yet — that
-          way the v0.14.1 ship adds nothing visible apart from the button
-          becoming clickable. */}
+      {/* Summary placeholder. The offline LLM backend (llama.cpp + a
+          small instruction-tuned model) is not wired in this branch.
+          The section exists in the DOM so the detail layout has the
+          right shape when the feature lands; until then the body is
+          honest about not being implemented yet. Removing this whole
+          block when the feature ships is one small UI change, not a
+          layout reshape. */}
       <div className="mt-6 rounded-input bg-bg-2 p-4">
         <div className="flex items-center gap-2 text-sm font-medium text-fg">
           <Sparkles className="h-4 w-4" />
           Summary
         </div>
         <p className="mt-2 text-[13px] text-muted">
-          Auto-generated meeting summary. Available in v0.14.1 once the offline LLM
-          model ships — runs locally, no cloud round-trip.
+          Auto-generated meeting summaries are not available yet. When they ship
+          they will run locally on this machine. No cloud round-trip.
         </p>
       </div>
 

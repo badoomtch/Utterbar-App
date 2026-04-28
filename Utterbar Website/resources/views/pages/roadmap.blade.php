@@ -18,7 +18,7 @@
     $shipped = [
         ['title' => 'Multi-engine ASR',                  'desc' => 'Parakeet-TDT (default English), Whisper (multilingual base + small), Zipformer (fast English). Pick per-mode or globally.'],
         ['title' => 'Auto-update with signed metadata',  'desc' => 'Updater verifies an Ed25519 signature over release metadata before downloading; SHA-256-checks the binary; refuses anything older than what\'s installed; only pulls from dl.utterbar.com.'],
-        ['title' => 'Stable + Beta channels',            'desc' => 'Two tracks: Stable for everyone, Beta for early adopters. Toggle in Settings &rarr; General &rarr; Updates.'],
+        ['title' => 'Stable + Beta channels',            'desc' => 'Two tracks: Stable for everyone, Beta for early adopters. Toggle in Settings &rarr; Updates.'],
         ['title' => 'File transcription',                'desc' => 'Drop an audio or video file in, get a transcript. Queues, history, retranscribe.'],
         ['title' => 'First-run onboarding + model picker', 'desc' => 'Three-engine picker on first launch with download progress. No more cold-boot README moment.'],
         ['title' => 'Vocabulary capture',                'desc' => '"Add to vocab" from any dictation; literal + regex replacements; hinted words for ASR decoding.'],

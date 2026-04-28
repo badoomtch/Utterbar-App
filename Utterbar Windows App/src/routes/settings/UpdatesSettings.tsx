@@ -18,14 +18,16 @@ const UPDATE_CHANNELS = [
 /**
  * Settings → Updates.
  *
- * Lifted out of General Settings into its own sidebar entry. Three
- * blocks:
- *   1. Channel + auto-check toggles (relocated from General).
- *   2. A prominent warning when the user is on the beta channel —
- *      betas can break your install, that wasn't obvious before.
- *   3. The release notes for the version currently installed,
- *      rendered from the markdown bundled at compile time via
- *      `current_release_notes` in the Rust side.
+ * Three blocks:
+ *   1. A rose-tinted warning when the user is on the beta channel.
+ *      Beta builds can break the install or lose data; the warning
+ *      makes that explicit before the user notices the hard way.
+ *   2. Channel selector, auto-check toggle, and a manual "check now"
+ *      button.
+ *   3. Release notes for the version currently installed. Bundled
+ *      into the binary at compile time via `current_release_notes`
+ *      on the Rust side, rendered through the small inline markdown
+ *      parser at the bottom of this file.
  */
 export function UpdatesSettings() {
   const s = useSettings((x) => x.data);
@@ -83,7 +85,7 @@ export function UpdatesSettings() {
 
         <Card
           title="Channel"
-          description="Stable is the public-facing channel — only releases that have soaked through beta land there. Beta receives pre-release builds for testing."
+          description="Stable is the public-facing channel. Only releases that have soaked through beta land there. Beta receives pre-release builds for testing."
         >
           <Row label="Update channel">
             <div className="flex gap-2">

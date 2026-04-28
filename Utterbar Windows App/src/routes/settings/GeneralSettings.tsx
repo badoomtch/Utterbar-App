@@ -35,7 +35,10 @@ function isPlausibleEmail(s: string): boolean {
  * bordered "selected" ring. This keeps the active-state vocabulary
  * consistent with list selection surfaces (rail) and navigation (rail).
  *
- * Updates moved to /settings/updates in v0.14.1 — see UpdatesSettings.tsx.
+ * Channel selector + auto-check + check-now controls live on the
+ * dedicated Updates page (`UpdatesSettings.tsx`). This page covers
+ * theme, accent, sound profile, notifications, and the release-email
+ * subscription only.
  */
 export function GeneralSettings() {
   const s = useSettings((x) => x.data);
@@ -256,11 +259,10 @@ export function GeneralSettings() {
           </Row>
         </Card>
 
-        {/* The Updates card moved to its own /settings/updates page in
-            v0.14.1 (channel selector + beta warning + current-version
-            release notes). General Settings keeps notifications +
-            release-email subscription, both of which are about
-            communication preferences rather than version management. */}
+        {/* Channel selector and check-for-updates controls live on the
+            dedicated /settings/updates page. General Settings keeps the
+            release-email subscription because that's about
+            communication preferences, not version management. */}
 
         <ReleaseEmailCard
           current={(g.releases_email as string | null | undefined) ?? null}
