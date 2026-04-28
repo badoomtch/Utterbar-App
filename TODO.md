@@ -4,7 +4,7 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-27 (B2B/business pass staged in-tree).**
+**Last updated: 2026-04-28 (v0.14.12 mic-routing fix shipped to beta; security/v0.14.13 patch implemented in-branch, awaiting beta verification).**
 
 ---
 
@@ -193,6 +193,88 @@ before the *first real volume sale* closes cleanly:
   delivery.
 - [ ] **4.9 GB idle RAM** — never investigated. See
   [MONOREPO.md §10.6](MONOREPO.md).
+
+---
+
+## Security/stability patch (security/v0.14.13 branch, 2026-04-28) — implemented, not shipped
+
+A six-priority security/stability sweep on top of the v0.14.12 mic
+fix. Branch: `security/v0.14.13`. Not yet built/published — Jay's
+tested-and-passed sign-off on v0.14.12 is the gate before this lands
+on `main`.
+
+What landed:
+
+- **P1 — `open_path` injection.** `cmd /C start <path>` shell-out
+  replaced with a direct `ShellExecuteW` call (no `cmd.exe`
+  interpretation). Path is canonicalised and must live under one of
+  the allow-listed Utterbar data roots (logs, db, models,
+  recordings, diagnostics audio dump, data root). 5 unit tests in
+  `commands/diagnostics.rs`.
+- **P2 — Release publishing hardening.** Server now stream-reads R2
+  to recompute SHA-256 and rejects pasted-vs-computed mismatches.
+  The persisted `sha256` is the **computed** value, not the pasted
+  one. Updater signature is verified against the computed SHA. The
+  browser admin form now requires `updater_signature` on the same
+  conditions as the API path. Stable + announce requires an
+  explicit `confirm_stable_announce` flag. Validator extracted to
+  `App\Services\Releases\ReleaseValidator`. 23 publish-validation
+  tests, all passing. `publish-release.sh` updated to set
+  `confirm_stable_announce=true` automatically when `--announce`
+  is on a stable channel.
+- **P3 — Markdown XSS.** `Markdown::renderEmbedded` now passes
+  `html_input => 'strip'` and `allow_unsafe_links => false` to
+  CommonMark. Raw `<script>` / `<iframe>` tags stripped;
+  `javascript:`/`data:`/`vbscript:` URLs in markdown links
+  neutralised. 9 absence-style tests in `MarkdownXssTest`.
+- **P4 — PHPUnit.** `tests/Unit/.gitkeep` added so the suite runs.
+  `UpdateSubscriberTokenTest` repaired against the GET/POST split
+  (GET = render confirm-button page, POST = state mutation). All
+  76 website tests passing.
+- **P5 — Tauri capabilities.** Dropped `fs:default` and
+  `core:path:default` (frontend doesn't import either plugin).
+  Other capabilities left in place — narrowing further would be a
+  larger refactor and runtime QA needs to confirm nothing breaks.
+  Manual QA list: main window, floating window, onboarding,
+  settings, file picker, shell links, update toast, hotkey
+  recording, tray recording, diagnostics open buttons.
+- **P6 — Model deletion path safety.** `ModelRegistry::remove` and
+  the two retirement-prune blocks in `app_state.rs` (Parakeet v2,
+  Zipformer) now reject absolute paths and `..` traversals up
+  front, and use `paths::assert_within` to confirm the joined
+  target canonicalises inside `models_root` before any
+  `remove_dir_all`. Shared `safe_model_path` helper in
+  `app_state.rs`; reusable `assert_within` in `util/paths.rs`. 4
+  unit tests in `safe_model_path_tests`.
+
+Gates run + green: `cargo check`, `cargo test` (155/155),
+`cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`,
+`pnpm typecheck`, `pnpm lint`, `pnpm build`, `php vendor/bin/phpunit`
+(76/76).
+
+**Residuals / pending operator action:**
+
+- **Manual runtime QA after the v0.14.13 install** — capability
+  narrowing in P5 is the only item that *can't* be proven by the
+  test suite alone. Once installed, exercise: floating bar,
+  onboarding, settings → audio (file picker + meter), settings →
+  diagnostics ("show in folder" buttons), hotkey + tray recording,
+  update toast. If anything breaks at runtime with a Tauri
+  permission error, the fix is to re-add the specific permission
+  to `capabilities/default.json` (don't restore `fs:default` /
+  `core:path:default` wholesale).
+- **Browser admin form stable-publish UX** — the new
+  `confirm_stable_announce` checkbox lives in
+  `pages/admin/releases/create.blade.php`. First operator to use
+  it after the patch ships should confirm the button styling reads
+  as "destructive" (red accent on the confirm box) and not as a
+  routine option.
+- **Server config sanity-check** — `UPDATER_PUBLIC_KEY_B64` is
+  already set in production, so the new mandatory-signature path
+  on the browser form will refuse any publish without a signature.
+  Operators using the browser form (rare; the script is the
+  default) need to paste the b64 signature from
+  `scripts/sign-update-metadata.sh`.
 
 ---
 

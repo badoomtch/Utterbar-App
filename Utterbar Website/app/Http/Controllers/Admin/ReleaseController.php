@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\UpdateAnnouncement;
 use App\Models\Release;
 use App\Models\UpdateSubscriber;
-use App\Mail\UpdateAnnouncement;
+use App\Services\Releases\ReleaseValidator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -48,6 +49,12 @@ class ReleaseController extends Controller
         // before spawning the installer), so a release row missing its
         // hash is a release that can't actually be auto-installed — we
         // refuse to create one rather than leave a trap for users.
+        //
+        // updater_signature: same gating as the API path — required when
+        // UPDATER_PUBLIC_KEY_B64 is configured. Pre-fix the browser form
+        // skipped this check entirely, which let an admin mint signed-key
+        // releases that the desktop updater would refuse forever (the
+        // updater filters out unsigned rows on a signed-key environment).
         $data = $request->validate([
             'version' => ['required', 'string', 'max:32', 'regex:/^\d+\.\d+\.\d+$/'],
             'channel' => ['required', 'in:stable,beta'],
@@ -57,6 +64,8 @@ class ReleaseController extends Controller
             'notes'   => ['required', 'string'],
             'announce' => ['nullable', 'boolean'],
             'announce_subject' => ['nullable', 'string', 'max:200'],
+            'confirm_stable_announce' => ['nullable', 'boolean'],
+            'updater_signature' => ['nullable', 'string', 'max:128'],
         ], [
             'version.regex' => 'Version must be three numeric segments, e.g. 0.6.2. Pre-release suffixes (-rc.1, -beta) are not supported; use the beta channel for pre-GA builds.',
             'sha256.required' => 'SHA-256 is required — releases without a hash cannot be auto-installed by the desktop updater.',
@@ -71,29 +80,54 @@ class ReleaseController extends Controller
             ]);
         }
 
-        $r2Key = ltrim($data['r2_key'], '/');
-        $disk  = Storage::disk('r2');
-
-        if (!$disk->exists($r2Key)) {
+        // Stable + announce destructive-flag confirmation. The browser
+        // form must require the operator to tick a "yes, I really want
+        // to email every active subscriber" box before we run the
+        // SHA-recompute and persist. Refused before the R2 round-trip.
+        if ($data['channel'] === 'stable' && $request->boolean('announce')
+            && !$request->boolean('confirm_stable_announce')
+        ) {
             return back()->withInput()->withErrors([
-                'r2_key' => "No file found at {$r2Key} in the R2 bucket. Upload it first.",
+                'confirm_stable_announce' =>
+                    'Stable + announce sends email to every active subscriber. '
+                    . 'Tick the confirmation box before publishing.',
             ]);
         }
 
-        $size = $disk->size($r2Key);
+        $r2Key = ltrim($data['r2_key'], '/');
+
+        // Shared validator: existence check, server-recompute SHA from
+        // R2, compare to pasted SHA, verify updater_signature against
+        // the *computed* SHA (when keyed). The canonical SHA we
+        // persist is the one we computed — never the pasted one.
+        $result = ReleaseValidator::validate([
+            'version'           => $data['version'],
+            'channel'           => $data['channel'],
+            'r2_key'            => $r2Key,
+            'sha256'            => $data['sha256'],
+            'updater_signature' => $data['updater_signature'] ?? null,
+        ]);
+        if (!$result->ok) {
+            return back()->withInput()->withErrors([
+                $result->errorField ?? 'r2_key' => $result->message,
+            ]);
+        }
 
         $release = Release::create([
-            'version'         => $data['version'],
-            'channel'         => $data['channel'],
-            'r2_key'          => $r2Key,
-            'file_size_bytes' => $size,
-            'sha256'          => strtolower($data['sha256']),
+            'version'           => $data['version'],
+            'channel'           => $data['channel'],
+            'r2_key'            => $r2Key,
+            'file_size_bytes'   => $result->fileSize,
+            // Persist the computed SHA, not the pasted one — see
+            // ReleaseValidator for the rationale.
+            'sha256'            => $result->canonicalSha,
+            'updater_signature' => $data['updater_signature'] ?? null,
             // `tag` is nullable in the validator so it may be absent from
             // $data entirely when the form leaves the field blank — use
             // coalesce rather than indexing.
-            'tag'             => ($data['tag'] ?? '') !== '' ? $data['tag'] : null,
-            'notes_markdown'  => $data['notes'],
-            'published_at'    => now(),
+            'tag'               => ($data['tag'] ?? '') !== '' ? $data['tag'] : null,
+            'notes_markdown'    => $data['notes'],
+            'published_at'      => now(),
         ]);
 
         $flash = ['type' => 'ok', 'text' => "Release v{$release->version} ({$release->channel}) published."];

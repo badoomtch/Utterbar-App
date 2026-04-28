@@ -296,12 +296,94 @@ impl ModelRegistry {
         Ok(info)
     }
 
+    /// Remove a model from disk and from the catalogue table.
+    ///
+    /// `m.path` is a relative directory under `self.models_dir` —
+    /// historically (catalogue-only-installs) every install path
+    /// was a sibling directory of `models_dir`, but the column is
+    /// a plain `TEXT` field so a corrupted DB or future migration
+    /// could plausibly stuff an absolute path or `..` traversal in
+    /// there. `Path::join` has surprising rules (absolute path
+    /// discards the base; `..` is preserved until you hit the
+    /// filesystem) and the next line was a `remove_dir_all` — so a
+    /// bad row would have happily nuked anything outside the models
+    /// directory. The fix has three guards:
+    ///
+    ///   1. Reject absolute paths and explicit `..` components in
+    ///      the DB-supplied component before any join.
+    ///   2. Canonicalise both `models_dir` and the joined target,
+    ///      then assert the target is contained under `models_dir`.
+    ///   3. Only after both checks pass do we call `remove_dir_all`.
+    ///
+    /// On any guard failure we log loudly and return an error so
+    /// the user sees a real failure instead of an empty success
+    /// (which they got pre-fix on every successful row regardless).
     pub fn remove(&self, id: &str) -> Result<()> {
         let installed = self.list_installed()?;
         if let Some(m) = installed.iter().find(|m| m.id == id) {
             if let Some(p) = &m.path {
-                let full = self.models_dir.join(p);
-                let _ = std::fs::remove_dir_all(&full);
+                let suspect = std::path::Path::new(p);
+                // Refuse absolute paths and `..` components up
+                // front — these are never valid model directory
+                // components and signalling them clearly beats
+                // letting the canonicalise step trip on whatever
+                // they resolve to.
+                if suspect.is_absolute()
+                    || suspect
+                        .components()
+                        .any(|c| matches!(c, std::path::Component::ParentDir))
+                {
+                    tracing::warn!(
+                        model_id = id,
+                        path = %suspect.display(),
+                        "model.remove refused: stored path is absolute or contains traversal"
+                    );
+                    return Err(anyhow::anyhow!(
+                        "stored model path is not relative: {}",
+                        suspect.display()
+                    ));
+                }
+                let full = self.models_dir.join(suspect);
+                if full.exists() {
+                    match crate::util::paths::assert_within(&self.models_dir, &full) {
+                        Ok(canonical) => {
+                            // Surface deletion failure rather than
+                            // silently swallowing it. Pre-fix this
+                            // was `let _ = remove_dir_all(...)`,
+                            // which meant a busy-file / permission /
+                            // anti-virus-lock failure looked like a
+                            // successful uninstall to the caller —
+                            // we'd then DELETE the DB row, orphan
+                            // the bytes on disk, and the next
+                            // install couldn't cleanly overwrite.
+                            // Now: log + return the error and leave
+                            // the DB row in place so the user (or
+                            // ModelRegistry::remove retry) sees the
+                            // model is still installed.
+                            if let Err(e) = std::fs::remove_dir_all(&canonical) {
+                                tracing::error!(
+                                    model_id = id,
+                                    path = %canonical.display(),
+                                    error = %e,
+                                    "model.remove failed: remove_dir_all on the model directory failed; leaving DB row in place"
+                                );
+                                return Err(anyhow::Error::new(e).context(format!(
+                                    "remove_dir_all failed for model '{id}' at {}",
+                                    canonical.display()
+                                )));
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                model_id = id,
+                                path = %full.display(),
+                                error = %e,
+                                "model.remove refused: target is outside models_dir after canonicalisation"
+                            );
+                            return Err(e);
+                        }
+                    }
+                }
             }
             let conn = self.db.conn()?;
             conn.execute("DELETE FROM models WHERE id=?1", params![id])?;

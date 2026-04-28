@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\UpdateAnnouncement;
 use App\Models\Release;
 use App\Models\UpdateSubscriber;
-use App\Services\Releases\UpdateMetadataSigner;
+use App\Services\Releases\ReleaseValidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -52,6 +52,13 @@ class AdminReleaseApiController extends Controller
             'notes_markdown'     => ['required', 'string'],
             'announce'           => ['nullable', 'boolean'],
             'announce_subject'   => ['nullable', 'string', 'max:200'],
+            // Stable + announce is the destructive variant (sends email
+            // to every active subscriber). Require a separate explicit
+            // confirmation so a typo in `channel` or `announce` can't
+            // accidentally blast a beta. The browser form requires the
+            // same field; both controllers share the rule via this
+            // validator.
+            'confirm_stable_announce' => ['nullable', 'boolean'],
             // Base64-encoded Ed25519 signature (64 raw bytes = 88 chars b64) over
             // the canonical metadata blob. Required when an updater public key
             // is configured — the publish script signs locally and sends the
@@ -80,66 +87,53 @@ class AdminReleaseApiController extends Controller
             ], 409);
         }
 
-        $disk = Storage::disk('r2');
-        if (!$disk->exists($r2Key)) {
+        // Stable + announce destructive-flag confirmation. Refused
+        // here BEFORE the SHA recompute spends time on R2 — a
+        // missing confirm flag is the single most-likely operator
+        // mistake on a stable cut.
+        if ($channel === 'stable' && $request->boolean('announce')
+            && !$request->boolean('confirm_stable_announce')
+        ) {
             return response()->json([
-                'error'   => 'file_not_in_bucket',
-                'message' => "No file at R2 key: {$r2Key}. Upload it first.",
-                'meta'    => ['r2_key' => $r2Key],
+                'error'   => 'stable_announce_unconfirmed',
+                'message' => 'Stable + announce sends email to every active subscriber. '
+                    . 'Set confirm_stable_announce=true to acknowledge before publishing.',
             ], 422);
         }
 
-        $size = $disk->size($r2Key);
-
-        // Build the canonical download URL the same way UpdaterApiController
-        // does (single source of truth: r2.url config). The updater signature
-        // is computed over a metadata blob that includes this URL — keeping
-        // both sides identical ensures the client's reconstruction matches.
-        $cdnBase = (string) (config('filesystems.disks.r2.url') ?: env('CLOUDFLARE_R2_PUBLIC_URL', 'https://dl.utterbar.com'));
-        $downloadUrl = rtrim($cdnBase, '/') . '/' . ltrim($r2Key, '/');
-
-        // Updater signature handling. When an updater public key is
-        // configured (production), a signature is REQUIRED — pushing an
-        // unsigned release would mean clients refuse to install it,
-        // creating a silent dead-row. Reject at publish time instead.
-        // When no key is configured (local dev / tests), accept whatever
-        // the operator sent (including nothing) so the test suite doesn't
-        // require key material.
-        $updaterSig = $data['updater_signature'] ?? null;
-        $hasUpdaterKey = (bool) config('services.updater.public_key_b64');
-        if ($hasUpdaterKey) {
-            if (!is_string($updaterSig) || $updaterSig === '') {
-                return response()->json([
-                    'error'   => 'updater_signature_required',
-                    'message' => 'Releases must include an updater_signature when UPDATER_PUBLIC_KEY_B64 is set. Use scripts/sign-update-metadata.sh.',
-                ], 422);
-            }
-            $signedOk = UpdateMetadataSigner::verify($updaterSig, [
-                'version'      => $data['version'],
-                'channel'      => $channel,
-                'size_bytes'   => (int) $size,
-                'sha256'       => strtolower($data['sha256']),
-                'download_url' => $downloadUrl,
-            ]);
-            if (!$signedOk) {
-                return response()->json([
-                    'error'   => 'updater_signature_invalid',
-                    'message' => 'updater_signature does not verify against the canonical metadata blob. Check that the operator key matches UPDATER_PUBLIC_KEY_B64 and that nothing changed (sha256, r2_key, size) between signing and upload.',
-                ], 422);
-            }
+        $result = ReleaseValidator::validate([
+            'version'           => $data['version'],
+            'channel'           => $channel,
+            'r2_key'            => $r2Key,
+            'sha256'            => $data['sha256'],
+            'updater_signature' => $data['updater_signature'] ?? null,
+        ]);
+        if (!$result->ok) {
+            return response()->json([
+                'error'   => $result->error,
+                'message' => $result->message,
+                'meta'    => $result->errorField === 'r2_key' ? ['r2_key' => $r2Key] : null,
+            ], 422);
         }
 
         $release = Release::create([
             'version'           => $data['version'],
             'channel'           => $channel,
             'r2_key'            => $r2Key,
-            'file_size_bytes'   => $size,
-            'sha256'            => strtolower($data['sha256']),
-            'updater_signature' => $updaterSig,
+            'file_size_bytes'   => $result->fileSize,
+            // Persist the SHA we *computed* from R2, not what the
+            // operator pasted. Pre-fix, a wrong pasted SHA (typo,
+            // wrong file uploaded) created a row whose hash didn't
+            // match the bucket — which the desktop updater then
+            // refused forever. Recomputing makes the row trustworthy
+            // by construction.
+            'sha256'            => $result->canonicalSha,
+            'updater_signature' => $data['updater_signature'] ?? null,
             'tag'               => $data['tag'] ?? null,
             'notes_markdown'    => $data['notes_markdown'],
             'published_at'      => now(),
         ]);
+        $size = $result->fileSize;
 
         $announced = 0;
         if ($request->boolean('announce') && $channel === 'stable') {

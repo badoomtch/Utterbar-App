@@ -161,15 +161,19 @@ class UnsubscribeRotationTest extends TestCase
         $this->installFailingMailer();
 
         $r2Key = 'releases/0.6.2/Utterbar-Setup-0.6.2.exe';
-        Storage::disk('r2')->put($r2Key, 'x');
+        // Bytes must hash to the pasted sha256 — server recomputes
+        // the hash and rejects mismatched pairs (post-hardening).
+        $bytes = "fake-installer-{$r2Key}";
+        Storage::disk('r2')->put($r2Key, $bytes);
 
         $resp = $this->postJson('/api/admin/releases', [
-            'version'        => '0.6.2',
-            'channel'        => 'stable',
-            'r2_key'         => $r2Key,
-            'sha256'         => str_repeat('a', 64),
-            'notes_markdown' => 'notes',
-            'announce'       => true,
+            'version'                 => '0.6.2',
+            'channel'                 => 'stable',
+            'r2_key'                  => $r2Key,
+            'sha256'                  => hash('sha256', $bytes),
+            'notes_markdown'          => 'notes',
+            'announce'                => true,
+            'confirm_stable_announce' => true,
         ], ['Authorization' => 'Bearer ' . self::ADMIN_TOKEN]);
 
         $resp->assertStatus(201);
@@ -201,15 +205,17 @@ class UnsubscribeRotationTest extends TestCase
         Mail::fake();
 
         $r2Key = 'releases/0.6.2/Utterbar-Setup-0.6.2.exe';
-        Storage::disk('r2')->put($r2Key, 'x');
+        $bytes = "fake-installer-{$r2Key}";
+        Storage::disk('r2')->put($r2Key, $bytes);
 
         $resp = $this->postJson('/api/admin/releases', [
-            'version'        => '0.6.2',
-            'channel'        => 'stable',
-            'r2_key'         => $r2Key,
-            'sha256'         => str_repeat('a', 64),
-            'notes_markdown' => 'notes',
-            'announce'       => true,
+            'version'                 => '0.6.2',
+            'channel'                 => 'stable',
+            'r2_key'                  => $r2Key,
+            'sha256'                  => hash('sha256', $bytes),
+            'notes_markdown'          => 'notes',
+            'announce'                => true,
+            'confirm_stable_announce' => true,
         ], ['Authorization' => 'Bearer ' . self::ADMIN_TOKEN]);
 
         $resp->assertStatus(201);
@@ -243,15 +249,17 @@ class UnsubscribeRotationTest extends TestCase
         $this->installFailingMailer();
 
         $r2Key = 'releases/0.6.2/Utterbar-Setup-0.6.2.exe';
-        Storage::disk('r2')->put($r2Key, 'x');
+        $bytes = "fake-installer-{$r2Key}";
+        Storage::disk('r2')->put($r2Key, $bytes);
 
         $resp = $this->actingAs($this->adminUser())->post('/admin/releases', [
-            'version'  => '0.6.2',
-            'channel'  => 'stable',
-            'r2_key'   => $r2Key,
-            'sha256'   => str_repeat('a', 64),
-            'notes'    => 'notes',
-            'announce' => '1',
+            'version'                 => '0.6.2',
+            'channel'                 => 'stable',
+            'r2_key'                  => $r2Key,
+            'sha256'                  => hash('sha256', $bytes),
+            'notes'                   => 'notes',
+            'announce'                => '1',
+            'confirm_stable_announce' => '1',
         ]);
 
         // Browser path redirects back to the index after publish; the
@@ -279,15 +287,17 @@ class UnsubscribeRotationTest extends TestCase
         Mail::fake();
 
         $r2Key = 'releases/0.6.2/Utterbar-Setup-0.6.2.exe';
-        Storage::disk('r2')->put($r2Key, 'x');
+        $bytes = "fake-installer-{$r2Key}";
+        Storage::disk('r2')->put($r2Key, $bytes);
 
         $resp = $this->actingAs($this->adminUser())->post('/admin/releases', [
-            'version'  => '0.6.2',
-            'channel'  => 'stable',
-            'r2_key'   => $r2Key,
-            'sha256'   => str_repeat('a', 64),
-            'notes'    => 'notes',
-            'announce' => '1',
+            'version'                 => '0.6.2',
+            'channel'                 => 'stable',
+            'r2_key'                  => $r2Key,
+            'sha256'                  => hash('sha256', $bytes),
+            'notes'                   => 'notes',
+            'announce'                => '1',
+            'confirm_stable_announce' => '1',
         ]);
         $resp->assertRedirect(route('admin.releases.index'));
 

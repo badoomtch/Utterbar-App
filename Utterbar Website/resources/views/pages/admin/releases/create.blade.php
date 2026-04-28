@@ -85,6 +85,23 @@
                         @error('notes')<p class="mt-1 text-xs" style="color: var(--danger);">{{ $message }}</p>@enderror
                     </div>
 
+                    <div>
+                        <label for="r-updsig" class="ub-eyebrow mb-2 block">Updater signature
+                            <span style="color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 400;">
+                                (required when UPDATER_PUBLIC_KEY_B64 is configured)
+                            </span>
+                        </label>
+                        <input id="r-updsig" name="updater_signature" type="text" maxlength="128"
+                               placeholder="base64 Ed25519 signature from scripts/sign-update-metadata.sh"
+                               value="{{ old('updater_signature') }}"
+                               class="w-full rounded-xl px-4 py-3 font-mono"
+                               style="background: var(--bg-0); border: 1px solid var(--border-strong); color: var(--fg); font-size: 0.75rem; outline-color: var(--accent);">
+                        <p class="mt-1 text-xs" style="color: var(--muted);">
+                            Signed locally with the operator-only Ed25519 private key. The desktop updater will refuse this release without it once a public key is configured server-side.
+                        </p>
+                        @error('updater_signature')<p class="mt-1 text-xs" style="color: var(--danger);">{{ $message }}</p>@enderror
+                    </div>
+
                     <div class="rounded-xl" style="background: var(--bg-0); border: 1px solid var(--border-strong); padding: 1rem 1.25rem;">
                         <label class="flex items-start gap-3 cursor-pointer">
                             <input type="checkbox" name="announce" value="1" {{ old('announce') ? 'checked' : '' }}
@@ -105,6 +122,24 @@
                                    class="w-full rounded-xl px-4 py-3"
                                    style="background: var(--bg-1); border: 1px solid var(--border-strong); color: var(--fg); font-size: 0.9rem; outline-color: var(--accent);">
                         </div>
+                        {{-- Stable + announce destructive-action confirmation. The
+                             controller refuses to publish without this checkbox
+                             when channel=stable AND announce=1, so the subscriber
+                             blast can never fire from a wrong-channel typo or an
+                             accidentally-checked announce box. --}}
+                        <label class="flex items-start gap-3 cursor-pointer mt-3">
+                            <input type="checkbox" name="confirm_stable_announce" value="1"
+                                   {{ old('confirm_stable_announce') ? 'checked' : '' }}
+                                   class="mt-0.5 shrink-0 w-4 h-4 rounded cursor-pointer"
+                                   style="accent-color: var(--danger);">
+                            <span>
+                                <span style="color: var(--fg-hi); font-weight: 500;">I confirm this is a stable release that should email every active subscriber</span>
+                                <span class="block text-xs mt-0.5" style="color: var(--muted);">
+                                    Required when both stable channel and announce are selected.
+                                </span>
+                            </span>
+                        </label>
+                        @error('confirm_stable_announce')<p class="mt-2 text-xs" style="color: var(--danger);">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="flex items-center justify-end gap-3 pt-2">

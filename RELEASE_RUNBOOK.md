@@ -169,11 +169,52 @@ So the two canonical invocations are:
 
 ### What the script does (for debugging)
 
-1. Computes SHA-256 of the `.exe`.
-2. Uploads to R2 at `s3://utterbar/releases/<version>/Utterbar-Setup-<version>.exe` via the `utterbar-r2` AWS profile.
+1. Computes SHA-256 of the `.exe` locally. The server **also** recomputes
+   this from the R2 object after upload and refuses the publish if the
+   two don't match — see "Server-side SHA recompute" below.
+2. Uploads to `s3://utterbar/releases/<version>/Utterbar-Setup-<version>.exe`.
 3. HEAD-verifies `https://dl.utterbar.com/releases/<version>/Utterbar-Setup-<version>.exe` returns HTTP 200.
-4. POSTs metadata (`version`, `channel`, `sha256`, `notes_markdown`, `announce`, `tag`) to `$UTTERBAR_API_BASE/api/admin/releases` with bearer-token auth.
-5. Expects `201 Created` with `id`, `download_url`, `size_bytes`, `announced_to`.
+4. Signs the canonical metadata blob locally with the operator's
+   Ed25519 key (loaded from `~/.utterbar-deploy/.env`).
+5. POSTs metadata (`version`, `channel`, `r2_key`, `sha256`,
+   `notes_markdown`, `announce`, `tag`, `updater_signature`,
+   `confirm_stable_announce`) to `$UTTERBAR_API_BASE/api/admin/releases`
+   with bearer-token auth.
+6. Expects `201 Created` with `id`, `download_url`, `size_bytes`, `announced_to`.
+
+### Server-side validation rules (effective from the v0.14.13 hardening)
+
+The publish endpoint runs these checks before a row is created:
+
+- **SHA-256 recompute (canonical hash).** The server stream-reads the
+  uploaded R2 object, hashes it, and compares to the SHA the script
+  pasted. If they differ the publish is refused (`error: sha_mismatch`).
+  The persisted `sha256` column is the value the **server computed**, not
+  the value the script pasted — the pasted value functions as a
+  guard against "uploaded the wrong file" rather than the source of
+  truth. Updating the SHA column on a release row through any other
+  path is unsafe: the desktop updater verifies the downloaded
+  installer against this value, and a mismatch breaks every install.
+- **Updater signature verification (over the computed SHA).** When
+  `UPDATER_PUBLIC_KEY_B64` is configured server-side, the publish path
+  requires `updater_signature` in the body. The signature is verified
+  against a canonical metadata blob built with the **computed** SHA,
+  not the pasted one — so a wrong pasted SHA can't drag the signature
+  along with it and produce a row that signs-and-verifies but doesn't
+  match the bucket. Both the API path (`POST /api/admin/releases`) and
+  the browser form (`POST /admin/releases`) enforce this rule
+  identically since the v0.14.13 patch.
+- **Stable + announce confirmation flag.** When `channel=stable` AND
+  `announce=true`, the body must include `confirm_stable_announce=true`
+  (or `'1'` from the browser form). Without it, the publish is refused
+  (`error: stable_announce_unconfirmed`). This is a defensive guard
+  against typo-driven subscriber blasts; `publish-release.sh` sets the
+  flag automatically when `--announce` is passed without `--beta`.
+- **Channel separation.** Beta and stable rows live in the same table
+  but separate uniqueness namespaces (`(version, channel)`), so the
+  same version string can exist on both — this is intentional, used
+  to promote a beta to stable by re-publishing the same version on
+  the other channel. The desktop updater filters by channel server-side.
 
 ### Known drifts and workarounds (as of 2026-04-26)
 
@@ -190,6 +231,11 @@ See [MONOREPO.md §10](MONOREPO.md) for the full list. When fixing drift, **fix 
 | `401 Unauthorized` | `UTTERBAR_ADMIN_API_TOKEN` is wrong. | Check `~/.utterbar-deploy/.env`. Fix and re-run (script is idempotent as long as the DB row wasn't created). |
 | `409 version_exists` | A previous attempt partially succeeded. | See "409 recovery" in [RELEASE.md §5](Utterbar%20Windows%20App/RELEASE.md). `DELETE /api/admin/releases/<id>?delete_file=1` then re-run. |
 | `422 file_not_in_bucket` | R2 upload succeeded but admin API can't find it at the key the script claimed. | Check `releases/<v>/Utterbar-Setup-<v>.exe` exists in R2. The script and the admin API now both use the versioned key — if they've drifted, fix the drift before re-running. |
+| `422 sha_mismatch` | Server recomputed the SHA from R2 and it doesn't match the SHA the script pasted. | Either the wrong file uploaded or the pasted hash is stale. Read the body — it includes both values. Re-run after fixing whichever is wrong. |
+| `422 r2_hash_failed` | Server couldn't read the R2 object back to hash it. Rare; usually transient. | Retry. If it persists, check R2 credentials on the server. |
+| `422 updater_signature_required` | `UPDATER_PUBLIC_KEY_B64` is configured server-side but the script didn't send a signature. | Re-run after confirming `~/.utterbar-deploy/.env` has the operator private key and the script's signing step succeeded. |
+| `422 updater_signature_invalid` | Signature parsed but doesn't verify against the canonical metadata blob built from the **computed** SHA. | Most often: the file was modified between local SHA + the upload. Re-build, re-sign, re-publish. |
+| `422 stable_announce_unconfirmed` | `--announce --tag "latest"` was used without `confirm_stable_announce=true`. | `publish-release.sh` should set this automatically when `--announce` is on a stable. If you're invoking the API directly, add `"confirm_stable_announce": true`. |
 | `422 version required` (or similar per-field) | curl quoting bug (§5 drifts). | Re-run with payload written to a temp file and `--data-binary "@$TMPFILE"`. |
 | `503` | Admin API is not configured server-side. | Stop. Server ops issue — contact Jay. |
 

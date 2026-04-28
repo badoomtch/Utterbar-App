@@ -68,19 +68,36 @@ class ReleasePublishValidationTest extends TestCase
         );
     }
 
-    /** Common body fields for a well-formed publish request. */
+    /**
+     * Common body fields for a well-formed publish request.
+     *
+     * The validator now (post-hardening) recomputes the SHA-256 from
+     * the R2 object and rejects pasted SHAs that don't match. Tests
+     * that want a successful publish must therefore pass the SHA of
+     * the bytes they're seeding. We seed deterministic bytes
+     * ("utterbar-test-installer-<r2_key>") and pre-compute their
+     * hash so callers can spread `body()` and get a passing case.
+     *
+     * Tests that want to assert SHA mismatch can override `sha256`
+     * with any other 64-hex string and the validator will reject.
+     */
     private function body(array $override = []): array
     {
-        // Seed the fake R2 disk so the `file_not_in_bucket` check passes
-        // and we reach the real validation / persist path.
         $r2Key = $override['r2_key'] ?? 'releases/0.6.2/Utterbar-Setup-0.6.2.exe';
-        Storage::disk('r2')->put($r2Key, 'fake-installer-bytes');
+        // Bytes are derived from the key so each test's seeded
+        // installer is unique — avoids cross-test contamination
+        // when a single fake bucket is shared across tests.
+        $bytes = "utterbar-test-installer-{$r2Key}";
+        Storage::disk('r2')->put($r2Key, $bytes);
 
         return array_merge([
             'version'        => '0.6.2',
             'channel'        => 'stable',
             'r2_key'         => $r2Key,
-            'sha256'         => str_repeat('a', 64),
+            // Pasted SHA: by default the SHA of the bytes we just
+            // seeded so the validator's pasted-vs-computed equality
+            // check passes. Override to assert mismatch.
+            'sha256'         => hash('sha256', $bytes),
             'notes_markdown' => 'First change',
         ], $override);
     }
@@ -151,16 +168,19 @@ class ReleasePublishValidationTest extends TestCase
 
     public function test_publish_accepts_valid_sha256_and_persists_lowercased(): void
     {
-        // Upper-case input should round-trip as lower-case in the DB so
-        // downstream equality checks (client verification) have a single
-        // canonical form.
-        $resp = $this->postApi($this->body(['sha256' => str_repeat('A', 64)]));
+        // Upper-case pasted SHA must still match (hash_equals is
+        // case-sensitive but the validator lower-cases the pasted
+        // value before comparing). The persisted SHA is the one we
+        // computed from R2 — always lower-case via `hash()`.
+        $body = $this->body();
+        $body['sha256'] = strtoupper($body['sha256']);
+        $resp = $this->postApi($body);
         $resp->assertStatus(201);
         $resp->assertJsonPath('ok', true);
 
         $row = Release::first();
         $this->assertNotNull($row);
-        $this->assertSame(str_repeat('a', 64), $row->sha256);
+        $this->assertSame(strtolower($body['sha256']), $row->sha256);
     }
 
     /* ----- Fix #3: version must be X.Y.Z (no prerelease) ----- */
@@ -266,12 +286,14 @@ class ReleasePublishValidationTest extends TestCase
 
     public function test_browser_publish_accepts_valid_release_and_persists_lowercased(): void
     {
-        $resp = $this->postBrowser($this->body(['sha256' => str_repeat('A', 64)]));
+        $body = $this->body();
+        $body['sha256'] = strtoupper($body['sha256']);
+        $resp = $this->postBrowser($body);
         $resp->assertRedirect(route('admin.releases.index'));
         $row = Release::first();
         $this->assertNotNull($row);
         $this->assertSame('0.6.2', $row->version);
-        $this->assertSame(str_repeat('a', 64), $row->sha256, 'sha256 must be persisted lower-case');
+        $this->assertSame(strtolower($body['sha256']), $row->sha256, 'sha256 must be persisted lower-case');
     }
 
     public function test_browser_publish_accepts_beta_channel(): void
@@ -284,5 +306,245 @@ class ReleasePublishValidationTest extends TestCase
         $resp->assertRedirect(route('admin.releases.index'));
         $row = Release::first();
         $this->assertSame('beta', $row->channel);
+    }
+
+    /* --------------------------------------------------------------------
+     * SHA-recompute hardening: server hashes the R2 object and stores
+     * the computed value as canonical. The pasted SHA becomes a guard
+     * against the wrong-file-uploaded class of error rather than the
+     * source of truth for the persisted column.
+     * -------------------------------------------------------------------- */
+
+    public function test_api_publish_rejects_when_pasted_sha_differs_from_r2(): void
+    {
+        $body = $this->body();
+        // Override pasted SHA with a value that's still hex+64-long
+        // (so the regex validator passes) but doesn't match the
+        // bytes we seeded. The new ReleaseValidator must catch it.
+        $body['sha256'] = str_repeat('b', 64);
+        $resp = $this->postApi($body);
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'sha_mismatch');
+        $this->assertSame(0, Release::count(), 'mismatch must not persist');
+    }
+
+    public function test_browser_publish_rejects_when_pasted_sha_differs_from_r2(): void
+    {
+        $body = $this->body();
+        $body['sha256'] = str_repeat('b', 64);
+        $resp = $this->postBrowser($body);
+        $resp->assertSessionHasErrors(['sha256']);
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_api_publish_persists_computed_sha_even_when_paste_is_uppercase(): void
+    {
+        $body = $this->body();
+        $expected = $body['sha256'];
+        // Paste in upper-case form — validator lower-cases pasted
+        // before comparing, then persists the computed (already
+        // lower-case) value.
+        $body['sha256'] = strtoupper($expected);
+        $this->postApi($body)->assertStatus(201);
+
+        $row = Release::first();
+        $this->assertSame($expected, $row->sha256);
+    }
+
+    /* --------------------------------------------------------------------
+     * Stable + announce confirmation: a missing confirm_stable_announce
+     * flag must refuse the publish before any R2 work happens. Beta
+     * channel + announce is unaffected (announce is only honoured for
+     * stable anyway, but the confirmation guard fires only on stable).
+     * -------------------------------------------------------------------- */
+
+    public function test_api_stable_announce_without_confirmation_is_refused(): void
+    {
+        $resp = $this->postApi($this->body([
+            'channel'  => 'stable',
+            'announce' => true,
+        ]));
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'stable_announce_unconfirmed');
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_api_stable_announce_with_confirmation_proceeds(): void
+    {
+        $resp = $this->postApi($this->body([
+            'channel'                 => 'stable',
+            'announce'                => true,
+            'confirm_stable_announce' => true,
+        ]));
+        $resp->assertStatus(201);
+    }
+
+    public function test_browser_stable_announce_without_confirmation_is_refused(): void
+    {
+        $resp = $this->postBrowser($this->body([
+            'channel'  => 'stable',
+            'announce' => '1',
+        ]));
+        $resp->assertSessionHasErrors(['confirm_stable_announce']);
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_beta_announce_does_not_require_stable_confirmation(): void
+    {
+        // Stable-confirmation guard is scoped to channel=stable. A
+        // beta publish with announce=true (announce is a no-op for
+        // beta in the controllers) must NOT be blocked by the
+        // confirmation rule.
+        $resp = $this->postApi($this->body([
+            'channel'  => 'beta',
+            'announce' => true,
+        ]));
+        $resp->assertStatus(201);
+    }
+
+    /* --------------------------------------------------------------------
+     * r2_key shape: only `releases/<version>/<filename>.exe` is allowed
+     * and the version segment must match the submitted version. Without
+     * this, an admin (or a leaked admin token) could pin a release row
+     * at any pre-existing R2 object — even one outside the releases/
+     * prefix. The shape check is in ReleaseValidator so it covers both
+     * the API and browser entry points; the tests below exercise both.
+     * -------------------------------------------------------------------- */
+
+    public function test_api_publish_accepts_canonical_r2_key_shape(): void
+    {
+        $resp = $this->postApi($this->body([
+            'r2_key' => 'releases/0.6.2/Utterbar-Setup-0.6.2.exe',
+        ]));
+        $resp->assertStatus(201);
+    }
+
+    public function test_api_publish_rejects_wrong_version_folder(): void
+    {
+        $resp = $this->postApi($this->body([
+            'version' => '0.6.2',
+            'r2_key'  => 'releases/0.7.0/Utterbar-Setup-0.7.0.exe',
+        ]));
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'r2_key_shape');
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_api_publish_rejects_traversal_in_r2_key(): void
+    {
+        $resp = $this->postApi($this->body([
+            'r2_key' => 'releases/0.6.2/../../etc/Utterbar-Setup-0.6.2.exe',
+        ]));
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'r2_key_shape');
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_api_publish_rejects_nested_path_after_filename(): void
+    {
+        // Three-segment shape exactly: releases/<v>/<filename>. Any
+        // nested directory between the version folder and the file
+        // is refused so an attacker can't hide an alternate layout.
+        $resp = $this->postApi($this->body([
+            'r2_key' => 'releases/0.6.2/sub/Utterbar-Setup-0.6.2.exe',
+        ]));
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'r2_key_shape');
+    }
+
+    public function test_api_publish_rejects_key_outside_releases_prefix(): void
+    {
+        $resp = $this->postApi($this->body([
+            'r2_key' => 'private/0.6.2/Utterbar-Setup-0.6.2.exe',
+        ]));
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'r2_key_shape');
+    }
+
+    public function test_api_publish_rejects_non_exe_filename(): void
+    {
+        $resp = $this->postApi($this->body([
+            'r2_key' => 'releases/0.6.2/Utterbar-Setup-0.6.2.zip',
+        ]));
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'r2_key_shape');
+    }
+
+    public function test_api_publish_rejects_filename_with_query_string(): void
+    {
+        $resp = $this->postApi($this->body([
+            'r2_key' => 'releases/0.6.2/Utterbar-Setup-0.6.2.exe?evil=1',
+        ]));
+        $resp->assertStatus(422);
+        $resp->assertJsonPath('error', 'r2_key_shape');
+    }
+
+    /* ----- Same shape rules on the browser path ----- */
+
+    public function test_browser_publish_rejects_wrong_version_folder(): void
+    {
+        $resp = $this->postBrowser($this->body([
+            'version' => '0.6.2',
+            'r2_key'  => 'releases/0.7.0/Utterbar-Setup-0.7.0.exe',
+        ]));
+        $resp->assertSessionHasErrors(['r2_key']);
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_browser_publish_rejects_traversal_in_r2_key(): void
+    {
+        $resp = $this->postBrowser($this->body([
+            'r2_key' => 'releases/0.6.2/../../etc/Utterbar-Setup-0.6.2.exe',
+        ]));
+        $resp->assertSessionHasErrors(['r2_key']);
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_browser_publish_rejects_key_outside_releases_prefix(): void
+    {
+        $resp = $this->postBrowser($this->body([
+            'r2_key' => 'private/0.6.2/Utterbar-Setup-0.6.2.exe',
+        ]));
+        $resp->assertSessionHasErrors(['r2_key']);
+        $this->assertSame(0, Release::count());
+    }
+
+    public function test_browser_publish_rejects_non_exe_filename(): void
+    {
+        $resp = $this->postBrowser($this->body([
+            'r2_key' => 'releases/0.6.2/Utterbar-Setup-0.6.2.zip',
+        ]));
+        $resp->assertSessionHasErrors(['r2_key']);
+        $this->assertSame(0, Release::count());
+    }
+
+    /* ----- Shape helper directly (regression for any future caller) ----- */
+
+    public function test_r2_key_shape_helper_accepts_canonical_form(): void
+    {
+        $this->assertNull(\App\Services\Releases\ReleaseValidator::r2KeyShapeError(
+            'releases/0.14.13/Utterbar-Setup-0.14.13.exe',
+            '0.14.13',
+        ));
+    }
+
+    public function test_r2_key_shape_helper_rejects_known_bad_shapes(): void
+    {
+        $bad = [
+            ['', '0.14.13'],
+            ['releases/0.14.13/Utterbar-Setup-0.14.13.exe?x=1', '0.14.13'],
+            ['releases\\0.14.13\\setup.exe', '0.14.13'],  // backslashes
+            ['releases/0.14.13/sub/setup.exe', '0.14.13'],
+            ['notreleases/0.14.13/setup.exe', '0.14.13'],
+            ['releases/0.14.12/setup.exe', '0.14.13'],     // wrong version
+            ['releases/0.14.13/setup', '0.14.13'],         // missing .exe
+            ['releases/0.14.13/setup.zip', '0.14.13'],     // wrong ext
+        ];
+        foreach ($bad as [$key, $ver]) {
+            $this->assertNotNull(
+                \App\Services\Releases\ReleaseValidator::r2KeyShapeError($key, $ver),
+                "expected '{$key}' (version {$ver}) to be rejected"
+            );
+        }
     }
 }
