@@ -7,6 +7,7 @@ pub mod decode;
 pub mod loopback;
 pub mod meter;
 pub mod preprocess;
+pub mod resample;
 
 use std::sync::Arc;
 

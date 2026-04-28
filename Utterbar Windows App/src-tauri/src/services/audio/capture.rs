@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use tokio::sync::mpsc;
 
+use super::resample::StatefulResampler;
 use super::InputDevice;
 
 pub const TARGET_RATE: u32 = 16_000;
@@ -174,98 +175,82 @@ fn run_capture(
             .ok_or_else(|| anyhow!("no default input device"))?,
     };
 
-    // Pick the highest sample rate the device supports up to 48 kHz.
+    // Pick a config that respects the device's NATIVE sample rate
+    // and a sample format we can decode.
     //
-    // Why we don't just use `default_input_config()`: on Windows the
-    // device's "default format" is whatever the user (or a previous
-    // app) last set in Sound Control Panel. For some Focusrite-class
-    // interfaces and most consumer mics, Windows reports the default
-    // as 16 kHz mono, which gives us a Nyquist limit of 8 kHz and
-    // strips every speech frequency above that. The recordings sound
-    // tinny ("laptop webcam") even though the hardware is studio-
-    // grade. Other apps that record cleanly do so by explicitly
-    // requesting a higher rate.
-    //
-    // We ask for the highest rate ≤ 48 kHz that the device actually
-    // supports and let our internal resampler downconvert to the
-    // 16 kHz the recogniser needs. 48 kHz is the sweet spot:
-    // commodity drivers reliably support it, every speech frequency
-    // is preserved (Nyquist 24 kHz), and the resample cost is
-    // negligible.
-    //
-    // If iterating supported configs fails (some uncommon devices
-    // refuse the API call), we fall back to default_input_config()
-    // so the pre-fix behaviour is preserved rather than failing
-    // shut.
-    const PREFERRED_RATE: u32 = 48_000;
-
-    // Restrict candidate configs to sample formats our cpal callback
-    // dispatch can decode. The match below at `match sample_format`
-    // handles F32 / I16 / U16; anything else (U8, I32, F64, etc.)
-    // returns the "unsupported sample format" error and the recording
-    // fails. v0.14.7 picked a U8-only config on a couple of consumer
-    // mics on Windows because the picker only filtered on rate, not
-    // format. Filtering by format first guarantees the chosen range
-    // can be decoded.
-    fn is_supported_format(f: SampleFormat) -> bool {
-        matches!(f, SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16)
-    }
-
-    let fallback_default = || -> Result<cpal::SupportedStreamConfig> {
-        device
-            .default_input_config()
-            .map_err(|e| anyhow!("default_input_config: {e}"))
+    // History:
+    //   * v0.14.7 forced 48 kHz to fix tinny audio. That was the
+    //     wrong fix — the real cause was the linear-interpolation
+    //     resampler destroying high-rate audio on the way to 16 kHz.
+    //     Forcing rate also landed on U8 configs that we couldn't
+    //     decode (broke recording).
+    //   * v0.14.8 filtered the rate-forced picker to F32/I16/U16
+    //     formats. Recording worked again but was still fighting
+    //     the device.
+    //   * v0.14.9 (this) goes back to the device's default rate and
+    //     picks the best decodable format within configs that cover
+    //     it. The proper fix for tinny audio is the FFT-based
+    //     resampler in `super::resample::StatefulResampler`, not
+    //     fighting the driver. Same pattern as Handy
+    //     (github.com/cjpais/Handy, MIT) which has soaked across
+    //     thousands of installs without rate-related complaints.
+    let default_config = match device.default_input_config() {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
+            return Err(anyhow!("default_input_config: {e}"));
+        }
     };
+    let target_rate = default_config.sample_rate();
+
+    fn format_score(fmt: SampleFormat) -> u8 {
+        // F32 highest because it requires no quantisation and is the
+        // most common format for quality interfaces. I16 / U16
+        // covered for completeness. Anything else returns 0 and is
+        // effectively never picked unless it's the only available
+        // config; in that case the dispatch errors below with a
+        // clear "unsupported sample format" message rather than
+        // crashing inside cpal's decoder.
+        match fmt {
+            SampleFormat::F32 => 4,
+            SampleFormat::I16 => 3,
+            SampleFormat::U16 => 2,
+            _ => 0,
+        }
+    }
 
     let supported = match device.supported_input_configs() {
         Ok(configs) => {
-            let candidates: Vec<_> = configs
-                .filter(|c| is_supported_format(c.sample_format()))
-                .collect();
-            if candidates.is_empty() {
-                // No supported-format config available; fall back to
-                // whatever the device default is. The dispatch will
-                // surface the unsupported-format error below if even
-                // the default isn't decodable, which on a real install
-                // would be a driver-level problem we can't paper over.
-                match fallback_default() {
-                    Ok(s) => s,
-                    Err(e) => {
-                        let _ = ready_tx.send(Err(e.to_string()));
-                        return Err(e);
+            let mut best: Option<cpal::SupportedStreamConfigRange> = None;
+            for range in configs {
+                // Only ranges that cover the device's default rate.
+                // Picking a different rate would reintroduce the
+                // v0.14.7 fight-the-driver bug class.
+                if range.min_sample_rate() <= target_rate && range.max_sample_rate() >= target_rate
+                {
+                    let pick = match best.as_ref() {
+                        None => true,
+                        Some(cur) => {
+                            format_score(range.sample_format()) > format_score(cur.sample_format())
+                        }
+                    };
+                    if pick {
+                        best = Some(range);
                     }
                 }
-            } else {
-                let mut candidates = candidates;
-                // Within supported formats, prefer ranges that cover
-                // PREFERRED_RATE, then by highest max_rate descending.
-                // Lower score sorts first.
-                candidates.sort_by_key(|c| {
-                    let max_rate = c.max_sample_rate().0;
-                    if c.min_sample_rate().0 <= PREFERRED_RATE && max_rate >= PREFERRED_RATE {
-                        0
-                    } else {
-                        -(max_rate as i64)
-                    }
-                });
-                let range = candidates.into_iter().next().expect("non-empty");
-                let target_rate = if range.min_sample_rate().0 <= PREFERRED_RATE
-                    && range.max_sample_rate().0 >= PREFERRED_RATE
-                {
-                    PREFERRED_RATE
-                } else {
-                    range.max_sample_rate().0
-                };
-                range.with_sample_rate(cpal::SampleRate(target_rate))
+            }
+            match best {
+                Some(range) => range.with_sample_rate(target_rate),
+                None => default_config,
             }
         }
-        Err(_) => match fallback_default() {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = ready_tx.send(Err(e.to_string()));
-                return Err(e);
-            }
-        },
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "supported_input_configs unavailable, using device default config"
+            );
+            default_config
+        }
     };
     let sample_format = supported.sample_format();
     let config: StreamConfig = supported.config();
@@ -292,16 +277,33 @@ fn run_capture(
     // `move`-captured into a separate thread.
     let cap_hit = Arc::new(AtomicBool::new(false));
 
+    // Closure factory that builds the per-callback body. Each format
+    // branch instantiates its own `StatefulResampler` captured by
+    // move into the cpal callback closure, so the resampler's input
+    // ring persists across callbacks. (cpal callbacks fire every few
+    // ms with variable-size chunks; the stateful resampler buffers
+    // until it has a full FFT window before emitting samples.)
+    //
+    // Meter accumulation and the buffer-append path are unchanged
+    // from pre-v0.14.9 — the only real difference is `resample_f32`
+    // (linear interpolation, low audio quality) became
+    // `StatefulResampler::push` (rubato FftFixedIn, transparent).
     let stream_result = match sample_format {
         SampleFormat::F32 => {
             let frames_tx = frames_tx.clone();
             let meter_tx = meter_tx.clone();
             let buffer = buffer.clone();
             let cap_hit = cap_hit.clone();
+            let mut resampler = StatefulResampler::new(src_rate, TARGET_RATE);
             device.build_input_stream(
                 &config,
                 move |data: &[f32], _| {
-                    let pcm = downmix_and_resample_f32(data, channels, src_rate);
+                    let mono = downmix_f32(data, channels);
+                    let resampled = resampler.push(&mono);
+                    if resampled.is_empty() {
+                        return;
+                    }
+                    let pcm = f32_to_i16(&resampled);
                     for &s in &pcm {
                         let f = s as f32 / i16::MAX as f32;
                         meter_accum += f * f;
@@ -329,10 +331,16 @@ fn run_capture(
             let meter_tx = meter_tx.clone();
             let buffer = buffer.clone();
             let cap_hit = cap_hit.clone();
+            let mut resampler = StatefulResampler::new(src_rate, TARGET_RATE);
             device.build_input_stream(
                 &config,
                 move |data: &[i16], _| {
-                    let pcm = downmix_and_resample_i16(data, channels, src_rate);
+                    let mono = downmix_i16_to_f32(data, channels);
+                    let resampled = resampler.push(&mono);
+                    if resampled.is_empty() {
+                        return;
+                    }
+                    let pcm = f32_to_i16(&resampled);
                     for &s in &pcm {
                         let f = s as f32 / i16::MAX as f32;
                         meter_accum += f * f;
@@ -359,11 +367,20 @@ fn run_capture(
             let frames_tx = frames_tx.clone();
             let buffer = buffer.clone();
             let cap_hit = cap_hit.clone();
+            let mut resampler = StatefulResampler::new(src_rate, TARGET_RATE);
             device.build_input_stream(
                 &config,
                 move |data: &[u16], _| {
+                    // u16 → i16 → f32 mono → resampler. Two casts not
+                    // ideal but rare path; most quality devices come
+                    // back as F32 or I16.
                     let conv: Vec<i16> = data.iter().map(|v| v.to_sample::<i16>()).collect();
-                    let pcm = downmix_and_resample_i16(&conv, channels, src_rate);
+                    let mono = downmix_i16_to_f32(&conv, channels);
+                    let resampled = resampler.push(&mono);
+                    if resampled.is_empty() {
+                        return;
+                    }
+                    let pcm = f32_to_i16(&resampled);
                     if let Ok(mut buf) = buffer.lock() {
                         append_capped(&mut buf, &pcm, &cap_hit, "capture/u16");
                     }
@@ -471,23 +488,18 @@ impl CaptureHandle {
 
 // --- helpers ---
 
-fn downmix_and_resample_f32(data: &[f32], channels: usize, src_rate: u32) -> Vec<i16> {
-    let mono: Vec<f32> = if channels == 1 {
+fn downmix_f32(data: &[f32], channels: usize) -> Vec<f32> {
+    if channels == 1 {
         data.to_vec()
     } else {
         data.chunks_exact(channels)
             .map(|frame| frame.iter().sum::<f32>() / channels as f32)
             .collect()
-    };
-    let resampled = resample_f32(&mono, src_rate, TARGET_RATE);
-    resampled
-        .into_iter()
-        .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
-        .collect()
+    }
 }
 
-fn downmix_and_resample_i16(data: &[i16], channels: usize, src_rate: u32) -> Vec<i16> {
-    let mono: Vec<f32> = if channels == 1 {
+fn downmix_i16_to_f32(data: &[i16], channels: usize) -> Vec<f32> {
+    if channels == 1 {
         data.iter().map(|s| *s as f32 / i16::MAX as f32).collect()
     } else {
         data.chunks_exact(channels)
@@ -499,28 +511,15 @@ fn downmix_and_resample_i16(data: &[i16], channels: usize, src_rate: u32) -> Vec
                     / channels as f32
             })
             .collect()
-    };
-    let resampled = resample_f32(&mono, src_rate, TARGET_RATE);
-    resampled
-        .into_iter()
-        .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
-        .collect()
+    }
 }
 
-fn resample_f32(input: &[f32], src: u32, dst: u32) -> Vec<f32> {
-    if src == dst || input.is_empty() {
-        return input.to_vec();
-    }
-    let ratio = src as f64 / dst as f64;
-    let out_len = (input.len() as f64 / ratio).round() as usize;
-    let mut out = Vec::with_capacity(out_len);
-    for i in 0..out_len {
-        let pos = i as f64 * ratio;
-        let p = pos.floor() as usize;
-        let frac = (pos - p as f64) as f32;
-        let a = *input.get(p).unwrap_or(&0.0);
-        let b = *input.get(p + 1).unwrap_or(&a);
-        out.push(a + (b - a) * frac);
-    }
-    out
+/// Convert resampled f32 mono samples back to clamped i16 PCM. The
+/// rest of the pipeline (history WAV writer, ASR providers) consumes
+/// i16, so we serialise here at the boundary.
+fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
+    samples
+        .iter()
+        .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
+        .collect()
 }
