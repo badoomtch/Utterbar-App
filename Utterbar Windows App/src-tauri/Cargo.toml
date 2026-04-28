@@ -1,6 +1,6 @@
 [package]
 name = "utterbar"
-version = "0.15.1"
+version = "0.15.2"
 edition = "2021"
 description = "Utterbar — local-only dictation for Windows"
 authors = ["Utterbar"]
@@ -69,6 +69,11 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # Hashing
 sha2 = "0.10"
 hex = "0.4"
+# SipHasher13 with the same major version refinery 0.8 uses, so the
+# checksum we recompute in `db::repair` matches refinery's exactly.
+# Pulled transitively via refinery; we add it as a direct dep so
+# the repair helper compiles cleanly without `extern crate` games.
+siphasher = "1"
 
 # Archive extraction — sherpa-onnx Parakeet tarballs are .tar.bz2
 tar = "0.4"

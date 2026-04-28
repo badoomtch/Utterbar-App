@@ -4,49 +4,101 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-28 (v0.15.0 shipped to beta then **diarisation rolled back** in v0.15.1 hotfix after real-meeting testing produced 91 fake speakers + cross-language Whisper hallucinations + multi-minute runtimes. Meeting mode in v0.15.1 = bounded chunked transcript, no speaker labels, defence-in-depth chunk cap. Architectural rework planned for v0.15.2 — see "v0.15.1 hotfix" + "v0.15.2 rework" sections below).**
+**Last updated: 2026-04-28 (v0.15.1 beta panicked at startup on every machine that had run v0.15.0 first — refinery hash mismatch on V0006 migration caused by Windows core.autocrlf rewriting LF→CRLF between the two builds. v0.15.2 hotfix in working tree: restores V0006 to its v0.15.0 LF byte content, adds `.gitattributes` pinning `*.sql` and `**/releases/*.md` to LF, plus a SHA-256 regression test on V0006. Diarisation rework now planned for v0.15.3, NOT v0.15.2.)**
 
 ---
 
 ## Next session pickup — read this first
 
-**v0.15.1 hotfix status:**
+**v0.15.2 hotfix status (in working tree, not committed):**
 
-- Beta-only hotfix that DISABLES speaker diarisation in
-  meeting mode. Ships through the same publish flow as
-  v0.15.0 (`--beta`, no `--announce`, no `latest` tag, no
-  stable promotion).
-- Real v0.15.0 output on a 5-min meeting: 91 fake speakers,
-  Hindi/Vietnamese/Japanese/Arabic hallucinations on short/
-  noisy slices, multi-minute runtime. The full transcript
-  Jay sent over is the `(observed-output)` artefact in the
-  hotfix commit message.
-- **Root cause is architectural**, not a tuning knob. The
-  v0.15 design (`diarise → split into N segments → run
-  Whisper N times → stitch`) creates two failures by
-  construction: (1) over-fragmented clusters become fake
-  speakers; (2) Whisper hallucinates content for short non-
-  speech slices in random languages. No threshold value
-  fixes both at once; they need different surgery.
-- The diariser asset/download/wrapper code from v0.15.0
-  stays in tree behind `#[allow(dead_code)]` because v0.15.2
-  will reuse the parts that survive the rework.
+- v0.15.1 panicked at startup on Jay's machine after auto-
+  update from v0.15.0:
+  ```
+  bootstrap AppState: applied migration V6__history_speaker_names
+  is different than filesystem one V6__history_speaker_names
+  ```
+- **Root cause:** `core.autocrlf=true` on Jay's Windows machine
+  rewrote V0006__history_speaker_names.sql from LF (git index)
+  to CRLF (working tree) between the v0.15.0 and v0.15.1
+  `tauri build` invocations. v0.15.0 binary baked LF bytes,
+  recorded the LF SHA in the user DB. v0.15.1 binary baked
+  CRLF bytes, computed a different SHA, refused to start —
+  refinery's intentional "migration content drifted under us"
+  safety guard.
+- **v0.15.2 fix (in tree, not committed):**
+  1. New `.gitattributes` at repo root pinning `*.sql text
+     eol=lf` and `**/releases/*.md text eol=lf`. Closes the
+     class of bug.
+  2. V0006__history_speaker_names.sql renormalised to LF
+     (1110 bytes, matches git-stored). v0.15.2 binary will
+     compile the same bytes the v0.15.0 binary did →
+     produces the same LF checksum → DBs that recorded the
+     LF hash launch cleanly.
+  3. **NEW round-2 piece:** `db::repair` module with
+     `repair_known_v6_history_speaker_names_line_ending_checksum`
+     called BEFORE `embedded::migrations::runner().run`.
+     Detects the v0.15.1 CRLF checksum on V6's row,
+     confirms `history.speaker_names` column is present
+     (proof the migration's effect is on disk), and rewrites
+     ONLY that row's checksum to the LF value via a
+     constrained UPDATE (matching `version=6 AND
+     name='history_speaker_names' AND checksum=<crlf>`).
+     Without this, the LF v0.15.2 binary would still fail
+     symmetrically on machines where v0.15.1 was the first
+     0.15.x launch.
+  4. Refinery's checksum algorithm is `SipHasher13` over
+     `(name: &str, version: i32, sql: &str)` — verified by
+     reading `refinery_core::Migration::unapplied`
+     (refinery-core 0.8.16 runner.rs:89-93). NOT SHA-256.
+     Helper recomputes via `siphasher::sip::SipHasher13` to
+     reproduce the value byte-perfect.
+  5. **Concrete checksum values for the packet:**
+     - LF  (v0.15.0 / v0.15.2): `6176249412974396076`
+     - CRLF (v0.15.1):           `7360584664322190360`
+     Both stored in `refinery_schema_history.checksum` as
+     decimal `Display` of the `u64`.
+  6. New unit test pins V0006's SHA-256 in source so any
+     future drift fails CI before publish.
+  7. 10 new tests on `db::repair` covering: missing-table
+     no-op, missing-row no-op, LF unchanged, CRLF+column
+     repaired to LF, CRLF without column NOT repaired,
+     CRLF without history-table NOT repaired, unknown
+     checksum NOT repaired, LF/CRLF distinct, decimal-u64
+     shape, end-to-end (synthetic CRLF DB → repair →
+     refinery runs cleanly).
+  8. `releases/*.md` for v0.14.13/v0.15.0/v0.15.1 also
+     renormalised to LF (release notes are bundled into
+     the binary via include_str! and rendered in Settings →
+     Updates; line-ending drift wouldn't crash but would
+     mangle rendering).
+- v0.15.2 ships ONLY the line-ending fix. Speaker
+  diarisation stays disabled. Meeting mode behaviour
+  unchanged from v0.15.1.
+- The diarisation rework that was previously labelled
+  "v0.15.2 rework planning" is now **v0.15.3**.
+- v0.15.1 users CAN'T auto-update because v0.15.1 doesn't
+  reach the updater — the panic happens at AppState
+  bootstrap, before any UI. The release notes tell users
+  to either wait for v0.15.2 to land + manually download,
+  or reinstall v0.15.0 to get back to a working state and
+  let auto-update pick up v0.15.2 from there.
 
 **To continue from here:**
 
-1. After v0.15.1 ships and a real meeting confirms the
-   chunked path is usable: start the v0.15.2 architecture
-   plan (see "v0.15.2 rework planning" section below for
-   the open verification questions about sherpa-rs Whisper
-   capabilities). Do NOT code v0.15.2 until those questions
-   are answered against the real provider.
-2. If a NEW blocker surfaces in v0.15.1 chunked path:
-   bug-fix patch (`fix(meeting): v0.15.2-beta1 — …`) on a
-   small branch.
-3. **Stable promotion of any 0.15.x is on hold** until
-   meeting mode produces useful output. Right now v0.15.1
-   = "no speaker labels, but at least the transcript is
-   correct and finishes in reasonable time."
+1. **After Jay re-approves the v0.15.2 hotfix:** run gates,
+   commit on `hotfix/v0.15.2-line-endings`, push, build,
+   `./scripts/publish-release.sh 0.15.2 ... --beta` (no
+   `--announce`, no `latest` tag), verify SHAs + feeds,
+   merge `--no-ff` into main, delete branch.
+2. **After v0.15.2 ships and Jay confirms it launches:**
+   start the v0.15.3 diarisation rework. The architecture
+   sketch + open verification questions for the rework
+   moved to the renamed "v0.15.3 rework planning" section
+   below.
+3. **Stable promotion of any 0.15.x is still on hold** —
+   v0.15.2 is just an emergency unblock so users can
+   actually launch the app. Stable still serves v0.12.0.
 
 **Other context worth carrying forward:**
 
@@ -254,6 +306,100 @@ before the *first real volume sale* closes cleanly:
 
 ---
 
+## v0.15.2 Migration line-ending hotfix (2026-04-28) — beta only
+
+What v0.15.2 changes:
+
+- **One file restored, three new files added.**
+  Files modified or created:
+  1. `Utterbar Windows App/src-tauri/src/db/migrations/V0006__history_speaker_names.sql`
+     — re-checked-out from git index to get rid of the
+     CRLF rewrite that core.autocrlf had applied. Working
+     tree now matches index (1110 bytes, LF). Same bytes
+     v0.15.0 was built from.
+  2. `.gitattributes` (NEW, repo root) — pins
+     `*.sql text eol=lf` and `**/releases/*.md text eol=lf`.
+     Stops the same class of bug from biting any future
+     migration or release-note bundle. Doesn't touch any
+     other file types — keeps the rule surface minimal.
+  3. **NEW round-2:** `Utterbar Windows App/src-tauri/src/db/repair.rs`
+     — pre-migration-runner V6 checksum repair. See the
+     "Next session pickup" block at the top for the full
+     contract; tl;dr: detects v0.15.1 CRLF checksum on V6
+     row, requires `history.speaker_names` column as proof
+     the migration's effect ran, rewrites only that one
+     row's checksum to LF. Uses
+     `siphasher::sip::SipHasher13` (refinery's actual
+     algorithm, not SHA-256). 10 unit tests including end-
+     to-end "synthetic CRLF DB → repair → refinery runs
+     cleanly". `Utterbar Windows App/src-tauri/src/db/mod.rs`
+     wires the helper into `Db::run_migrations` BEFORE
+     the embedded refinery runner.
+  4. **NEW round-2:** `siphasher = "1"` direct dep in
+     `Utterbar Windows App/src-tauri/Cargo.toml`. Was
+     transitively present via refinery; promoted to direct
+     so the repair helper compiles cleanly without
+     extern-crate gymnastics.
+  5. `Utterbar Windows App/releases/0.15.2.md` (NEW) —
+     release notes documenting both the byte-content
+     restoration AND the round-2 checksum repair, plus
+     the "reinstall v0.15.0 if you can't launch right now"
+     workaround.
+  6. New unit test in `commands::dictation::diarised_helpers_tests`
+     pinning the SHA-256 of V0006's bundled bytes (round-1
+     forward guard). Any future change fails CI.
+  7. `releases/*.md` for v0.14.13/v0.15.0/v0.15.1 also
+     re-checked-out (their working-tree CRLF didn't break
+     anything but the new gitattributes rule covers them
+     and the renormalise removed the noise).
+  8. Version bump 0.15.1 → 0.15.2 in package.json,
+     Cargo.toml, tauri.conf.json.
+
+- **No app behaviour change.** Meeting Mode still uses the
+  v0.15.1 chunked-no-labels path. Speaker diarisation
+  stays disabled. Whisper Large preflight unchanged.
+  Chunk cap still ~60 minutes.
+
+- **Required log line** — there isn't one for v0.15.2; the
+  observable success criterion is "app launches, get_phase
+  returns Idle, no PANIC line in crash.log".
+
+- **Why the bug:** refinery's `embed_migrations!`
+  compile-time macro hashes each .sql file's bytes and
+  compares the hash on app start against what's recorded
+  in `__refinery_schema_history`. v0.15.0 was built from
+  V0006 with LF (the git-stored form). Between the v0.15.0
+  build and the v0.15.1 build, Windows' core.autocrlf=true
+  rewrote V0006 to CRLF in the working tree. The v0.15.1
+  binary baked CRLF bytes; refinery saw a different hash
+  than the LF hash recorded in user DBs; raised
+  ApplyMigrationFailure; main.rs `expect("bootstrap
+  AppState")` panicked.
+
+- **Why this couldn't have been caught earlier:** the
+  migration file isn't touched at all in the v0.15.1
+  diff. `git diff` showed clean. `git ls-files --eol`
+  would have shown `i/lf w/crlf` for V0006 but that
+  command isn't part of the publish ritual. Now it
+  effectively is, via gitattributes — any future drift
+  is corrected on next checkout.
+
+**Diagnosis trail (preserved here as the artefact):**
+
+> [2026-04-28T22:03:53.3816434Z] PANIC: panicked at src\main.rs:67:57:
+> bootstrap AppState: applied migration V6__history_speaker_names
+> is different than filesystem one V6__history_speaker_names
+
+Hash diff confirmed by:
+```
+$ wc -c V0006*.sql                         # 1131 (CRLF)
+$ git show HEAD:.../V0006*.sql | wc -c     # 1110 (LF)
+$ git ls-files --eol -- .../V0006*.sql
+i/lf    w/crlf  attr/                      # smoking gun
+```
+
+---
+
 ## v0.15.1 Diarisation rollback hotfix (2026-04-28) — beta only
 
 What v0.15.1 changes:
@@ -343,7 +489,12 @@ hallucinations (documented in the release notes):
 
 ---
 
-## v0.15.2 rework planning — DO NOT IMPLEMENT YET
+## v0.15.3 rework planning — DO NOT IMPLEMENT YET
+
+(Was labelled "v0.15.2 rework planning" before the v0.15.1
+launch panic forced a v0.15.2 line-ending hotfix to slot in
+ahead of the rework. Architecture targets and verification
+questions are unchanged.)
 
 Goals (from the v0.15.1 review packet):
 
