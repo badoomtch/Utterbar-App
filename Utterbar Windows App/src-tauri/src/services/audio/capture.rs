@@ -174,17 +174,87 @@ fn run_capture(
             .ok_or_else(|| anyhow!("no default input device"))?,
     };
 
-    let supported = match device.default_input_config() {
-        Ok(s) => s,
-        Err(e) => {
-            let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
-            return Err(anyhow!("default_input_config: {e}"));
+    // Pick the highest sample rate the device supports up to 48 kHz.
+    //
+    // Why we don't just use `default_input_config()`: on Windows the
+    // device's "default format" is whatever the user (or a previous
+    // app) last set in Sound Control Panel. For some Focusrite-class
+    // interfaces and most consumer mics, Windows reports the default
+    // as 16 kHz mono, which gives us a Nyquist limit of 8 kHz and
+    // strips every speech frequency above that. The recordings sound
+    // tinny ("laptop webcam") even though the hardware is studio-
+    // grade. Other apps that record cleanly do so by explicitly
+    // requesting a higher rate.
+    //
+    // We ask for the highest rate ≤ 48 kHz that the device actually
+    // supports and let our internal resampler downconvert to the
+    // 16 kHz the recogniser needs. 48 kHz is the sweet spot:
+    // commodity drivers reliably support it, every speech frequency
+    // is preserved (Nyquist 24 kHz), and the resample cost is
+    // negligible.
+    //
+    // If iterating supported configs fails (some uncommon devices
+    // refuse the API call), we fall back to default_input_config()
+    // so the pre-fix behaviour is preserved rather than failing
+    // shut.
+    const PREFERRED_RATE: u32 = 48_000;
+    let supported = match device.supported_input_configs() {
+        Ok(configs) => {
+            let mut candidates: Vec<_> = configs.collect();
+            // Prefer the config whose [min, max] range covers
+            // PREFERRED_RATE, then fall back to the highest max we
+            // can find. Rate selection happens via with_max_sample_rate
+            // when we resolve a SupportedStreamConfig.
+            candidates.sort_by_key(|c| {
+                let max_rate = c.max_sample_rate().0;
+                // Score: configs that cover PREFERRED get highest priority,
+                // then by max_rate descending. Lower score = better.
+                if c.min_sample_rate().0 <= PREFERRED_RATE && max_rate >= PREFERRED_RATE {
+                    0
+                } else {
+                    // Negative max_rate so larger sorts first.
+                    -(max_rate as i64)
+                }
+            });
+            match candidates.into_iter().next() {
+                Some(range) => {
+                    let target_rate = if range.min_sample_rate().0 <= PREFERRED_RATE
+                        && range.max_sample_rate().0 >= PREFERRED_RATE
+                    {
+                        PREFERRED_RATE
+                    } else {
+                        range.max_sample_rate().0
+                    };
+                    range.with_sample_rate(cpal::SampleRate(target_rate))
+                }
+                None => match device.default_input_config() {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
+                        return Err(anyhow!("default_input_config: {e}"));
+                    }
+                },
+            }
         }
+        Err(_) => match device.default_input_config() {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
+                return Err(anyhow!("default_input_config: {e}"));
+            }
+        },
     };
     let sample_format = supported.sample_format();
     let config: StreamConfig = supported.config();
     let src_rate = config.sample_rate.0;
     let channels = config.channels as usize;
+    tracing::info!(
+        device_name = %device.name().unwrap_or_else(|_| "unknown".into()),
+        src_rate,
+        channels,
+        ?sample_format,
+        "audio capture stream opened"
+    );
 
     let err_fn = |e| tracing::error!(?e, "cpal stream error");
 
