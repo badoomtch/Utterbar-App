@@ -88,6 +88,113 @@ pub struct CaptureFinal {
     pub duration_ms: u64,
 }
 
+/// What actually happened when we tried to honour the caller's
+/// `device_id`. The dictation layer reads this so it can:
+///   * log the resolved device alongside the requested one;
+///   * raise a user-visible warning when the requested device wasn't
+///     usable and we silently fell back to the host default — without
+///     this, "the Focusrite isn't plugged in" looks identical to "the
+///     Focusrite is plugged in but recording is broken" from the bar.
+#[derive(Clone, Debug)]
+pub struct CaptureMeta {
+    /// Name cpal reported for the device we ultimately opened. This
+    /// is the canonical "what mic actually recorded you" answer.
+    pub resolved_device_name: String,
+    /// `Some(reason)` when the caller asked for a specific device but
+    /// we ended up on a different one. `None` on the happy path.
+    pub fallback_reason: Option<DeviceFallbackReason>,
+}
+
+/// Why the requested device couldn't be honoured. Kept narrow — the
+/// dictation layer maps each variant to user-visible copy, so the set
+/// is closed and exhaustive.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DeviceFallbackReason {
+    /// The configured device id didn't match any device cpal currently
+    /// knows about. Most common cause: USB mic unplugged, or the user
+    /// renamed the device in Sound settings between sessions.
+    NotFound { requested: String },
+    /// cpal's `input_devices()` enumeration itself failed. Rare on
+    /// Windows but can happen if the audio service is restarting.
+    EnumerationFailed { error: String },
+}
+
+impl DeviceFallbackReason {
+    /// Short human copy for the OS-level dictation toast. The format
+    /// has to read on a Windows notification bubble in two lines —
+    /// keep it terse and actionable.
+    pub fn user_message(&self, resolved: &str) -> String {
+        match self {
+            Self::NotFound { requested } => format!(
+                "Selected microphone \"{requested}\" isn't available — recording with \"{resolved}\" instead. Plug the device back in or pick another one in Audio settings."
+            ),
+            Self::EnumerationFailed { error } => format!(
+                "Couldn't enumerate audio devices ({error}) — recording with \"{resolved}\". Try restarting Utterbar if this keeps happening."
+            ),
+        }
+    }
+}
+
+/// Pure helper for matching a caller-supplied device id against a list
+/// of `(id, name)` pairs from cpal. Extracted from `run_capture` so we
+/// can unit-test the matching rules without standing up a real audio
+/// host.
+///
+/// Rules, in order:
+///   1. If `requested == None` → pick the host default (returned as
+///      the special `Match::Default` variant — the caller still has to
+///      ask cpal for the actual device handle).
+///   2. If `requested == Some(id)` and exactly one device matches by
+///      name → pick that one.
+///   3. If multiple devices share the same name (Windows "Microphone
+///      (USB Audio Device)" with multiple identical USB mics) → pick
+///      the first match. cpal doesn't expose stable per-device
+///      identifiers on Windows so name is the only key we have. We
+///      log a warning so a future ambiguous-name report is diagnosable.
+///   4. If `requested == Some(id)` and nothing matches → return
+///      `Match::FallbackNotFound`. The caller decides whether to fall
+///      back silently or warn — we don't make policy here.
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeviceMatch {
+    /// `requested` was `None`; caller should ask cpal for the host
+    /// default device.
+    Default,
+    /// Found exactly the requested device. Carries the index into the
+    /// `(id, name)` slice the caller passed in.
+    ExactByName { index: usize },
+    /// Found multiple devices sharing this name; we picked the first
+    /// occurrence. `index` is that pick; `total_matching` is how many
+    /// duplicates exist in case the caller wants to log the ambiguity.
+    AmbiguousByName { index: usize, total_matching: usize },
+    /// No device matches the requested id. Caller will typically fall
+    /// back to the host default and surface a warning.
+    FallbackNotFound,
+}
+
+pub fn match_input_device(requested: Option<&str>, devices: &[(String, String)]) -> DeviceMatch {
+    let Some(req) = requested else {
+        return DeviceMatch::Default;
+    };
+    let mut first_match: Option<usize> = None;
+    let mut count = 0usize;
+    for (i, (id, name)) in devices.iter().enumerate() {
+        if id == req || name == req {
+            count += 1;
+            if first_match.is_none() {
+                first_match = Some(i);
+            }
+        }
+    }
+    match (first_match, count) {
+        (None, _) => DeviceMatch::FallbackNotFound,
+        (Some(idx), 1) => DeviceMatch::ExactByName { index: idx },
+        (Some(idx), n) => DeviceMatch::AmbiguousByName {
+            index: idx,
+            total_matching: n,
+        },
+    }
+}
+
 pub fn list_input_devices() -> Result<Vec<InputDevice>> {
     let host = cpal::default_host();
     let default = host.default_input_device();
@@ -109,7 +216,7 @@ pub fn list_input_devices() -> Result<Vec<InputDevice>> {
     Ok(out)
 }
 
-pub fn start(device_id: Option<&str>) -> Result<CaptureHandle> {
+pub fn start(device_id: Option<&str>) -> Result<(CaptureHandle, CaptureMeta)> {
     let (frames_tx, frames_rx) = mpsc::channel::<Vec<i16>>(64);
     let (meter_tx, meter_rx) = mpsc::channel::<(f32, f32)>(64);
     let buffer = Arc::new(Mutex::new(Vec::<i16>::with_capacity(
@@ -118,8 +225,10 @@ pub fn start(device_id: Option<&str>) -> Result<CaptureHandle> {
     let stop_flag = Arc::new(AtomicBool::new(false));
 
     // Confirm we can build the stream before returning, so the caller gets a sensible
-    // error synchronously rather than a silent noop.
-    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    // error synchronously rather than a silent noop. The `Ok` payload carries the
+    // resolved device + fallback reason (if any) so the dictation layer can log and
+    // surface it.
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<CaptureMeta, String>>();
 
     let device_id_owned = device_id.map(|s| s.to_string());
     let buf_clone = buffer.clone();
@@ -141,18 +250,21 @@ pub fn start(device_id: Option<&str>) -> Result<CaptureHandle> {
         })?;
 
     // Block briefly until the capture thread signals success or failure.
-    match ready_rx.recv_timeout(std::time::Duration::from_millis(2_000)) {
-        Ok(Ok(())) => {}
+    let meta = match ready_rx.recv_timeout(std::time::Duration::from_millis(2_000)) {
+        Ok(Ok(meta)) => meta,
         Ok(Err(e)) => return Err(anyhow!(e)),
         Err(e) => return Err(anyhow!("capture thread did not signal ready: {e}")),
-    }
+    };
 
-    Ok(CaptureHandle {
-        stop_flag,
-        frames_rx: tokio::sync::Mutex::new(frames_rx),
-        meter_rx: tokio::sync::Mutex::new(meter_rx),
-        buffer,
-    })
+    Ok((
+        CaptureHandle {
+            stop_flag,
+            frames_rx: tokio::sync::Mutex::new(frames_rx),
+            meter_rx: tokio::sync::Mutex::new(meter_rx),
+            buffer,
+        },
+        meta,
+    ))
 }
 
 fn run_capture(
@@ -161,18 +273,90 @@ fn run_capture(
     meter_tx: mpsc::Sender<(f32, f32)>,
     buffer: Arc<Mutex<Vec<i16>>>,
     stop_flag: Arc<AtomicBool>,
-    ready_tx: std::sync::mpsc::Sender<Result<(), String>>,
+    ready_tx: std::sync::mpsc::Sender<Result<CaptureMeta, String>>,
 ) -> Result<()> {
     let host = cpal::default_host();
-    let device = match device_id {
-        Some(id) => host
-            .input_devices()?
-            .find(|d| d.name().map(|n| n == id).unwrap_or(false))
-            .ok_or_else(|| anyhow!("input device not found: {id}"))?,
-        None => host
-            .default_input_device()
-            .ok_or_else(|| anyhow!("no default input device"))?,
+
+    // Two-stage device resolution:
+    //   1. Try to honour the caller's `device_id` against cpal's
+    //      enumerated input devices.
+    //   2. On any failure (id absent, list-enumeration error, name
+    //      not present), fall back to the host default — but record
+    //      WHY so the dictation layer can warn the user. Pre-fix, a
+    //      missing configured device was silently swapped for the
+    //      Windows default; a Focusrite user with the Windows default
+    //      set to the laptop's Intel mic-array would record from the
+    //      wrong device with no warning.
+    let mut fallback_reason: Option<DeviceFallbackReason> = None;
+    let device = if let Some(req) = device_id {
+        match host.input_devices() {
+            Ok(iter) => {
+                let listed: Vec<(cpal::Device, String)> = iter
+                    .filter_map(|d| {
+                        let n = d.name().ok()?;
+                        Some((d, n))
+                    })
+                    .collect();
+                let pairs: Vec<(String, String)> =
+                    listed.iter().map(|(_, n)| (n.clone(), n.clone())).collect();
+                match match_input_device(Some(req), &pairs) {
+                    DeviceMatch::ExactByName { index } => listed.into_iter().nth(index).unwrap().0,
+                    DeviceMatch::AmbiguousByName {
+                        index,
+                        total_matching,
+                    } => {
+                        tracing::warn!(
+                            requested_device_id = req,
+                            total_matching,
+                            "multiple input devices share the requested name; using the first match"
+                        );
+                        listed.into_iter().nth(index).unwrap().0
+                    }
+                    DeviceMatch::FallbackNotFound => {
+                        fallback_reason = Some(DeviceFallbackReason::NotFound {
+                            requested: req.to_string(),
+                        });
+                        host.default_input_device().ok_or_else(|| {
+                            let msg = "no default input device";
+                            let _ = ready_tx.send(Err(msg.into()));
+                            anyhow!(msg)
+                        })?
+                    }
+                    // `Default` only happens when `requested == None`, which is
+                    // not this branch. Spelt out so a future refactor can't
+                    // silently misroute it.
+                    DeviceMatch::Default => unreachable!(
+                        "match_input_device returned Default for a non-None requested id"
+                    ),
+                }
+            }
+            Err(e) => {
+                fallback_reason = Some(DeviceFallbackReason::EnumerationFailed {
+                    error: e.to_string(),
+                });
+                host.default_input_device().ok_or_else(|| {
+                    let msg = "no default input device";
+                    let _ = ready_tx.send(Err(msg.into()));
+                    anyhow!(msg)
+                })?
+            }
+        }
+    } else {
+        host.default_input_device().ok_or_else(|| {
+            let msg = "no default input device";
+            let _ = ready_tx.send(Err(msg.into()));
+            anyhow!(msg)
+        })?
     };
+
+    let resolved_device_name = device.name().unwrap_or_else(|_| "unknown".into());
+    if let Some(reason) = &fallback_reason {
+        tracing::warn!(
+            ?reason,
+            resolved_device_name = %resolved_device_name,
+            "audio capture: requested device unavailable, fell back to host default"
+        );
+    }
 
     // Stage timings for the start_recording critical path. Each block's
     // wall-clock cost is logged at the end so a future "feels slow"
@@ -194,7 +378,7 @@ fn run_capture(
     let src_rate = config.sample_rate.0;
     let channels = config.channels as usize;
     tracing::info!(
-        device_name = %device.name().unwrap_or_else(|_| "unknown".into()),
+        device_name = %resolved_device_name,
         ?sample_format,
         src_rate,
         channels,
@@ -320,7 +504,10 @@ fn run_capture(
     }
     let play_ms = play_t.elapsed().as_millis() as u64;
     tracing::info!(build_ms, play_ms, "audio capture stream armed");
-    let _ = ready_tx.send(Ok(()));
+    let _ = ready_tx.send(Ok(CaptureMeta {
+        resolved_device_name: resolved_device_name.clone(),
+        fallback_reason,
+    }));
 
     // Park the thread until a stop is requested. The cpal stream lives in this scope,
     // so dropping it at the end of the loop correctly stops capture.
@@ -502,5 +689,75 @@ mod tests {
             peak > 0.2,
             "resampled peak collapsed to {peak} (expected > 0.2)"
         );
+    }
+
+    fn pairs(devs: &[&str]) -> Vec<(String, String)> {
+        devs.iter()
+            .map(|n| (n.to_string(), n.to_string()))
+            .collect()
+    }
+
+    /// `requested == None` always resolves to `Default`, even when the
+    /// device list is non-empty. This is the "user has no preference,
+    /// follow the host default" path the floating bar hits today.
+    #[test]
+    fn match_none_means_default() {
+        let devs = pairs(&["Mic A", "Mic B"]);
+        assert_eq!(match_input_device(None, &devs), DeviceMatch::Default);
+    }
+
+    /// The exact-match path is the v0.14.6+ regression target — Jay's
+    /// Focusrite was selected in settings but the bar invoked
+    /// start_recording with `None`, so this test pins down that the
+    /// matcher routes a real selection to the right device.
+    #[test]
+    fn match_finds_unique_name() {
+        let devs = pairs(&["Mic A", "Focusrite", "Mic B"]);
+        assert_eq!(
+            match_input_device(Some("Focusrite"), &devs),
+            DeviceMatch::ExactByName { index: 1 }
+        );
+    }
+
+    /// Windows happily produces two identical "Microphone (USB Audio
+    /// Device)" entries when the user has two of the same USB mic.
+    /// cpal exposes no further disambiguator on Windows, so the
+    /// matcher must pick the first occurrence and report the
+    /// ambiguity for diagnostics.
+    #[test]
+    fn match_duplicate_names_picks_first_and_reports_count() {
+        let devs = pairs(&["USB Mic", "USB Mic", "USB Mic"]);
+        assert_eq!(
+            match_input_device(Some("USB Mic"), &devs),
+            DeviceMatch::AmbiguousByName {
+                index: 0,
+                total_matching: 3,
+            }
+        );
+    }
+
+    /// Missing-device path: caller asked for "Focusrite" but only the
+    /// onboard mic is present. The matcher returns FallbackNotFound
+    /// — the policy decision (silent fallback vs warn) is in the
+    /// caller, not here.
+    #[test]
+    fn match_returns_fallback_when_no_device_matches() {
+        let devs = pairs(&["Microphone Array (Intel Smart Sound)"]);
+        assert_eq!(
+            match_input_device(Some("Focusrite"), &devs),
+            DeviceMatch::FallbackNotFound
+        );
+    }
+
+    /// Empty device list: every requested id falls back. The host's
+    /// own default lookup will then either succeed or fail explicitly.
+    #[test]
+    fn match_empty_device_list_falls_back() {
+        let devs: Vec<(String, String)> = vec![];
+        assert_eq!(
+            match_input_device(Some("anything"), &devs),
+            DeviceMatch::FallbackNotFound
+        );
+        assert_eq!(match_input_device(None, &devs), DeviceMatch::Default);
     }
 }

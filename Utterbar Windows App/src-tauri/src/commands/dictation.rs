@@ -319,15 +319,54 @@ pub async fn start_recording(
     // undo every side-effect we accrued above — nothing must linger in a half-armed
     // state, and the visible phase must stay at whatever it was before (i.e. not
     // Listening), so the UI shows an error instead of a dead waveform.
+    // Device-id resolution: front-end callers (the floating bar's
+    // hotkey path, the tray-menu start, AppBootstrap recovery) pass
+    // `device_id: None` because they don't read the audio settings
+    // store directly. The contract is "None means use whatever the
+    // user has configured, falling back to the host default if
+    // they haven't configured one". Pre-fix we treated `None` as
+    // "always Windows default" which silently swapped the user's
+    // selected mic for whatever Windows had defaulted to — typically
+    // the laptop's built-in array mic on machines with a USB
+    // interface plugged in. Reproduced 2026-04-28 on Jay's machine:
+    // Focusrite selected in Audio settings, recording captured from
+    // Intel Smart Sound array.
+    let configured_device_id = settings.audio.input_device_id.clone();
+    let effective_device_id = device_id.clone().or_else(|| configured_device_id.clone());
+    tracing::info!(
+        requested_device_id = ?device_id,
+        configured_device_id = ?configured_device_id,
+        effective_device_id = ?effective_device_id,
+        "start_recording: resolving input device"
+    );
+
     let mic_capture = if matches!(source, CaptureSource::Microphone | CaptureSource::Mixed) {
         let mic_t = std::time::Instant::now();
-        match state.audio.start_capture(device_id).await {
-            Ok(handle) => {
-                tracing::debug!(
+        match state.audio.start_capture(effective_device_id.clone()).await {
+            Ok((cap_handle, meta)) => {
+                tracing::info!(
                     mic_arm_ms = mic_t.elapsed().as_millis() as u64,
+                    resolved_device_name = %meta.resolved_device_name,
+                    fallback = ?meta.fallback_reason,
                     "start_capture returned"
                 );
-                Some(handle)
+                // Surface a fallback (configured device missing,
+                // enumeration failed) to the user as a transient
+                // dictation error. It's not fatal — recording still
+                // works on the host default — but the user has to
+                // know they aren't being recorded by their selected
+                // mic, otherwise transcripts come out garbled and
+                // the failure mode is invisible from the bar.
+                if let Some(reason) = &meta.fallback_reason {
+                    let msg = reason.user_message(&meta.resolved_device_name);
+                    tracing::warn!(
+                        ?reason,
+                        resolved_device_name = %meta.resolved_device_name,
+                        "input-device fallback occurred — notifying user"
+                    );
+                    let _ = handle.emit(EVT_DICTATION_ERROR, &msg);
+                }
+                Some(cap_handle)
             }
             Err(e) => {
                 tracing::error!(error = %e, "audio.start_capture failed");

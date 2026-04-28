@@ -20,13 +20,21 @@ pub async fn start_meter(
     state: State<'_, Arc<AppState>>,
     device_id: Option<String>,
 ) -> CmdResult<()> {
-    let capture = state
-        .audio
-        .start_capture(device_id)
-        .await
-        .map_err(|e| OrliqError::Device {
-            message: e.to_string(),
-        })?;
+    let (capture, meta) =
+        state
+            .audio
+            .start_capture(device_id)
+            .await
+            .map_err(|e| OrliqError::Device {
+                message: e.to_string(),
+            })?;
+    if meta.fallback_reason.is_some() {
+        tracing::warn!(
+            resolved_device_name = %meta.resolved_device_name,
+            reason = ?meta.fallback_reason,
+            "start_meter: input-device fallback occurred"
+        );
+    }
     meter::spawn_pump(handle, capture);
     Ok(())
 }
@@ -49,7 +57,8 @@ pub async fn record_test_clip(
         .await
         .map_err(|e| OrliqError::Device {
             message: e.to_string(),
-        })?;
+        })?
+        .0;
     sleep(Duration::from_secs(seconds.min(15))).await;
     let final_ = state.audio.stop_capture().await;
     Ok(match final_ {

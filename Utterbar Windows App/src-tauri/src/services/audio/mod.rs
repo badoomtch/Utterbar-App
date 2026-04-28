@@ -41,16 +41,20 @@ impl AudioService {
     /// the thread holds its own Arc clone — so letting the handle drop does NOT terminate
     /// the thread. Without the explicit stop here, every recording leaked a live cpal
     /// stream + an ever-growing PCM buffer (observed: 11 GB RSS after a long session).
-    pub async fn start_capture(&self, device_id: Option<String>) -> Result<Arc<CaptureHandle>> {
+    pub async fn start_capture(
+        &self,
+        device_id: Option<String>,
+    ) -> Result<(Arc<CaptureHandle>, capture::CaptureMeta)> {
         // Stop any existing capture first so the cpal stream + audio thread terminate and
         // release the PCM buffer. `.stop()` is idempotent at the thread level.
         if let Some(prev) = self.inner.write().await.take() {
             tracing::warn!("start_capture: previous capture still active — stopping it first");
             let _ = prev.stop().await;
         }
-        let handle = Arc::new(capture::start(device_id.as_deref())?);
+        let (handle, meta) = capture::start(device_id.as_deref())?;
+        let handle = Arc::new(handle);
         *self.inner.write().await = Some(handle.clone());
-        Ok(handle)
+        Ok((handle, meta))
     }
 
     /// Start a WASAPI loopback capture (system audio). Windows-only. Same zombie-thread
