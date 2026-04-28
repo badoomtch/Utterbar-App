@@ -18,6 +18,16 @@
 //! count of 4 speakers, regardless of the recording). For us that
 //! would be a foot-gun: a 1-on-1 call would always show 4 fake
 //! speakers. We pass `Some(0)` instead and let the threshold pick.
+//!
+//! **v0.15.1 NOTE:** unreachable from production code paths —
+//! `transcribe_meeting_diarised` (the only caller) is itself
+//! `#[allow(dead_code)]` while the diarised transcribe path is
+//! disabled. v0.15.2 will reuse this wrapper as-is once the
+//! single-pass-Whisper architecture lands.
+
+// Module-level dead-code allow keeps this clean while every helper
+// here waits for v0.15.2's call site.
+#![allow(dead_code)]
 
 use std::path::Path;
 

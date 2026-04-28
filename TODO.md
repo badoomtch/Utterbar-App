@@ -4,42 +4,49 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-28 (v0.14.13 security patch merged + shipped to beta; v0.15.0 speaker-diarisation feature branch fully implemented through five review rounds, all gates green, **approved for beta-only publish**, mid-publish at session end — see "v0.15.0 status" below for the live state).**
+**Last updated: 2026-04-28 (v0.15.0 shipped to beta then **diarisation rolled back** in v0.15.1 hotfix after real-meeting testing produced 91 fake speakers + cross-language Whisper hallucinations + multi-minute runtimes. Meeting mode in v0.15.1 = bounded chunked transcript, no speaker labels, defence-in-depth chunk cap. Architectural rework planned for v0.15.2 — see "v0.15.1 hotfix" + "v0.15.2 rework" sections below).**
 
 ---
 
 ## Next session pickup — read this first
 
-**v0.15.0 status (as of session-end 2026-04-28):**
+**v0.15.1 hotfix status:**
 
-- Branch: `feature/v0.15.0-diarisation`, off `main` after the
-  `ba5e923` security-patch merge.
-- **APPROVED FOR BETA-ONLY PUBLISH.** Beta channel only —
-  no `--announce`, no `latest` tag, no stable promotion.
-- All gates green at publish time: `cargo check`, `cargo
-  test` (207/207 pass, 2 ignored), `cargo clippy
-  --all-targets -- -D warnings`, `cargo fmt --check`,
-  `pnpm typecheck`, `pnpm lint`, `pnpm build`.
-- Five blocker-review rounds with Jay have landed all
-  corrections — see "Round 2/3/4/5 fixes" in the v0.15.0
-  section below for the full inventory.
+- Beta-only hotfix that DISABLES speaker diarisation in
+  meeting mode. Ships through the same publish flow as
+  v0.15.0 (`--beta`, no `--announce`, no `latest` tag, no
+  stable promotion).
+- Real v0.15.0 output on a 5-min meeting: 91 fake speakers,
+  Hindi/Vietnamese/Japanese/Arabic hallucinations on short/
+  noisy slices, multi-minute runtime. The full transcript
+  Jay sent over is the `(observed-output)` artefact in the
+  hotfix commit message.
+- **Root cause is architectural**, not a tuning knob. The
+  v0.15 design (`diarise → split into N segments → run
+  Whisper N times → stitch`) creates two failures by
+  construction: (1) over-fragmented clusters become fake
+  speakers; (2) Whisper hallucinates content for short non-
+  speech slices in random languages. No threshold value
+  fixes both at once; they need different surgery.
+- The diariser asset/download/wrapper code from v0.15.0
+  stays in tree behind `#[allow(dead_code)]` because v0.15.2
+  will reuse the parts that survive the rework.
 
 **To continue from here:**
 
-1. **If publish has completed**: read the v0.15.0 section's
-   "Residuals / pending operator action" subsection for the
-   admin row id, CDN URL, and the soak/QA still required
-   before stable promotion.
-2. If a new blocker surfaces post-publish: pull a beta-only
-   bugfix patch (`fix(diarise): v0.15.1 — …`) on a small
-   branch, run all seven gates, ship to beta as a hotfix.
-3. **Stable promotion**: only after real-meeting QA passes
-   (two-speaker Zoom, in-room, solo, silence-heavy, 30+min,
-   missing models, missing Whisper, rename + export, old
-   v0.14 meeting open-and-render). Then re-publish without
-   `--beta` so a signed v0.15.x stable row exists; this
-   also un-blocks the silent stable updater feed (open
-   item from v0.9.0).
+1. After v0.15.1 ships and a real meeting confirms the
+   chunked path is usable: start the v0.15.2 architecture
+   plan (see "v0.15.2 rework planning" section below for
+   the open verification questions about sherpa-rs Whisper
+   capabilities). Do NOT code v0.15.2 until those questions
+   are answered against the real provider.
+2. If a NEW blocker surfaces in v0.15.1 chunked path:
+   bug-fix patch (`fix(meeting): v0.15.2-beta1 — …`) on a
+   small branch.
+3. **Stable promotion of any 0.15.x is on hold** until
+   meeting mode produces useful output. Right now v0.15.1
+   = "no speaker labels, but at least the transcript is
+   correct and finishes in reasonable time."
 
 **Other context worth carrying forward:**
 
@@ -244,6 +251,179 @@ before the *first real volume sale* closes cleanly:
   delivery.
 - [ ] **4.9 GB idle RAM** — never investigated. See
   [MONOREPO.md §10.6](MONOREPO.md).
+
+---
+
+## v0.15.1 Diarisation rollback hotfix (2026-04-28) — beta only
+
+What v0.15.1 changes:
+
+- **Meeting mode no longer attempts speaker diarisation.**
+  The branch in `commands::dictation::stop_recording` that
+  used to try `transcribe_meeting_diarised` and fall through
+  to `transcribe_chunked` on failure now goes straight to
+  `transcribe_chunked`. Real-meeting v0.15.0 output proved
+  the diarised path is not production-safe at any tunable
+  threshold.
+- **No diariser asset preflight on meeting start.** Round-2
+  blocker fix: round-1 disabled the diariser on the stop
+  side but left `ensure_assets_ready` running in the
+  start-side meeting preflight, so users still paid the
+  ~47 MB download/extract cost on first meeting for a
+  feature that was switched off. Round-2 removes the
+  preflight call too. First meeting on a fresh install is
+  instant.
+- **Whisper Large preflight stays.** The chunked transcribe
+  path uses Whisper Large, so the start-side check that
+  refuses meeting mode with a clear "install Whisper Large"
+  message is unchanged.
+- **Defence-in-depth chunk cap ≈ 60 minutes (130 chunks).**
+  Round-1 had 28 min (60 chunks); round-2 raised to 56 min
+  (120 chunks) after Jay flagged 28 cuts into normal 30+
+  min meetings; round-3 raised again to ~60 min (130
+  chunks = 60 min 40 s exact) because round-2's 56-min cap
+  still rejected standard 60-min meetings on the boundary.
+  Sized to comfortably accept the full 30/45/60-min meeting
+  cadence with a small "I forgot to stop" shoulder, and to
+  keep worst-case CPU Whisper Large transcribe under ~1
+  hour (Whisper Large on CPU runs at roughly real-time).
+  Documented as an explicit beta limitation in
+  releases/0.15.1.md.
+- **Two required log lines** on every meeting so the
+  disabled state is diagnosable from a log tail:
+  - on start: `meeting mode diarisation asset preflight
+    disabled in v0.15.1 beta hotfix`
+  - on stop: `meeting mode diarisation disabled in v0.15.1
+    beta hotfix; using chunked transcript without speaker
+    labels`
+- Diariser code stays in tree behind `#[allow(dead_code)]`
+  on `transcribe_meeting_diarised` and on `PreflightGuard`.
+  Asset download/extract/wrapper code (`services::inference::
+  diarize` + `diarize_assets`) is unreachable from the
+  v0.15.1 meeting flow (no caller in `start_recording`,
+  no caller in `stop_recording`). The whole chain stays
+  in tree because v0.15.2 will reuse pieces.
+- `meeting_preflight_in_progress` flag stays in `AppState`
+  because the round-3-to-5 re-entry helper still loads it
+  in `decide_pre_probe` / `decide_post_probe`. In v0.15.1
+  it's always false; v0.15.2 will re-engage it via
+  `PreflightGuard` when asset prep comes back.
+- Speaker rename UI on the Meetings page stays — it's a
+  pure transcript substitution and a no-op when no
+  `**Speaker N:**` tokens are in the text. Old v0.14.x
+  meetings render unchanged.
+- **No frontend changes** beyond the version bump.
+  `MeetingsRoute.tsx` and `commands::meetings.rs` stay
+  exactly as v0.15.0 shipped.
+
+What real v0.15.0 produced (preserved here as the artefact
+that drove this hotfix — first 91 speakers from a 5-min
+meeting):
+
+> ```
+> [00:07] **Speaker 1:** Like a fan
+> [00:17] **Speaker 2:** How long you going home for?
+> [00:19] **Speaker 6:** Uh, I'll get back tomorrow…
+> …
+> [02:39] **Speaker 51:** नल े                          ← Hindi hallucination
+> [02:40] **Speaker 52:** ♪ On the day ♪
+> [05:03] **Speaker 75:** Dạy dạy dạ                   ← Vietnamese
+> [05:09] **Speaker 87:** やいやいやいや                   ← Japanese
+> [05:15] **Speaker 91:** يا يا يا يا يا                ← Arabic
+> ```
+
+User-facing workaround for cross-language Whisper
+hallucinations (documented in the release notes):
+
+> Settings → Models → Whisper language: change from
+> *Auto-detect* to **English** (or whatever you actually
+> transcribe). Restart. The recogniser pins the language
+> at construction time and stops auto-detect inventing
+> foreign-script content for quiet/ambiguous audio.
+
+---
+
+## v0.15.2 rework planning — DO NOT IMPLEMENT YET
+
+Goals (from the v0.15.1 review packet):
+
+1. Run Whisper once per bounded long chunk, not once per
+   diariser segment. One pass over the meeting buffer
+   eliminates BOTH the per-segment runtime explosion AND
+   the short-clip hallucination problem (Whisper sees full
+   context).
+2. Get word- or segment-level timestamps from Whisper.
+3. Run diarisation separately on the same buffer.
+4. Assign speaker labels post-transcription by mapping
+   diariser segments onto the transcript's word/segment
+   timestamps.
+5. Never feed sub-second/noisy/music-only diariser slices
+   directly into Whisper.
+6. Hard guardrails: max displayed speaker count unless
+   user opts into raw clusters, post-diarisation
+   merge/remap of clusters, reject/treat-as-unlabelled if
+   diariser returns absurd cluster counts (e.g. >10 on a
+   short meeting), language/hallucination filtering based
+   on actual provider capabilities, processing-time logs
+   (`diarise_ms`, `whisper_ms`, `chunk_count`,
+   `segment_count`, `distinct_speaker_count`).
+
+**Open verification questions — answer THESE against the
+real provider before any code is written:**
+
+- Does `sherpa_rs::whisper::WhisperRecognizer` expose
+  segment or word timestamps on its `transcribe` result?
+  (Today's `AsrResult.words` is hardcoded `None` because
+  the provider doesn't surface them. v0.15.2's "assign
+  labels by timestamp" depends on the answer here.)
+- Does `sherpa_rs::whisper` allow language to be set
+  per-call, or only at recognizer construction? (Today
+  `AsrOptions.language_hint` is `_opts: AsrOptions` —
+  ignored. The user-facing workaround above hinges on the
+  construction-time setting being correct.)
+- Can the current Whisper provider be reused for
+  timestamped output, or does v0.15.2 require a provider
+  trait/API change?
+- What's the fastest safe meeting model already installed
+  / available? Whisper Medium / Small acceptable as
+  optional meeting defaults — but only as **explicit user
+  choice**, never as a silent forced downgrade.
+
+**Architecture sketch (NOT a commitment):**
+
+```
+stop_recording (meeting):
+  (1) transcribe_meeting_chunked()   ← bounded, single-Whisper-per-chunk
+        → returns Vec<{ time_range, text, words?[] }>
+  (2) diarise_full_buffer()          ← pyannote + TitaNet, threshold-based
+        → returns Vec<{ time_range, cluster_id }>
+  (3) post_process_clusters()        ← merge close clusters, cap to N,
+                                       reject if cluster_count > 10 etc.
+        → returns Vec<{ time_range, speaker_id }> (≤ N speakers)
+  (4) assign_speaker_labels()        ← interval-overlap each transcript
+                                       chunk against the diariser
+                                       segments; label by majority overlap
+        → returns final transcript with **Speaker N:** prefixes
+```
+
+(1) and (2) can run in parallel — they're independent. (3)
+and (4) are post-processing on their outputs.
+
+**Tests required for v0.15.2 (from the review packet):**
+
+- Diariser returning N=91 clusters on a 5-min synthetic
+  meeting: post-process MUST cap to ≤ N_max (configurable,
+  default ~6) OR mark transcript as "unlabelled" if the
+  cluster count is absurd.
+- Single-pass Whisper output remains unchanged when speaker
+  labels are layered on top (rendered transcript text ≡
+  Whisper output text, just prefixed by `**Speaker N:**`).
+- Processing-time log lines emit on every meeting.
+- Chunk-cap from v0.15.1 still bounds the chunked-Whisper
+  pass.
+- Existing v0.15.0 unit tests for the diariser helpers
+  (merge / shape / pad / dedup) still apply if the helpers
+  are reused; otherwise mark obsolete.
 
 ---
 

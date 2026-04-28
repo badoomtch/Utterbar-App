@@ -1,6 +1,17 @@
 //! On-demand download + integrity verification for the speaker
 //! diarisation model assets.
 //!
+//! **v0.15.1 NOTE:** this module is kept in tree but unreachable
+//! from the v0.15.1 meeting flow. `start_recording`'s asset
+//! preflight was disabled when speaker diarisation was rolled back
+//! after real-meeting testing exposed architectural problems
+//! (91 fake speakers + cross-language Whisper hallucinations).
+//! v0.15.2 will re-engage this module once the proper "single-pass
+//! Whisper + post-hoc speaker labelling" architecture lands. The
+//! module-level dead-code allow at the bottom of this comment block
+//! keeps the build clean while every download / extraction /
+//! SHA-pinning helper waits for its next caller.
+//!
 //! v0.15.0 introduces speaker diarisation in Meeting Mode. Two model
 //! assets are required:
 //!
@@ -50,6 +61,13 @@
 //! locally from the upstream files on 2026-04-28 and (for the
 //! embedding) cross-checked against k2-fsa's published
 //! `checksum.txt`.
+
+// v0.15.1: this whole module is unreachable from production code
+// paths (asset preflight + diarised transcribe both disabled). Kept
+// in tree because v0.15.2 will reuse the SHA-pinned download +
+// hardened tar extraction wholesale. Allow at module scope avoids
+// a sea of per-item `#[allow(dead_code)]` tags.
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 
