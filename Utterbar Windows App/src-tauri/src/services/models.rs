@@ -479,33 +479,13 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 2,
             requires_pro: true,
         },
-        // Zipformer English — Free tier. Smaller download than Parakeet
-        // and slightly faster cold start. Accuracy is a notch below
-        // Parakeet on conversational English; the trade is "smaller
-        // footprint, lower-spec PCs friendly". Engine: Zipformer (k2-fsa
-        // RNNT). int8 quantised to keep CPU inference snappy.
-        ModelInfo {
-            id: "sherpa-zipformer-en-int8".into(),
-            kind: ModelKind::Asr,
-            display_name: "Zipformer (English, lightweight)".into(),
-            description: "Smaller English model. Faster cold start than Parakeet — pick this on lower-spec PCs. Accuracy a notch below Parakeet on conversational English.".into(),
-            version: "2023-06-26".into(),
-            size_bytes: 307_666_046,
-            backend: ModelBackend::Onnx,
-            engine: ModelEngine::Zipformer,
-            languages: vec!["en".into()],
-            installed: false,
-            path: None,
-            // Pinned 2026-04-26 against the live k2-fsa release asset.
-            sha256: "652181d80dfe0e8e0659cf32036d1d6ef56fa2f1ab5b35c54d0cee8a663e8954".into(),
-            download_url: Some(
-                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-zipformer-en-2023-06-26.tar.bz2"
-                    .into(),
-            ),
-            recommended: false,
-            accuracy_score: 7,
-            speed_score: 9,
-            requires_pro: false,
-        },
+        // Offline Zipformer was retired in v0.14.2: Parakeet covers the
+        // English fast-path comprehensively, and shipping two
+        // English-only fast models was creating decision fatigue in the
+        // model picker. Whisper covers multilingual; Parakeet covers
+        // English-fast. The Zipformer tarball stays available in
+        // k2-fsa's release archive if anyone needs it. Existing installs
+        // get the entry pruned via the AppState bootstrap migration in
+        // app_state.rs (same shape as the v0.8.0 Parakeet v2 cleanup).
     ]
 }

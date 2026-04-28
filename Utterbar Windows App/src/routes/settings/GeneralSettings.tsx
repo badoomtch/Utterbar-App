@@ -1,31 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { Mail, Palette, Sparkles } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Palette, Sparkles } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
-import { Input } from '@/components/common/Input';
 import { UpgradeModal } from '@/components/upgrade/UpgradeModal';
 import { useSettings } from '@/state/settings';
 import { useLicence, isPro } from '@/state/licence';
 import { cn } from '@/lib/cn';
-import { invoke } from '@/lib/ipc';
 import { previewProfile, SOUND_PROFILES, type SoundProfileId } from '@/design/sounds';
 
 const ACCENTS = ['teal', 'amber', 'violet', 'rose', 'cyan', 'lime'] as const;
 const THEMES = ['obsidian', 'graphite', 'paper'] as const;
-
-/**
- * Loose email syntax check for the release-updates signup, catches obvious
- * typos like "jay@" or "jay.com" before the IPC/network round-trip. The
- * server is the authority on what it accepts; this is just a "can we skip
- * the round-trip and save the user 300ms of latency" shortcut.
- */
-function isPlausibleEmail(s: string): boolean {
-  // local@domain.tld , local allows the common punctuation, domain requires
-  // at least one dot and a non-empty TLD. Deliberately not RFC 5322 strict.
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
 
 /**
  * General settings.
@@ -259,189 +245,12 @@ export function GeneralSettings() {
           </Row>
         </Card>
 
-        {/* Channel selector and check-for-updates controls live on the
-            dedicated /settings/updates page. General Settings keeps the
-            release-email subscription because that's about
-            communication preferences, not version management. */}
-
-        <ReleaseEmailCard
-          current={(g.releases_email as string | null | undefined) ?? null}
-          onSubscribe={(email) => void update('releases_email', email)}
-        />
+        {/* Channel selector, check-for-updates controls, and the
+            release-email subscription all live on the dedicated
+            /settings/updates page. General Settings is purely about
+            theme, accent, sound profile, and notifications. */}
       </div>
     </div>
   );
 }
 
-/**
- * Release-email subscription card.
- *
- * Opt-in list for the short release-announcement mail we send when a new
- * version ships. The server (utterbar.com) owns the double-opt-in flow
- * (confirmation mail + one-click unsubscribe), so this surface deliberately
- * does NOT track "confirmed vs pending", we just show the verbatim
- * `message` the server returns and record the email locally so the UI
- * knows the user has opted in across restarts. Unsubscribing happens via
- * the link in every release mail, not here.
- *
- * States:
- *   • Closed, no email on file, toggle off, no inputs.
- *   • Open, fresh, toggle on, email input + Subscribe button.
- *   • Submitted, server's verbatim message under the input.
- *   • Subscribed, read-only "Subscribed as X" line with a change button.
- */
-function ReleaseEmailCard({
-  current,
-  onSubscribe,
-}: {
-  current: string | null;
-  onSubscribe: (email: string | null) => void;
-}) {
-  const [enabled, setEnabled] = useState<boolean>(Boolean(current));
-  const [email, setEmail] = useState<string>(current ?? '');
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
-
-  // Keep local state synced when the underlying setting changes (e.g. reset,
-  // import of settings, cross-window update). Without this the card stays
-  // on stale values after the store rehydrates.
-  useEffect(() => {
-    setEnabled(Boolean(current));
-    setEmail(current ?? '');
-  }, [current]);
-
-  async function submit() {
-    const trimmed = email.trim();
-    if (!trimmed) {
-      setStatus({ tone: 'err', text: 'Enter your email to subscribe.' });
-      return;
-    }
-    // Client-side sanity check before the IPC round-trip. The server is the
-    // authority on what it accepts (it does its own RFC-ish validation), but
-    // bouncing obvious typos here, "jay@" or "jay.com", gives immediate
-    // feedback and spares a network hop for the common fat-finger case. The
-    // regex is deliberately loose: local@domain with a dot in the domain.
-    // Stricter patterns reject valid edge cases (plus-addressing, tagged
-    // subdomains, IDNs) that the server is happy to accept.
-    if (!isPlausibleEmail(trimmed)) {
-      setStatus({
-        tone: 'err',
-        text: "That doesn't look like an email address, check for typos.",
-      });
-      return;
-    }
-    setBusy(true);
-    setStatus(null);
-    try {
-      const msg = await invoke<string>('subscribe_to_release_updates', { email: trimmed });
-      // Persist locally so the card renders "subscribed" on next load, the
-      // confirmation handshake is a server concern so we treat a successful
-      // POST as "the user has opted in as far as this app knows".
-      onSubscribe(trimmed);
-      setStatus({ tone: 'ok', text: msg });
-    } catch (e) {
-      // Two shapes can land here:
-      //   1. An OrliqError envelope from the Rust command with a
-      //      `message` field already phrased for humans (handled by the
-      //      backend's non-JSON fallbacks).
-      //   2. A raw Error / string from an unexpected invoke failure
-      //      (missing command, serialisation glitch), these have
-      //      developer-speak messages that would confuse a user.
-      // We only trust `.message` when a `code` is also present (the
-      // OrliqError signature); everything else collapses to the generic
-      // "couldn't reach the server" copy so a stringified JS error never
-      // leaks into the settings surface.
-      const env = e as { kind?: string; code?: string; message?: string };
-      const looksLikeOrliqError =
-        typeof env?.code === 'string' && typeof env?.message === 'string';
-      setStatus({
-        tone: 'err',
-        text: looksLikeOrliqError
-          ? env.message!
-          : "Couldn't reach the server. Check your connection and try again.",
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggle(next: boolean) {
-    setEnabled(next);
-    if (!next) {
-      // Local opt-out only, the server list is authoritative and the user
-      // can fully unsubscribe via the link in any release mail. Clearing
-      // the local hint just hides the subscribed state in this UI.
-      onSubscribe(null);
-      setStatus(null);
-    }
-  }
-
-  const subscribed = Boolean(current) && current === email.trim();
-
-  return (
-    <Card
-      title="Release updates"
-      description="Get a short email when a new Utterbar version ships, what's new, how to update, nothing else. Unsubscribe in one click from any release mail."
-    >
-      <Row
-        label="Email me when there's a new release"
-        description="We send at most one mail per release. Your address stays on the server's list only; we never share it."
-      >
-        <Toggle checked={enabled} onChange={toggle} />
-      </Row>
-      {enabled && (
-        <div className="border-t border-border-soft/70 pt-4">
-          {subscribed ? (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2 text-[13px] text-fg-hi">
-                <Mail className="h-4 w-4 text-accent shrink-0" />
-                <span className="truncate">Subscribed as {current}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEmail('')}
-                className="ub-btn ub-btn-plain !py-[0.4rem] !text-[12px] shrink-0"
-              >
-                Change email
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted shrink-0" />
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                disabled={busy}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !busy) void submit();
-                }}
-                className="flex-1"
-                autoComplete="email"
-              />
-              <button
-                type="button"
-                onClick={() => void submit()}
-                disabled={busy || email.trim().length === 0}
-                className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] shrink-0"
-              >
-                {busy ? 'Sending…' : 'Subscribe'}
-              </button>
-            </div>
-          )}
-          {status && (
-            <p
-              className={cn(
-                'mt-2 text-[12px] leading-relaxed',
-                status.tone === 'ok' ? 'text-accent' : 'text-rose-400',
-              )}
-            >
-              {status.text}
-            </p>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-}

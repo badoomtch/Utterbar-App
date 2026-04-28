@@ -156,6 +156,56 @@ impl AppState {
                 }
             }
         }
+
+        // v0.14.2: offline English Zipformer retired from the catalogue.
+        // Same shape as the Parakeet v2 cleanup above: null any modes
+        // referencing it, drop the models row, remove the on-disk
+        // directory. Idempotent. Users keep the model file on disk only
+        // if they ran a pre-v0.14.2 build with it installed; that's
+        // wasted bytes nobody reads, so we reclaim it.
+        {
+            const ZIPFORMER_EN: &str = "sherpa-zipformer-en-int8";
+            if let Ok(conn) = db.conn() {
+                if let Ok(n) = conn.execute(
+                    "UPDATE modes SET asr_model_id = NULL WHERE asr_model_id = ?1",
+                    rusqlite::params![ZIPFORMER_EN],
+                ) {
+                    if n > 0 {
+                        tracing::warn!(rows = n, "migrated modes off retired Zipformer id");
+                    }
+                }
+                let mut to_remove: Vec<String> = Vec::new();
+                if let Ok(mut stmt) =
+                    conn.prepare("SELECT path FROM models WHERE id = ?1 AND path IS NOT NULL")
+                {
+                    let rows =
+                        stmt.query_map(rusqlite::params![ZIPFORMER_EN], |r| r.get::<_, String>(0));
+                    if let Ok(rows) = rows {
+                        for row in rows.flatten() {
+                            to_remove.push(row);
+                        }
+                    }
+                }
+                if let Ok(n) = conn.execute(
+                    "DELETE FROM models WHERE id = ?1",
+                    rusqlite::params![ZIPFORMER_EN],
+                ) {
+                    if n > 0 {
+                        tracing::warn!(rows = n, "removed retired Zipformer model row");
+                    }
+                }
+                for rel in to_remove {
+                    let abs = data_dir.join("models").join(&rel);
+                    if abs.is_dir() {
+                        let _ = std::fs::remove_dir_all(&abs);
+                        tracing::warn!(path = ?abs, "removed retired Zipformer model directory");
+                    } else if abs.is_file() {
+                        let _ = std::fs::remove_file(&abs);
+                    }
+                }
+            }
+        }
+
         let models = Arc::new(ModelRegistry::new(db.clone(), data_dir.to_path_buf()));
         let vocabulary = Arc::new(VocabularyService::new(db.clone()));
         let history = Arc::new(HistoryService::new(db.clone()));

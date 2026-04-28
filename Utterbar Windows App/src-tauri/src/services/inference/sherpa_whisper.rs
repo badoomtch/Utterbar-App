@@ -129,12 +129,38 @@ impl SherpaWhisper {
         );
 
         tokio::task::spawn_blocking(move || -> Result<()> {
-            tracing::info!(%model_id, %provider, %language, "whisper: building WhisperConfig");
+            // Sherpa-onnx's WhisperConfig.language wants either an empty
+            // string (auto-detect via language-id tokens at decode time)
+            // or a concrete ISO-639-1 code such as "en" / "fr". The
+            // literal sentinel "auto" is a UI/storage convention on our
+            // side; passing it through to sherpa was the cause of the
+            // Whisper Large v3 crash observed on 2026-04-28 (process
+            // aborted ~30s into the first transcribe call regardless of
+            // input length). Whisper base / small tolerated the unknown
+            // sentinel because their tokenizer's language-id set is
+            // smaller and the decoder fell back to auto; large-v3
+            // doesn't, hits an out-of-vocabulary lookup, and the
+            // resulting C++ exception unwinds through the FFI boundary
+            // into a hard process exit.
+            //
+            // Map "auto" (and unknown values for safety) to "" before
+            // handing to sherpa. The user's persisted setting stays as
+            // "auto" so the picker UI keeps showing the right chip.
+            let sherpa_language = if language == "auto" {
+                String::new()
+            } else {
+                language.clone()
+            };
+            tracing::info!(
+                %model_id, %provider, ui_language = %language,
+                sherpa_language = %sherpa_language,
+                "whisper: building WhisperConfig"
+            );
             let config = sherpa_rs::whisper::WhisperConfig {
                 decoder,
                 encoder,
                 tokens,
-                language,
+                language: sherpa_language,
                 num_threads: Some(2),
                 provider: Some(provider.clone()),
                 debug: false,

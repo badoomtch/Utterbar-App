@@ -66,6 +66,18 @@ impl SettingsStore {
             let _ = persist(&path, &cache);
         }
 
+        // v0.14.2: offline English Zipformer was retired. Same shape as
+        // the v2 migration above: clear the setting so the dictation
+        // path surfaces the pick-a-model prompt. Don't auto-redirect to
+        // a Parakeet id — the user might not have Parakeet installed
+        // either, and silently pointing at an uninstalled model causes
+        // a worse "model not found" error than the clean prompt.
+        let migrated_zipformer = migrate_zipformer_reference(&mut cache);
+        if migrated_zipformer {
+            tracing::warn!("cleared default_asr_model_id reference to retired offline Zipformer");
+            let _ = persist(&path, &cache);
+        }
+
         // Back-compat migration: early builds shipped before some shortcut slots
         // existed (cancel/cycle/settings/history) or with several slots unbound.
         // New installs get all defaults via `ShortcutSettings::default()`, but
@@ -159,6 +171,19 @@ fn migrate_v2_references_to_v3(s: &mut Settings) -> bool {
         s.models.default_asr_model_id.as_deref(),
         Some(V2_INT8) | Some(V2_FP16)
     ) {
+        s.models.default_asr_model_id = None;
+        return true;
+    }
+    false
+}
+
+/// v0.14.2: offline Zipformer was retired from the catalogue. Clear
+/// the setting reference so the dictation path surfaces the
+/// pick-a-model prompt rather than a "model not installed" error.
+/// Idempotent.
+fn migrate_zipformer_reference(s: &mut Settings) -> bool {
+    const ZIPFORMER_EN: &str = "sherpa-zipformer-en-int8";
+    if s.models.default_asr_model_id.as_deref() == Some(ZIPFORMER_EN) {
         s.models.default_asr_model_id = None;
         return true;
     }
