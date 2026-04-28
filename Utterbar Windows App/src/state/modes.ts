@@ -38,13 +38,19 @@ export const useModes = create<ModesStore>((set) => ({
 }));
 
 // Cross-window sync. Settings emits `settings:changed` whenever the
-// settings object is updated, including via `set_active_mode`. We
-// re-pull the active id from the payload so a mode switch in one
-// window (e.g. the floating bar's quick switcher) is reflected in
-// every other open window (Modes route, etc.) without each one having
-// to subscribe individually. The full mode list is loaded lazily; if
-// it hasn't been loaded yet, the snapshot here just updates activeId.
+// settings object is updated AND whenever modes are mutated
+// (upsert_mode / delete_mode / duplicate_mode all re-emit the
+// settings snapshot). We:
+//   1. Pull the active id from the payload — cheap, no IPC needed.
+//   2. Re-fetch the full modes list — the floating bar's quick-
+//      switcher relies on `is_favourite` and on the list shape, so
+//      a favourite toggle in one window must propagate.
+// `load()` is two IPC calls; we only run it after a settings change
+// (not on every render) so the cost is bounded by mutation frequency,
+// which is small. Skipping the reload if the activeId-only delta is
+// trivially safe is a future optimisation we don't need yet.
 void listen<{ active_mode_id?: string | null }>(EVT.settingsChanged, (e) => {
   const next = e.payload?.active_mode_id ?? null;
   useModes.setState((s) => (s.activeId === next ? s : { ...s, activeId: next }));
+  void useModes.getState().load();
 });

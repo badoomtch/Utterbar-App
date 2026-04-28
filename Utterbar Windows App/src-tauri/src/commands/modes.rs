@@ -49,6 +49,14 @@ pub async fn upsert_mode(
     let sort = mode.sort_order;
     let result = state.modes.upsert(mode, sort).map_err(OrliqError::from)?;
     let _ = tray::rebuild(&handle, &state).await;
+    // Re-emit settings so any open window's `useModes` store reloads
+    // its mode list. The modes table isn't part of Settings — they live
+    // in different DB tables — but the floating bar's quick-switcher
+    // and the Modes route both subscribe to `settings:changed` for
+    // active-mode sync, so piggy-backing here is the cheapest way to
+    // signal "modes changed, reload" without adding a second event.
+    let snapshot = state.settings.snapshot().await;
+    let _ = handle.emit(EVT_SETTINGS_CHANGED, &snapshot);
     Ok(result)
 }
 
@@ -60,6 +68,8 @@ pub async fn delete_mode(
 ) -> CmdResult<()> {
     state.modes.delete(&id).map_err(OrliqError::from)?;
     let _ = tray::rebuild(&handle, &state).await;
+    let snapshot = state.settings.snapshot().await;
+    let _ = handle.emit(EVT_SETTINGS_CHANGED, &snapshot);
     Ok(())
 }
 
@@ -77,6 +87,8 @@ pub async fn duplicate_mode(
 
     let result = state.modes.duplicate(&id).map_err(OrliqError::from)?;
     let _ = tray::rebuild(&handle, &state).await;
+    let snapshot = state.settings.snapshot().await;
+    let _ = handle.emit(EVT_SETTINGS_CHANGED, &snapshot);
     Ok(result)
 }
 
