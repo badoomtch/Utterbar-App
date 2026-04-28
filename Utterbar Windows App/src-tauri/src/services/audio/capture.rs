@@ -198,49 +198,72 @@ fn run_capture(
     // so the pre-fix behaviour is preserved rather than failing
     // shut.
     const PREFERRED_RATE: u32 = 48_000;
+
+    // Restrict candidate configs to sample formats our cpal callback
+    // dispatch can decode. The match below at `match sample_format`
+    // handles F32 / I16 / U16; anything else (U8, I32, F64, etc.)
+    // returns the "unsupported sample format" error and the recording
+    // fails. v0.14.7 picked a U8-only config on a couple of consumer
+    // mics on Windows because the picker only filtered on rate, not
+    // format. Filtering by format first guarantees the chosen range
+    // can be decoded.
+    fn is_supported_format(f: SampleFormat) -> bool {
+        matches!(f, SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16)
+    }
+
+    let fallback_default = || -> Result<cpal::SupportedStreamConfig> {
+        device
+            .default_input_config()
+            .map_err(|e| anyhow!("default_input_config: {e}"))
+    };
+
     let supported = match device.supported_input_configs() {
         Ok(configs) => {
-            let mut candidates: Vec<_> = configs.collect();
-            // Prefer the config whose [min, max] range covers
-            // PREFERRED_RATE, then fall back to the highest max we
-            // can find. Rate selection happens via with_max_sample_rate
-            // when we resolve a SupportedStreamConfig.
-            candidates.sort_by_key(|c| {
-                let max_rate = c.max_sample_rate().0;
-                // Score: configs that cover PREFERRED get highest priority,
-                // then by max_rate descending. Lower score = better.
-                if c.min_sample_rate().0 <= PREFERRED_RATE && max_rate >= PREFERRED_RATE {
-                    0
-                } else {
-                    // Negative max_rate so larger sorts first.
-                    -(max_rate as i64)
-                }
-            });
-            match candidates.into_iter().next() {
-                Some(range) => {
-                    let target_rate = if range.min_sample_rate().0 <= PREFERRED_RATE
-                        && range.max_sample_rate().0 >= PREFERRED_RATE
-                    {
-                        PREFERRED_RATE
-                    } else {
-                        range.max_sample_rate().0
-                    };
-                    range.with_sample_rate(cpal::SampleRate(target_rate))
-                }
-                None => match device.default_input_config() {
+            let candidates: Vec<_> = configs
+                .filter(|c| is_supported_format(c.sample_format()))
+                .collect();
+            if candidates.is_empty() {
+                // No supported-format config available; fall back to
+                // whatever the device default is. The dispatch will
+                // surface the unsupported-format error below if even
+                // the default isn't decodable, which on a real install
+                // would be a driver-level problem we can't paper over.
+                match fallback_default() {
                     Ok(s) => s,
                     Err(e) => {
-                        let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
-                        return Err(anyhow!("default_input_config: {e}"));
+                        let _ = ready_tx.send(Err(e.to_string()));
+                        return Err(e);
                     }
-                },
+                }
+            } else {
+                let mut candidates = candidates;
+                // Within supported formats, prefer ranges that cover
+                // PREFERRED_RATE, then by highest max_rate descending.
+                // Lower score sorts first.
+                candidates.sort_by_key(|c| {
+                    let max_rate = c.max_sample_rate().0;
+                    if c.min_sample_rate().0 <= PREFERRED_RATE && max_rate >= PREFERRED_RATE {
+                        0
+                    } else {
+                        -(max_rate as i64)
+                    }
+                });
+                let range = candidates.into_iter().next().expect("non-empty");
+                let target_rate = if range.min_sample_rate().0 <= PREFERRED_RATE
+                    && range.max_sample_rate().0 >= PREFERRED_RATE
+                {
+                    PREFERRED_RATE
+                } else {
+                    range.max_sample_rate().0
+                };
+                range.with_sample_rate(cpal::SampleRate(target_rate))
             }
         }
-        Err(_) => match device.default_input_config() {
+        Err(_) => match fallback_default() {
             Ok(s) => s,
             Err(e) => {
-                let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
-                return Err(anyhow!("default_input_config: {e}"));
+                let _ = ready_tx.send(Err(e.to_string()));
+                return Err(e);
             }
         },
     };
