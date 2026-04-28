@@ -148,7 +148,19 @@ export function ModesRoute() {
         />
       )}
 
-      <ul className="mt-6 overflow-hidden rounded-card bg-bg-1">
+      {/* Hint about the favourite control. The star next to each mode
+          is what decides whether the mode appears as a quick-switch
+          chip in the floating bar. New installs get every built-in
+          favourited so the bar isn't empty out of the box; from there
+          the user prunes or extends as they like. Surfacing this
+          here means "where do I add/remove modes from the bar?" has
+          a visible answer next to the action it refers to. */}
+      <p className="mt-5 text-[12px] leading-relaxed text-muted">
+        Tap the star next to a mode to show or hide it in the floating bar's quick
+        switcher. Favourited modes appear as one-tap chips next to the Record button.
+      </p>
+
+      <ul className="mt-3 overflow-hidden rounded-card bg-bg-1">
         {modes.map((m) => {
           const active = m.id === activeId;
           return (
@@ -194,7 +206,14 @@ export function ModesRoute() {
                 </Button>
               )}
 
-              <IconBtn label="Favourite" onClick={() => void toggleFavourite(m)}>
+              <IconBtn
+                label={
+                  m.is_favourite
+                    ? 'Remove from floating bar'
+                    : 'Show in floating bar'
+                }
+                onClick={() => void toggleFavourite(m)}
+              >
                 <Star className={cn('h-4 w-4', m.is_favourite && 'fill-accent text-accent')} />
               </IconBtn>
               <IconBtn label="Edit" onClick={() => setEditing(m)}>

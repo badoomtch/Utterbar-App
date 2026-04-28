@@ -712,10 +712,17 @@ export function FloatingBar() {
           // the drag-lift scale.
           'relative mt-0.5 flex items-center overflow-hidden rounded-full border-2',
           isCompact ? 'h-[44px]' : 'h-[52px]',
+          // No artificial min-width on the expanded layout: the floating
+          // window is fixed at 520 px wide, the pill plus margins must
+          // fit inside that, and the actual content (logo + state +
+          // mode chips + actions) already produces a sensible natural
+          // width. Pinning min-w larger than the content was clipping
+          // the right edge against the window chrome when the mode-
+          // switch chips landed in v0.14.4.
           expanded
             ? isCompact
-              ? 'pl-1.5 pr-1 gap-2 min-w-[460px] justify-between'
-              : 'pl-3 pr-2 gap-2.5 min-w-[600px] justify-between'
+              ? 'pl-1.5 pr-1 gap-2 justify-between'
+              : 'pl-3 pr-2 gap-2.5 justify-between'
             : isCompact
               ? 'px-2 gap-1.5'
               : 'px-3 gap-2.5',

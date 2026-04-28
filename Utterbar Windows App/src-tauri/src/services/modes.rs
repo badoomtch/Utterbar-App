@@ -57,6 +57,36 @@ impl ModeService {
                   WHERE id = 'meeting' AND is_builtin = 1 AND is_meeting_mode = 0",
                 [],
             );
+
+            // v0.14.5: built-ins now seed as favourited so they appear
+            // in the floating bar's quick switcher out of the box. For
+            // existing DBs we only flip the flag when no built-in has
+            // ever been favourited — that's the signal "this DB
+            // predates the new default and the user has never touched
+            // the favourite switch on a built-in row". A user who
+            // landed on v0.14.5 fresh, then unfavourited Voice to Text
+            // (so favourited count drops to 2 of 3 built-ins), keeps
+            // their 2-of-3 selection on the next launch; the gate
+            // here only fires for the upgrade-from-0-favourites case.
+            let any_favourited_builtin: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM modes WHERE is_builtin = 1 AND is_favourite = 1",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or(0);
+            if any_favourited_builtin == 0 {
+                if let Ok(n) =
+                    conn.execute("UPDATE modes SET is_favourite = 1 WHERE is_builtin = 1", [])
+                {
+                    if n > 0 {
+                        tracing::info!(
+                            rows = n,
+                            "v0.14.5 upgrade: defaulted built-in modes to favourited so they appear in the floating bar quick switcher"
+                        );
+                    }
+                }
+            }
             return Ok(());
         }
         drop(conn);
@@ -256,7 +286,12 @@ fn builtin_modes() -> Vec<Mode> {
         name: name.into(),
         icon: icon.into(),
         is_builtin: true,
-        is_favourite: false,
+        // v0.14.5: built-ins seed as favourited so they appear in the
+        // floating bar's quick switcher out of the box. The user can
+        // unfavourite any of them from the mode editor to remove from
+        // the bar; `is_favourite` is now the single switch controlling
+        // bar visibility.
+        is_favourite: true,
         sort_order: 0,
         asr_model_id: None,
         target_language: None,

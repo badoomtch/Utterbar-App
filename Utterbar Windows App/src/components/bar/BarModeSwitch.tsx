@@ -7,18 +7,17 @@ import { cn } from '@/lib/cn';
 /**
  * Floating-bar mode quick switcher.
  *
- * Renders up to {@link MAX_VISIBLE} icon-only chips, one per mode the
- * user is most likely to want one tap away. Selection rule:
+ * Renders one icon-only chip per FAVOURITED mode, in sort_order. The
+ * favourite flag is the user's "I want this in the bar" preference;
+ * Settings → Modes is the place to add or remove favourites. New
+ * installs default every built-in to favourited so the bar isn't
+ * empty out of the box.
  *
- *   1. Favourites first (sorted by sort_order)
- *   2. Built-ins next, in sort_order
- *   3. Anything else, in sort_order
- *   4. Truncate to MAX_VISIBLE
- *
- * The cap exists because the floating pill is ~460 px wide expanded and
- * already carries the wordmark + state + record + utility cluster.
- * Showing every mode would either overflow the pill or shrink the
- * existing controls below their hit-target floor.
+ * No fixed cap. The bar sizes itself to whatever's in there. A user
+ * who favourites everything will get a wider bar (still bounded by
+ * the floating window's 520 px) and the layout stays comfortable
+ * because the content drives the width rather than a min-w forcing
+ * it.
  *
  * Visual:
  *   - 28×28 chip, rounded-[8px], same surface family as BarButton's
@@ -34,8 +33,6 @@ import { cn } from '@/lib/cn';
  * a different audio source than dictation modes) and not something
  * the bar can resolve cleanly.
  */
-const MAX_VISIBLE = 5;
-
 export function BarModeSwitch({ compact = false }: { compact?: boolean }) {
   const list = useModes((s) => s.list);
   const activeId = useModes((s) => s.activeId);
@@ -50,7 +47,7 @@ export function BarModeSwitch({ compact = false }: { compact?: boolean }) {
     }
   }, [list.length, load]);
 
-  const visible = pickVisibleModes(list, MAX_VISIBLE);
+  const visible = pickVisibleModes(list);
   if (visible.length === 0) return null;
 
   const sizePx = compact ? 24 : 28;
@@ -103,10 +100,8 @@ export function BarModeSwitch({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function pickVisibleModes(list: Mode[], cap: number): Mode[] {
-  const sorted = [...list].sort((a, b) => a.sort_order - b.sort_order);
-  const favourites = sorted.filter((m) => m.is_favourite);
-  const builtins = sorted.filter((m) => !m.is_favourite && m.is_builtin);
-  const custom = sorted.filter((m) => !m.is_favourite && !m.is_builtin);
-  return [...favourites, ...builtins, ...custom].slice(0, cap);
+function pickVisibleModes(list: Mode[]): Mode[] {
+  return [...list]
+    .filter((m) => m.is_favourite)
+    .sort((a, b) => a.sort_order - b.sort_order);
 }
