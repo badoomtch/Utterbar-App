@@ -106,6 +106,20 @@ echo "→ publishing metadata to $UTTERBAR_API_BASE…"
 # producing an invalid signature the server can't verify. Found this
 # during the v0.11.1 publish; before that, lucky signatures didn't
 # start with `/` and the bug didn't surface.
+# Stable + announce destructive-flag confirmation. The server-side
+# release validator (post-v0.14.13 hardening) refuses publish when
+# channel=stable AND announce=true unless confirm_stable_announce is
+# also true. Set it automatically here so the existing CLI invocation
+# (`publish-release.sh <ver> <exe> <notes> --announce --tag "latest"`)
+# keeps working without operators having to remember a new flag — the
+# guard exists for the *browser* form where a typo on the announce
+# checkbox could blast subscribers, not for the deliberate CLI call
+# the operator runs after re-reading the runbook.
+CONFIRM_STABLE_ANNOUNCE="false"
+if [[ "$ANNOUNCE" == "true" && "$CHANNEL" == "stable" ]]; then
+    CONFIRM_STABLE_ANNOUNCE="true"
+fi
+
 PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n \
     --arg v "$VERSION" \
     --arg ch "$CHANNEL" \
@@ -115,7 +129,8 @@ PAYLOAD=$(MSYS_NO_PATHCONV=1 jq -n \
     --arg tag "$TAG" \
     --arg sig "$SIG" \
     --argjson ann "$ANNOUNCE" \
-    '{version:$v, channel:$ch, r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:$ann}
+    --argjson confirm "$CONFIRM_STABLE_ANNOUNCE" \
+    '{version:$v, channel:$ch, r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:$ann, confirm_stable_announce:$confirm}
         + (if $tag == "" then {} else {tag:$tag} end)
         + (if $sig == "" then {} else {updater_signature:$sig} end)')
 

@@ -13,9 +13,7 @@
     "core:window:allow-set-always-on-top",
     "core:window:allow-set-focus",
     "core:event:default",
-    "core:path:default",
     "dialog:default",
-    "fs:default",
     "shell:allow-open",
     "deep-link:default"
   ]

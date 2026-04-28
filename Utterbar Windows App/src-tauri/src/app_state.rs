@@ -145,13 +145,15 @@ impl AppState {
                         tracing::warn!(rows = n, "removed retired Parakeet v2 model rows");
                     }
                 }
+                let models_root = data_dir.join("models");
                 for rel in to_remove {
-                    let abs = data_dir.join("models").join(&rel);
-                    if abs.is_dir() {
-                        let _ = std::fs::remove_dir_all(&abs);
-                        tracing::warn!(path = ?abs, "removed retired Parakeet v2 model directory");
-                    } else if abs.is_file() {
-                        let _ = std::fs::remove_file(&abs);
+                    if let Some(abs) = safe_model_path(&models_root, &rel) {
+                        if abs.is_dir() {
+                            let _ = std::fs::remove_dir_all(&abs);
+                            tracing::warn!(path = ?abs, "removed retired Parakeet v2 model directory");
+                        } else if abs.is_file() {
+                            let _ = std::fs::remove_file(&abs);
+                        }
                     }
                 }
             }
@@ -194,13 +196,15 @@ impl AppState {
                         tracing::warn!(rows = n, "removed retired Zipformer model row");
                     }
                 }
+                let models_root = data_dir.join("models");
                 for rel in to_remove {
-                    let abs = data_dir.join("models").join(&rel);
-                    if abs.is_dir() {
-                        let _ = std::fs::remove_dir_all(&abs);
-                        tracing::warn!(path = ?abs, "removed retired Zipformer model directory");
-                    } else if abs.is_file() {
-                        let _ = std::fs::remove_file(&abs);
+                    if let Some(abs) = safe_model_path(&models_root, &rel) {
+                        if abs.is_dir() {
+                            let _ = std::fs::remove_dir_all(&abs);
+                            tracing::warn!(path = ?abs, "removed retired Zipformer model directory");
+                        } else if abs.is_file() {
+                            let _ = std::fs::remove_file(&abs);
+                        }
                     }
                 }
             }
@@ -262,5 +266,136 @@ impl AppState {
 
     pub async fn is_first_run(&self) -> bool {
         !self.settings.snapshot().await.onboarding_completed
+    }
+}
+
+/// Compute `models_root.join(rel)`, then check it's actually inside
+/// `models_root` after canonicalisation. Returns `None` if the joined
+/// path is absolute, contains `..`, or canonicalises outside the
+/// models root — and logs the rejection so a corrupted DB row never
+/// silently nukes something outside the models directory.
+///
+/// Used by the Parakeet v2 and Zipformer retirement-prune blocks
+/// above. The same shape lives in `services::models::ModelRegistry::remove`
+/// for active uninstalls — keeping both call sites guarded matters
+/// because the prune paths run unconditionally on every app boot.
+fn safe_model_path(models_root: &std::path::Path, rel: &str) -> Option<std::path::PathBuf> {
+    let suspect = std::path::Path::new(rel);
+    if suspect.is_absolute()
+        || suspect
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        tracing::warn!(
+            rel = rel,
+            "model-prune refused: stored path is absolute or contains traversal"
+        );
+        return None;
+    }
+    let abs = models_root.join(suspect);
+    // Empty `rel` would resolve to `models_root` itself — refuse
+    // outright. The only case `assert_within` would let through here
+    // is the models_root itself, which is not a model directory and
+    // we never want to remove.
+    if !abs.exists() {
+        return None;
+    }
+    match crate::util::paths::assert_within(models_root, &abs) {
+        Ok(canonical) if canonical != models_root.canonicalize().ok().unwrap_or_default() => {
+            Some(canonical)
+        }
+        Ok(_) => {
+            tracing::warn!(
+                rel = rel,
+                "model-prune refused: stored path resolves to models_root itself"
+            );
+            None
+        }
+        Err(e) => {
+            tracing::warn!(
+                rel = rel,
+                path = %abs.display(),
+                error = %e,
+                "model-prune refused: target outside models_root"
+            );
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod safe_model_path_tests {
+    use super::safe_model_path;
+    use std::fs;
+
+    /// A relative directory underneath `models_root` is accepted. The
+    /// retirement-prune flow's happy path: a row whose `path` column
+    /// is `parakeet-v2-int8` resolves to
+    /// `<data_dir>/models/parakeet-v2-int8`, which exists and is inside.
+    #[test]
+    fn accepts_legitimate_relative_path() {
+        let tmp = std::env::temp_dir().join("ut-safe-model-1");
+        let _ = fs::remove_dir_all(&tmp);
+        let models = tmp.join("models");
+        let target = models.join("legit-id");
+        fs::create_dir_all(&target).unwrap();
+        let got = safe_model_path(&models, "legit-id");
+        assert!(got.is_some(), "expected legit relative path to pass");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// Absolute paths are rejected. Pre-fix, `models_root.join("C:\\Windows")`
+    /// would have resolved to `C:\Windows` (cf. `Path::join` discards
+    /// the base for absolute components) and the next `remove_dir_all`
+    /// would have nuked it.
+    #[test]
+    fn rejects_absolute_path() {
+        let tmp = std::env::temp_dir().join("ut-safe-model-2");
+        let _ = fs::remove_dir_all(&tmp);
+        let models = tmp.join("models");
+        fs::create_dir_all(&models).unwrap();
+        let abs = if cfg!(windows) { "C:\\Windows" } else { "/etc" };
+        assert!(
+            safe_model_path(&models, abs).is_none(),
+            "expected absolute path to be rejected"
+        );
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// `..` traversal is rejected by the explicit component scan
+    /// before any filesystem access. Guards against a corrupted
+    /// `path` column like `..\..\..\..\Windows\System32`.
+    #[test]
+    fn rejects_parent_dir_traversal() {
+        let tmp = std::env::temp_dir().join("ut-safe-model-3");
+        let _ = fs::remove_dir_all(&tmp);
+        let models = tmp.join("models");
+        fs::create_dir_all(&models).unwrap();
+        assert!(
+            safe_model_path(&models, "..\\escape").is_none(),
+            "expected backslash traversal to be rejected"
+        );
+        assert!(
+            safe_model_path(&models, "../escape").is_none(),
+            "expected forward-slash traversal to be rejected"
+        );
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// A relative path that doesn't exist on disk is treated as a
+    /// no-op — there's nothing to delete. Returning None here means
+    /// the prune block in app_state.rs simply skips it instead of
+    /// trying to canonicalise a missing path (which fails on Windows).
+    #[test]
+    fn missing_path_returns_none() {
+        let tmp = std::env::temp_dir().join("ut-safe-model-4");
+        let _ = fs::remove_dir_all(&tmp);
+        let models = tmp.join("models");
+        fs::create_dir_all(&models).unwrap();
+        assert!(
+            safe_model_path(&models, "nonexistent-model-id").is_none(),
+            "expected missing path to return None (no-op)"
+        );
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

@@ -306,10 +306,10 @@ Called by `Utterbar Windows App/scripts/publish-release.sh` to publish a release
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /api/admin/releases` | Create a release record. Verifies file exists in R2. Returns 201 with `id`, `download_url`, `size_bytes`, `announced_to`. |
+| `POST /api/admin/releases` | Create a release record. Verifies file exists in R2 AND recomputes SHA-256 from the R2 object — pasted SHA must match the recomputed value or publish is refused. Persists the recomputed SHA as canonical. When `UPDATER_PUBLIC_KEY_B64` is set, requires a valid `updater_signature` over the canonical metadata blob (built with the recomputed SHA). Returns 201 with `id`, `download_url`, `size_bytes`, `announced_to`. |
 | `DELETE /api/admin/releases/{id}?delete_file=1` | Remove a release. Optional R2 file deletion. |
 
-Body + responses documented in [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md).
+Body + responses documented in [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md). Validation rules shared between the API path and the browser admin form (`POST /admin/releases`) live in `App\Services\Releases\ReleaseValidator` so the two entry points can't drift on the SHA / signature / channel-confirmation rules.
 
 ### 4.3 Pricing API — app → website (LIVE)
 

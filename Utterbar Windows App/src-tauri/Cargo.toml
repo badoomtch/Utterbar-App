@@ -1,6 +1,6 @@
 [package]
 name = "utterbar"
-version = "0.14.12"
+version = "0.14.13"
 edition = "2021"
 description = "Utterbar — local-only dictation for Windows"
 authors = ["Utterbar"]
@@ -102,6 +102,10 @@ windows = { version = "0.58", features = [
     "Win32_Security", # SECURITY_ATTRIBUTES, required for CreateEventW
     "Win32_Security_Cryptography", # CryptProtectData / CryptUnprotectData (DPAPI wrap of licence file fallback)
     "Win32_UI_WindowsAndMessaging",
+    # Win32_UI_Shell — used for ShellExecuteW in commands::diagnostics::open_path.
+    # Replaces a previous `cmd /C start <path>` shell-out that was a command-
+    # injection vector for any path containing shell metacharacters.
+    "Win32_UI_Shell",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_System_Threading",
     "Win32_System_ProcessStatus",
