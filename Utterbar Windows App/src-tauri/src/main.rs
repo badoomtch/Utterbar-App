@@ -173,6 +173,8 @@ fn main() {
             commands::updater::consume_post_update_marker,
             // release-email subscription
             commands::updates::subscribe_to_release_updates,
+            // release notes for the in-app Updates page
+            commands::release_notes::current_release_notes,
             // pricing lookup (for the in-app upgrade modal)
             commands::pricing::get_pro_price,
             // diagnostics

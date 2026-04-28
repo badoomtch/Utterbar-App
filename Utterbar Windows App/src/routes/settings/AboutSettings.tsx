@@ -35,13 +35,21 @@ export function AboutSettings() {
         </div>
 
         <div className="mt-6 flex items-center justify-between border-t border-border-soft/50 pt-4">
-          <button
-            onClick={() => void openShell('https://jayparry.me').catch(() => undefined)}
-            className="group inline-flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-fg-hi"
-          >
-            App by <span className="text-fg-hi group-hover:text-accent">Jay Parry</span>
-            <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
-          </button>
+          {/* Matches the website footer's wording exactly:
+              "© {year} Utterbar · Built by Ddraig Dev · Built in Wales".
+              Single source of truth so the app and the marketing site
+              never drift apart on attribution. */}
+          <div className="text-[13px] text-muted">
+            © {new Date().getFullYear()} Utterbar · Built by{' '}
+            <button
+              onClick={() => void openShell('https://ddraig.dev').catch(() => undefined)}
+              className="group inline-flex items-center gap-1 text-fg-hi hover:text-accent"
+            >
+              Ddraig Dev
+              <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+            </button>{' '}
+            · Built in Wales
+          </div>
           <button
             onClick={() => void openShell('https://utterbar.com').catch(() => undefined)}
             className="font-mono text-[11px] text-fg-dim transition-colors hover:text-accent"

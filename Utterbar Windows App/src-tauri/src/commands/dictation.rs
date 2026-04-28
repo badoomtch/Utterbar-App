@@ -558,6 +558,55 @@ async fn transcribe_chunked(
             .await;
     }
 
+    // Loopback noise floor — calibrated over the whole recording so the
+    // per-chunk speaker tag is robust to whatever system volume the user
+    // had set. We walk the loopback PCM in non-overlapping CHUNK windows,
+    // collect the RMS of each, and take the smallest as the "quiet"
+    // baseline. A chunk's loopback is then "speaking" if its RMS is
+    // greater than `floor * THRESHOLD_MULT` — that means the system
+    // audio is producing real signal in that window, not just hiss.
+    //
+    // Why this beats the loudest-wins heuristic: in a real meeting setup
+    // the mic picks up the loopback bleeding from the user's speakers,
+    // so the mic's RMS is always (your voice + bleed) while loopback
+    // alone is just (their voice). The loudest-wins comparison thus
+    // always picks mic and tags every chunk as **You**, defeating the
+    // entire point of the tag. Threshold-against-own-floor sidesteps
+    // the comparison: it asks "did system audio produce signal at all?"
+    // If yes → tag **Other** (system speaker is active, regardless of
+    // whether the user is too); if no → tag **You** (only the mic was
+    // active). Imperfect when both speak simultaneously — we'd tag
+    // **Other** because the loopback signal is real — but that's a
+    // truer label than the prior behaviour.
+    const THRESHOLD_MULT: f64 = 4.0;
+    let loopback_floor: Option<f64> = loop_pcm.as_ref().map(|lp| {
+        let mut floor = f64::INFINITY;
+        let mut probe = 0usize;
+        while probe < lp.len() {
+            let probe_end = (probe + chunk_samples).min(lp.len());
+            let r = rms_over(lp, probe, probe_end);
+            if r < floor {
+                floor = r;
+            }
+            probe += chunk_samples;
+        }
+        // If we never advanced (empty loopback), return 0.0 so any
+        // non-zero per-chunk RMS trivially exceeds it. Better to over-
+        // tag **Other** than miss real speech.
+        if floor.is_finite() {
+            floor
+        } else {
+            0.0
+        }
+    });
+    if let Some(floor) = loopback_floor {
+        tracing::info!(
+            loopback_floor_rms = floor,
+            threshold = floor * THRESHOLD_MULT,
+            "meeting mode: loopback noise floor calibrated"
+        );
+    }
+
     let mut start = 0usize;
     let mut chunk_index = 0u32;
     let mut stitched = String::new();
@@ -623,20 +672,27 @@ async fn transcribe_chunked(
             let mm = chunk_text_start_secs / 60;
             let ss = chunk_text_start_secs % 60;
 
-            // Speaker tag, only when both sides were captured. Per-side
-            // RMS over the SAME slice window as the mixed chunk we just
-            // transcribed; whichever side has higher RMS over that
-            // window gets credit. Imperfect when both sides talk
-            // simultaneously (whoever is louder wins) but a real first
-            // step that ships now without a diarisation model.
-            let speaker_tag = match (mic_pcm.as_ref(), loop_pcm.as_ref()) {
-                (Some(mic), Some(lp)) => {
-                    let mic_rms = rms_over(mic, start, end);
+            // Speaker tag, only when both sides were captured. Compare
+            // this chunk's loopback RMS against the recording's own
+            // loopback noise floor: if the loopback is producing real
+            // signal in this window (above floor * THRESHOLD_MULT), tag
+            // **Other** because system audio was speaking; otherwise
+            // tag **You** because only the mic had signal.
+            //
+            // We deliberately ignore the mic's RMS here. In a typical
+            // meeting setup the mic picks up the loopback bleeding from
+            // the user's speakers, so any RMS comparison that includes
+            // the mic gets gamed. The threshold-against-own-floor check
+            // is asymmetric — "did the system audio produce signal at
+            // all?" — and isn't fooled by mic cross-talk.
+            let speaker_tag = match (mic_pcm.as_ref(), loop_pcm.as_ref(), loopback_floor) {
+                (Some(_mic), Some(lp), Some(floor)) => {
                     let lp_rms = rms_over(lp, start, end);
-                    if mic_rms >= lp_rms {
-                        Some("**You**")
-                    } else {
+                    let threshold = floor * THRESHOLD_MULT;
+                    if lp_rms > threshold {
                         Some("**Other**")
+                    } else {
+                        Some("**You**")
                     }
                 }
                 _ => None,

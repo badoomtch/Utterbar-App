@@ -17,6 +17,7 @@ import {
   Layers,
   Mic,
   Radio,
+  RefreshCw,
   Settings2,
   Shapes,
   ShieldCheck,
@@ -47,6 +48,7 @@ import { AdvancedSettings } from '@/routes/settings/AdvancedSettings';
 import { AboutSettings } from '@/routes/settings/AboutSettings';
 import { BarSettings } from '@/routes/settings/BarSettings';
 import { LicenceSettings } from '@/routes/settings/LicenceSettings';
+import { UpdatesSettings } from '@/routes/settings/UpdatesSettings';
 
 const NAV_PRIMARY = [
   { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -68,6 +70,7 @@ const NAV_SETTINGS = [
   { to: '/settings/privacy', label: 'Privacy', icon: ShieldCheck },
   { to: '/settings/advanced', label: 'Advanced', icon: SlidersHorizontal },
   { to: '/settings/licence', label: 'Licence', icon: KeyRound },
+  { to: '/settings/updates', label: 'Updates', icon: RefreshCw },
   { to: '/settings/about', label: 'About', icon: Info },
 ];
 
@@ -209,6 +212,7 @@ export function MainShell() {
           <Route path="/settings/privacy" element={<PrivacySettings />} />
           <Route path="/settings/advanced" element={<AdvancedSettings />} />
           <Route path="/settings/licence" element={<LicenceSettings />} />
+          <Route path="/settings/updates" element={<UpdatesSettings />} />
           <Route path="/settings/about" element={<AboutSettings />} />
         </Routes>
       </main>

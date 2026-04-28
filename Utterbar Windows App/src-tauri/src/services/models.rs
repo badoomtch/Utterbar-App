@@ -447,6 +447,38 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 4,
             requires_pro: true,
         },
+        // Whisper large v3 — Pro tier, the gold-standard model for
+        // accuracy. ~1.07 GB tarball (post-extract larger), 99 languages,
+        // multi-speaker meetings, accented speech, noisy rooms. The
+        // recommended pick for Meeting Mode where the user is willing to
+        // wait for the transcribe in exchange for far better text.
+        // Speed: ~3-4× real-time on CPU, so a 30-min meeting takes
+        // ~8-10 min to transcribe. Parakeet beats it on speed by
+        // ~10-15×; the trade is worth it specifically for meetings,
+        // not for short-form dictation.
+        ModelInfo {
+            id: "sherpa-whisper-large-v3".into(),
+            kind: ModelKind::Asr,
+            display_name: "Whisper Large v3 (best for meetings)".into(),
+            description: "OpenAI Whisper Large v3 — the most accurate offline model in the catalogue. Best for meetings, multi-speaker audio, accents, noisy rooms. ~1 GB download. Slower than Parakeet (~3-4× real-time on CPU); a 30-minute meeting takes ~8-10 minutes to transcribe.".into(),
+            version: "large-v3".into(),
+            size_bytes: 1_068_482_488,
+            backend: ModelBackend::Onnx,
+            engine: ModelEngine::Whisper,
+            languages: vec!["multi".into()],
+            installed: false,
+            path: None,
+            // Pinned 2026-04-28 against the live k2-fsa release asset.
+            sha256: "2d0e134b3b5fc4a0533baf24a0c9d473b629aa47f030af0a165a05f461df7a03".into(),
+            download_url: Some(
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-large-v3.tar.bz2"
+                    .into(),
+            ),
+            recommended: false,
+            accuracy_score: 10,
+            speed_score: 2,
+            requires_pro: true,
+        },
         // Zipformer English — Free tier. Smaller download than Parakeet
         // and slightly faster cold start. Accuracy is a notch below
         // Parakeet on conversational English; the trade is "smaller
