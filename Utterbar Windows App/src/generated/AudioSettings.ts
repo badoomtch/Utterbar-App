@@ -22,4 +22,14 @@ noise_gate: boolean, input_gain_db: number,
  * What to record: the mic, the system's playback (WASAPI loopback), or both mixed.
  * Defaults to `Microphone` so existing installs continue to behave identically.
  */
-capture_source: CaptureSource, };
+capture_source: CaptureSource, 
+/**
+ * Diagnostic mode: write the raw captured PCM and the post-preprocess
+ * PCM (the exact buffer handed to the ASR) as WAVs under
+ * `%APPDATA%\Utterbar\diagnostics\audio\`. Off by default — only
+ * enable when reproducing an audio-quality bug, since it leaks
+ * private audio to disk. Files self-rotate (the latest pair plus
+ * at most a few historical pairs are kept) so it doesn't fill the
+ * drive even if left on.
+ */
+diagnostic_audio_dump: boolean, };

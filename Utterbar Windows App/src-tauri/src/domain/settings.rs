@@ -237,6 +237,15 @@ pub struct AudioSettings {
     /// Defaults to `Microphone` so existing installs continue to behave identically.
     #[serde(default)]
     pub capture_source: CaptureSource,
+    /// Diagnostic mode: write the raw captured PCM and the post-preprocess
+    /// PCM (the exact buffer handed to the ASR) as WAVs under
+    /// `%APPDATA%\Utterbar\diagnostics\audio\`. Off by default — only
+    /// enable when reproducing an audio-quality bug, since it leaks
+    /// private audio to disk. Files self-rotate (the latest pair plus
+    /// at most a few historical pairs are kept) so it doesn't fill the
+    /// drive even if left on.
+    #[serde(default)]
+    pub diagnostic_audio_dump: bool,
 }
 
 impl Default for AudioSettings {
@@ -250,6 +259,7 @@ impl Default for AudioSettings {
             noise_gate: false,
             input_gain_db: 0.0,
             capture_source: CaptureSource::Microphone,
+            diagnostic_audio_dump: false,
         }
     }
 }

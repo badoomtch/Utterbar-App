@@ -193,3 +193,97 @@ pub fn noise_gate(pcm: &mut [i16]) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Synthesise `seconds` of speech-shaped audio at 16 kHz: a 130 Hz
+    /// fundamental plus four formant harmonics, modulated by an envelope
+    /// of 4-Hz "syllables" so the signal has both broadband content and
+    /// per-frame variability. A pure sine at one frequency is a poor
+    /// proxy — every frame's RMS is identical, so the percentile-floor
+    /// estimators in the gate/suppressor degenerate. This signal has
+    /// peaks and valleys, like speech, and survives the Aggressive
+    /// high-pass corner because most of its energy is above 200 Hz.
+    fn speechy_signal(seconds: f32) -> Vec<i16> {
+        let n = (16_000.0 * seconds) as usize;
+        (0..n)
+            .map(|i| {
+                let t = i as f32 / 16_000.0;
+                let pi2 = 2.0 * std::f32::consts::PI;
+                // Voiced excitation: fundamental + harmonics roughly
+                // matching adult-male formant peaks (700, 1200, 2600 Hz).
+                let s = (t * pi2 * 130.0).sin() * 0.15
+                    + (t * pi2 * 700.0).sin() * 0.20
+                    + (t * pi2 * 1_200.0).sin() * 0.15
+                    + (t * pi2 * 2_600.0).sin() * 0.10;
+                // 4 Hz syllabic envelope so the signal isn't perfectly
+                // stationary — keeps the percentile-floor estimators
+                // from picking the signal itself as the floor.
+                let env = 0.5 + 0.5 * (t * pi2 * 4.0).sin();
+                ((s * env).clamp(-1.0, 1.0) * i16::MAX as f32) as i16
+            })
+            .collect()
+    }
+
+    fn rms(pcm: &[i16]) -> f32 {
+        if pcm.is_empty() {
+            return 0.0;
+        }
+        let sumsq: f64 = pcm.iter().map(|s| (*s as f64).powi(2)).sum();
+        ((sumsq / pcm.len() as f64).sqrt()) as f32
+    }
+
+    /// `NoiseSuppression::Off` is required to be a true no-op so the
+    /// default-off install never alters the signal it didn't ask to
+    /// alter.
+    #[test]
+    fn suppress_noise_off_is_noop() {
+        let mut pcm = speechy_signal(1.0);
+        let before = pcm.clone();
+        suppress_noise(&mut pcm, NoiseSuppression::Off);
+        assert_eq!(pcm, before);
+    }
+
+    /// Even at `Aggressive`, a clean speech-level tone must not be
+    /// gated to silence — that would be the regression that breaks
+    /// the "I said something but the transcript is empty" reports.
+    #[test]
+    fn suppress_noise_does_not_kill_speech_level_tone() {
+        let mut pcm = speechy_signal(1.0);
+        let before_rms = rms(&pcm);
+        suppress_noise(&mut pcm, NoiseSuppression::Aggressive);
+        let after_rms = rms(&pcm);
+        // Allow the high-pass to attenuate somewhat but not collapse.
+        assert!(
+            after_rms > before_rms * 0.5,
+            "speech RMS collapsed from {before_rms} to {after_rms} under Aggressive suppression"
+        );
+    }
+
+    /// `noise_gate` must not silence a continuously-loud signal — the
+    /// gate is supposed to zero blips between words, not the words
+    /// themselves.
+    #[test]
+    fn noise_gate_does_not_kill_continuous_signal() {
+        let mut pcm = speechy_signal(1.0);
+        let before_rms = rms(&pcm);
+        noise_gate(&mut pcm);
+        let after_rms = rms(&pcm);
+        assert!(
+            after_rms > before_rms * 0.7,
+            "continuous tone RMS collapsed from {before_rms} to {after_rms} under noise gate"
+        );
+    }
+
+    /// `normalise` must not introduce silence either: a non-silent
+    /// input always produces a non-silent output.
+    #[test]
+    fn normalise_preserves_non_silent_signal() {
+        let mut pcm = speechy_signal(0.5);
+        normalise(&mut pcm);
+        let peak = pcm.iter().map(|s| s.abs()).max().unwrap_or(0);
+        assert!(peak > i16::MAX / 2, "normalise dropped peak to {peak}");
+    }
+}

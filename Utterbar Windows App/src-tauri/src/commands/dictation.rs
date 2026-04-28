@@ -320,8 +320,15 @@ pub async fn start_recording(
     // state, and the visible phase must stay at whatever it was before (i.e. not
     // Listening), so the UI shows an error instead of a dead waveform.
     let mic_capture = if matches!(source, CaptureSource::Microphone | CaptureSource::Mixed) {
+        let mic_t = std::time::Instant::now();
         match state.audio.start_capture(device_id).await {
-            Ok(handle) => Some(handle),
+            Ok(handle) => {
+                tracing::debug!(
+                    mic_arm_ms = mic_t.elapsed().as_millis() as u64,
+                    "start_capture returned"
+                );
+                Some(handle)
+            }
             Err(e) => {
                 tracing::error!(error = %e, "audio.start_capture failed");
                 rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
@@ -921,6 +928,17 @@ pub async fn stop_recording(
     // (noise-suppressed silence is easier to detect), then normalise at the end.
     {
         let audio_settings = &state.settings.snapshot().await.audio;
+        // Diagnostic-only: when enabled, snapshot the raw post-capture
+        // PCM before any preprocess pass touches it. Paired with the
+        // post-preprocess dump below so a user can compare exactly
+        // what was captured vs exactly what was handed to the ASR.
+        // Default off; gated behind `audio.diagnostic_audio_dump`.
+        let dump_diag = audio_settings.diagnostic_audio_dump;
+        let raw_pcm_for_dump: Option<Vec<i16>> = if dump_diag {
+            Some(final_.pcm.clone())
+        } else {
+            None
+        };
         // Broadband DC-blocker + high-pass + adaptive floor gate. `Off` is a no-op,
         // so we can call it unconditionally and let the level variant decide.
         crate::services::audio::preprocess::suppress_noise(
@@ -943,6 +961,12 @@ pub async fn stop_recording(
         }
         if audio_settings.dynamic_normalisation {
             crate::services::audio::preprocess::normalise(&mut final_.pcm);
+        }
+        if let Some(raw) = raw_pcm_for_dump {
+            // Best-effort. Diagnostic dumps must never fail a real recording.
+            if let Err(e) = write_diagnostic_audio_pair(&raw, &final_.pcm, final_.sample_rate) {
+                tracing::warn!(?e, "diagnostic audio dump failed");
+            }
         }
     }
 
@@ -1574,6 +1598,64 @@ fn write_recording_wav(pcm: &[i16], sample_rate: u32) -> anyhow::Result<String> 
     }
     writer.finalize()?;
     Ok(path.to_string_lossy().to_string())
+}
+
+/// Diagnostic dump (gated by `audio.diagnostic_audio_dump`): write the
+/// raw post-capture PCM and the exact post-preprocess PCM that the ASR
+/// will see, side-by-side under `%APPDATA%\Utterbar\diagnostics\audio\`.
+/// Self-rotating: keeps at most the latest 6 pairs (12 files) so a
+/// forgotten-on flag doesn't fill the drive.
+fn write_diagnostic_audio_pair(
+    raw: &[i16],
+    processed: &[i16],
+    sample_rate: u32,
+) -> anyhow::Result<()> {
+    let dir = crate::util::paths::diagnostics_audio_dir()?;
+    let stamp = ulid::Ulid::new();
+    let raw_path = dir.join(format!("{stamp}-raw.wav"));
+    let proc_path = dir.join(format!("{stamp}-processed.wav"));
+
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    {
+        let mut w = hound::WavWriter::create(&raw_path, spec)?;
+        for &s in raw {
+            w.write_sample(s)?;
+        }
+        w.finalize()?;
+    }
+    {
+        let mut w = hound::WavWriter::create(&proc_path, spec)?;
+        for &s in processed {
+            w.write_sample(s)?;
+        }
+        w.finalize()?;
+    }
+
+    // Retention: keep the 6 most recent pairs only (12 files). Cheap
+    // single-pass scan, runs every dump so an always-on user never
+    // accumulates more than ~12 short recordings worth of audio.
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        let mut wavs: Vec<(std::path::PathBuf, std::time::SystemTime)> = entries
+            .flatten()
+            .filter(|e| e.path().extension().map(|x| x == "wav").unwrap_or(false))
+            .filter_map(|e| {
+                e.metadata()
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .map(|t| (e.path(), t))
+            })
+            .collect();
+        wavs.sort_by_key(|b| std::cmp::Reverse(b.1));
+        for (path, _) in wavs.into_iter().skip(12) {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+    Ok(())
 }
 
 /// Best-effort cleanup of old recordings. Runs inline at stop time; we don't care about

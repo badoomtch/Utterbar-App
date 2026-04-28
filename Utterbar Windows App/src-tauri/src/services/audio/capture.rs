@@ -10,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use tokio::sync::mpsc;
 
-use super::resample::StatefulResampler;
 use super::InputDevice;
 
 pub const TARGET_RATE: u32 = 16_000;
@@ -175,109 +174,31 @@ fn run_capture(
             .ok_or_else(|| anyhow!("no default input device"))?,
     };
 
-    // Pick a config that respects the device's NATIVE sample rate
-    // and a sample format we can decode.
-    //
-    // History:
-    //   * v0.14.7 forced 48 kHz to fix tinny audio. That was the
-    //     wrong fix — the real cause was the linear-interpolation
-    //     resampler destroying high-rate audio on the way to 16 kHz.
-    //     Forcing rate also landed on U8 configs that we couldn't
-    //     decode (broke recording).
-    //   * v0.14.8 filtered the rate-forced picker to F32/I16/U16
-    //     formats. Recording worked again but was still fighting
-    //     the device.
-    //   * v0.14.9 (this) goes back to the device's default rate and
-    //     picks the best decodable format within configs that cover
-    //     it. The proper fix for tinny audio is the FFT-based
-    //     resampler in `super::resample::StatefulResampler`, not
-    //     fighting the driver. Same pattern as Handy
-    //     (github.com/cjpais/Handy, MIT) which has soaked across
-    //     thousands of installs without rate-related complaints.
-    fn format_score(fmt: SampleFormat) -> u8 {
-        // F32 highest because it requires no quantisation and is the
-        // most common format for quality interfaces. I16 / U16
-        // covered for completeness. Anything else returns 0 — only
-        // selected if no decodable format exists at the device's
-        // default rate, in which case the dispatch below errors out
-        // cleanly.
-        match fmt {
-            SampleFormat::F32 => 4,
-            SampleFormat::I16 => 3,
-            SampleFormat::U16 => 2,
-            _ => 0,
-        }
-    }
-
-    let default_config = match device.default_input_config() {
-        Ok(c) => c,
+    // Stage timings for the start_recording critical path. Each block's
+    // wall-clock cost is logged at the end so a future "feels slow"
+    // report can be diagnosed from a log slice alone — no live tracing
+    // required. Pre-v0.14.7 baseline on a healthy WASAPI mic was 7-20 ms
+    // total; significant drift past that points at a regression in one
+    // of the labelled stages.
+    let cfg_t = std::time::Instant::now();
+    let supported = match device.default_input_config() {
+        Ok(s) => s,
         Err(e) => {
             let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
             return Err(anyhow!("default_input_config: {e}"));
         }
     };
-
-    // Fast path: if the device's default config already gives us a
-    // format we decode (F32/I16/U16), use it directly. Skips the
-    // slow `supported_input_configs()` enumeration entirely on the
-    // happy path, which on Windows queries WASAPI for every
-    // (rate, format, channels) combo and adds 100-300 ms to the
-    // hotkey-to-listening latency. Pre-v0.14.7 we did exactly this;
-    // v0.14.7-9 enumerated unconditionally and the user noticed the
-    // slowdown.
-    //
-    // Slow path: only when the default's format isn't decodable do
-    // we enumerate, looking for a config at the same rate with a
-    // format we can decode. Same shape as Handy
-    // (github.com/cjpais/Handy, MIT). Most consumer mics never
-    // enter this branch.
-    let supported = if format_score(default_config.sample_format()) > 0 {
-        default_config
-    } else {
-        let target_rate = default_config.sample_rate();
-        match device.supported_input_configs() {
-            Ok(configs) => {
-                let mut best: Option<cpal::SupportedStreamConfigRange> = None;
-                for range in configs {
-                    if range.min_sample_rate() <= target_rate
-                        && range.max_sample_rate() >= target_rate
-                        && format_score(range.sample_format()) > 0
-                    {
-                        let pick = match best.as_ref() {
-                            None => true,
-                            Some(cur) => {
-                                format_score(range.sample_format())
-                                    > format_score(cur.sample_format())
-                            }
-                        };
-                        if pick {
-                            best = Some(range);
-                        }
-                    }
-                }
-                match best {
-                    Some(range) => range.with_sample_rate(target_rate),
-                    None => default_config,
-                }
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "supported_input_configs unavailable, using device default config"
-                );
-                default_config
-            }
-        }
-    };
+    let cfg_ms = cfg_t.elapsed().as_millis() as u64;
     let sample_format = supported.sample_format();
     let config: StreamConfig = supported.config();
     let src_rate = config.sample_rate.0;
     let channels = config.channels as usize;
     tracing::info!(
         device_name = %device.name().unwrap_or_else(|_| "unknown".into()),
+        ?sample_format,
         src_rate,
         channels,
-        ?sample_format,
+        cfg_ms,
         "audio capture stream opened"
     );
 
@@ -294,33 +215,17 @@ fn run_capture(
     // `move`-captured into a separate thread.
     let cap_hit = Arc::new(AtomicBool::new(false));
 
-    // Closure factory that builds the per-callback body. Each format
-    // branch instantiates its own `StatefulResampler` captured by
-    // move into the cpal callback closure, so the resampler's input
-    // ring persists across callbacks. (cpal callbacks fire every few
-    // ms with variable-size chunks; the stateful resampler buffers
-    // until it has a full FFT window before emitting samples.)
-    //
-    // Meter accumulation and the buffer-append path are unchanged
-    // from pre-v0.14.9 — the only real difference is `resample_f32`
-    // (linear interpolation, low audio quality) became
-    // `StatefulResampler::push` (rubato FftFixedIn, transparent).
+    let build_t = std::time::Instant::now();
     let stream_result = match sample_format {
         SampleFormat::F32 => {
             let frames_tx = frames_tx.clone();
             let meter_tx = meter_tx.clone();
             let buffer = buffer.clone();
             let cap_hit = cap_hit.clone();
-            let mut resampler = StatefulResampler::new(src_rate, TARGET_RATE);
             device.build_input_stream(
                 &config,
                 move |data: &[f32], _| {
-                    let mono = downmix_f32(data, channels);
-                    let resampled = resampler.push(&mono);
-                    if resampled.is_empty() {
-                        return;
-                    }
-                    let pcm = f32_to_i16(&resampled);
+                    let pcm = downmix_and_resample_f32(data, channels, src_rate);
                     for &s in &pcm {
                         let f = s as f32 / i16::MAX as f32;
                         meter_accum += f * f;
@@ -348,16 +253,10 @@ fn run_capture(
             let meter_tx = meter_tx.clone();
             let buffer = buffer.clone();
             let cap_hit = cap_hit.clone();
-            let mut resampler = StatefulResampler::new(src_rate, TARGET_RATE);
             device.build_input_stream(
                 &config,
                 move |data: &[i16], _| {
-                    let mono = downmix_i16_to_f32(data, channels);
-                    let resampled = resampler.push(&mono);
-                    if resampled.is_empty() {
-                        return;
-                    }
-                    let pcm = f32_to_i16(&resampled);
+                    let pcm = downmix_and_resample_i16(data, channels, src_rate);
                     for &s in &pcm {
                         let f = s as f32 / i16::MAX as f32;
                         meter_accum += f * f;
@@ -384,20 +283,11 @@ fn run_capture(
             let frames_tx = frames_tx.clone();
             let buffer = buffer.clone();
             let cap_hit = cap_hit.clone();
-            let mut resampler = StatefulResampler::new(src_rate, TARGET_RATE);
             device.build_input_stream(
                 &config,
                 move |data: &[u16], _| {
-                    // u16 → i16 → f32 mono → resampler. Two casts not
-                    // ideal but rare path; most quality devices come
-                    // back as F32 or I16.
                     let conv: Vec<i16> = data.iter().map(|v| v.to_sample::<i16>()).collect();
-                    let mono = downmix_i16_to_f32(&conv, channels);
-                    let resampled = resampler.push(&mono);
-                    if resampled.is_empty() {
-                        return;
-                    }
-                    let pcm = f32_to_i16(&resampled);
+                    let pcm = downmix_and_resample_i16(&conv, channels, src_rate);
                     if let Ok(mut buf) = buffer.lock() {
                         append_capped(&mut buf, &pcm, &cap_hit, "capture/u16");
                     }
@@ -421,11 +311,15 @@ fn run_capture(
             return Err(anyhow!("build_input_stream: {e}"));
         }
     };
+    let build_ms = build_t.elapsed().as_millis() as u64;
 
+    let play_t = std::time::Instant::now();
     if let Err(e) = stream.play() {
         let _ = ready_tx.send(Err(format!("stream.play: {e}")));
         return Err(anyhow!("stream.play: {e}"));
     }
+    let play_ms = play_t.elapsed().as_millis() as u64;
+    tracing::info!(build_ms, play_ms, "audio capture stream armed");
     let _ = ready_tx.send(Ok(()));
 
     // Park the thread until a stop is requested. The cpal stream lives in this scope,
@@ -505,18 +399,23 @@ impl CaptureHandle {
 
 // --- helpers ---
 
-fn downmix_f32(data: &[f32], channels: usize) -> Vec<f32> {
-    if channels == 1 {
+fn downmix_and_resample_f32(data: &[f32], channels: usize, src_rate: u32) -> Vec<i16> {
+    let mono: Vec<f32> = if channels == 1 {
         data.to_vec()
     } else {
         data.chunks_exact(channels)
             .map(|frame| frame.iter().sum::<f32>() / channels as f32)
             .collect()
-    }
+    };
+    let resampled = resample_f32(&mono, src_rate, TARGET_RATE);
+    resampled
+        .into_iter()
+        .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
+        .collect()
 }
 
-fn downmix_i16_to_f32(data: &[i16], channels: usize) -> Vec<f32> {
-    if channels == 1 {
+fn downmix_and_resample_i16(data: &[i16], channels: usize, src_rate: u32) -> Vec<i16> {
+    let mono: Vec<f32> = if channels == 1 {
         data.iter().map(|s| *s as f32 / i16::MAX as f32).collect()
     } else {
         data.chunks_exact(channels)
@@ -528,15 +427,80 @@ fn downmix_i16_to_f32(data: &[i16], channels: usize) -> Vec<f32> {
                     / channels as f32
             })
             .collect()
-    }
-}
-
-/// Convert resampled f32 mono samples back to clamped i16 PCM. The
-/// rest of the pipeline (history WAV writer, ASR providers) consumes
-/// i16, so we serialise here at the boundary.
-fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
-    samples
-        .iter()
+    };
+    let resampled = resample_f32(&mono, src_rate, TARGET_RATE);
+    resampled
+        .into_iter()
         .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
         .collect()
+}
+
+fn resample_f32(input: &[f32], src: u32, dst: u32) -> Vec<f32> {
+    if src == dst || input.is_empty() {
+        return input.to_vec();
+    }
+    let ratio = src as f64 / dst as f64;
+    let out_len = (input.len() as f64 / ratio).round() as usize;
+    let mut out = Vec::with_capacity(out_len);
+    for i in 0..out_len {
+        let pos = i as f64 * ratio;
+        let p = pos.floor() as usize;
+        let frac = (pos - p as f64) as f32;
+        let a = *input.get(p).unwrap_or(&0.0);
+        let b = *input.get(p + 1).unwrap_or(&a);
+        out.push(a + (b - a) * frac);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 48 kHz → 16 kHz resampling preserves the duration of a clip
+    /// within a single sample of round-off. v0.14.9's chunked FFT
+    /// resampler dropped up to one full source-chunk (~1024 samples
+    /// at 48 kHz, ~21 ms) at end-of-recording because partial windows
+    /// were never flushed; this test pins the linear-interpolator
+    /// behaviour so any future swap that re-introduces tail-loss
+    /// fails CI.
+    #[test]
+    fn resample_48k_to_16k_preserves_duration() {
+        let one_second_at_48k: Vec<f32> = (0..48_000)
+            .map(|i| (i as f32 / 48_000.0 * 2.0 * std::f32::consts::PI * 440.0).sin())
+            .collect();
+        let out = resample_f32(&one_second_at_48k, 48_000, 16_000);
+        assert!(
+            (out.len() as i64 - 16_000).abs() <= 1,
+            "expected ~16000 output samples, got {}",
+            out.len()
+        );
+    }
+
+    /// 16 kHz → 16 kHz is a true pass-through. No interpolation, no
+    /// length drift, no amplitude attenuation.
+    #[test]
+    fn resample_passthrough_when_rates_match() {
+        let input = vec![0.5_f32; 32_000];
+        let out = resample_f32(&input, 16_000, 16_000);
+        assert_eq!(out.len(), input.len());
+        assert!(out.iter().all(|s| (*s - 0.5).abs() < 1e-6));
+    }
+
+    /// Resampling a steady-amplitude tone at speech levels must not
+    /// collapse the amplitude — a regression where the resampler
+    /// silently zeroed audio would show up as a near-silent peak.
+    /// 0.3 is comfortable speech RMS in normalised f32 space.
+    #[test]
+    fn resample_does_not_collapse_amplitude() {
+        let input: Vec<f32> = (0..48_000)
+            .map(|i| (i as f32 / 48_000.0 * 2.0 * std::f32::consts::PI * 220.0).sin() * 0.3)
+            .collect();
+        let out = resample_f32(&input, 48_000, 16_000);
+        let peak = out.iter().fold(0.0_f32, |a, b| a.max(b.abs()));
+        assert!(
+            peak > 0.2,
+            "resampled peak collapsed to {peak} (expected > 0.2)"
+        );
+    }
 }

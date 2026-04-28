@@ -41,6 +41,15 @@ pub fn logs_dir() -> Result<PathBuf> {
     Ok(p)
 }
 
+/// Where the diagnostic audio dump (raw + post-preprocess WAV pairs)
+/// lands when `audio.diagnostic_audio_dump` is enabled. Off by default
+/// because it leaks private audio to disk.
+pub fn diagnostics_audio_dir() -> Result<PathBuf> {
+    let p = data_dir()?.join("diagnostics").join("audio");
+    ensure_dir(&p)?;
+    Ok(p)
+}
+
 fn ensure_dir(p: &std::path::Path) -> Result<()> {
     if !p.exists() {
         std::fs::create_dir_all(p)?;
