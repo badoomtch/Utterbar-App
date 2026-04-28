@@ -6,6 +6,7 @@ pub mod dictation;
 pub mod files;
 pub mod history;
 pub mod licence;
+pub mod meetings;
 pub mod models;
 pub mod modes;
 pub mod pricing;

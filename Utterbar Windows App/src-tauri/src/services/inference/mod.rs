@@ -1,5 +1,7 @@
 //! Inference orchestrator. Owns the active ASR provider and serialises access.
 
+pub mod diarize;
+pub mod diarize_assets;
 pub mod provider;
 pub mod py_sidecar;
 pub mod sherpa_parakeet;

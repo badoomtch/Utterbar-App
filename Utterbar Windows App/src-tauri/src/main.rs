@@ -149,6 +149,9 @@ fn main() {
             commands::history::reprocess_history,
             commands::history::list_history_apps,
             commands::history::export_history,
+            // meetings (v0.15.0 speaker rename)
+            commands::meetings::set_meeting_speaker_names,
+            commands::meetings::clear_meeting_speaker_names,
             // files
             commands::files::enqueue_file,
             commands::files::enqueue_folder,

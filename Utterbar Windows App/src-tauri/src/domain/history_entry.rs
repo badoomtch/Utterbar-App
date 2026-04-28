@@ -28,6 +28,22 @@ pub struct HistoryEntry {
     /// `is_meeting_mode` flag; never updated after.
     #[serde(default)]
     pub is_meeting: bool,
+    /// Per-meeting speaker rename map. None means "no rename — use
+    /// raw `**Speaker N:**` labels from `processed_text`". The JSON
+    /// shape is `{"1": "Jay", "2": "Customer"}` (string-keyed
+    /// integer speaker ids → display name). Only set on meeting
+    /// rows produced by v0.15+ diarised pipeline; older meeting
+    /// rows have null here (their transcripts contain no
+    /// `**Speaker N:**` tokens).
+    ///
+    /// Kept as a raw JSON string on the wire because:
+    ///   * the frontend doesn't need to type-check map keys (regex
+    ///     substitution doesn't care)
+    ///   * the row insert path stays simple (sqlite text column,
+    ///     no side table)
+    ///   * older rows roundtrip as null without serde gymnastics
+    #[serde(default)]
+    pub speaker_names: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

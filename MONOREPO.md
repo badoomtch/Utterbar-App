@@ -45,7 +45,8 @@ is the ritual.
 - **Shell:** Tauri v2 (`tauri = "2"`, features `tray-icon` + `protocol-asset`), `tauri-plugin-single-instance`. Tauri v2's `plugin-updater` is declared but NOT wired — hand-rolled updater under `src-tauri/src/commands/updater.rs`.
 - **Frontend:** React 18 + Vite + TypeScript, Tailwind v3.4 with a token-driven theme system, Radix UI primitives, zustand for state, framer-motion for pill animations, lucide-react icons.
 - **Backend:** Rust (`src-tauri/`), `tokio = "full"`, `rusqlite` (bundled SQLite + `refinery` migrations), `reqwest` with rustls+stream, `cpal` capture, `hound` for WAV, `rubato` resampling, `ringbuf` for live audio, `sha2` for installer verification, `ts-rs` to emit shared types into `src/generated/`.
-- **ASR:** sherpa-onnx → Parakeet-tdt-0.6b (English). Optional Python sidecar for experimental backends.
+- **ASR:** sherpa-onnx → Parakeet-tdt-0.6b (English) for dictation; Whisper Large v3 for Meeting Mode. Optional Python sidecar for experimental backends.
+- **Speaker diarisation (v0.15.0+, Meeting Mode only):** sherpa-onnx → pyannote segmentation 3.0 (MIT, CNRS) + NVIDIA NeMo TitaNet small (CC-BY-4.0). Threshold-based clustering. Lazy-downloaded one-time on first meeting use, ~47 MB compressed, SHA-pinned via `services::inference::diarize_assets`.
 - **Packaging:** NSIS + MSI via `tauri build`. NSIS is the shipped one; MSI is a byproduct.
 
 Versions in [Utterbar Windows App/package.json](Utterbar%20Windows%20App/package.json) + [Utterbar Windows App/src-tauri/Cargo.toml](Utterbar%20Windows%20App/src-tauri/Cargo.toml) — grep, don't guess.
