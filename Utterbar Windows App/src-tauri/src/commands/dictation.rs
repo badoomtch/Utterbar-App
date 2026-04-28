@@ -115,6 +115,11 @@ pub async fn start_recording(
     let trx_flag = state
         .transcribe_in_progress
         .load(std::sync::atomic::Ordering::Acquire);
+    // Capture an Instant here so we can log total hotkey-to-listening
+    // latency at the bottom of start_recording. Useful for diagnosing
+    // perceived sluggishness without needing the user to grok wall-
+    // clock differences between log lines.
+    let start_t = std::time::Instant::now();
     tracing::info!(
         ?device_id,
         recording_in_progress = rec_flag,
@@ -384,7 +389,11 @@ pub async fn start_recording(
     if let Some(cap) = mic_capture {
         meter::spawn_pump(handle, cap);
     }
-    tracing::info!(?source, "audio capture armed");
+    tracing::info!(
+        ?source,
+        elapsed_ms = start_t.elapsed().as_millis() as u64,
+        "audio capture armed"
+    );
     Ok(())
 }
 

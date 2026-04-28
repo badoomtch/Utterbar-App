@@ -194,23 +194,13 @@ fn run_capture(
     //     fighting the driver. Same pattern as Handy
     //     (github.com/cjpais/Handy, MIT) which has soaked across
     //     thousands of installs without rate-related complaints.
-    let default_config = match device.default_input_config() {
-        Ok(c) => c,
-        Err(e) => {
-            let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
-            return Err(anyhow!("default_input_config: {e}"));
-        }
-    };
-    let target_rate = default_config.sample_rate();
-
     fn format_score(fmt: SampleFormat) -> u8 {
         // F32 highest because it requires no quantisation and is the
         // most common format for quality interfaces. I16 / U16
-        // covered for completeness. Anything else returns 0 and is
-        // effectively never picked unless it's the only available
-        // config; in that case the dispatch errors below with a
-        // clear "unsupported sample format" message rather than
-        // crashing inside cpal's decoder.
+        // covered for completeness. Anything else returns 0 — only
+        // selected if no decodable format exists at the device's
+        // default rate, in which case the dispatch below errors out
+        // cleanly.
         match fmt {
             SampleFormat::F32 => 4,
             SampleFormat::I16 => 3,
@@ -219,37 +209,64 @@ fn run_capture(
         }
     }
 
-    let supported = match device.supported_input_configs() {
-        Ok(configs) => {
-            let mut best: Option<cpal::SupportedStreamConfigRange> = None;
-            for range in configs {
-                // Only ranges that cover the device's default rate.
-                // Picking a different rate would reintroduce the
-                // v0.14.7 fight-the-driver bug class.
-                if range.min_sample_rate() <= target_rate && range.max_sample_rate() >= target_rate
-                {
-                    let pick = match best.as_ref() {
-                        None => true,
-                        Some(cur) => {
-                            format_score(range.sample_format()) > format_score(cur.sample_format())
+    let default_config = match device.default_input_config() {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = ready_tx.send(Err(format!("default_input_config: {e}")));
+            return Err(anyhow!("default_input_config: {e}"));
+        }
+    };
+
+    // Fast path: if the device's default config already gives us a
+    // format we decode (F32/I16/U16), use it directly. Skips the
+    // slow `supported_input_configs()` enumeration entirely on the
+    // happy path, which on Windows queries WASAPI for every
+    // (rate, format, channels) combo and adds 100-300 ms to the
+    // hotkey-to-listening latency. Pre-v0.14.7 we did exactly this;
+    // v0.14.7-9 enumerated unconditionally and the user noticed the
+    // slowdown.
+    //
+    // Slow path: only when the default's format isn't decodable do
+    // we enumerate, looking for a config at the same rate with a
+    // format we can decode. Same shape as Handy
+    // (github.com/cjpais/Handy, MIT). Most consumer mics never
+    // enter this branch.
+    let supported = if format_score(default_config.sample_format()) > 0 {
+        default_config
+    } else {
+        let target_rate = default_config.sample_rate();
+        match device.supported_input_configs() {
+            Ok(configs) => {
+                let mut best: Option<cpal::SupportedStreamConfigRange> = None;
+                for range in configs {
+                    if range.min_sample_rate() <= target_rate
+                        && range.max_sample_rate() >= target_rate
+                        && format_score(range.sample_format()) > 0
+                    {
+                        let pick = match best.as_ref() {
+                            None => true,
+                            Some(cur) => {
+                                format_score(range.sample_format())
+                                    > format_score(cur.sample_format())
+                            }
+                        };
+                        if pick {
+                            best = Some(range);
                         }
-                    };
-                    if pick {
-                        best = Some(range);
                     }
                 }
+                match best {
+                    Some(range) => range.with_sample_rate(target_rate),
+                    None => default_config,
+                }
             }
-            match best {
-                Some(range) => range.with_sample_rate(target_rate),
-                None => default_config,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "supported_input_configs unavailable, using device default config"
+                );
+                default_config
             }
-        }
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                "supported_input_configs unavailable, using device default config"
-            );
-            default_config
         }
     };
     let sample_format = supported.sample_format();
