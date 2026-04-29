@@ -2405,23 +2405,31 @@ pub async fn stop_recording(
         // issues against language-pin choice.
         let chunk_count = chunk_count_for_duration(asr.duration_ms);
         let rtf = realtime_factor(asr.duration_ms, total_processing_ms);
-        // v0.15.4 telemetry preface: every transcribe path that
-        // reaches this log line ran on CPU. Whisper is force-pinned
-        // to CPU in services/inference/sherpa_whisper.rs (the v0.8.7
-        // crash mitigation), and the vendored ONNX Runtime in
-        // src-tauri/runtime/ ships the CPU provider only — no
-        // onnxruntime_providers_dml.dll, no DirectML.dll. There is
-        // no fallback because there is nothing to fall back FROM:
-        // the GPU path doesn't exist yet. v0.15.5 will revisit
-        // DirectML, and at that point `provider_used` /
-        // `fallback_used` / `fallback_reason` will start carrying
-        // real signal. Until then the fields are constant — present
-        // so the log shape is stable across the v0.15.4 → v0.15.5
-        // transition, which means a `tail | grep` on the field
-        // names won't miss old rows when the fallback path lights up.
-        let provider_used = "cpu";
-        let fallback_used = false;
-        let fallback_reason = "";
+        // v0.15.5 telemetry: read the orchestrator's resolved
+        // provider so the log line carries the gap between what the
+        // user asked for and what actually ran. Pre-v0.15.5 these
+        // fields were constants ("cpu" / false / ""); now they
+        // reflect the real downgrade behaviour for users who picked
+        // DirectML or CUDA against the CPU-only shipping runtime.
+        // Whisper still force-pins CPU at the engine layer, but the
+        // resolver (and therefore the log) records whether the user
+        // explicitly asked for CPU or was downgraded into it.
+        //
+        // `current_provider_resolution` returns None when no model
+        // is loaded — can't happen on this path (we just transcribed
+        // through it), but defensively log empty sentinels so a
+        // grepper never sees a half-row.
+        let resolution = state.inference.current_provider_resolution().await;
+        let provider_requested = resolution
+            .as_ref()
+            .map(|r| r.requested.as_str())
+            .unwrap_or("");
+        let provider_used = resolution.as_ref().map(|r| r.used.as_str()).unwrap_or("");
+        let fallback_used = resolution.as_ref().is_some_and(|r| r.fallback_used);
+        let fallback_reason = resolution
+            .as_ref()
+            .map(|r| r.fallback_reason.as_str())
+            .unwrap_or("");
         tracing::info!(
             audio_duration_ms = asr.duration_ms,
             total_processing_ms,
@@ -2429,13 +2437,27 @@ pub async fn stop_recording(
             selected_model_id = %model_id,
             chunk_count,
             whisper_language = %pre_settings.models.whisper_language,
+            provider_requested,
             provider_used,
             fallback_used,
             fallback_reason,
             "meeting transcribe complete"
         );
     }
-    tracing::info!(chars = asr.text.len(), "inference.transcribe done");
+    // v0.15.5: provider telemetry on every transcribe (meeting +
+    // non-meeting). Mirrors the meeting log fields so a grep across
+    // both surfaces the same shape — important for non-meeting
+    // dictation where the meeting log doesn't fire and this is the
+    // only place provider info lands.
+    let dictation_resolution = state.inference.current_provider_resolution().await;
+    tracing::info!(
+        chars = asr.text.len(),
+        provider_requested = %dictation_resolution.as_ref().map(|r| r.requested.as_str()).unwrap_or(""),
+        provider_used = %dictation_resolution.as_ref().map(|r| r.used.as_str()).unwrap_or(""),
+        fallback_used = dictation_resolution.as_ref().is_some_and(|r| r.fallback_used),
+        fallback_reason = %dictation_resolution.as_ref().map(|r| r.fallback_reason.as_str()).unwrap_or(""),
+        "inference.transcribe done"
+    );
 
     let raw = state
         .vocabulary
@@ -4395,6 +4417,54 @@ mod diarised_helpers_tests {
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
     }
 
+    /// **v0.15.5 honesty contract.** AdvancedSettings.tsx must not
+    /// unconditionally claim "3–10× faster than CPU" — that copy is
+    /// allowed only behind a runtime-capabilities check. Phase A
+    /// shipping reality is CPU-only; the speed-claim copy is gated
+    /// to fire when the runtime actually supports a GPU EP.
+    #[test]
+    fn advanced_settings_does_not_unconditionally_claim_gpu_acceleration() {
+        let src = read_source("src/routes/settings/AdvancedSettings.tsx");
+        // The 3–10× claim is allowed in the source — it's reused
+        // for the Phase B path. What's NOT allowed is for it to
+        // sit at the top level of the description (the v0.15.4
+        // shape). Pin: any occurrence of the literal must be
+        // inside a conditional (we look for `runtimeHasAnyGpuEp`
+        // appearing within 600 bytes BEFORE the literal as proxy
+        // for "the speed claim is gated on the EP check").
+        let needle = "3\u{2013}10\u{00d7} faster";
+        if !src.contains(needle) {
+            // Copy may have been rewritten without this exact
+            // phrase — fine, no claim to gate.
+            return;
+        }
+        let idx = src.find(needle).unwrap();
+        let window_start = idx.saturating_sub(600);
+        let window = &src[window_start..idx];
+        assert!(
+            window.contains("runtimeHasAnyGpuEp") || window.contains("has_dml_ep"),
+            "AdvancedSettings.tsx must gate the '3-10× faster' speed claim on a runtime EP check. \
+             Found the claim at byte {idx} but no runtime-capabilities gate in the preceding 600 bytes."
+        );
+    }
+
+    /// **v0.15.5 inactive-notice contract.** AdvancedSettings.tsx
+    /// must surface the "Selected, but currently inactive" notice
+    /// for DML/CUDA when the runtime can't serve them. Source-grep
+    /// pin so a future refactor can't drop the user-facing message.
+    #[test]
+    fn advanced_settings_shows_inactive_notice_for_unavailable_ep() {
+        let src = read_source("src/routes/settings/AdvancedSettings.tsx");
+        assert!(
+            src.contains("Selected, but currently inactive"),
+            "AdvancedSettings.tsx must include the 'Selected, but currently inactive' notice copy"
+        );
+        assert!(
+            src.contains("Transcribes are running on CPU"),
+            "AdvancedSettings.tsx must tell the user transcribes are on CPU when the EP is unavailable"
+        );
+    }
+
     /// **v0.15.4 picker contract.** ModelsSettings.tsx pins the
     /// Recommended chip on Whisper Small. v0.15.3 had it on
     /// Medium; the swap is the user-visible signal of the default
@@ -4412,31 +4482,36 @@ mod diarised_helpers_tests {
         );
     }
 
-    /// **v0.15.4 telemetry contract.** The `meeting transcribe
-    /// complete` log line carries the three new fields. Source-grep
-    /// rather than a live-emit test because capturing tracing
-    /// output through a global subscriber is brittle and the
-    /// values are constant in v0.15.4 anyway — we want the field
-    /// names baked into the call site so a future DML pass sees
-    /// the shape it has to fill in.
+    /// **v0.15.5 telemetry contract.** The `meeting transcribe
+    /// complete` log line carries `provider_requested`,
+    /// `provider_used`, `fallback_used`, `fallback_reason`.
+    /// Source-grep rather than a live-emit test because capturing
+    /// tracing output through a global subscriber is brittle. Phase
+    /// A added `provider_requested` to v0.15.4's three-field set.
     #[test]
     fn meeting_transcribe_log_includes_provider_telemetry_fields() {
         let src = read_source("src-tauri/src/commands/dictation.rs");
         // The literal `"meeting transcribe complete"` appears in
         // multiple places (doc comments, this very test). Scan
-        // every occurrence and require at least ONE to have the
-        // three field names within 800 bytes before it — that
-        // identifies the production tracing call site without
-        // having to baroquely anchor on whitespace + ); shape.
+        // every occurrence and require at least ONE to have all
+        // four field names within 1200 bytes before it — that
+        // identifies the production tracing call site. Window
+        // bumped from 800 to 1200 vs v0.15.4 because the v0.15.5
+        // preamble comment is longer.
         let needle_literal = "\"meeting transcribe complete\"";
         let mut hit = false;
         let mut last_window = String::new();
         for (idx, _) in src.match_indices(needle_literal) {
-            let window_start = idx.saturating_sub(800);
+            let window_start = idx.saturating_sub(1200);
             let window = &src[window_start..idx];
-            if ["provider_used", "fallback_used", "fallback_reason"]
-                .iter()
-                .all(|n| window.contains(n))
+            if [
+                "provider_requested",
+                "provider_used",
+                "fallback_used",
+                "fallback_reason",
+            ]
+            .iter()
+            .all(|n| window.contains(n))
             {
                 hit = true;
                 break;
@@ -4445,9 +4520,42 @@ mod diarised_helpers_tests {
         }
         assert!(
             hit,
-            "no `meeting transcribe complete` log call site carries all three of \
-             provider_used / fallback_used / fallback_reason within 800 bytes \
-             before the literal — last window inspected: {last_window}"
+            "no `meeting transcribe complete` log call site carries all four of \
+             provider_requested / provider_used / fallback_used / fallback_reason \
+             within 1200 bytes before the literal — last window inspected: {last_window}"
+        );
+    }
+
+    /// **v0.15.5 non-meeting telemetry contract.** The
+    /// `inference.transcribe done` log line on the dictation path
+    /// also carries the same four provider fields, so a grepper
+    /// can correlate dictation-path performance with provider
+    /// telemetry without the meeting log only firing for meetings.
+    #[test]
+    fn dictation_transcribe_done_log_includes_provider_telemetry_fields() {
+        let src = read_source("src-tauri/src/commands/dictation.rs");
+        let needle_literal = "\"inference.transcribe done\"";
+        let mut hit = false;
+        for (idx, _) in src.match_indices(needle_literal) {
+            let window_start = idx.saturating_sub(1200);
+            let window = &src[window_start..idx];
+            if [
+                "provider_requested",
+                "provider_used",
+                "fallback_used",
+                "fallback_reason",
+            ]
+            .iter()
+            .all(|n| window.contains(n))
+            {
+                hit = true;
+                break;
+            }
+        }
+        assert!(
+            hit,
+            "`inference.transcribe done` log must carry provider_requested / \
+             provider_used / fallback_used / fallback_reason fields"
         );
     }
 

@@ -33,7 +33,14 @@ struct Active {
     provider: Arc<dyn AsrProvider>,
     /// ONNX Runtime provider string the recognizer was built with. If the user changes
     /// their GPU preference we need to rebuild, so we cache the resolved value.
+    /// Same as `resolution.used`; kept as a separate field so the
+    /// existing rebuild-on-change check stays a one-string compare.
     provider_string: String,
+    /// Full provider-resolution telemetry — what the user requested,
+    /// what we actually used, whether a fallback fired, and why.
+    /// Surfaced through `current_provider_resolution()` so dictation's
+    /// transcribe-complete log can record the gap. v0.15.5+.
+    resolution: ProviderResolution,
     /// Last time `transcribe` completed against this provider. Used by the idle
     /// sweeper to honour `models.warm_duration_secs`. Wrapped in a `std::sync::Mutex`
     /// so we can update it while only holding a read lock on `active` — updates are
@@ -51,7 +58,16 @@ impl InferenceOrchestrator {
     }
 
     pub async fn ensure_loaded(&self, model_id: &str) -> Result<Arc<dyn AsrProvider>> {
-        let desired = resolve_provider_string(&self.settings).await;
+        let resolution = resolve_provider_for_settings(&self.settings).await;
+        let desired = resolution.used.clone();
+        if resolution.fallback_used {
+            tracing::info!(
+                requested = %resolution.requested,
+                used = %resolution.used,
+                reason = %resolution.fallback_reason,
+                "inference: provider downgraded — runtime EP unavailable"
+            );
+        }
 
         // Single write lock around the whole check-then-build sequence.
         //
@@ -129,9 +145,25 @@ impl InferenceOrchestrator {
         *guard = Some(Active {
             provider: provider.clone(),
             provider_string: desired,
+            resolution,
             last_used: StdMutex::new(Instant::now()),
         });
         Ok(provider)
+    }
+
+    /// Latest provider resolution, if any model is loaded. Read by
+    /// `commands::dictation` so the `meeting transcribe complete` and
+    /// `inference.transcribe done` log lines can carry
+    /// `provider_requested` / `provider_used` / `fallback_used` /
+    /// `fallback_reason` alongside the existing audio/RTF data.
+    /// Returns `None` when no model is loaded — the caller should
+    /// log empty-string sentinels in that edge case.
+    pub async fn current_provider_resolution(&self) -> Option<ProviderResolution> {
+        self.active
+            .read()
+            .await
+            .as_ref()
+            .map(|a| a.resolution.clone())
     }
 
     pub async fn transcribe(
@@ -354,30 +386,135 @@ impl InferenceOrchestrator {
     }
 }
 
-/// Turn the user's GPU preference into a concrete ONNX Runtime provider string.
+/// Telemetry-shaped result of the provider resolution + downgrade.
 ///
-/// * `Auto`      — pick a hardware GPU if one exists, otherwise `cpu`
-/// * `DirectMl`  — force `directml` (fails loudly at load time if unavailable)
-/// * `Cuda`      — force `cuda`
-/// * `Cpu`       — force `cpu`
-async fn resolve_provider_string(settings: &SettingsStore) -> String {
-    let pref = settings.snapshot().await.advanced.gpu_acceleration;
+/// v0.15.5 (Phase A) made the gap between "what the user asked for"
+/// and "what actually ran" observable. Pre-v0.15.5 the resolver
+/// returned a single string and we passed it through to sherpa-onnx
+/// regardless of whether the loaded ORT could honour it; the user's
+/// "DirectML" choice was silently ignored or — worse — produced an
+/// obscure session-create error. Phase A:
+///
+///   1. Detects unavailable execution providers up front (file-presence
+///      check via `gpu::runtime_capabilities`).
+///   2. Downgrades to `"cpu"` BEFORE engine construction so the
+///      provider string we hand to sherpa-onnx is the one we actually
+///      ran on.
+///   3. Carries the requested + used + fallback_reason through to the
+///      transcribe-complete log line so the gap is visible in `tail`.
+///
+/// `requested` strings — UI-derived:
+///   * `"cpu"` / `"directml"` / `"cuda"` — user explicitly chose
+///   * `"auto-cpu"` — Auto resolved to CPU because no hardware GPU
+///   * `"auto-directml"` — Auto resolved to DirectML because hardware GPU detected
+///
+/// `used` is one of `"cpu"` / `"directml"` / `"cuda"` — what the
+/// engine actually receives. Phase A: always `"cpu"` because the
+/// shipping runtime has no DML/CUDA EP. Phase B (v0.15.6) will start
+/// returning `"directml"` here for real.
+///
+/// `fallback_reason` enum (string constants — pinned by a test):
+///   * `""` — no downgrade, requested == used
+///   * `"dml_ep_unavailable"` — DirectML requested, runtime can't serve it
+///   * `"cuda_ep_unavailable"` — CUDA requested, runtime can't serve it
+#[derive(Debug, Clone)]
+pub struct ProviderResolution {
+    pub requested: String,
+    pub used: String,
+    pub fallback_used: bool,
+    pub fallback_reason: String,
+}
+
+impl ProviderResolution {
+    fn no_fallback(provider: &str) -> Self {
+        Self {
+            requested: provider.to_string(),
+            used: provider.to_string(),
+            fallback_used: false,
+            fallback_reason: String::new(),
+        }
+    }
+}
+
+/// Turn the user's GPU preference + the shipping runtime's capabilities
+/// into a `ProviderResolution`. The `used` string is what flows into
+/// engine construction.
+///
+/// Pure helper — takes the inputs explicitly so tests can drive every
+/// arm without standing up a SettingsStore or a runtime fixture.
+pub(crate) fn resolve_provider(
+    pref: GpuAcceleration,
+    has_hardware_gpu: bool,
+    caps: &gpu::RuntimeCapabilities,
+) -> ProviderResolution {
     match pref {
-        GpuAcceleration::Cpu => "cpu".into(),
-        GpuAcceleration::DirectMl => "directml".into(),
-        GpuAcceleration::Cuda => "cuda".into(),
-        GpuAcceleration::Auto => {
-            let probe = gpu::probe();
-            if probe.has_hardware_gpu {
-                // DirectML is the safe default on Windows — runs on any DX12 GPU
-                // (NVIDIA, AMD, Intel Arc, integrated Intel/AMD). CUDA would be faster
-                // on NVIDIA but requires a separate DLL bundle.
-                "directml".into()
+        GpuAcceleration::Cpu => ProviderResolution::no_fallback("cpu"),
+
+        GpuAcceleration::DirectMl => {
+            if caps.has_dml_ep {
+                ProviderResolution::no_fallback("directml")
             } else {
-                "cpu".into()
+                ProviderResolution {
+                    requested: "directml".into(),
+                    used: "cpu".into(),
+                    fallback_used: true,
+                    fallback_reason: "dml_ep_unavailable".into(),
+                }
+            }
+        }
+
+        GpuAcceleration::Cuda => {
+            if caps.has_cuda_ep {
+                ProviderResolution::no_fallback("cuda")
+            } else {
+                ProviderResolution {
+                    requested: "cuda".into(),
+                    used: "cpu".into(),
+                    fallback_used: true,
+                    fallback_reason: "cuda_ep_unavailable".into(),
+                }
+            }
+        }
+
+        GpuAcceleration::Auto => {
+            // Auto picks the best provider that's BOTH supported by
+            // the hardware AND served by the loaded runtime. Without
+            // both, Auto resolves honestly to CPU — it's not a
+            // downgrade in the fallback sense, it's the only path
+            // that was ever going to work on this build, so
+            // `fallback_used = false`.
+            //
+            // DirectML is the safe Windows GPU choice when both
+            // conditions hold — runs on any DX12 GPU (NVIDIA, AMD,
+            // Intel Arc, integrated). CUDA is never picked by Auto
+            // because we've never bundled the CUDA runtime.
+            if has_hardware_gpu && caps.has_dml_ep {
+                ProviderResolution {
+                    requested: "auto-directml".into(),
+                    used: "directml".into(),
+                    fallback_used: false,
+                    fallback_reason: String::new(),
+                }
+            } else {
+                ProviderResolution {
+                    requested: "auto-cpu".into(),
+                    used: "cpu".into(),
+                    fallback_used: false,
+                    fallback_reason: String::new(),
+                }
             }
         }
     }
+}
+
+/// Async wrapper that snapshots the user's pref + probes the runtime
+/// before delegating to the pure `resolve_provider` helper. This is
+/// the orchestrator-facing entry point.
+async fn resolve_provider_for_settings(settings: &SettingsStore) -> ProviderResolution {
+    let pref = settings.snapshot().await.advanced.gpu_acceleration;
+    let probe = gpu::probe();
+    let caps = gpu::runtime_capabilities();
+    resolve_provider(pref, probe.has_hardware_gpu, &caps)
 }
 
 async fn build_provider(
@@ -432,5 +569,148 @@ async fn build_provider(
             model_dir,
             provider_string.to_string(),
         ))),
+    }
+}
+
+#[cfg(test)]
+mod resolver_tests {
+    //! v0.15.5 Phase A: provider resolution + downgrade matrix.
+    //!
+    //! Pinning the user-spec contract:
+    //!   * If DML/CUDA is requested but the runtime can't serve it,
+    //!     `used` is `"cpu"` and `fallback_reason` is set.
+    //!   * If CPU is explicitly requested, no fallback.
+    //!   * If Auto resolves to CPU because the runtime is CPU-only,
+    //!     that's not a fallback — it's the only path that was ever
+    //!     going to work; `requested` carries the `"auto-cpu"` /
+    //!     `"auto-directml"` distinction so logs can tell them apart.
+    use super::*;
+    use crate::services::gpu::RuntimeCapabilities;
+
+    fn cpu_only_runtime() -> RuntimeCapabilities {
+        RuntimeCapabilities {
+            has_dml_ep: false,
+            has_cuda_ep: false,
+        }
+    }
+
+    fn dml_capable_runtime() -> RuntimeCapabilities {
+        RuntimeCapabilities {
+            has_dml_ep: true,
+            has_cuda_ep: false,
+        }
+    }
+
+    fn cuda_capable_runtime() -> RuntimeCapabilities {
+        RuntimeCapabilities {
+            has_dml_ep: false,
+            has_cuda_ep: true,
+        }
+    }
+
+    #[test]
+    fn cpu_requested_uses_cpu_no_fallback() {
+        let r = resolve_provider(GpuAcceleration::Cpu, false, &cpu_only_runtime());
+        assert_eq!(r.requested, "cpu");
+        assert_eq!(r.used, "cpu");
+        assert!(!r.fallback_used);
+        assert_eq!(r.fallback_reason, "");
+    }
+
+    #[test]
+    fn cpu_requested_with_hardware_gpu_still_uses_cpu() {
+        // Hardware GPU presence must never override an explicit CPU choice.
+        let r = resolve_provider(GpuAcceleration::Cpu, true, &dml_capable_runtime());
+        assert_eq!(r.used, "cpu");
+        assert!(!r.fallback_used);
+    }
+
+    #[test]
+    fn directml_requested_dml_unavailable_downgrades_to_cpu() {
+        let r = resolve_provider(GpuAcceleration::DirectMl, true, &cpu_only_runtime());
+        assert_eq!(r.requested, "directml");
+        assert_eq!(
+            r.used, "cpu",
+            "must pass `cpu` to engine when DML EP is unavailable"
+        );
+        assert!(r.fallback_used);
+        assert_eq!(r.fallback_reason, "dml_ep_unavailable");
+    }
+
+    #[test]
+    fn directml_requested_dml_available_uses_directml() {
+        // Phase B test surface — when v0.15.6 ships the DML runtime,
+        // this test pins that an explicit DirectML request is honoured.
+        let r = resolve_provider(GpuAcceleration::DirectMl, true, &dml_capable_runtime());
+        assert_eq!(r.used, "directml");
+        assert!(!r.fallback_used);
+        assert_eq!(r.fallback_reason, "");
+    }
+
+    #[test]
+    fn cuda_requested_cuda_unavailable_downgrades_to_cpu() {
+        let r = resolve_provider(GpuAcceleration::Cuda, true, &cpu_only_runtime());
+        assert_eq!(r.requested, "cuda");
+        assert_eq!(r.used, "cpu");
+        assert!(r.fallback_used);
+        assert_eq!(r.fallback_reason, "cuda_ep_unavailable");
+    }
+
+    #[test]
+    fn cuda_requested_cuda_available_uses_cuda() {
+        let r = resolve_provider(GpuAcceleration::Cuda, true, &cuda_capable_runtime());
+        assert_eq!(r.used, "cuda");
+        assert!(!r.fallback_used);
+    }
+
+    #[test]
+    fn auto_no_hardware_gpu_uses_cpu_no_fallback() {
+        let r = resolve_provider(GpuAcceleration::Auto, false, &cpu_only_runtime());
+        assert_eq!(
+            r.requested, "auto-cpu",
+            "auto with no hardware GPU labels itself auto-cpu"
+        );
+        assert_eq!(r.used, "cpu");
+        assert!(
+            !r.fallback_used,
+            "auto-resolves-to-cpu is not a fallback — it's the only path that was going to work"
+        );
+        assert_eq!(r.fallback_reason, "");
+    }
+
+    #[test]
+    fn auto_with_hardware_gpu_but_no_dml_runtime_uses_cpu_no_fallback() {
+        // The user's spec: "Auto with unavailable EP does not pretend
+        // GPU is active". Auto is honest about CPU when the runtime
+        // can't deliver DML, but it doesn't call this a fallback —
+        // the user never asked for DML directly.
+        let r = resolve_provider(GpuAcceleration::Auto, true, &cpu_only_runtime());
+        assert_eq!(r.requested, "auto-cpu");
+        assert_eq!(r.used, "cpu");
+        assert!(!r.fallback_used);
+        assert_eq!(r.fallback_reason, "");
+    }
+
+    #[test]
+    fn auto_with_hardware_gpu_and_dml_runtime_uses_directml() {
+        // Phase B path: Auto picks DirectML when both conditions hold.
+        let r = resolve_provider(GpuAcceleration::Auto, true, &dml_capable_runtime());
+        assert_eq!(r.requested, "auto-directml");
+        assert_eq!(r.used, "directml");
+        assert!(!r.fallback_used);
+    }
+
+    /// Pins the `fallback_reason` enum strings so log-greppers don't
+    /// silently break in a future refactor.
+    #[test]
+    fn fallback_reason_enum_strings_are_stable() {
+        let dml = resolve_provider(GpuAcceleration::DirectMl, true, &cpu_only_runtime());
+        assert_eq!(dml.fallback_reason, "dml_ep_unavailable");
+
+        let cuda = resolve_provider(GpuAcceleration::Cuda, true, &cpu_only_runtime());
+        assert_eq!(cuda.fallback_reason, "cuda_ep_unavailable");
+
+        let cpu = resolve_provider(GpuAcceleration::Cpu, false, &cpu_only_runtime());
+        assert_eq!(cpu.fallback_reason, "");
     }
 }
