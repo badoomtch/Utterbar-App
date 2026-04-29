@@ -667,7 +667,7 @@ pub async fn start_recording(
         settings.audio.capture_source
     };
 
-    // ── Meeting-mode preflight (v0.15.0 → v0.15.3) ──────────────────
+    // ── Meeting-mode preflight (v0.15.0 → v0.15.4) ──────────────────
     //
     // History:
     //   * v0.14.x — `resolve_target_model_id` silently fell back to
@@ -680,9 +680,14 @@ pub async fn start_recording(
     //     Large.
     //   * v0.15.3 — meeting model is an EXPLICIT user choice via
     //     `Settings.models.meeting_asr_model_id`. The default (when
-    //     no preference is set) is Whisper Medium IF installed; if
-    //     Medium is missing the start refuses and tells the user to
-    //     pick. Never silently routes to Large, Small, or Parakeet.
+    //     no preference is set) was Whisper Medium IF installed; if
+    //     missing the start refused and told the user to pick. Never
+    //     silently routes to Large, Small, or Parakeet.
+    //   * v0.15.4 — same allow-list, but the default flips from
+    //     Medium to Small. Step 0 measurements put Small at RTF
+    //     ~0.2 vs Medium's 0.87 on the same audio, so the option
+    //     that returns text quickly is now the one a no-preference
+    //     user gets. Medium and Large remain explicit choices.
     //
     // After preflight passes, write an `ActiveRecordingContext` so
     // `stop_recording` can read the start-time meeting choice
@@ -719,7 +724,7 @@ pub async fn start_recording(
             }
             MeetingModelResolution::RefusePreferenceUnset => {
                 tracing::warn!(
-                    "start_recording refused: meeting mode has no model preference and Whisper Medium isn't installed"
+                    "start_recording refused: meeting mode has no model preference and Whisper Small (default) isn't installed"
                 );
                 clear_recording_flag(state.inner());
                 clear_active_recording_context(state.inner()).await;
@@ -1029,14 +1034,26 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
 /// Bounds-safe — clamps end to pcm.len() and returns 0.0 on empty range
 /// so a missing-side capture trivially loses the tag race.
 /// Catalogue ID of the Meeting Mode default when the user hasn't
-/// expressed a preference. v0.15.3+: Whisper Medium. Pre-v0.15.3
-/// silently used Whisper Large v3 — see `resolve_meeting_model_id`
-/// for the full rationale of the change (no silent slow path).
-pub(crate) const DEFAULT_MEETING_MODEL_ID: &str = "sherpa-whisper-medium";
+/// expressed a preference. v0.15.4+: Whisper Small (the "Fast"
+/// option) — Step 0 measurements on real meetings put Small at
+/// RTF ~0.2 vs Medium's 0.87, so the default is now the option
+/// that actually returns text within a useful timeframe on
+/// laptop-class CPUs. v0.15.3 used Medium; pre-v0.15.3 silently
+/// used Whisper Large v3 — see `resolve_meeting_model_id` for
+/// the full rationale (no silent slow path).
+pub(crate) const DEFAULT_MEETING_MODEL_ID: &str = "sherpa-whisper-small";
 /// Catalogue ID of the Meeting Mode "Fast" option. Used by the
 /// resolver's allow-list and the picker UI's hard-coded radio
-/// rows; both must agree on this single source of truth.
+/// rows; both must agree on this single source of truth. v0.15.4:
+/// this is the same id as `DEFAULT_MEETING_MODEL_ID`. The two
+/// constants are kept distinct because they answer different
+/// questions — "what is the Fast row in the picker?" vs "what
+/// model fires when no preference is set?" — and could diverge in
+/// a future release.
 pub(crate) const MEETING_FAST_MODEL_ID: &str = "sherpa-whisper-small";
+/// Catalogue ID of the Meeting Mode "Balanced" option (Whisper
+/// Medium). Allow-listed and selectable by name; never the default.
+pub(crate) const MEETING_BALANCED_MODEL_ID: &str = "sherpa-whisper-medium";
 /// Catalogue ID of the Meeting Mode "Best accuracy" option.
 /// Same rationale as above.
 pub(crate) const MEETING_BEST_MODEL_ID: &str = "sherpa-whisper-large-v3";
@@ -1062,9 +1079,14 @@ pub(crate) const MEETING_BEST_MODEL_ID: &str = "sherpa-whisper-large-v3";
 /// catalogue AND to the picker UI; the three locations together
 /// define what "Meeting Mode model" means.
 pub(crate) fn is_allowed_meeting_model_id(id: &str) -> bool {
+    // v0.15.4: `DEFAULT_MEETING_MODEL_ID` and `MEETING_FAST_MODEL_ID`
+    // are both Whisper Small now, so the allow-list arms must
+    // explicitly include the Balanced (Medium) id rather than
+    // implying it via `DEFAULT_MEETING_MODEL_ID`. Three distinct
+    // ids: Small / Medium / Large v3.
     matches!(
         id,
-        MEETING_FAST_MODEL_ID | DEFAULT_MEETING_MODEL_ID | MEETING_BEST_MODEL_ID
+        MEETING_FAST_MODEL_ID | MEETING_BALANCED_MODEL_ID | MEETING_BEST_MODEL_ID
     )
 }
 
@@ -1089,12 +1111,15 @@ pub(crate) fn is_allowed_meeting_model_id(id: &str) -> bool {
 ///   * If allow-listed but the chosen model isn't installed →
 ///     `RefuseExplicitMissing(id)`. No silent fallback to a
 ///     different allow-listed model.
-///   * If `meeting_asr_model_id` is unset and Whisper Medium is
-///     installed → `Use("sherpa-whisper-medium")`.
-///   * If unset and Medium is missing → `RefusePreferenceUnset`.
+///   * If `meeting_asr_model_id` is unset and Whisper Small is
+///     installed → `Use("sherpa-whisper-small")`. v0.15.4 made
+///     Small the default; v0.15.3 used Medium here.
+///   * If unset and Small is missing → `RefusePreferenceUnset`.
 ///     The error tells them to pick in Settings → Models. No
-///     silent route through Large, Small, or
-///     `default_asr_model_id`.
+///     silent route through Medium, Large, or
+///     `default_asr_model_id` — even when those are installed.
+///     The user has to either install Small or pick a model
+///     explicitly.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum MeetingModelResolution {
     Use(String),
@@ -2380,6 +2405,23 @@ pub async fn stop_recording(
         // issues against language-pin choice.
         let chunk_count = chunk_count_for_duration(asr.duration_ms);
         let rtf = realtime_factor(asr.duration_ms, total_processing_ms);
+        // v0.15.4 telemetry preface: every transcribe path that
+        // reaches this log line ran on CPU. Whisper is force-pinned
+        // to CPU in services/inference/sherpa_whisper.rs (the v0.8.7
+        // crash mitigation), and the vendored ONNX Runtime in
+        // src-tauri/runtime/ ships the CPU provider only — no
+        // onnxruntime_providers_dml.dll, no DirectML.dll. There is
+        // no fallback because there is nothing to fall back FROM:
+        // the GPU path doesn't exist yet. v0.15.5 will revisit
+        // DirectML, and at that point `provider_used` /
+        // `fallback_used` / `fallback_reason` will start carrying
+        // real signal. Until then the fields are constant — present
+        // so the log shape is stable across the v0.15.4 → v0.15.5
+        // transition, which means a `tail | grep` on the field
+        // names won't miss old rows when the fallback path lights up.
+        let provider_used = "cpu";
+        let fallback_used = false;
+        let fallback_reason = "";
         tracing::info!(
             audio_duration_ms = asr.duration_ms,
             total_processing_ms,
@@ -2387,6 +2429,9 @@ pub async fn stop_recording(
             selected_model_id = %model_id,
             chunk_count,
             whisper_language = %pre_settings.models.whisper_language,
+            provider_used,
+            fallback_used,
+            fallback_reason,
             "meeting transcribe complete"
         );
     }
@@ -3884,13 +3929,19 @@ mod diarised_helpers_tests {
 
     // ── v0.15.3 meeting-model selection policy + session context ────
     //
-    // Round-2 contract from the v0.15.3 packet:
+    // Round-2 contract (still in force, default flipped in v0.15.4):
     //   * If `meeting_asr_model_id` is set and installed → Use(id)
     //   * If set and missing → RefuseExplicitMissing(id) — NO silent
     //     fallback to Medium / Large / Small
-    //   * If unset and Medium installed → Use("sherpa-whisper-medium")
-    //   * If unset and Medium missing → RefusePreferenceUnset — NO
-    //     silent fallback even when Large is installed
+    //   * v0.15.3: If unset and Medium installed → Use(Medium)
+    //   * v0.15.4: If unset and Small installed → Use(Small).
+    //     The default flipped because Step 0 measurements showed
+    //     Small at RTF ~0.2 vs Medium's 0.87 on the same audio —
+    //     Medium is too slow on laptop-class CPUs to be a sane
+    //     no-preference default.
+    //   * If unset and the default isn't installed →
+    //     RefusePreferenceUnset — NO silent fallback even when
+    //     Medium / Large is installed.
     //
     // Round-3 (Amendment 1) contract:
     //   * `ActiveRecordingContext` bound at start_recording survives
@@ -3938,24 +3989,47 @@ mod diarised_helpers_tests {
 
     // ── decide pre-probe selection policy ──────────────────────────
 
-    /// **Default for fresh users.** No preference + Medium installed
-    /// → resolve to Medium.
+    /// **v0.15.4 contract: the default Meeting Mode model id is
+    /// Whisper Small.** Pinned explicitly so a future refactor that
+    /// moves the constant elsewhere can't silently regress to
+    /// Medium / Large.
     #[test]
-    fn meeting_resolves_to_medium_when_no_pref_and_medium_installed() {
-        let (state, settings) = fixture_with_installed(&["sherpa-whisper-medium"], None);
+    fn default_meeting_model_is_whisper_small() {
+        assert_eq!(super::DEFAULT_MEETING_MODEL_ID, "sherpa-whisper-small");
+    }
+
+    /// **Default for fresh users (v0.15.4).** No preference + Small
+    /// installed → resolve to Small. Replaces the v0.15.3 Medium
+    /// default.
+    #[test]
+    fn no_pref_and_small_installed_uses_small() {
+        let (state, settings) = fixture_with_installed(&["sherpa-whisper-small"], None);
         let outcome = resolve_meeting_model_id(&settings, &state.models);
         assert_eq!(
             outcome,
-            MeetingModelResolution::Use("sherpa-whisper-medium".into())
+            MeetingModelResolution::Use("sherpa-whisper-small".into())
         );
     }
 
-    /// **Round-2 critical: no silent Large fallback.** No preference,
-    /// Medium NOT installed, Large IS installed → MUST refuse, not
-    /// silently use Large. The whole point of v0.15.3 is to stop
-    /// dragging users into the slow Large path by default.
+    /// **v0.15.4 critical: no silent Medium fallback.** No
+    /// preference, Small NOT installed, Medium IS installed → MUST
+    /// refuse. The default flipping to Small means a Medium-only
+    /// install is now a "the default isn't here" case, not a
+    /// "happy path" case. Refusing forces the user to either
+    /// install Small or pick Medium explicitly — same shape as
+    /// v0.15.3's refusal when Medium was missing and Large was
+    /// installed.
     #[test]
-    fn meeting_refuses_when_no_pref_and_medium_not_installed_even_if_large_installed() {
+    fn no_pref_and_only_medium_installed_refuses() {
+        let (state, settings) = fixture_with_installed(&["sherpa-whisper-medium"], None);
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(outcome, MeetingModelResolution::RefusePreferenceUnset);
+    }
+
+    /// **v0.15.4 critical: no silent Large fallback.** Same shape
+    /// as the Medium-only refusal above.
+    #[test]
+    fn no_pref_and_only_large_installed_refuses() {
         let (state, settings) = fixture_with_installed(&["sherpa-whisper-large-v3"], None);
         let outcome = resolve_meeting_model_id(&settings, &state.models);
         assert_eq!(outcome, MeetingModelResolution::RefusePreferenceUnset);
@@ -3973,7 +4047,7 @@ mod diarised_helpers_tests {
 
     /// Explicit Large + Large installed → use Large.
     #[test]
-    fn meeting_resolves_to_large_when_pref_large_and_large_installed() {
+    fn explicit_large_still_works() {
         let (state, settings) = fixture_with_installed(
             &["sherpa-whisper-large-v3"],
             Some("sherpa-whisper-large-v3"),
@@ -3982,6 +4056,21 @@ mod diarised_helpers_tests {
         assert_eq!(
             outcome,
             MeetingModelResolution::Use("sherpa-whisper-large-v3".into())
+        );
+    }
+
+    /// Explicit Medium + Medium installed → use Medium. Pinned
+    /// explicitly because v0.15.4 demoted Medium from default to
+    /// "Balanced explicit option"; the test guards against the
+    /// flip silently breaking the explicit-Medium path.
+    #[test]
+    fn explicit_medium_still_works() {
+        let (state, settings) =
+            fixture_with_installed(&["sherpa-whisper-medium"], Some("sherpa-whisper-medium"));
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::Use("sherpa-whisper-medium".into())
         );
     }
 
@@ -4000,9 +4089,12 @@ mod diarised_helpers_tests {
         );
     }
 
-    /// Explicit Small + Small installed → use Small.
+    /// Explicit Small + Small installed → use Small. With v0.15.4
+    /// Small is also the default, but the test pins the explicit
+    /// path separately so a future change to the default doesn't
+    /// invalidate the explicit-pref contract.
     #[test]
-    fn meeting_resolves_to_small_when_pref_small_and_small_installed() {
+    fn explicit_small_still_works() {
         let (state, settings) =
             fixture_with_installed(&["sherpa-whisper-small"], Some("sherpa-whisper-small"));
         let outcome = resolve_meeting_model_id(&settings, &state.models);
@@ -4113,9 +4205,11 @@ mod diarised_helpers_tests {
     }
 
     /// No preference + only Whisper Large installed → still
-    /// refuses (won't silently use Large; Medium is the default).
-    /// Already covered by an earlier test but kept under this
-    /// section header for the round-2 packet's named-test list.
+    /// refuses (won't silently use Large; Small is the v0.15.4
+    /// default). Duplicates the `no_pref_and_only_large_installed_refuses`
+    /// case above; kept under this section header so the round-2
+    /// packet's named-test list still has a hit if anyone greps
+    /// for it.
     #[test]
     fn no_pref_only_large_installed_refuses_preference_unset() {
         let (state, settings) = fixture_with_installed(&["sherpa-whisper-large-v3"], None);
@@ -4280,6 +4374,81 @@ mod diarised_helpers_tests {
         let processing_ms = 7 * 60 * 1000;
         let rtf = realtime_factor(audio_ms, processing_ms).unwrap();
         assert!((rtf - 1.4).abs() < 0.001, "got {rtf}");
+    }
+
+    // ── v0.15.4 picker chip + telemetry-shape pins ──────────────────
+    //
+    // Source-string pins. The picker is a TS file on the frontend
+    // and the telemetry is a `tracing::info!` macro call here on
+    // the backend; neither is reachable from runtime asserts inside
+    // a unit test. Read the source file as text and grep — crude
+    // but exactly the contract the spec asks for: "the
+    // Recommended chip points at Small" and "provider telemetry
+    // fields are present if implemented". A future refactor that
+    // moves the chip or strips the field will fail this test.
+
+    fn read_source(rel: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .join(rel);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+    }
+
+    /// **v0.15.4 picker contract.** ModelsSettings.tsx pins the
+    /// Recommended chip on Whisper Small. v0.15.3 had it on
+    /// Medium; the swap is the user-visible signal of the default
+    /// flip.
+    #[test]
+    fn picker_recommended_chip_points_at_whisper_small() {
+        let src = read_source("src/routes/settings/ModelsSettings.tsx");
+        assert!(
+            src.contains("opt.id === 'sherpa-whisper-small'"),
+            "ModelsSettings.tsx must check `opt.id === 'sherpa-whisper-small'` to render the Recommended chip on the Fast row"
+        );
+        assert!(
+            !src.contains("opt.id === 'sherpa-whisper-medium'"),
+            "ModelsSettings.tsx must NOT branch on `opt.id === 'sherpa-whisper-medium'` for the chip — that was the v0.15.3 behaviour"
+        );
+    }
+
+    /// **v0.15.4 telemetry contract.** The `meeting transcribe
+    /// complete` log line carries the three new fields. Source-grep
+    /// rather than a live-emit test because capturing tracing
+    /// output through a global subscriber is brittle and the
+    /// values are constant in v0.15.4 anyway — we want the field
+    /// names baked into the call site so a future DML pass sees
+    /// the shape it has to fill in.
+    #[test]
+    fn meeting_transcribe_log_includes_provider_telemetry_fields() {
+        let src = read_source("src-tauri/src/commands/dictation.rs");
+        // The literal `"meeting transcribe complete"` appears in
+        // multiple places (doc comments, this very test). Scan
+        // every occurrence and require at least ONE to have the
+        // three field names within 800 bytes before it — that
+        // identifies the production tracing call site without
+        // having to baroquely anchor on whitespace + ); shape.
+        let needle_literal = "\"meeting transcribe complete\"";
+        let mut hit = false;
+        let mut last_window = String::new();
+        for (idx, _) in src.match_indices(needle_literal) {
+            let window_start = idx.saturating_sub(800);
+            let window = &src[window_start..idx];
+            if ["provider_used", "fallback_used", "fallback_reason"]
+                .iter()
+                .all(|n| window.contains(n))
+            {
+                hit = true;
+                break;
+            }
+            last_window = window.to_string();
+        }
+        assert!(
+            hit,
+            "no `meeting transcribe complete` log call site carries all three of \
+             provider_used / fallback_used / fallback_reason within 800 bytes \
+             before the literal — last window inspected: {last_window}"
+        );
     }
 
     // ── meeting_asr_model_id serde back-compat ──────────────────────

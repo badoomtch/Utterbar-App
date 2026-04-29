@@ -4,88 +4,107 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-29 (v0.15.3 shipped to beta + verified on Jay's DB. Closed the silent-Large bug; explicit model picker; allow-list policy; ActiveRecordingContext bound at start-time. Real-meeting RTF data captured: 116.6s audio → 101.6s processing → RTF 0.87 on Whisper Medium CPU, dev machine. v0.15.3 is correct but Meeting Mode performance is still not good enough for typical-spec users — v0.15.4 priorities below. Diarisation architectural rework deferred again, this time behind the performance work.)**
+**Last updated: 2026-04-29 (v0.15.4 implemented in tree — Whisper Small is now the Meeting Mode default; v0.15.3 had Medium. Step 0 measurements on Jay's machine: 116.6s meeting → RTF 0.21, 342.2s meeting → RTF 0.13, both through the production chunked path. Quality acceptable for the Fast role; proper-noun degradation called out in the catalogue copy. DirectML deferred to v0.15.5 because the vendored ONNX Runtime in `runtime/` ships CPU-only — DML isn't structurally available even if the code requested it. Beta only. Stable still on v0.12.0.)**
 
 ---
 
-## v0.15.4 priorities (BEFORE diarisation work)
+## v0.15.4 (in tree, awaiting commit + publish)
 
-Meeting Mode performance is still the top user-visible problem.
-v0.15.3 closed the silent-Large bug and gave us honest numbers,
-but the underlying CPU Whisper bottleneck remains. Concrete
-data from Jay's machine post-v0.15.3:
+Whisper Small as Meeting Mode default. The performance lever
+that shipped without GPU work.
 
-  audio_duration_ms=116600
-  total_processing_ms=101617
-  realtime_factor=Some(0.87150085)
-  selected_model_id=sherpa-whisper-medium
-  chunk_count=5
-  whisper_language=en
+- `DEFAULT_MEETING_MODEL_ID` flipped to `sherpa-whisper-small`
+  in `commands::dictation`. Allow-list (Small / Medium / Large
+  v3) unchanged. Off-allow-list ids — Parakeet, Zipformer,
+  Whisper Base, unknown — still rejected.
+- `MEETING_BALANCED_MODEL_ID` constant added so the allow-list
+  arms reference Medium by name now that `DEFAULT_MEETING_MODEL_ID`
+  is the same as `MEETING_FAST_MODEL_ID`.
+- Catalogue: Small `recommended: true`, Medium `recommended: false`.
+  Descriptions updated to reflect the new roles. No numeric
+  performance claims in catalogue copy (release notes only).
+- ModelsSettings.tsx Recommended chip moved from Medium to Small.
+- Performance log gains `provider_used`, `fallback_used`,
+  `fallback_reason`. Constant in v0.15.4 (cpu / false / "")
+  but field shape baked in for the v0.15.5 DML pass.
+- Step 0 `#[ignore]` benchmark harness in
+  `services/inference/sherpa_whisper.rs::step0`. Run with
+  `UTTERBAR_STEP0_WAV` against a real WAV; mirrors the
+  production chunked path so future model-default decisions
+  can rerun the same measurement.
 
-Jay's machine is powerful. On a typical 8-core laptop expect
-RTF 1.0-1.5 (slower than realtime). On low-spec hardware,
-unusable. The diarisation rework is the wrong thing to ship
-next — performance fixes have to come first or there's no
-audience for the speaker labels.
+## v0.15.5 priorities — DirectML / GPU runtime work
 
-**Two levers, layer them:**
+Hardest deferred item. Doing this properly means runtime-infra
+work, not just toggling the provider string.
 
-1. **DirectML re-enable for Whisper** with output validation.
-   sherpa-onnx's DirectML provider was disabled in v0.8.7 for
-   garbled output on Whisper graphs (specifically observed on
-   Whisper Large `small` checkpoint — see comment in
-   `services/inference/sherpa_whisper.rs::ensure_loaded`).
-   That bug may not affect Medium and Small. Plan:
-   - Step 0: smoke-load Medium + Small via the DirectML
-     provider against the bundled `test_wavs/`. Compare output
-     against the `trans.txt` ground truth. If output is sane
-     for both, ship.
-   - Add a runtime hallucination/garbage-output guard so an
-     edge case doesn't silently produce broken transcripts —
-     fall back to CPU when validation fails.
-   - Expected speedup on a mid-range GPU: 5-10×. Combined with
-     CPU Medium's RTF 0.87, that's RTF 0.1-0.2. Real-time-
-     plus on typical hardware.
-   - Risk: high. The v0.8.7 disable was for a real bug.
-     Mitigation is the per-model verification + fallback.
+**Why deferred from v0.15.4:** the vendored ONNX Runtime in
+`Utterbar Windows App/src-tauri/runtime/` ships only
+`onnxruntime.dll` + `onnxruntime_providers_shared.dll` —
+**no `onnxruntime_providers_dml.dll`, no `DirectML.dll`.**
+DirectML is structurally unavailable in current builds
+regardless of the `provider` config string. Re-enabling it is
+not a one-line change.
 
-2. **Whisper Small as the recommended default,** Medium as
-   "Balanced" opt-in. Small at RTF ~0.3 on CPU is the floor
-   that gets meeting transcription to "fast enough" without
-   any GPU dependency. Trade-off is accuracy: Small is
-   noticeably worse on accents / overlapping speakers / noisy
-   rooms. For a typical 1-on-1 or small meeting in a quiet
-   room, probably fine.
-   - Plan: bench Small on the same Step 0 fixtures Medium was
-     verified on, capture RTF + a transcript-quality
-     comparison.
-   - If acceptable: change `DEFAULT_MEETING_MODEL_ID` to
-     `MEETING_FAST_MODEL_ID` in `commands::dictation`,
-     update the picker's "Recommended" chip from Medium to
-     Small, update copy.
-   - This is a one-line code change + UX copy + tests; the
-     allow-list and ActiveRecordingContext machinery v0.15.3
-     shipped is exactly what makes this safe to ship.
+**Plan:**
+1. Swap `onnxruntime.dll` for the DirectML build from
+   microsoft/onnxruntime releases. Add the two missing DLLs
+   to `runtime/` and to `tauri.conf.json` `bundle.resources`.
+   Installer payload grows ~50 MB.
+2. Confirm sherpa-onnx 0.10.x C API recognises `"directml"`
+   against the new ORT build. Sherpa-onnx ships its own ORT
+   linkage assumptions; version mismatch surfaces as
+   immediate session-init failure or undefined behaviour
+   mid-transcribe.
+3. Wrap `recognizer.transcribe` with `catch_unwind` + a
+   sentinel-file post-mortem path: write before transcribe,
+   clear after, check at next launch. v0.8.7's failure mode
+   was a native segfault that took the process down; that
+   isn't catchable from Rust panics, so post-mortem
+   detection is the only reliable signal.
+4. Per-model validation on Jay's machine pre-publish:
+   Parakeet TDT v3, Whisper Small, Whisper Medium, Whisper
+   Large v3. Three of four were never tested against the
+   current vendored ORT.
+5. Wire the `provider_used` / `fallback_used` / `fallback_reason`
+   telemetry fields v0.15.4 reserved. Real signal once DML
+   actually runs.
 
-**Probably ship both.** DirectML for "the win on capable
-hardware", Small as the safe fallback when DirectML can't load
-or when the user's GPU is too weak. The picker stays the same
-shape; only the recommended chip and the catalogue's
-recommended flag move.
+**Risk: high.** Mitigation is the validation matrix and the
+sentinel-based crash containment. If DML lands cleanly, the
+expected speedup combined with v0.15.4's Small default takes
+typical-laptop Meeting Mode RTF below 0.1.
 
-**v0.15.5 OR LATER:** the diarisation architectural rework
-that's been deferred since v0.15.3 was scoped. Per the v0.15.1
-review notes, the design is "transcribe whole buffer once,
-diarise separately, assign speaker labels by interval-overlap
-on word/segment timestamps". Open verification questions on
-sherpa-rs Whisper's word-timestamp surface still apply. Don't
-start until performance is solved.
+## Future hardening — Parakeet fp16 / CPU-only runtime
 
-**Out of scope for v0.15.4:** real-time meeting transcription
-(streaming Whisper), per-mode meeting-model override (the
-dormant `Mode.asr_model_id` field stays unused), GPU-via-CUDA
-(non-NVIDIA users would be left out), stable promotion of any
-0.15.x (waiting on real-meeting QA).
+Surfaced during v0.15.4 investigation. Pre-existing bug,
+unrelated to the Small-default flip.
+
+- `services/inference/sherpa_parakeet.rs` honours `self.provider`
+  and explicitly rejects `provider == "cpu"` for fp16 variants.
+- The vendored ORT is CPU-only (see v0.15.5 plan above).
+- A user who installed and selected `sherpa-parakeet-tdt-0.6b-v3-fp16`
+  would currently hit the rejection at session creation against
+  the only ORT we ship.
+
+Either remove fp16 variants from the catalogue, or wait for
+v0.15.5's DML pass and validate fp16 against the new runtime.
+Out of scope for v0.15.4; tracked here so it isn't lost.
+
+## Diarisation — still deferred
+
+Same shape as before. Per the v0.15.1 review notes, the
+design is "transcribe whole buffer once, diarise separately,
+assign speaker labels by interval-overlap on word/segment
+timestamps". Don't start until v0.15.5 lands and the perf
+ceiling is gone.
+
+**Out of scope for v0.15.4:** DirectML (now v0.15.5),
+real-time meeting transcription (streaming Whisper),
+per-mode meeting-model override (the dormant
+`Mode.asr_model_id` field stays unused), GPU-via-CUDA
+(non-NVIDIA users would be left out), stable promotion of
+any 0.15.x (waiting on real-meeting QA).
 
 ---
 
