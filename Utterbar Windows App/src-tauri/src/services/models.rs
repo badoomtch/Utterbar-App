@@ -527,14 +527,17 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 6,
             requires_pro: false,
         },
-        // Whisper small — Pro tier. Bigger Whisper checkpoint with
-        // stronger non-English accuracy than base. Same fix as base
-        // for the bundle name + size.
+        // Whisper small — Pro tier. Bigger checkpoint than base.
+        // Multilingual; works for dictation in non-English languages,
+        // and from v0.15.3 also exposed in the Meeting Mode picker
+        // as the "Fast" choice — quickest meeting transcribes, lower
+        // accuracy than Medium / Large but acceptable for clear
+        // speech in a quiet room.
         ModelInfo {
             id: "sherpa-whisper-small".into(),
             kind: ModelKind::Asr,
-            display_name: "Whisper small (multilingual, high accuracy)".into(),
-            description: "Bigger Whisper checkpoint with stronger non-English accuracy than base. Worth it if you dictate frequently in a non-English language.".into(),
+            display_name: "Whisper small (multilingual)".into(),
+            description: "Smaller, faster Whisper checkpoint. Picked as the Meeting Mode \"Fast\" option when you want the quickest transcribe and your audio is clear enough that the lower accuracy is acceptable.".into(),
             version: "small".into(),
             size_bytes: 639_387_718,
             backend: ModelBackend::Onnx,
@@ -553,20 +556,60 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 4,
             requires_pro: true,
         },
-        // Whisper large v3 — Pro tier, the gold-standard model for
-        // accuracy. ~1.07 GB tarball (post-extract larger), 99 languages,
-        // multi-speaker meetings, accented speech, noisy rooms. The
-        // recommended pick for Meeting Mode where the user is willing to
-        // wait for the transcribe in exchange for far better text.
-        // Speed: ~3-4× real-time on CPU, so a 30-min meeting takes
-        // ~8-10 min to transcribe. Parakeet beats it on speed by
-        // ~10-15×; the trade is worth it specifically for meetings,
-        // not for short-form dictation.
+        // Whisper medium — Pro tier, recommended Meeting Mode default
+        // (v0.15.3+). Multilingual. The "balanced" point in the
+        // Meeting Mode picker — better accuracy than Small, faster
+        // than Large. Bundle ships fp32 + int8 variants in the same
+        // tarball; the resolver in services/inference/sherpa_whisper.rs
+        // picks int8 at runtime, so the on-disk footprint is bigger
+        // than the int8-only Large but the runtime memory load is
+        // similar.
+        //
+        // Pinned 2026-04-29 against the live k2-fsa release asset.
+        // SHA + size verified locally via the v0.15.3 Step 0 ritual
+        // (download → sha256sum → tar tjf → smoke-load through
+        // SherpaWhisper::ensure_loaded → transcribe a bundled wav
+        // and compare against the bundle's trans.txt). Do not change
+        // these without re-running that flow.
+        ModelInfo {
+            id: "sherpa-whisper-medium".into(),
+            kind: ModelKind::Asr,
+            display_name: "Whisper medium (multilingual, balanced)".into(),
+            description: "Balanced choice for Meeting Mode — recommended unless you have a specific reason to choose Small (faster) or Large v3 (more accurate). Multilingual; pin Whisper language to your meeting language for best results on quiet or music-heavy audio.".into(),
+            version: "medium".into(),
+            size_bytes: 1_931_372_882,
+            backend: ModelBackend::Onnx,
+            engine: ModelEngine::Whisper,
+            languages: vec!["multi".into()],
+            installed: false,
+            path: None,
+            sha256: "614b1172557049069d846c29d9399640bce83a4dd6c580decebd9ce2a4f32c33".into(),
+            download_url: Some(
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2"
+                    .into(),
+            ),
+            // Recommended for Meeting Mode (the picker uses this
+            // chip to mark its default option). Parakeet TDT v3
+            // remains the recommended dictation default; both can
+            // be `recommended: true` because the picker UI groups
+            // by engine.
+            recommended: true,
+            accuracy_score: 9,
+            speed_score: 5,
+            requires_pro: true,
+        },
+        // Whisper large v3 — Pro tier, the highest-accuracy Meeting
+        // Mode option. Multilingual. Picked when the audio is very
+        // noisy / multi-speaker / heavily accented and the user is
+        // willing to wait for a slower transcribe. v0.15.3 stops
+        // auto-routing meetings here — the meeting model is now an
+        // explicit user choice in Settings → Models, and Medium is
+        // the default if no choice has been made.
         ModelInfo {
             id: "sherpa-whisper-large-v3".into(),
             kind: ModelKind::Asr,
-            display_name: "Whisper Large v3 (best for meetings)".into(),
-            description: "OpenAI Whisper Large v3 — the most accurate offline model in the catalogue. Best for meetings, multi-speaker audio, accents, noisy rooms. ~1 GB download. Slower than Parakeet (~3-4× real-time on CPU); a 30-minute meeting takes ~8-10 minutes to transcribe.".into(),
+            display_name: "Whisper Large v3 (highest accuracy)".into(),
+            description: "Highest-accuracy Whisper checkpoint. Picked as the Meeting Mode \"Best accuracy\" option when audio is very noisy, multi-speaker, or accented and you don't mind a slower transcribe. Slower than Small or Medium.".into(),
             version: "large-v3".into(),
             size_bytes: 1_068_482_488,
             backend: ModelBackend::Onnx,
@@ -594,4 +637,53 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
         // get the entry pruned via the AppState bootstrap migration in
         // app_state.rs (same shape as the v0.8.0 Parakeet v2 cleanup).
     ]
+}
+
+#[cfg(test)]
+pub(crate) mod test_helpers {
+    //! Test fixtures for `ModelRegistry`. Lets cross-module tests
+    //! (notably `commands::dictation`'s meeting-resolution policy)
+    //! set up a registry with specific models marked installed
+    //! without going through the real download flow.
+
+    use super::{ModelBackend, ModelKind, ModelRegistry};
+    use rusqlite::params;
+    use std::path::Path;
+
+    /// Mark a model as installed in the registry's DB AND create a
+    /// non-empty directory at the matching `models_dir/<id>/` so
+    /// `ModelRegistry::is_installed` returns true (it requires both
+    /// the row AND the on-disk path to exist).
+    ///
+    /// Used by the v0.15.3 selection-policy tests that exercise
+    /// `resolve_meeting_model_id` against various installed-model
+    /// combinations. Inserts only the columns needed for the
+    /// `is_installed` lookup; tests that need other ModelInfo
+    /// fields read the catalogue separately.
+    pub fn register_for_test(registry: &ModelRegistry, models_root: &Path, id: &str) {
+        let conn = registry.db.conn().expect("test db conn");
+        let path_rel = id; // matches the `path_rel = entry.id.clone()` in real install
+        conn.execute(
+            "INSERT OR REPLACE INTO models(id,kind,display_name,version,size_bytes,path,backend,languages,installed_at,last_used_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL)",
+            params![
+                id,
+                "asr",
+                id,
+                "test",
+                0_i64,
+                path_rel,
+                match ModelBackend::Onnx {
+                    ModelBackend::Onnx => "onnx",
+                    _ => "onnx",
+                },
+                "[\"multi\"]",
+                0_i64,
+            ],
+        )
+        .expect("insert models row");
+        // is_installed checks `models_dir.join(rel).exists()`, so
+        // create the directory.
+        let _ = std::mem::discriminant(&ModelKind::Asr); // keep ModelKind in scope
+        std::fs::create_dir_all(models_root.join(path_rel)).expect("create test model dir");
+    }
 }

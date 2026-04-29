@@ -4,6 +4,10 @@ export type DictationSuccessSummary = {
   duration_seconds: number;
   chunks: number;
   chars: number;
+  /** v0.15.3+: short model name (e.g. "Whisper Medium") rendered
+   * in the success pill so the user can correlate quality vs
+   * speed across meetings. Always set on Rust-side meeting summaries. */
+  model_label: string;
 };
 
 export type DictationPhase =

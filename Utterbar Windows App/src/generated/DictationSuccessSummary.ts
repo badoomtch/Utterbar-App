@@ -27,4 +27,12 @@ chunks: number,
  * for "is this a real meeting or two seconds of silence" the user
  * can read at a glance.
  */
-chars: number, };
+chars: number, 
+/**
+ * Short, human-readable name of the ASR model used for this
+ * meeting (v0.15.3+). Examples: `"Whisper Small"`, `"Whisper
+ * Medium"`, `"Whisper Large v3"`. Rendered in the success pill
+ * between the time and the chunk count so the user can correlate
+ * quality vs speed across meetings without opening logs.
+ */
+model_label: string, };

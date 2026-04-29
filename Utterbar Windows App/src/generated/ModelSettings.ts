@@ -10,4 +10,15 @@ export type ModelSettings = { default_asr_model_id: string | null, default_llm_m
  * Examples: "en", "fr", "de", "es", "ja". Empty string is
  * equivalent to "auto" for back-compat with older settings.json.
  */
-whisper_language: string, };
+whisper_language: string, 
+/**
+ * Meeting-mode ASR model preference (v0.15.3+). When `Some(id)`
+ * the dictation flow resolves the meeting model to this id and
+ * refuses start if the model isn't installed. When `None` the
+ * flow prefers Whisper Medium if installed and refuses
+ * otherwise (no silent Large/Small/Parakeet fallback). Distinct
+ * from `default_asr_model_id`, which only governs non-meeting
+ * modes. Pre-v0.15.3 settings.json files miss this field
+ * entirely; serde `default` deserialises them with `None`.
+ */
+meeting_asr_model_id: string | null, };

@@ -4,7 +4,7 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-28 (v0.15.1 beta panicked at startup on every machine that had run v0.15.0 first — refinery hash mismatch on V0006 migration caused by Windows core.autocrlf rewriting LF→CRLF between the two builds. v0.15.2 hotfix in working tree: restores V0006 to its v0.15.0 LF byte content, adds `.gitattributes` pinning `*.sql` and `**/releases/*.md` to LF, plus a SHA-256 regression test on V0006. Diarisation rework now planned for v0.15.3, NOT v0.15.2.)**
+**Last updated: 2026-04-29 (v0.15.2 shipped to beta + verified launching on Jay's DB. v0.15.3 in working tree: Meeting Mode performance — explicit user-chosen model via new Settings → Models card, Whisper Medium catalogue entry verified via Step 0, no silent Large/Small/Parakeet fallback, ActiveRecordingContext binds the start-time session against settings drift, success pill shows model name, end-of-meeting RTF log line, chunk size tightened 30s→29s to avoid sherpa-onnx truncation, cap retuned 130→135 chunks. Diarisation rework now planned for v0.15.4, NOT v0.15.3.)**
 
 ---
 
@@ -306,6 +306,158 @@ before the *first real volume sale* closes cleanly:
 
 ---
 
+## v0.15.3 Meeting Mode performance (2026-04-29) — beta only
+
+What v0.15.3 changes:
+
+- **Whisper Medium added to the catalogue.** SHA-pinned via Step 0
+  verification (download → sha256sum → tar tjf → smoke-load through
+  `SherpaWhisper::ensure_loaded` → transcribe a bundled wav and
+  compare against the bundle's `trans.txt`).
+  - URL: `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2`
+  - SHA-256: `614b1172557049069d846c29d9399640bce83a4dd6c580decebd9ce2a4f32c33`
+  - tarball size: 1,931,372,882 bytes (~1.93 GB; ~3.5 GB on disk
+    after extract — Medium ships fp32 + int8, the resolver picks
+    int8 at runtime)
+  - `requires_pro: true`, `recommended: true`
+- **Meeting Mode model is now an explicit user choice.** New
+  `meeting_asr_model_id: Option<String>` setting on `ModelSettings`,
+  serde back-compat (pre-v0.15.3 settings.json files miss the field,
+  deserialise with `None`). New "Meeting mode model" card in
+  Settings → Models with three radios: Fast / Balanced (recommended)
+  / Best accuracy.
+- **Selection policy — allow-list + no silent fallback:**
+  Meeting Mode supports EXACTLY three models — Whisper Small,
+  Medium, Large v3. Pinned via `is_allowed_meeting_model_id`
+  helper.
+  - pref off-allow-list (Parakeet, Zipformer, Whisper Base, future
+    unknown ASR id) → RefuseUnsupportedModel(id) — even if the
+    model is installed. User error: "Your meeting model setting
+    is invalid. Open Settings → Models and choose Fast,
+    Balanced, or Best accuracy."
+  - pref on-allow-list + installed → Use(id)
+  - pref on-allow-list + missing → RefuseExplicitMissing(id)
+    (refusal copy names the model + says open Settings → Models)
+  - pref unset + Medium installed → Use("sherpa-whisper-medium")
+  - pref unset + Medium missing → RefusePreferenceUnset (refusal
+    copy lists the three options)
+  - never silently routes to ANY model — explicit user choice
+    or refusal, no fallback chain.
+- **Bridge fall-through hardened.** When a meeting recording
+  arrives at stop_recording with no `ActiveRecordingContext`
+  bound (the v0.15.2-in-flight bridge case) AND current settings
+  can't yield an allow-listed meeting model,
+  `resolve_target_model_id` returns
+  `Err(MeetingBridgeFailure)`. stop_recording surfaces a clear
+  user-facing error rather than silently routing through
+  `default_asr_model_id` (which is typically Parakeet).
+- **`ActiveRecordingContext`** struct on `AppState` (pub(crate))
+  binds the recording session at start-time. Stop reads
+  `(mode_id, is_meeting, meeting_model_id)` from the context, not
+  from current settings. A meeting started as Meeting stops as
+  Meeting; the meeting model used at stop is the one approved at
+  start. Cleared on every recording-end path (success, cancel,
+  no-active-stop, transcribe error, every start-side error).
+  Source-grep guard test pins the pairing.
+- **Chunk size 30s → 29s.** sherpa-onnx silently truncates inputs
+  ≥30s with a stderr warning ("Only waves less than 30 seconds are
+  supported"). Step 0e surfaced the warning. Tightened to 29s gives
+  the recogniser the same input every chunk and removes the
+  truncation. Existing v0.15.2 transcripts may have lost up to 1s
+  per boundary — release notes call this out.
+- **Cap retuned 130 → 135 chunks.** With 27s stride (was 28s),
+  preserving "60 minutes accepted" requires 134 chunks plus a
+  small shoulder. Result: 135 chunks × 27s + 29s = 3647s = 60 min
+  47 s of audio.
+- **Success pill** now reads `Saved · 5:01 · Whisper Medium · 11
+  chunks · 799 chars`. New `model_label: String` field on
+  `DictationSuccessSummary`. Frontend type mirror at
+  `src/state/dictation.ts` and the auto-generated TS file both
+  carry the field.
+- **End-of-meeting summary log** on every meeting:
+  `audio_duration_ms`, `total_processing_ms`, `realtime_factor`,
+  `selected_model_id`, `chunk_count`, `whisper_language`. Lets us
+  collect honest RTF data across the beta soak.
+- **Pro-gating** in the new card mirrors the existing model-row UI
+  (locked rows show `<ProNudge>`, Install button disabled). The
+  `install_model` IPC already enforces Pro server-side; the lock is
+  UX polish.
+- **Whisper Large preflight rewritten** as the resolver-driven
+  flow. `start_recording` no longer hard-codes
+  `WHISPER_LARGE` — it calls `resolve_meeting_model_id` and
+  branches on the outcome.
+- Files modified: package.json, Cargo.toml, tauri.conf.json,
+  Cargo.lock; domain/settings.rs, domain/events.rs, app_state.rs,
+  services/models.rs, commands/dictation.rs;
+  src/state/dictation.ts, src/components/bar/StatePill.tsx,
+  src/routes/settings/ModelsSettings.tsx;
+  releases/0.15.3.md (new); TODO.md.
+- Auto-regenerated by ts-rs: src/generated/ModelSettings.ts,
+  src/generated/Settings.ts, src/generated/DictationSuccessSummary.ts.
+
+Selection-policy + lifecycle tests added to
+`commands::dictation::diarised_helpers_tests`:
+
+Round-1 (selection happy paths + base refusals):
+- meeting_resolves_to_medium_when_no_pref_and_medium_installed
+- meeting_refuses_when_no_pref_and_medium_not_installed_even_if_large_installed
+- meeting_refuses_when_no_pref_and_no_whisper_installed
+- meeting_resolves_to_large_when_pref_large_and_large_installed
+- meeting_refuses_when_pref_large_but_large_not_installed_even_if_medium_installed
+- meeting_resolves_to_small_when_pref_small_and_small_installed
+- meeting_refuses_when_pref_small_but_small_not_installed
+- meeting_asr_model_id_serde_back_compat_missing_field
+
+Round-2 (allow-list hardening + bridge-failure path):
+- allow_list_only_accepts_whisper_small_medium_large
+- explicit_parakeet_meeting_pref_with_parakeet_installed_refuses_unsupported
+- explicit_zipformer_meeting_pref_with_zipformer_installed_refuses_unsupported
+- explicit_whisper_base_meeting_pref_with_base_installed_refuses_unsupported
+- no_pref_only_parakeet_installed_refuses_preference_unset
+- no_pref_only_large_installed_refuses_preference_unset
+- allow_listed_models_still_resolve_to_use_when_installed
+- bridge_meeting_no_context_does_not_fall_through_to_default_asr_model
+- bridge_meeting_unsupported_pref_propagates_through
+- non_meeting_recording_still_uses_default_asr_model_id
+
+Helpers:
+- realtime_factor_zero_audio_returns_none
+- realtime_factor_sub_second_audio
+- realtime_factor_typical_meeting
+- display_name_short_known_models
+- display_name_short_unknown_model_returns_id
+
+ActiveRecordingContext lifecycle:
+- active_recording_context_round_trip_holds_value
+- meeting_session_remains_meeting_when_active_mode_changes
+- non_meeting_session_remains_non_meeting_when_active_mode_changes
+- meeting_model_id_persists_through_settings_change
+- active_recording_context_cleared_by_helper
+- every_clear_recording_flag_site_pairs_with_clear_active_recording_context
+
+Plus the existing chunk-cap pin tests updated for 29s/27s/135 cap:
+- chunk_cap_constants_match_documented_values (now 29/2/135/60)
+- projected_chunks_for_five_minute_meeting_is_bounded (now 12, was 11)
+- projected_chunks_for_sixty_minute_meeting_under_cap (now 134, was 129)
+
+Selection-policy tests use a new `services::models::test_helpers::register_for_test`
+helper that inserts a row + creates a directory under `models_dir`
+so `ModelRegistry::is_installed` returns true without going through
+the real download flow.
+
+Out of scope for v0.15.3 (deferred to v0.15.4):
+- Speaker diarisation re-introduction (architectural rework).
+- DirectML re-enable for Whisper.
+- Per-mode meeting-model override (the dormant
+  `Mode.asr_model_id` field stays unused).
+- Stripping the fp32 variants from the Medium bundle on install
+  (would save ~2 GB on disk; orthogonal to v0.15.3's behaviour).
+
+**Awaiting Jay's "approved, code"-then-"ship it" cycle: nothing
+committed, nothing pushed, no build, no publish in v0.15.3 yet.**
+
+---
+
 ## v0.15.2 Migration line-ending hotfix (2026-04-28) — beta only
 
 What v0.15.2 changes:
@@ -489,12 +641,12 @@ hallucinations (documented in the release notes):
 
 ---
 
-## v0.15.3 rework planning — DO NOT IMPLEMENT YET
+## v0.15.4 rework planning — DO NOT IMPLEMENT YET
 
-(Was labelled "v0.15.2 rework planning" before the v0.15.1
-launch panic forced a v0.15.2 line-ending hotfix to slot in
-ahead of the rework. Architecture targets and verification
-questions are unchanged.)
+(Was labelled "v0.15.2 rework planning" → "v0.15.3 rework planning"
+across the v0.15.1/v0.15.2/v0.15.3 hotfix and performance releases
+that slotted in ahead of the rework. Architecture targets and
+verification questions are unchanged.)
 
 Goals (from the v0.15.1 review packet):
 
