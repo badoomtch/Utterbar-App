@@ -4,7 +4,90 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-29 (v0.15.2 shipped to beta + verified launching on Jay's DB. v0.15.3 in working tree: Meeting Mode performance — explicit user-chosen model via new Settings → Models card, Whisper Medium catalogue entry verified via Step 0, no silent Large/Small/Parakeet fallback, ActiveRecordingContext binds the start-time session against settings drift, success pill shows model name, end-of-meeting RTF log line, chunk size tightened 30s→29s to avoid sherpa-onnx truncation, cap retuned 130→135 chunks. Diarisation rework now planned for v0.15.4, NOT v0.15.3.)**
+**Last updated: 2026-04-29 (v0.15.3 shipped to beta + verified on Jay's DB. Closed the silent-Large bug; explicit model picker; allow-list policy; ActiveRecordingContext bound at start-time. Real-meeting RTF data captured: 116.6s audio → 101.6s processing → RTF 0.87 on Whisper Medium CPU, dev machine. v0.15.3 is correct but Meeting Mode performance is still not good enough for typical-spec users — v0.15.4 priorities below. Diarisation architectural rework deferred again, this time behind the performance work.)**
+
+---
+
+## v0.15.4 priorities (BEFORE diarisation work)
+
+Meeting Mode performance is still the top user-visible problem.
+v0.15.3 closed the silent-Large bug and gave us honest numbers,
+but the underlying CPU Whisper bottleneck remains. Concrete
+data from Jay's machine post-v0.15.3:
+
+  audio_duration_ms=116600
+  total_processing_ms=101617
+  realtime_factor=Some(0.87150085)
+  selected_model_id=sherpa-whisper-medium
+  chunk_count=5
+  whisper_language=en
+
+Jay's machine is powerful. On a typical 8-core laptop expect
+RTF 1.0-1.5 (slower than realtime). On low-spec hardware,
+unusable. The diarisation rework is the wrong thing to ship
+next — performance fixes have to come first or there's no
+audience for the speaker labels.
+
+**Two levers, layer them:**
+
+1. **DirectML re-enable for Whisper** with output validation.
+   sherpa-onnx's DirectML provider was disabled in v0.8.7 for
+   garbled output on Whisper graphs (specifically observed on
+   Whisper Large `small` checkpoint — see comment in
+   `services/inference/sherpa_whisper.rs::ensure_loaded`).
+   That bug may not affect Medium and Small. Plan:
+   - Step 0: smoke-load Medium + Small via the DirectML
+     provider against the bundled `test_wavs/`. Compare output
+     against the `trans.txt` ground truth. If output is sane
+     for both, ship.
+   - Add a runtime hallucination/garbage-output guard so an
+     edge case doesn't silently produce broken transcripts —
+     fall back to CPU when validation fails.
+   - Expected speedup on a mid-range GPU: 5-10×. Combined with
+     CPU Medium's RTF 0.87, that's RTF 0.1-0.2. Real-time-
+     plus on typical hardware.
+   - Risk: high. The v0.8.7 disable was for a real bug.
+     Mitigation is the per-model verification + fallback.
+
+2. **Whisper Small as the recommended default,** Medium as
+   "Balanced" opt-in. Small at RTF ~0.3 on CPU is the floor
+   that gets meeting transcription to "fast enough" without
+   any GPU dependency. Trade-off is accuracy: Small is
+   noticeably worse on accents / overlapping speakers / noisy
+   rooms. For a typical 1-on-1 or small meeting in a quiet
+   room, probably fine.
+   - Plan: bench Small on the same Step 0 fixtures Medium was
+     verified on, capture RTF + a transcript-quality
+     comparison.
+   - If acceptable: change `DEFAULT_MEETING_MODEL_ID` to
+     `MEETING_FAST_MODEL_ID` in `commands::dictation`,
+     update the picker's "Recommended" chip from Medium to
+     Small, update copy.
+   - This is a one-line code change + UX copy + tests; the
+     allow-list and ActiveRecordingContext machinery v0.15.3
+     shipped is exactly what makes this safe to ship.
+
+**Probably ship both.** DirectML for "the win on capable
+hardware", Small as the safe fallback when DirectML can't load
+or when the user's GPU is too weak. The picker stays the same
+shape; only the recommended chip and the catalogue's
+recommended flag move.
+
+**v0.15.5 OR LATER:** the diarisation architectural rework
+that's been deferred since v0.15.3 was scoped. Per the v0.15.1
+review notes, the design is "transcribe whole buffer once,
+diarise separately, assign speaker labels by interval-overlap
+on word/segment timestamps". Open verification questions on
+sherpa-rs Whisper's word-timestamp surface still apply. Don't
+start until performance is solved.
+
+**Out of scope for v0.15.4:** real-time meeting transcription
+(streaming Whisper), per-mode meeting-model override (the
+dormant `Mode.asr_model_id` field stays unused), GPU-via-CUDA
+(non-NVIDIA users would be left out), stable promotion of any
+0.15.x (waiting on real-meeting QA).
+
+---
 
 ---
 
