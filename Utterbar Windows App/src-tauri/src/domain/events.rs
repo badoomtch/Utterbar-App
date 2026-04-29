@@ -92,6 +92,12 @@ pub struct DictationSuccessSummary {
     /// for "is this a real meeting or two seconds of silence" the user
     /// can read at a glance.
     pub chars: u32,
+    /// Short, human-readable name of the ASR model used for this
+    /// meeting (v0.15.3+). Examples: `"Whisper Small"`, `"Whisper
+    /// Medium"`, `"Whisper Large v3"`. Rendered in the success pill
+    /// between the time and the chunk count so the user can correlate
+    /// quality vs speed across meetings without opening logs.
+    pub model_label: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

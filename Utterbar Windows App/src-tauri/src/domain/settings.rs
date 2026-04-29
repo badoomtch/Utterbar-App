@@ -350,6 +350,16 @@ pub struct ModelSettings {
     /// equivalent to "auto" for back-compat with older settings.json.
     #[serde(default = "default_whisper_language")]
     pub whisper_language: String,
+    /// Meeting-mode ASR model preference (v0.15.3+). When `Some(id)`
+    /// the dictation flow resolves the meeting model to this id and
+    /// refuses start if the model isn't installed. When `None` the
+    /// flow prefers Whisper Medium if installed and refuses
+    /// otherwise (no silent Large/Small/Parakeet fallback). Distinct
+    /// from `default_asr_model_id`, which only governs non-meeting
+    /// modes. Pre-v0.15.3 settings.json files miss this field
+    /// entirely; serde `default` deserialises them with `None`.
+    #[serde(default)]
+    pub meeting_asr_model_id: Option<String>,
 }
 
 fn default_whisper_language() -> String {
@@ -364,6 +374,7 @@ impl Default for ModelSettings {
             warm_duration_secs: 120,
             experimental_models: false,
             whisper_language: "auto".into(),
+            meeting_asr_model_id: None,
         }
     }
 }

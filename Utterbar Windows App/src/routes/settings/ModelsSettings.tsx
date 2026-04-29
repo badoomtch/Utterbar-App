@@ -173,6 +173,49 @@ export function ModelsSettings() {
     });
   };
 
+  // v0.15.3: Meeting Mode model preference. Pre-v0.15.3 settings.json
+  // files miss this field; serde defaults to None on the Rust side
+  // and the picker shows "no preference yet" until the user picks.
+  // The picker only writes the id; install state is enforced by the
+  // existing model-row UI (the Install link in this same page) and
+  // by the start_recording preflight (which refuses with a clear
+  // "open Settings → Models, then click Install" error).
+  const meetingAsrModelId =
+    (settings?.models as { meeting_asr_model_id?: string | null } | undefined)
+      ?.meeting_asr_model_id ?? null;
+  const updateMeetingAsrModelId = (id: string | null) => {
+    if (!settings) return;
+    void patch({
+      models: { ...(settings.models as Record<string, unknown>), meeting_asr_model_id: id },
+    });
+  };
+  // The three meeting-mode picker options + their catalogue ids. Order
+  // is "Fast → Balanced (recommended) → Best accuracy" so the
+  // recommended default sits in the middle, matching how the user
+  // would naturally read the trade-off ladder.
+  const meetingPickerOptions: Array<{
+    id: string;
+    label: string;
+    subtitle: string;
+  }> = [
+    {
+      id: 'sherpa-whisper-small',
+      label: 'Fast — Whisper Small',
+      subtitle: 'Fastest. Acceptable for clear speech in a quiet room.',
+    },
+    {
+      id: 'sherpa-whisper-medium',
+      label: 'Balanced — Whisper Medium',
+      subtitle: 'Recommended for most meetings.',
+    },
+    {
+      id: 'sherpa-whisper-large-v3',
+      label: 'Best accuracy — Whisper Large v3',
+      subtitle:
+        "Highest accuracy, slowest. Best for very noisy or multi-speaker audio when you don't mind a long wait.",
+    },
+  ];
+
   const installedModels = useMemo(() => items.filter((m) => m.installed), [items]);
   const licenceStatus = useLicence((s) => s.status);
   const pro = isPro(licenceStatus);
@@ -218,6 +261,130 @@ export function ModelsSettings() {
             />
           </div>
         )}
+      </Card>
+
+      {/* v0.15.3: Meeting Mode model picker. Always visible (even if
+          no Whisper model is installed yet) so a user with zero
+          Whispers can find their way in — the row's Install link
+          handles install-state. Picker writes `meeting_asr_model_id`
+          on the settings store; start_recording's preflight is the
+          enforcement point. Pro-gating mirrors the existing model-row
+          treatment below: locked rows show ProNudge + disabled Install. */}
+      <Card
+        title="Meeting mode model"
+        description="Meeting Mode uses a Whisper model to transcribe full meetings. Pick the trade-off that fits how you'll use it."
+      >
+        <ul className="divide-y divide-border-soft/50">
+          {meetingPickerOptions.map((opt) => {
+            const entry = items.find((m) => m.id === opt.id);
+            const installed = !!entry?.installed;
+            const requiresPro = !!entry?.requires_pro;
+            const locked = requiresPro && !pro;
+            const checked = meetingAsrModelId === opt.id;
+            const sizeLabel = entry ? formatBytes(entry.size_bytes) : '—';
+            // v0.15.3 round-3 fix: read the same progress map the main
+            // model list uses, so an install kicked off from the
+            // Meeting card shows phase + bytes + bar in this row, the
+            // Install button disables while the download is in flight,
+            // and a second click can't re-start install_model for the
+            // same id from this card.
+            const prog = progress[opt.id];
+            const downloading = !!prog && prog.phase !== 'done' && prog.phase !== 'error';
+            const pct =
+              prog && prog.bytes_total > 0
+                ? Math.round((prog.bytes_done / prog.bytes_total) * 100)
+                : 0;
+            return (
+              <li key={opt.id} className="py-3">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="radio"
+                    name="meeting-asr-model-id"
+                    className="mt-1 h-4 w-4 cursor-pointer accent-accent"
+                    checked={checked}
+                    onChange={() => updateMeetingAsrModelId(opt.id)}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 text-[13px] font-bold text-fg-hi">
+                      {opt.label}
+                      {opt.id === 'sherpa-whisper-medium' && (
+                        <span className="ub-chip ub-chip--live">
+                          <span className="ub-led" aria-hidden />
+                          Recommended
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[11px] text-fg-dim">
+                      {sizeLabel} · Multilingual{requiresPro ? ' · Pro' : ''}
+                    </div>
+                    <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-muted">
+                      {opt.subtitle}
+                    </p>
+                    {locked && (
+                      <ProNudge
+                        feature={entry?.display_name ?? opt.label}
+                        description="This Whisper checkpoint is part of Pro. Upgrade to install and use it for Meeting Mode."
+                        dense
+                        className="mt-2 max-w-xl"
+                      />
+                    )}
+                    {/* In-progress install: same shape as the main
+                        model list further down — bar + bytes counter.
+                        Visible inside the meeting card so the user
+                        doesn't have to scroll to find their download. */}
+                    {downloading && (
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-2">
+                          <div
+                            className="h-full bg-accent transition-[width] duration-200"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-28 text-right font-mono text-[11px] tabular-nums text-muted">
+                          {formatBytes(prog!.bytes_done)} / {formatBytes(prog!.bytes_total)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="ml-2 shrink-0 self-center">
+                    {installed ? (
+                      <span className="font-mono text-[11px] text-success">Installed</span>
+                    ) : downloading ? (
+                      <span className="font-mono text-[11px] text-muted">
+                        {capitalise(prog!.phase)}…
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Defence-in-depth: the disabled prop already
+                          // gates this for `locked || !entry || downloading`,
+                          // but a second click during the brief render
+                          // cycle before the prog event arrives could
+                          // race a duplicate install_model call. Bail
+                          // here too.
+                          if (locked || !entry || downloading) return;
+                          void invoke('install_model', { id: opt.id })
+                            .then(reload)
+                            .catch(() => undefined);
+                        }}
+                        disabled={locked || !entry || downloading}
+                        className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Install
+                      </button>
+                    )}
+                  </div>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          For English meetings, also set Whisper language to English in the section below for best
+          accuracy.
+        </p>
       </Card>
 
       {/* Whisper language hint. Only relevant when a Whisper model is

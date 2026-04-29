@@ -79,11 +79,17 @@ function describe(phase: DictationPhase) {
       // Ordinary dictations don't carry a summary and keep the original
       // copy.
       if (phase.summary) {
-        const { duration_seconds, chunks, chars } = phase.summary;
+        const { duration_seconds, chunks, chars, model_label } = phase.summary;
         const mm = Math.floor(duration_seconds / 60);
         const ss = duration_seconds % 60;
         const time = `${mm}:${ss.toString().padStart(2, '0')}`;
-        const label = `Saved · ${time} · ${chunks} chunk${chunks === 1 ? '' : 's'} · ${chars.toLocaleString()} chars`;
+        // v0.15.3: model_label slots between time and chunk count so
+        // the user can correlate quality vs speed across meetings
+        // ("5:01 · Whisper Medium · 11 chunks · 799 chars"). Older
+        // events without the field would render `undefined` — use a
+        // defensive fallback.
+        const modelSegment = model_label ? ` · ${model_label}` : '';
+        const label = `Saved · ${time}${modelSegment} · ${chunks} chunk${chunks === 1 ? '' : 's'} · ${chars.toLocaleString()} chars`;
         return { label, tone: 'success' as const };
       }
       return { label: 'Inserted', tone: 'success' as const };

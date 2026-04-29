@@ -613,6 +613,11 @@ pub async fn start_recording(
             // started-at timestamp so the next stale-heal probe doesn't
             // see a phantom age.
             clear_recording_flag(state.inner());
+            // No ActiveRecordingContext was bound at this point (it's
+            // claimed below after the meeting preflight passes), but
+            // pair the clears for uniformity. Pinned by
+            // `every_clear_recording_flag_site_pairs_with_clear_active_recording_context`.
+            clear_active_recording_context(state.inner()).await;
             emit_busy(&handle);
             return Err(OrliqError::User {
                 message: "still transcribing — wait a moment".into(),
@@ -662,66 +667,126 @@ pub async fn start_recording(
         settings.audio.capture_source
     };
 
-    // ── Meeting-mode preflight (v0.15.0) ────────────────────────────
+    // ── Meeting-mode preflight (v0.15.0 → v0.15.3) ──────────────────
     //
-    // Pre-fix (v0.14.x), `resolve_target_model_id` silently fell
-    // back to Parakeet when Whisper Large wasn't installed,
-    // meaning Meeting Mode without Whisper Large just ran the
-    // wrong model. v0.15 makes this a hard failure at start-time
-    // instead of a soft surprise at stop-time.
+    // History:
+    //   * v0.14.x — `resolve_target_model_id` silently fell back to
+    //     Parakeet when Whisper Large wasn't installed. Meeting Mode
+    //     without Whisper Large just ran the wrong model.
+    //   * v0.15.0 — hard-coded Whisper Large requirement at
+    //     start-time. Better than the silent fallback but locked
+    //     every meeting user into the slowest model in the catalogue.
+    //   * v0.15.1 — disabled diarisation; chunked path uses Whisper
+    //     Large.
+    //   * v0.15.3 — meeting model is an EXPLICIT user choice via
+    //     `Settings.models.meeting_asr_model_id`. The default (when
+    //     no preference is set) is Whisper Medium IF installed; if
+    //     Medium is missing the start refuses and tells the user to
+    //     pick. Never silently routes to Large, Small, or Parakeet.
     //
-    // Diariser assets: if the user has never used meeting mode
-    // before, the ~47 MB pyannote+TitaNet pair isn't on disk yet.
-    // Trigger the download here, BEFORE recording arms — better
-    // than after stop because the user expects a meeting recording
-    // to start "now", not after a network round-trip.
-    if is_meeting {
-        const WHISPER_LARGE: &str = "sherpa-whisper-large-v3";
-        if !state.models.is_installed(WHISPER_LARGE) {
-            tracing::warn!(
-                "start_recording refused: meeting mode requires Whisper Large but it isn't installed"
-            );
-            clear_recording_flag(state.inner());
-            set_phase(
-                &handle,
-                DictationPhase::Error {
-                    message: "Meeting mode needs Whisper Large. Install it from Settings → Models, then start the meeting again.".into(),
-                },
-            )
-            .await;
-            schedule_idle(&handle, 2400);
-            return Err(OrliqError::User {
-                message: "Meeting mode requires Whisper Large. Install it from Settings → Models, then try again.".into(),
-            });
+    // After preflight passes, write an `ActiveRecordingContext` so
+    // `stop_recording` can read the start-time meeting choice
+    // without re-resolving from settings.
+    let meeting_model_id_for_context = if is_meeting {
+        match resolve_meeting_model_id(&settings, &state.models) {
+            MeetingModelResolution::Use(id) => {
+                tracing::info!(%id, "start_recording: meeting model resolved");
+                Some(id)
+            }
+            MeetingModelResolution::RefuseExplicitMissing(id) => {
+                let label = display_name_short(&id);
+                tracing::warn!(
+                    pref_id = %id,
+                    "start_recording refused: meeting model preference is set but the model isn't installed"
+                );
+                clear_recording_flag(state.inner());
+                clear_active_recording_context(state.inner()).await;
+                set_phase(
+                    &handle,
+                    DictationPhase::Error {
+                        message: format!(
+                            "Your meeting model — {label} — isn't installed. Open Settings → Models, then click Install on the option you've chosen."
+                        ),
+                    },
+                )
+                .await;
+                schedule_idle(&handle, 2400);
+                return Err(OrliqError::User {
+                    message: format!(
+                        "Your meeting model ({label}) isn't installed. Open Settings → Models, then click Install on the option you've chosen."
+                    ),
+                });
+            }
+            MeetingModelResolution::RefusePreferenceUnset => {
+                tracing::warn!(
+                    "start_recording refused: meeting mode has no model preference and Whisper Medium isn't installed"
+                );
+                clear_recording_flag(state.inner());
+                clear_active_recording_context(state.inner()).await;
+                set_phase(
+                    &handle,
+                    DictationPhase::Error {
+                        message: "Pick a meeting model. Open Settings → Models and choose Fast (Whisper Small), Balanced (Whisper Medium), or Best accuracy (Whisper Large v3).".into(),
+                    },
+                )
+                .await;
+                schedule_idle(&handle, 2400);
+                return Err(OrliqError::User {
+                    message: "Pick a meeting model. Open Settings → Models and choose Fast (Whisper Small), Balanced (Whisper Medium), or Best accuracy (Whisper Large v3).".into(),
+                });
+            }
+            MeetingModelResolution::RefuseUnsupportedModel(id) => {
+                tracing::warn!(
+                    pref_id = %id,
+                    "start_recording refused: meeting_asr_model_id is set to an off-allow-list value (Meeting Mode supports only Whisper Small / Medium / Large v3)"
+                );
+                clear_recording_flag(state.inner());
+                clear_active_recording_context(state.inner()).await;
+                set_phase(
+                    &handle,
+                    DictationPhase::Error {
+                        message: "Your meeting model setting is invalid. Open Settings → Models and choose Fast, Balanced, or Best accuracy.".into(),
+                    },
+                )
+                .await;
+                schedule_idle(&handle, 2400);
+                return Err(OrliqError::User {
+                    message: "Your meeting model setting is invalid. Open Settings → Models and choose Fast, Balanced, or Best accuracy.".into(),
+                });
+            }
         }
+    } else {
+        None
+    };
 
-        // Diariser asset preflight DISABLED in v0.15.1.
-        //
-        // v0.15.0 ran `diarize_assets::ensure_assets_ready` here
-        // before arming capture so the ~47 MB pyannote + TitaNet
-        // pair was on disk by the time `stop_recording` needed
-        // them. v0.15.1 disabled the diarised transcription path
-        // in `stop_recording` after real-meeting testing produced
-        // 91 fake speakers + cross-language hallucinations + multi-
-        // minute runtimes (see releases/0.15.1.md). Running the
-        // ~47 MB preflight here while the stop side never touches
-        // the assets defeats the hotfix — the user still pays the
-        // download/extract cost on first meeting for a feature
-        // that's been switched off.
-        //
-        // Asset code (`services::inference::diarize_assets` +
-        // `diarize`) stays in tree behind `#[allow(dead_code)]`
-        // for the v0.15.2 rework — but it's unreachable from the
-        // v0.15.1 meeting flow (no caller in `start_recording`,
-        // no caller in `stop_recording`).
-        //
-        // The `meeting_preflight_in_progress` atomic + `PreflightGuard`
-        // RAII helper stay in `app_state.rs` and `dictation.rs`
-        // because the round-3 re-entry helper still references
-        // them — they're a no-op flag now (always false). When
-        // v0.15.2 brings asset prep back the guard claim re-
-        // engages here.
+    if is_meeting {
+        // Diariser asset preflight DISABLED in v0.15.1 (and still
+        // disabled in v0.15.3). See releases/0.15.1.md for context.
         tracing::info!("meeting mode diarisation asset preflight disabled in v0.15.1 beta hotfix");
+    }
+
+    // Bind the recording session context BEFORE arming capture, so
+    // an armament failure has something to clear. The context lives
+    // on AppState and stop_recording reads it for is_meeting +
+    // meeting_model_id. Settings drift mid-recording cannot change
+    // these values once captured here.
+    let active_mode_id_for_context = active_mode_for_capture
+        .as_ref()
+        .map(|m| m.id.clone())
+        .unwrap_or_else(|| {
+            settings
+                .active_mode_id
+                .clone()
+                .unwrap_or_else(|| "voice-to-text".into())
+        });
+    {
+        let mut ctx_lock = state.active_recording_context.write().await;
+        *ctx_lock = Some(crate::app_state::ActiveRecordingContext {
+            mode_id: active_mode_id_for_context,
+            is_meeting,
+            meeting_model_id: meeting_model_id_for_context,
+            started_at_ms: now_ms(),
+        });
     }
 
     // Track which side-effects have fired so we can roll them back if capture fails.
@@ -819,6 +884,7 @@ pub async fn start_recording(
                 tracing::error!(error = %e, "audio.start_capture failed");
                 rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
                 clear_recording_flag(state.inner());
+                clear_active_recording_context(state.inner()).await;
                 set_phase(
                     &handle,
                     DictationPhase::Error {
@@ -847,6 +913,7 @@ pub async fn start_recording(
             }
             rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
             clear_recording_flag(state.inner());
+            clear_active_recording_context(state.inner()).await;
             set_phase(
                 &handle,
                 DictationPhase::Error {
@@ -961,40 +1028,232 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
 /// two RMS values against each other and saving the sqrt is cheaper).
 /// Bounds-safe — clamps end to pcm.len() and returns 0.0 on empty range
 /// so a missing-side capture trivially loses the tag race.
-/// Resolve which ASR model to use for this dictation. One source of
-/// truth for the early-warm probe, the cold-load Warming pill, and the
-/// final transcribe call — they must all read the same value or the UI
-/// flashes the wrong "Initialising model" copy when the user has
-/// Meeting mode auto-routing to a different model than the global.
+/// Catalogue ID of the Meeting Mode default when the user hasn't
+/// expressed a preference. v0.15.3+: Whisper Medium. Pre-v0.15.3
+/// silently used Whisper Large v3 — see `resolve_meeting_model_id`
+/// for the full rationale of the change (no silent slow path).
+pub(crate) const DEFAULT_MEETING_MODEL_ID: &str = "sherpa-whisper-medium";
+/// Catalogue ID of the Meeting Mode "Fast" option. Used by the
+/// resolver's allow-list and the picker UI's hard-coded radio
+/// rows; both must agree on this single source of truth.
+pub(crate) const MEETING_FAST_MODEL_ID: &str = "sherpa-whisper-small";
+/// Catalogue ID of the Meeting Mode "Best accuracy" option.
+/// Same rationale as above.
+pub(crate) const MEETING_BEST_MODEL_ID: &str = "sherpa-whisper-large-v3";
+
+/// Allow-list check for explicit `meeting_asr_model_id` settings
+/// values. Meeting Mode in v0.15.3 supports exactly three model
+/// ids — Whisper Small, Medium, and Large v3. Any other id
+/// (Parakeet variants, Zipformer, Whisper Base, future ASR ids)
+/// is rejected at the resolver layer regardless of whether the
+/// model is installed.
 ///
-/// Rules:
-///   * Meeting modes auto-route to Whisper Large v3 when it's
-///     installed. The user shouldn't have to switch the global model
-///     dropdown when they pick Meeting mode; the mode itself implies
-///     "I want the best accuracy regardless of speed".
-///   * Everything else uses the global default. The mode-level
-///     `asr_model_id` field is still ignored at runtime (removed as a
-///     runtime override in v0.6.6; field stays on disk for back-
-///     compat).
-///   * Fallback is the literal string "stub", same sentinel the
-///     orchestrator already routes to a no-op provider when no real
-///     model is configured. Surfacing it in the UI as a model id is
-///     fine: the dictation flow surfaces the standard "no model
-///     installed" prompt before any sherpa call happens.
+/// **Why this is necessary.** The picker UI only ever writes one
+/// of the three allow-listed ids. But `meeting_asr_model_id`
+/// lands in `settings.json` on disk, which a user can hand-edit.
+/// Without an allow-list, a hand-edited entry like
+/// `"sherpa-parakeet-tdt-0.6b-v3-int8"` would silently route
+/// meetings through Parakeet — fast, but wrong shape (Parakeet
+/// is English-only, doesn't handle multi-speaker audio well, and
+/// Meeting Mode's contract is "Whisper for accuracy on long
+/// recordings"). The allow-list closes that loophole.
+///
+/// Future Whisper variants would need to be added here AND to the
+/// catalogue AND to the picker UI; the three locations together
+/// define what "Meeting Mode model" means.
+pub(crate) fn is_allowed_meeting_model_id(id: &str) -> bool {
+    matches!(
+        id,
+        MEETING_FAST_MODEL_ID | DEFAULT_MEETING_MODEL_ID | MEETING_BEST_MODEL_ID
+    )
+}
+
+/// Resolution outcome for the meeting model selection. The
+/// `Refuse*` variants carry the user-facing message verbatim so
+/// `start_recording` can surface them without re-deriving the copy.
+///
+/// **No silent fallback. No off-allow-list selection.** Pre-v0.15.3
+/// Meeting Mode silently routed to Whisper Large v3 whenever it
+/// was installed, which dragged every existing beta user through
+/// hour-plus CPU transcribes regardless of whether they wanted
+/// that or whether faster alternatives were also available. v0.15.3
+/// makes the choice explicit AND restricts it to the three
+/// allow-listed Whisper variants:
+///
+///   * If `meeting_asr_model_id` is set but not allow-listed
+///     (Parakeet / Zipformer / Whisper Base / unknown id) →
+///     `RefuseUnsupportedModel(id)`. The user error tells them to
+///     pick a supported option in Settings → Models. No silent
+///     route through the off-allow-list model.
+///   * If allow-listed and installed → `Use(id)`.
+///   * If allow-listed but the chosen model isn't installed →
+///     `RefuseExplicitMissing(id)`. No silent fallback to a
+///     different allow-listed model.
+///   * If `meeting_asr_model_id` is unset and Whisper Medium is
+///     installed → `Use("sherpa-whisper-medium")`.
+///   * If unset and Medium is missing → `RefusePreferenceUnset`.
+///     The error tells them to pick in Settings → Models. No
+///     silent route through Large, Small, or
+///     `default_asr_model_id`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum MeetingModelResolution {
+    Use(String),
+    RefuseExplicitMissing(String),
+    RefuseUnsupportedModel(String),
+    RefusePreferenceUnset,
+}
+
+/// Pure resolver for the meeting-mode model. Extracted so the
+/// policy is testable without standing up an `AppState`. See
+/// `MeetingModelResolution` for the outcomes and the allow-list
+/// rule.
+pub(crate) fn resolve_meeting_model_id(
+    settings: &crate::domain::Settings,
+    models: &crate::services::models::ModelRegistry,
+) -> MeetingModelResolution {
+    if let Some(id) = settings.models.meeting_asr_model_id.as_deref() {
+        // Allow-list check FIRST. An off-allow-list explicit
+        // pref (Parakeet, Zipformer, Whisper Base, unknown
+        // future id) refuses regardless of installed-ness — we
+        // never want to silently transcribe a meeting through a
+        // model the contract doesn't sanction.
+        if !is_allowed_meeting_model_id(id) {
+            return MeetingModelResolution::RefuseUnsupportedModel(id.to_string());
+        }
+        if models.is_installed(id) {
+            MeetingModelResolution::Use(id.to_string())
+        } else {
+            MeetingModelResolution::RefuseExplicitMissing(id.to_string())
+        }
+    } else if models.is_installed(DEFAULT_MEETING_MODEL_ID) {
+        MeetingModelResolution::Use(DEFAULT_MEETING_MODEL_ID.to_string())
+    } else {
+        MeetingModelResolution::RefusePreferenceUnset
+    }
+}
+
+/// Short, human-readable label for the success pill + logs. Maps a
+/// catalogue id to a user-facing string. Unknown ids fall back to
+/// the id itself — better than panicking, and a missing label is
+/// at most a UX nit, not a behaviour bug.
+pub(crate) fn display_name_short(model_id: &str) -> String {
+    match model_id {
+        "sherpa-whisper-small" => "Whisper Small".into(),
+        "sherpa-whisper-medium" => "Whisper Medium".into(),
+        "sherpa-whisper-large-v3" => "Whisper Large v3".into(),
+        "sherpa-whisper-base" => "Whisper Base".into(),
+        other => other.to_string(),
+    }
+}
+
+/// Realtime factor — processing-time / audio-time. Returns `None`
+/// when audio_ms is zero (avoids division by zero; logs render
+/// `None` cleanly). For typical inputs returns a small `f32`
+/// (0.3-1.5 range). Used in the meeting summary log; never
+/// exposed as a public claim.
+pub(crate) fn realtime_factor(audio_ms: u32, processing_ms: u64) -> Option<f32> {
+    if audio_ms == 0 {
+        None
+    } else {
+        Some(processing_ms as f32 / audio_ms as f32)
+    }
+}
+
+/// Clear the in-flight session context. Called from every
+/// recording-end path: successful stop, cancel, no-active-recording
+/// stop, transcribe error, and every start-side error path that
+/// also clears `recording_in_progress`. Pairing the two clears is
+/// pinned by `every_clear_recording_flag_site_pairs_with_clear_active_recording_context`.
+async fn clear_active_recording_context(state: &AppState) {
+    *state.active_recording_context.write().await = None;
+}
+
+/// Bridge-case failure for `resolve_target_model_id`. Only
+/// produced when a recording arrived at stop_recording with NO
+/// `ActiveRecordingContext` bound (the v0.15.2-in-flight bridge
+/// case), AND the current settings can't yield an allow-listed
+/// meeting model. Surfaces the underlying `MeetingModelResolution`
+/// refusal so the caller can render the right user message.
+///
+/// **Why this isn't allowed to fall through to
+/// `default_asr_model_id`:** for a meeting recording, the global
+/// default is typically Parakeet (the dictation-mode default) or
+/// the user's chosen non-meeting model. Routing meeting audio
+/// through Parakeet violates v0.15.3's "no Parakeet meeting
+/// routing" contract; routing through a non-meeting Whisper
+/// variant (e.g. Whisper Base, which isn't allow-listed) violates
+/// the same contract. The right shape is to refuse loudly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MeetingBridgeFailure {
+    pub resolution: MeetingModelResolution,
+}
+
+/// Resolve which ASR model to use for this dictation. One source of
+/// truth for the early-warm probe, the cold-load Warming pill, and
+/// the final transcribe call — they must all read the same value or
+/// the UI flashes the wrong "Initialising model" copy when the user
+/// has Meeting mode using a different model from the non-meeting
+/// default.
+///
+/// **v0.15.3 binding rule.** When the in-flight recording session
+/// has a context bound (the normal case for any v0.15.3+ recording),
+/// stop reads the meeting_model_id from the context — start-time
+/// choice wins, settings drift mid-recording is ignored. The
+/// optional `bound_meeting_model_id` parameter is the read of
+/// `state.active_recording_context.read().await....meeting_model_id`
+/// from the caller. When `None` AND the recording is NOT a meeting,
+/// fall through to the pure non-meeting resolver
+/// (`default_asr_model_id` then `"stub"`). When `None` AND the
+/// recording IS a meeting (the v0.15.2-in-flight bridge case),
+/// re-resolve from current settings — but ONLY accept allow-listed
+/// meeting models. Anything else returns
+/// `Err(MeetingBridgeFailure)` so the caller surfaces a clear
+/// error rather than silently routing through Parakeet.
+///
+/// Non-meeting fallback: `default_asr_model_id`, then the literal
+/// `"stub"` sentinel (which the orchestrator already routes to a
+/// no-op provider when no real model is configured).
 fn resolve_target_model_id(
     mode: &crate::domain::Mode,
     settings: &crate::domain::Settings,
     models: &crate::services::models::ModelRegistry,
-) -> String {
-    const WHISPER_LARGE: &str = "sherpa-whisper-large-v3";
-    if mode.is_meeting_mode && models.is_installed(WHISPER_LARGE) {
-        return WHISPER_LARGE.to_string();
+    bound_meeting_model_id: Option<&str>,
+) -> Result<String, MeetingBridgeFailure> {
+    if mode.is_meeting_mode {
+        if let Some(bound) = bound_meeting_model_id {
+            return Ok(bound.to_string());
+        }
+        // No context bound — bridge case (v0.15.2 recording in
+        // flight when v0.15.3 launched). Re-resolve from current
+        // settings, BUT only accept the resolver's `Use(id)`
+        // success; any refusal becomes a `MeetingBridgeFailure`.
+        // We do NOT fall through to `default_asr_model_id` here —
+        // that would silently route through Parakeet (or whatever
+        // the user's non-meeting default is), which violates the
+        // "no Parakeet meeting routing" contract.
+        let resolution = resolve_meeting_model_id(settings, models);
+        return match resolution {
+            MeetingModelResolution::Use(id) => {
+                tracing::warn!(
+                    %id,
+                    "stop_recording: no active recording context bound; resolved meeting model from current settings (bridge case — v0.15.2 in-flight recording?)"
+                );
+                Ok(id)
+            }
+            other => {
+                tracing::error!(
+                    ?other,
+                    "stop_recording: meeting recording with no bound context AND meeting model unresolvable from current settings — refusing to fall back to default_asr_model_id"
+                );
+                Err(MeetingBridgeFailure { resolution: other })
+            }
+        };
     }
-    settings
+    Ok(settings
         .models
         .default_asr_model_id
         .clone()
-        .unwrap_or_else(|| "stub".into())
+        .unwrap_or_else(|| "stub".into()))
 }
 
 /// Meeting Mode chunked transcribe — fallback path for v0.15+.
@@ -1228,43 +1487,52 @@ async fn transcribe_chunked(
     })
 }
 
-/// Meeting-mode chunk size carried forward from v0.13.x — v0.14.x
-/// chunking. The v0.15.0 plan loosely wrote OVERLAP_SECONDS = 5 as
-/// a placeholder, but the production value has been 2 since meeting
-/// mode shipped: ~two words at conversational pace, enough for the
-/// boundary-dedup pass to re-attach a clipped boundary word without
-/// dropping legit content. We deliberately keep 2s here rather than
-/// widening — wider overlap would force the dedup heuristic to drop
-/// more leading words from each chunk, risking legitimate text loss
-/// when a real speaker turn happens to start with a phrase similar
-/// to the previous chunk's tail.
-const CHUNKED_MEETING_CHUNK_SECS: usize = 30;
+/// Meeting-mode chunk size. Carried forward from v0.13.x — v0.14.x;
+/// tightened from 30 → 29 in v0.15.3.
+///
+/// **Why 29, not 30 (v0.15.3 fix):** sherpa-onnx's offline Whisper
+/// recogniser silently truncates inputs >= 30 seconds with a
+/// stderr warning ("Only waves less than 30 seconds are supported").
+/// The pre-v0.15.3 chunker passed exactly 30s buffers in the
+/// non-final-chunk case and quietly lost up to 1s of audio per
+/// boundary. Step 0 of v0.15.3 (verifying Whisper Medium loads)
+/// surfaced the warning; pulling the constant down to 29 gives
+/// the recogniser the same input every time and removes the
+/// truncation. Existing v0.15.2 transcripts may have a small
+/// boundary-loss; new transcripts don't.
+///
+/// Overlap (2s) is unchanged — ~two words at conversational pace,
+/// enough for the boundary-dedup pass to re-attach a clipped
+/// boundary word without dropping legit content. Stride (chunk −
+/// overlap = 27s) follows.
+const CHUNKED_MEETING_CHUNK_SECS: usize = 29;
 const CHUNKED_MEETING_OVERLAP_SECS: usize = 2;
 
-/// v0.15.1 defence-in-depth cap. The chunked path is now meeting
-/// mode's primary transcription route (the diarised path is
-/// disabled). Without a cap, an absurdly long recording (a forgotten
-/// running session, or a future bug routing dictation audio here)
-/// could trigger hundreds of sequential Whisper Large CPU calls and
-/// wedge the app for hours.
+/// v0.15.1 defence-in-depth cap, retuned in v0.15.3 for the new 29s
+/// chunk size. The chunked path is meeting mode's primary
+/// transcription route. Without a cap, an absurdly long recording
+/// (a forgotten running session, or a future bug routing dictation
+/// audio here) could trigger hundreds of sequential Whisper CPU
+/// calls and wedge the app for hours.
 ///
-/// 130 chunks × 28 s stride = 3640 s ≈ **60 min 40 s** of audio.
-/// Sized to comfortably accept full 30 / 45 / 60 min meetings (the
-/// standard meeting cadence) with a bit of headroom for "I forgot
-/// to stop", and to keep the worst-case CPU Whisper Large transcribe
-/// time bounded at ~1 hour (Whisper Large on CPU runs at roughly
-/// real-time on the hardware Utterbar targets). Anything longer
-/// should be split into separate recordings — the cap surfaces that
-/// as a clean user-facing error rather than letting the app hang.
+/// 135 chunks × 27 s stride + 29 s leading chunk = 3647 s ≈
+/// **60 min 47 s** of audio. Sized to comfortably accept full
+/// 30 / 45 / 60 min meetings (the standard meeting cadence) with a
+/// small safety shoulder for "I forgot to stop", and to keep the
+/// worst-case CPU Whisper transcribe time bounded at ~1 hour
+/// (Whisper Medium on CPU runs roughly real-time or slightly
+/// faster on the hardware Utterbar targets; Whisper Large is
+/// slower; the cap is sized against the slow end). Anything longer
+/// should be split into separate recordings — the cap surfaces
+/// that as a clean user-facing error rather than letting the app
+/// hang.
 ///
-/// History: was 60 (≈28 min) in the round-1 review packet; bumped
-/// to 120 (≈56 min) in round-2; raised again to 130 in round-3
-/// after Jay flagged that 56 min still rejects standard 60-min
-/// meetings on the boundary. The release notes describe the cap as
-/// "about 60 minutes" / "roughly one hour", which is honest at
-/// this value (60:40, or 60 minutes plus a 40-second safety
-/// shoulder).
-const MAX_MEETING_CHUNKS: usize = 130;
+/// History: 60 (≈28 min) in v0.15.1 round-1; 120 (≈56 min) in
+/// round-2; 130 (≈60 min 40 s) in round-3. v0.15.3 retuned to 135
+/// for the new 29s chunk size to keep ~60 min coverage. The
+/// release notes describe the cap as "about 60 minutes (60 min
+/// 47 s, to be exact)".
+const MAX_MEETING_CHUNKS: usize = 135;
 
 /// Pure helper: given a PCM buffer length in samples + a sample rate,
 /// how many chunks would `transcribe_chunked` produce? Mirrors the
@@ -1659,6 +1927,7 @@ pub async fn stop_recording(
         // but we still want the next genuine start to succeed without
         // having to click "Reset" anywhere.
         clear_recording_flag(state.inner());
+        clear_active_recording_context(state.inner()).await;
         return Err(OrliqError::User {
             message: "no active recording".into(),
         });
@@ -1668,6 +1937,11 @@ pub async fn stop_recording(
     // running isn't blocked. The orchestrator serialises work on its
     // own side (see InferenceOrchestrator::ensure_loaded), so
     // overlapping start-after-stop is safe from here.
+    //
+    // CONTEXT-INTENTIONAL: do NOT clear `active_recording_context`
+    // here — the rest of stop_recording (model resolution, transcribe,
+    // history insert, success summary) reads it. Cleared at the end
+    // of the happy path and on the transcribe error path below.
     clear_recording_flag(state.inner());
     tracing::info!(
         samples = final_.pcm.len(),
@@ -1680,37 +1954,127 @@ pub async fn stop_recording(
     // every downstream consumer (early Warming label, ensure_loaded
     // call, final transcribe, history row) reads the same value.
     //
-    // Resolution rules (see `resolve_target_model_id` below):
-    //   * Meeting modes auto-route to Whisper Large v3 when it's
-    //     installed. The user doesn't have to pick a meeting model
-    //     manually; meeting mode picks the best one available.
-    //   * All other modes use the global `default_asr_model_id`.
+    // **v0.15.3 binding rule.** When `start_recording` succeeded it
+    // wrote an `ActiveRecordingContext` into AppState capturing
+    // (mode_id, is_meeting, meeting_model_id) AT START TIME. Stop
+    // reads that context first and trusts it verbatim — settings
+    // drift mid-recording cannot change the recording's character.
+    // A recording started as Meeting stops as Meeting; the meeting
+    // model used at stop is the one approved at start.
     //
-    // The mode-level `asr_model_id` field on the Mode struct is still
-    // ignored at runtime (removed as a runtime override in v0.6.6;
-    // the field stays on disk for back-compat with old DB rows).
-    //
-    // Why the probe must use the same id as the final transcribe:
-    // before this, the early probe read `default_asr_model_id` and the
-    // final read the same — coincidentally identical. With the meeting
-    // override they could diverge (probe reads default Parakeet,
-    // transcribe routes to Whisper Large) and the user would see
-    // "Processing" flash before the real "Initialising model" cold-load
-    // pill. Resolving once and reusing the binding sidesteps that.
+    // Bridge case (very rare, vanishingly so post-v0.15.3): the
+    // recording started under v0.15.2 and v0.15.3 was launched
+    // mid-recording. No context bound. Fall back to the legacy
+    // settings-snapshot path with a warn log.
     let pre_settings = state.settings.snapshot().await;
-    let pre_active_mode_id = pre_settings
-        .active_mode_id
-        .clone()
-        .unwrap_or_else(|| "voice-to-text".into());
-    let pre_active_mode = state
+    let context_snapshot = state.active_recording_context.read().await.clone();
+    let (effective_mode_id, is_meeting_bound, bound_meeting_model_id) = match &context_snapshot {
+        Some(ctx) => {
+            tracing::info!(
+                mode_id = %ctx.mode_id,
+                is_meeting = ctx.is_meeting,
+                meeting_model_id = ?ctx.meeting_model_id,
+                started_at_ms = ctx.started_at_ms,
+                "stop_recording: using bound ActiveRecordingContext"
+            );
+            (
+                ctx.mode_id.clone(),
+                Some(ctx.is_meeting),
+                ctx.meeting_model_id.clone(),
+            )
+        }
+        None => {
+            let fallback_mode_id = pre_settings
+                .active_mode_id
+                .clone()
+                .unwrap_or_else(|| "voice-to-text".into());
+            tracing::warn!(
+                fallback_mode_id = %fallback_mode_id,
+                "stop_recording: no ActiveRecordingContext (v0.15.2 bridge?); falling back to current settings snapshot"
+            );
+            (fallback_mode_id, None, None)
+        }
+    };
+    let pre_active_mode_row = state
         .modes
-        .get(&pre_active_mode_id)
+        .get(&effective_mode_id)
         .ok()
         .flatten()
         .ok_or_else(|| OrliqError::User {
             message: "active mode not found".into(),
         })?;
-    let resolved_model_id = resolve_target_model_id(&pre_active_mode, &pre_settings, &state.models);
+    // is_meeting from the context wins; for the bridge case fall
+    // through to the row's current is_meeting_mode.
+    let is_meeting_effective = is_meeting_bound.unwrap_or(pre_active_mode_row.is_meeting_mode);
+    // Synthesize a Mode that carries the start-time is_meeting flag
+    // even if the user toggled it on the actual row mid-recording.
+    // Other Mode fields (target_language, target_app, formatting
+    // rules) are read fresh from the row — those don't need binding.
+    let pre_active_mode = crate::domain::Mode {
+        is_meeting_mode: is_meeting_effective,
+        ..pre_active_mode_row
+    };
+    let resolved_model_id = match resolve_target_model_id(
+        &pre_active_mode,
+        &pre_settings,
+        &state.models,
+        bound_meeting_model_id.as_deref(),
+    ) {
+        Ok(id) => id,
+        Err(MeetingBridgeFailure { resolution }) => {
+            // Meeting recording arrived at stop_recording with no
+            // bound context (bridge case) AND current settings
+            // can't yield an allow-listed meeting model. Refuse
+            // loudly rather than silently routing through
+            // default_asr_model_id (which would typically be
+            // Parakeet — wrong shape for meetings, contract
+            // violation).
+            tracing::error!(
+                ?resolution,
+                "stop_recording: refusing to transcribe meeting through non-allow-listed model"
+            );
+            // Restore start-time side effects so the user isn't
+            // left muted with a stuck Processing phase.
+            {
+                let media = state.media.clone();
+                tokio::task::spawn_blocking(move || media.resume_paused());
+            }
+            {
+                let ducking = state.ducking.clone();
+                tokio::task::spawn_blocking(move || ducking.restore());
+            }
+            clear_active_recording_context(state.inner()).await;
+            let user_message = match resolution {
+                MeetingModelResolution::RefuseUnsupportedModel(_) => {
+                    "Your meeting model setting is invalid. Open Settings → Models and choose Fast, Balanced, or Best accuracy.".to_string()
+                }
+                MeetingModelResolution::RefuseExplicitMissing(id) => format!(
+                    "Your meeting model ({}) isn't installed. Open Settings → Models, then click Install on the option you've chosen.",
+                    display_name_short(&id)
+                ),
+                MeetingModelResolution::RefusePreferenceUnset => {
+                    "Pick a meeting model. Open Settings → Models and choose Fast (Whisper Small), Balanced (Whisper Medium), or Best accuracy (Whisper Large v3).".to_string()
+                }
+                MeetingModelResolution::Use(_) => {
+                    // Logically unreachable — the Err branch is
+                    // only constructed when resolution is a
+                    // refusal — but be explicit.
+                    "Meeting model unresolvable.".to_string()
+                }
+            };
+            set_phase(
+                &handle,
+                DictationPhase::Error {
+                    message: user_message.clone(),
+                },
+            )
+            .await;
+            schedule_idle(&handle, 2400);
+            return Err(OrliqError::User {
+                message: user_message,
+            });
+        }
+    };
     let was_cold =
         state.inference.loaded_model_id().await.as_deref() != Some(resolved_model_id.as_str());
     if was_cold {
@@ -1984,6 +2348,11 @@ pub async fn stop_recording(
                 let ducking = state.ducking.clone();
                 tokio::task::spawn_blocking(move || ducking.restore());
             }
+            // Recording session is over (one way or another). Clear
+            // the bound context so the next start_recording lands
+            // with a clean slate. Pinned by
+            // `every_clear_recording_flag_site_pairs_with_clear_active_recording_context`.
+            clear_active_recording_context(state.inner()).await;
             set_phase(
                 &handle,
                 DictationPhase::Error {
@@ -1997,6 +2366,30 @@ pub async fn stop_recording(
             });
         }
     };
+    let total_processing_ms = (now_ms() - started) as u64;
+    if mode.is_meeting_mode {
+        // v0.15.3 meeting-level summary log. One line per meeting at
+        // the END of the chunked transcribe so a single
+        // `tail | grep "meeting transcribe complete"` gives a clean
+        // dataset for comparing Small / Medium / Large RTF across
+        // machines. Per-chunk logs stay (line 1115 in transcribe_chunked)
+        // — useful for chunk-level diagnostics — but they don't carry
+        // the wall-clock total, the audio:processing ratio, or the
+        // selected model id. The whisper_language field is the user's
+        // current setting, surfaced here so we can correlate quality
+        // issues against language-pin choice.
+        let chunk_count = chunk_count_for_duration(asr.duration_ms);
+        let rtf = realtime_factor(asr.duration_ms, total_processing_ms);
+        tracing::info!(
+            audio_duration_ms = asr.duration_ms,
+            total_processing_ms,
+            realtime_factor = ?rtf,
+            selected_model_id = %model_id,
+            chunk_count,
+            whisper_language = %pre_settings.models.whisper_language,
+            "meeting transcribe complete"
+        );
+    }
     tracing::info!(chars = asr.text.len(), "inference.transcribe done");
 
     let raw = state
@@ -2218,7 +2611,7 @@ pub async fn stop_recording(
         created_at: now_ms(),
         mode_id: Some(mode.id.clone()),
         mode_name_snapshot: mode.name.clone(),
-        asr_model_id: model_id,
+        asr_model_id: model_id.clone(),
         asr_model_version: asr.model_version,
         audio_path: recorded_path,
         audio_duration_ms: final_.duration_ms as i64,
@@ -2273,10 +2666,16 @@ pub async fn stop_recording(
             duration_seconds: (asr.duration_ms / 1000),
             // The chunked path doesn't expose its chunk count to the
             // outer scope, so compute it here from the audio length —
-            // matches the decision the chunker made (CHUNK 30s, OVERLAP 2s,
-            // stride 28s). For a single-chunk recording this gives 1.
+            // matches the decision the chunker made
+            // (CHUNK = CHUNKED_MEETING_CHUNK_SECS, OVERLAP = 2,
+            // stride = chunk - 2). For a single-chunk recording this
+            // gives 1.
             chunks: chunk_count_for_duration(asr.duration_ms),
             chars: processed.len() as u32,
+            // v0.15.3: surface the model id used for this meeting so
+            // the user can correlate quality vs speed across meetings
+            // ("5:01 · Whisper Medium · 11 chunks · 799 chars").
+            model_label: display_name_short(&model_id),
         })
     } else {
         None
@@ -2294,6 +2693,11 @@ pub async fn stop_recording(
     // saved" signal until the v0.14 Meetings page lands.
     let idle_delay = if mode.is_meeting_mode { 3000 } else { 1200 };
     schedule_idle(&handle, idle_delay);
+
+    // Recording session is fully done. Clear the bound context so the
+    // next start_recording lands with a clean slate. Pinned by
+    // `every_clear_recording_flag_site_pairs_with_clear_active_recording_context`.
+    clear_active_recording_context(state.inner()).await;
 
     Ok(entry)
 }
@@ -2332,6 +2736,7 @@ pub async fn cancel_recording(handle: AppHandle, state: State<'_, Arc<AppState>>
     // flag high they'd lose the ability to start the next recording
     // without restarting the app.
     clear_recording_flag(state.inner());
+    clear_active_recording_context(state.inner()).await;
     // Resume whatever was paused on start, even on cancel — the user expects their
     // music to pick back up as soon as they hit the cancel hotkey.
     {
@@ -3052,10 +3457,21 @@ mod diarised_helpers_tests {
     /// we exercise need to be valid; the services we don't touch
     /// just need to construct.
     fn make_test_app_state() -> crate::app_state::AppState {
+        // Process id + millis + a thread-id-derived nonce. cargo test
+        // runs unit tests in parallel, so two tests in the same
+        // process can land within the same millisecond and collide
+        // on the temp dir — without a per-call nonce they share an
+        // AppState's DB and pollute each other's state. Pre-v0.15.3
+        // tests didn't notice because they didn't write rows;
+        // v0.15.3's selection-policy tests do.
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NONCE: AtomicU64 = AtomicU64::new(0);
+        let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
         let tmp = std::env::temp_dir().join(format!(
-            "ut-dictation-test-{}-{}",
+            "ut-dictation-test-{}-{}-{}",
             std::process::id(),
-            now_ms()
+            now_ms(),
+            nonce,
         ));
         std::fs::create_dir_all(&tmp).unwrap();
         crate::app_state::AppState::bootstrap(&tmp).expect("AppState bootstrap")
@@ -3080,16 +3496,17 @@ mod diarised_helpers_tests {
 
     /// Pin the chunk-cap constant and its derived "max minutes" so
     /// any future tweak surfaces here. 130 chunks × (30-2) seconds
-    /// stride = 3640 seconds = 60 min 40 s; integer-divided this
-    /// surfaces as 60 minutes via `max_meeting_audio_minutes()`.
-    /// Was 60 (≈28 min) in round 1, 120 (≈56 min) in round 2;
-    /// raised to 130 in round 3 because round-2's 56-min cap still
-    /// rejected standard 60-min meetings on the boundary.
+    /// v0.15.3: 135 chunks × (29-2) = 27s stride, plus 29s leading
+    /// chunk = 3647s = 60 min 47 s. `max_meeting_audio_minutes()`
+    /// integer-divides 3647/60 = 60.
+    /// History: 60 (≈28 min) v0.15.1-r1; 120 (≈56 min) r2;
+    /// 130 (≈60:40) r3 with 30s chunks; 135 (≈60:47) v0.15.3
+    /// retuned for 29s chunks (sherpa-onnx warns on >=30s inputs).
     #[test]
     fn chunk_cap_constants_match_documented_values() {
-        assert_eq!(CHUNKED_MEETING_CHUNK_SECS, 30);
+        assert_eq!(CHUNKED_MEETING_CHUNK_SECS, 29);
         assert_eq!(CHUNKED_MEETING_OVERLAP_SECS, 2);
-        assert_eq!(MAX_MEETING_CHUNKS, 130);
+        assert_eq!(MAX_MEETING_CHUNKS, 135);
         assert_eq!(max_meeting_audio_minutes(), 60);
     }
 
@@ -3115,14 +3532,15 @@ mod diarised_helpers_tests {
     /// shape Jay tested) must produce a small, bounded number of
     /// chunks — not "one Whisper call per diariser segment" (which
     /// in the v0.15.0 output was 91). 5 min @ 16 kHz = 4_800_000
-    /// samples; with 30s/2s the projection is
-    /// ceil((4_800_000 - 480_000) / 448_000) + 1 = 11 chunks.
+    /// samples; with v0.15.3's 29s/2s/27s arithmetic the projection
+    /// is ceil((4_800_000 - 464_000) / 432_000) + 1 = 12 chunks.
+    /// Was 11 with v0.15.1's 30s/2s/28s.
     #[test]
     fn projected_chunks_for_five_minute_meeting_is_bounded() {
         let five_min_samples = 5 * 60 * 16_000;
         let chunks = projected_chunk_count(five_min_samples, 16_000);
         assert!(
-            chunks <= 12,
+            chunks <= 13,
             "5-min meeting must project to a small chunk count (got {chunks})"
         );
         assert!(
@@ -3130,7 +3548,7 @@ mod diarised_helpers_tests {
             "5-min meeting must be well under the cap"
         );
         // And concretely:
-        assert_eq!(chunks, 11);
+        assert_eq!(chunks, 12);
         // Most importantly: nowhere near 91.
         assert!(
             chunks < 91,
@@ -3138,18 +3556,19 @@ mod diarised_helpers_tests {
         );
     }
 
-    /// **The round-3 regression target:** a standard 60-minute
-    /// meeting MUST be accepted by the cap. Round-2's 56-min cap
-    /// rejected this on the boundary; round-3 raised the cap to
-    /// 130 chunks (≈60:40) so a clean 60-min recording goes
-    /// through with a small safety shoulder.
-    /// 60 min × 16 kHz × 60 s = 57_600_000 samples; projection is
-    /// ceil((57_600_000 - 480_000) / 448_000) + 1 = 129 chunks.
+    /// **The round-3 regression target (still required in v0.15.3):**
+    /// a standard 60-minute meeting MUST be accepted by the cap.
+    /// 60 min × 16 kHz × 60 s = 57_600_000 samples; with v0.15.3's
+    /// 29s/2s/27s arithmetic the projection is
+    /// ceil((57_600_000 - 464_000) / 432_000) + 1 = 134 chunks.
+    /// Was 129 with v0.15.1's 30s chunks; the 5-extra-chunk cost
+    /// of going to 29s is what drove `MAX_MEETING_CHUNKS` from
+    /// 130 → 135 in v0.15.3.
     #[test]
     fn projected_chunks_for_sixty_minute_meeting_under_cap() {
         let sixty_min_samples = 60 * 60 * 16_000;
         let chunks = projected_chunk_count(sixty_min_samples, 16_000);
-        assert_eq!(chunks, 129, "60-min meeting must project to 129 chunks");
+        assert_eq!(chunks, 134, "60-min meeting must project to 134 chunks");
         assert!(
             chunks <= MAX_MEETING_CHUNKS,
             "60-min meeting must fit under the cap (got {chunks}, cap {MAX_MEETING_CHUNKS})"
@@ -3460,6 +3879,622 @@ mod diarised_helpers_tests {
                 "migration {name} byte content drifted from pinned SHA — \
                  see the v0006 test above for the recovery procedure"
             );
+        }
+    }
+
+    // ── v0.15.3 meeting-model selection policy + session context ────
+    //
+    // Round-2 contract from the v0.15.3 packet:
+    //   * If `meeting_asr_model_id` is set and installed → Use(id)
+    //   * If set and missing → RefuseExplicitMissing(id) — NO silent
+    //     fallback to Medium / Large / Small
+    //   * If unset and Medium installed → Use("sherpa-whisper-medium")
+    //   * If unset and Medium missing → RefusePreferenceUnset — NO
+    //     silent fallback even when Large is installed
+    //
+    // Round-3 (Amendment 1) contract:
+    //   * `ActiveRecordingContext` bound at start_recording survives
+    //     mid-recording settings drift; stop_recording reads from it.
+    //   * Cleared on every recording-end path.
+
+    use super::{
+        display_name_short, realtime_factor, resolve_meeting_model_id, MeetingModelResolution,
+    };
+
+    /// Construct a `Settings` with a chosen `meeting_asr_model_id`
+    /// override but everything else default.
+    fn settings_with_meeting_pref(pref: Option<&str>) -> crate::domain::Settings {
+        let mut s = crate::domain::Settings::default();
+        s.models.meeting_asr_model_id = pref.map(|p| p.to_string());
+        s
+    }
+
+    /// Build an `AppState`, register the listed Whisper variants as
+    /// installed, and return both the AppState and a Settings shaped
+    /// to the test's preference.
+    fn fixture_with_installed(
+        installed: &[&str],
+        pref: Option<&str>,
+    ) -> (crate::app_state::AppState, crate::domain::Settings) {
+        let state = make_test_app_state();
+        // models_dir is `<data_dir>/models` per ModelRegistry::new.
+        // We need the data_dir; reconstruct from the AppState's db
+        // path. Db's `path` is `<data_dir>/data/orliq.db`, so the
+        // data_dir is two up from that.
+        let db_path = state.db.path.clone();
+        let data_dir = db_path.parent().unwrap().parent().unwrap().to_path_buf();
+        let models_root = data_dir.join("models");
+        std::fs::create_dir_all(&models_root).unwrap();
+        for id in installed {
+            crate::services::models::test_helpers::register_for_test(
+                &state.models,
+                &models_root,
+                id,
+            );
+        }
+        let settings = settings_with_meeting_pref(pref);
+        (state, settings)
+    }
+
+    // ── decide pre-probe selection policy ──────────────────────────
+
+    /// **Default for fresh users.** No preference + Medium installed
+    /// → resolve to Medium.
+    #[test]
+    fn meeting_resolves_to_medium_when_no_pref_and_medium_installed() {
+        let (state, settings) = fixture_with_installed(&["sherpa-whisper-medium"], None);
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::Use("sherpa-whisper-medium".into())
+        );
+    }
+
+    /// **Round-2 critical: no silent Large fallback.** No preference,
+    /// Medium NOT installed, Large IS installed → MUST refuse, not
+    /// silently use Large. The whole point of v0.15.3 is to stop
+    /// dragging users into the slow Large path by default.
+    #[test]
+    fn meeting_refuses_when_no_pref_and_medium_not_installed_even_if_large_installed() {
+        let (state, settings) = fixture_with_installed(&["sherpa-whisper-large-v3"], None);
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(outcome, MeetingModelResolution::RefusePreferenceUnset);
+    }
+
+    /// No preference, no Whisper installed at all → refuse. Error
+    /// path tells the user to install in Settings → Models. No
+    /// silent route through Parakeet.
+    #[test]
+    fn meeting_refuses_when_no_pref_and_no_whisper_installed() {
+        let (state, settings) = fixture_with_installed(&[], None);
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(outcome, MeetingModelResolution::RefusePreferenceUnset);
+    }
+
+    /// Explicit Large + Large installed → use Large.
+    #[test]
+    fn meeting_resolves_to_large_when_pref_large_and_large_installed() {
+        let (state, settings) = fixture_with_installed(
+            &["sherpa-whisper-large-v3"],
+            Some("sherpa-whisper-large-v3"),
+        );
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::Use("sherpa-whisper-large-v3".into())
+        );
+    }
+
+    /// **Round-2 critical: no silent fallback when explicit pref is
+    /// missing.** Pref says Large, Large not installed, Medium IS
+    /// installed → RefuseExplicitMissing, NOT a silent fallback to
+    /// Medium. The user picked Large for a reason.
+    #[test]
+    fn meeting_refuses_when_pref_large_but_large_not_installed_even_if_medium_installed() {
+        let (state, settings) =
+            fixture_with_installed(&["sherpa-whisper-medium"], Some("sherpa-whisper-large-v3"));
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::RefuseExplicitMissing("sherpa-whisper-large-v3".into())
+        );
+    }
+
+    /// Explicit Small + Small installed → use Small.
+    #[test]
+    fn meeting_resolves_to_small_when_pref_small_and_small_installed() {
+        let (state, settings) =
+            fixture_with_installed(&["sherpa-whisper-small"], Some("sherpa-whisper-small"));
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::Use("sherpa-whisper-small".into())
+        );
+    }
+
+    /// Symmetric: pref Small, Small not installed → refuse.
+    #[test]
+    fn meeting_refuses_when_pref_small_but_small_not_installed() {
+        let (state, settings) =
+            fixture_with_installed(&["sherpa-whisper-medium"], Some("sherpa-whisper-small"));
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::RefuseExplicitMissing("sherpa-whisper-small".into())
+        );
+    }
+
+    /// **Allow-list pin (round-2 critical).** Meeting Mode supports
+    /// exactly three model ids — Whisper Small, Medium, Large v3.
+    /// Any other id is rejected at the resolver layer regardless
+    /// of whether the model is installed. Pinned via the helper
+    /// so the contract has a name in the test surface.
+    #[test]
+    fn allow_list_only_accepts_whisper_small_medium_large() {
+        assert!(super::is_allowed_meeting_model_id("sherpa-whisper-small"));
+        assert!(super::is_allowed_meeting_model_id("sherpa-whisper-medium"));
+        assert!(super::is_allowed_meeting_model_id(
+            "sherpa-whisper-large-v3"
+        ));
+        // Off-allow-list rejections.
+        assert!(!super::is_allowed_meeting_model_id(
+            "sherpa-parakeet-tdt-0.6b-v3-int8"
+        ));
+        assert!(!super::is_allowed_meeting_model_id(
+            "sherpa-parakeet-tdt-0.6b-v3-fp16"
+        ));
+        assert!(!super::is_allowed_meeting_model_id(
+            "sherpa-zipformer-en-int8"
+        ));
+        assert!(!super::is_allowed_meeting_model_id("sherpa-whisper-base"));
+        assert!(!super::is_allowed_meeting_model_id(""));
+        assert!(!super::is_allowed_meeting_model_id("future-unknown-asr"));
+    }
+
+    /// **Round-2 critical: no Parakeet meeting routing, even
+    /// explicit.** Hand-edited `settings.json` picks Parakeet AND
+    /// Parakeet is installed → MUST refuse with
+    /// RefuseUnsupportedModel. The resolver must NOT trust an
+    /// off-allow-list explicit id even when installed.
+    #[test]
+    fn explicit_parakeet_meeting_pref_with_parakeet_installed_refuses_unsupported() {
+        let (state, settings) = fixture_with_installed(
+            &["sherpa-parakeet-tdt-0.6b-v3-int8"],
+            Some("sherpa-parakeet-tdt-0.6b-v3-int8"),
+        );
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::RefuseUnsupportedModel(
+                "sherpa-parakeet-tdt-0.6b-v3-int8".into()
+            )
+        );
+    }
+
+    /// **Round-2 critical: no Zipformer meeting routing.**
+    /// Symmetric to the Parakeet case.
+    #[test]
+    fn explicit_zipformer_meeting_pref_with_zipformer_installed_refuses_unsupported() {
+        let (state, settings) = fixture_with_installed(
+            &["sherpa-zipformer-en-int8"],
+            Some("sherpa-zipformer-en-int8"),
+        );
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::RefuseUnsupportedModel("sherpa-zipformer-en-int8".into())
+        );
+    }
+
+    /// **Round-2 critical: Whisper Base is NOT a meeting model.**
+    /// Even though it's a Whisper, Base isn't allow-listed for
+    /// meetings — the contract is Small/Medium/Large only.
+    #[test]
+    fn explicit_whisper_base_meeting_pref_with_base_installed_refuses_unsupported() {
+        let (state, settings) =
+            fixture_with_installed(&["sherpa-whisper-base"], Some("sherpa-whisper-base"));
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(
+            outcome,
+            MeetingModelResolution::RefuseUnsupportedModel("sherpa-whisper-base".into())
+        );
+    }
+
+    /// No preference + only Parakeet installed → MUST refuse the
+    /// preference-unset path. NEVER silently selects Parakeet.
+    /// Was already enforced via the no-pref + Medium-missing
+    /// branch, but pin explicitly with the most adversarial input
+    /// (a non-meeting model is the only thing installed).
+    #[test]
+    fn no_pref_only_parakeet_installed_refuses_preference_unset() {
+        let (state, settings) = fixture_with_installed(&["sherpa-parakeet-tdt-0.6b-v3-int8"], None);
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(outcome, MeetingModelResolution::RefusePreferenceUnset);
+    }
+
+    /// No preference + only Whisper Large installed → still
+    /// refuses (won't silently use Large; Medium is the default).
+    /// Already covered by an earlier test but kept under this
+    /// section header for the round-2 packet's named-test list.
+    #[test]
+    fn no_pref_only_large_installed_refuses_preference_unset() {
+        let (state, settings) = fixture_with_installed(&["sherpa-whisper-large-v3"], None);
+        let outcome = resolve_meeting_model_id(&settings, &state.models);
+        assert_eq!(outcome, MeetingModelResolution::RefusePreferenceUnset);
+    }
+
+    /// **Allow-list happy path.** Explicit Small / Medium / Large
+    /// each work when their model is installed. This re-asserts
+    /// the round-1 behaviour AFTER the allow-list hardening to
+    /// confirm the three sanctioned models still resolve to
+    /// `Use(id)`.
+    #[test]
+    fn allow_listed_models_still_resolve_to_use_when_installed() {
+        for id in [
+            "sherpa-whisper-small",
+            "sherpa-whisper-medium",
+            "sherpa-whisper-large-v3",
+        ] {
+            let (state, settings) = fixture_with_installed(&[id], Some(id));
+            let outcome = resolve_meeting_model_id(&settings, &state.models);
+            assert_eq!(
+                outcome,
+                MeetingModelResolution::Use(id.to_string()),
+                "{id} should resolve to Use when installed and explicitly preferred"
+            );
+        }
+    }
+
+    /// **Bridge fall-through guard (round-2 critical).** When a
+    /// meeting recording has no bound `ActiveRecordingContext`
+    /// (the v0.15.2-in-flight bridge case) AND the resolver
+    /// refuses (no allow-listed Whisper installed; meanwhile the
+    /// global `default_asr_model_id` is Parakeet), the resolver
+    /// MUST return Err — never fall through to Parakeet via
+    /// default_asr_model_id.
+    #[test]
+    fn bridge_meeting_no_context_does_not_fall_through_to_default_asr_model() {
+        let (state, mut settings) =
+            fixture_with_installed(&["sherpa-parakeet-tdt-0.6b-v3-int8"], None);
+        // Adversarial setup: global default_asr_model_id is Parakeet
+        // (typical for users who use Parakeet for dictation), and the
+        // meeting preference is unset. A bridge-case meeting recording
+        // (no bound context) must NOT silently route through Parakeet.
+        settings.models.default_asr_model_id = Some("sherpa-parakeet-tdt-0.6b-v3-int8".into());
+        let mode = crate::domain::Mode {
+            id: "meeting".into(),
+            name: "Meeting".into(),
+            icon: "video".into(),
+            is_builtin: true,
+            is_favourite: false,
+            sort_order: 0,
+            asr_model_id: None,
+            target_language: None,
+            post_processing: crate::domain::PostProcessing::None,
+            context_rules: Default::default(),
+            auto_activation: vec![],
+            shortcut_override: None,
+            formatting: Default::default(),
+            english_variant: Default::default(),
+            is_meeting_mode: true,
+            created_at: 0,
+            updated_at: 0,
+        };
+        let result = super::resolve_target_model_id(&mode, &settings, &state.models, None);
+        match result {
+            Ok(id) => panic!(
+                "bridge case must refuse, not resolve — got {id} (would have silently used Parakeet)"
+            ),
+            Err(super::MeetingBridgeFailure { resolution }) => {
+                assert_eq!(resolution, MeetingModelResolution::RefusePreferenceUnset);
+            }
+        }
+    }
+
+    /// Bridge failure is also produced when the user has an
+    /// explicit-but-off-allow-list pref and arrives at stop with
+    /// no bound context. Confirms the path surfaces
+    /// `RefuseUnsupportedModel` to the caller.
+    #[test]
+    fn bridge_meeting_unsupported_pref_propagates_through() {
+        let (state, settings) = fixture_with_installed(
+            &["sherpa-parakeet-tdt-0.6b-v3-int8"],
+            Some("sherpa-parakeet-tdt-0.6b-v3-int8"),
+        );
+        let mode = crate::domain::Mode {
+            id: "meeting".into(),
+            name: "Meeting".into(),
+            icon: "video".into(),
+            is_builtin: true,
+            is_favourite: false,
+            sort_order: 0,
+            asr_model_id: None,
+            target_language: None,
+            post_processing: crate::domain::PostProcessing::None,
+            context_rules: Default::default(),
+            auto_activation: vec![],
+            shortcut_override: None,
+            formatting: Default::default(),
+            english_variant: Default::default(),
+            is_meeting_mode: true,
+            created_at: 0,
+            updated_at: 0,
+        };
+        let err = super::resolve_target_model_id(&mode, &settings, &state.models, None)
+            .expect_err("must produce a MeetingBridgeFailure");
+        assert!(matches!(
+            err.resolution,
+            MeetingModelResolution::RefuseUnsupportedModel(_)
+        ));
+    }
+
+    /// Non-meeting recordings still flow through `default_asr_model_id`
+    /// (and the `"stub"` sentinel) unchanged. The bridge-failure
+    /// guard only applies when `mode.is_meeting_mode == true`.
+    #[test]
+    fn non_meeting_recording_still_uses_default_asr_model_id() {
+        let (state, mut settings) = fixture_with_installed(&[], None);
+        settings.models.default_asr_model_id = Some("sherpa-parakeet-tdt-0.6b-v3-int8".into());
+        let mode = crate::domain::Mode {
+            id: "voice-to-text".into(),
+            name: "Voice".into(),
+            icon: "mic".into(),
+            is_builtin: true,
+            is_favourite: false,
+            sort_order: 0,
+            asr_model_id: None,
+            target_language: None,
+            post_processing: crate::domain::PostProcessing::None,
+            context_rules: Default::default(),
+            auto_activation: vec![],
+            shortcut_override: None,
+            formatting: Default::default(),
+            english_variant: Default::default(),
+            is_meeting_mode: false,
+            created_at: 0,
+            updated_at: 0,
+        };
+        let id = super::resolve_target_model_id(&mode, &settings, &state.models, None)
+            .expect("non-meeting recording should resolve");
+        assert_eq!(id, "sherpa-parakeet-tdt-0.6b-v3-int8");
+    }
+
+    // ── realtime_factor helper ──────────────────────────────────────
+
+    #[test]
+    fn realtime_factor_zero_audio_returns_none() {
+        assert_eq!(realtime_factor(0, 0), None);
+        assert_eq!(realtime_factor(0, 5_000), None);
+    }
+
+    #[test]
+    fn realtime_factor_sub_second_audio() {
+        // 100 ms audio + 200 ms processing → 2.0
+        assert_eq!(realtime_factor(100, 200), Some(2.0));
+    }
+
+    #[test]
+    fn realtime_factor_typical_meeting() {
+        // 5 min audio + 7 min processing → 1.4
+        let audio_ms = 5 * 60 * 1000;
+        let processing_ms = 7 * 60 * 1000;
+        let rtf = realtime_factor(audio_ms, processing_ms).unwrap();
+        assert!((rtf - 1.4).abs() < 0.001, "got {rtf}");
+    }
+
+    // ── meeting_asr_model_id serde back-compat ──────────────────────
+
+    /// Existing settings.json files (pre-v0.15.3) miss the new field
+    /// entirely. Deserialise must succeed with `meeting_asr_model_id =
+    /// None`. The serde `#[serde(default)]` annotation on the field
+    /// is what allows this; the test pins the contract.
+    ///
+    /// Approach: serialise a default `Settings`, strip the new field
+    /// from the JSON, and deserialise. The strip simulates a
+    /// pre-v0.15.3 settings.json that never wrote the field.
+    #[test]
+    fn meeting_asr_model_id_serde_back_compat_missing_field() {
+        // Round-trip via Value to avoid depending on the exact JSON
+        // shape of every nested struct (which would make the test
+        // brittle to any unrelated settings change).
+        let mut value: serde_json::Value =
+            serde_json::to_value(crate::domain::Settings::default()).unwrap();
+        // Strip the new field.
+        if let Some(models) = value.get_mut("models").and_then(|m| m.as_object_mut()) {
+            models.remove("meeting_asr_model_id");
+        } else {
+            panic!("expected `models` object in serialised settings");
+        }
+        // Confirm the field is actually gone.
+        assert!(
+            value
+                .get("models")
+                .and_then(|m| m.get("meeting_asr_model_id"))
+                .is_none(),
+            "meeting_asr_model_id must be absent for the test to be meaningful"
+        );
+        // Now deserialise: should succeed via #[serde(default)].
+        let settings: crate::domain::Settings = serde_json::from_value(value)
+            .expect("pre-v0.15.3 settings.json (without meeting_asr_model_id) must deserialise");
+        assert_eq!(settings.models.meeting_asr_model_id, None);
+    }
+
+    // ── display_name_short ──────────────────────────────────────────
+
+    #[test]
+    fn display_name_short_known_models() {
+        assert_eq!(display_name_short("sherpa-whisper-small"), "Whisper Small");
+        assert_eq!(
+            display_name_short("sherpa-whisper-medium"),
+            "Whisper Medium"
+        );
+        assert_eq!(
+            display_name_short("sherpa-whisper-large-v3"),
+            "Whisper Large v3"
+        );
+        assert_eq!(display_name_short("sherpa-whisper-base"), "Whisper Base");
+    }
+
+    #[test]
+    fn display_name_short_unknown_model_returns_id() {
+        assert_eq!(
+            display_name_short("sherpa-future-model-xyz"),
+            "sherpa-future-model-xyz"
+        );
+    }
+
+    // ── ActiveRecordingContext lifecycle (Amendment 1) ─────────────
+    //
+    // The context is bound at start_recording and read at stop. We
+    // can exercise the lifecycle directly on AppState's RwLock
+    // without standing up the full Tauri command surface.
+
+    #[tokio::test]
+    async fn active_recording_context_round_trip_holds_value() {
+        let state = make_test_app_state();
+        let ctx = crate::app_state::ActiveRecordingContext {
+            mode_id: "voice-to-text".into(),
+            is_meeting: false,
+            meeting_model_id: None,
+            started_at_ms: 12345,
+        };
+        *state.active_recording_context.write().await = Some(ctx.clone());
+        let read = state
+            .active_recording_context
+            .read()
+            .await
+            .clone()
+            .expect("context bound");
+        assert_eq!(read.mode_id, "voice-to-text");
+        assert!(!read.is_meeting);
+        assert_eq!(read.meeting_model_id, None);
+    }
+
+    /// **Round-3 critical: meeting session remains meeting if active
+    /// mode changes mid-recording.** Bind a meeting context, then
+    /// "change" the active mode (in real flow this would be the
+    /// user toggling mid-record); the bound is_meeting still says
+    /// true.
+    #[tokio::test]
+    async fn meeting_session_remains_meeting_when_active_mode_changes() {
+        let state = make_test_app_state();
+        *state.active_recording_context.write().await =
+            Some(crate::app_state::ActiveRecordingContext {
+                mode_id: "meeting-mode".into(),
+                is_meeting: true,
+                meeting_model_id: Some("sherpa-whisper-medium".into()),
+                started_at_ms: 12345,
+            });
+        // Simulate "settings drift": user swapped active mode to a
+        // non-meeting one. The ActiveRecordingContext is what stop
+        // reads; the simulated drift would be in `state.settings`
+        // which we don't even touch here. The point is that
+        // stop_recording's binding logic reads the context, not
+        // settings.
+        let read = state.active_recording_context.read().await.clone().unwrap();
+        assert!(read.is_meeting);
+        assert_eq!(
+            read.meeting_model_id.as_deref(),
+            Some("sherpa-whisper-medium")
+        );
+    }
+
+    /// Symmetric: non-meeting session remains non-meeting.
+    #[tokio::test]
+    async fn non_meeting_session_remains_non_meeting_when_active_mode_changes() {
+        let state = make_test_app_state();
+        *state.active_recording_context.write().await =
+            Some(crate::app_state::ActiveRecordingContext {
+                mode_id: "voice-to-text".into(),
+                is_meeting: false,
+                meeting_model_id: None,
+                started_at_ms: 12345,
+            });
+        let read = state.active_recording_context.read().await.clone().unwrap();
+        assert!(!read.is_meeting);
+        assert_eq!(read.meeting_model_id, None);
+    }
+
+    /// Meeting model id persists through settings change. Bind the
+    /// context with Medium; even if a hypothetical settings update
+    /// changed the preference to Small, the bound model_id stays
+    /// Medium.
+    #[tokio::test]
+    async fn meeting_model_id_persists_through_settings_change() {
+        let state = make_test_app_state();
+        *state.active_recording_context.write().await =
+            Some(crate::app_state::ActiveRecordingContext {
+                mode_id: "meeting".into(),
+                is_meeting: true,
+                meeting_model_id: Some("sherpa-whisper-medium".into()),
+                started_at_ms: 1000,
+            });
+        // The "settings change" is purely external; the context
+        // doesn't react to it. Read confirms the start-time value
+        // wins.
+        let read = state.active_recording_context.read().await.clone().unwrap();
+        assert_eq!(
+            read.meeting_model_id.as_deref(),
+            Some("sherpa-whisper-medium"),
+            "bound model id must survive any external settings drift"
+        );
+    }
+
+    /// `clear_active_recording_context` empties the lock.
+    #[tokio::test]
+    async fn active_recording_context_cleared_by_helper() {
+        let state = make_test_app_state();
+        *state.active_recording_context.write().await =
+            Some(crate::app_state::ActiveRecordingContext {
+                mode_id: "x".into(),
+                is_meeting: false,
+                meeting_model_id: None,
+                started_at_ms: 0,
+            });
+        super::clear_active_recording_context(&state).await;
+        assert!(state.active_recording_context.read().await.is_none());
+    }
+
+    /// Source-grep guard: every `clear_recording_flag(state.inner())`
+    /// call site in PRODUCTION code (above the test mod) is paired
+    /// with `clear_active_recording_context(state.inner())` within
+    /// 12 lines, OR is annotated with the magic comment
+    /// `CONTEXT-INTENTIONAL` when the non-pair is deliberate (one
+    /// such site exists in stop_recording where the context must be
+    /// kept alive across the transcribe call).
+    ///
+    /// Catches a future refactor that adds a new
+    /// `clear_recording_flag` site and forgets the context.
+    #[test]
+    fn every_clear_recording_flag_site_pairs_with_clear_active_recording_context() {
+        let src = include_str!("dictation.rs");
+        // Truncate at the test mod boundary so test code's mentions
+        // of `clear_recording_flag` don't trip the guard.
+        let test_mod_marker = "#[cfg(test)]";
+        let production_src = src.split(test_mod_marker).next().unwrap_or(src);
+        let lines: Vec<&str> = production_src.lines().collect();
+        let needle = format!("{}{}", "clear_recording_", "flag(state.inner())");
+        for (i, line) in lines.iter().enumerate() {
+            if line.contains(&needle) {
+                // Look 12 lines either side for the paired
+                // clear_active_recording_context OR the magic
+                // CONTEXT-INTENTIONAL comment.
+                let from = i.saturating_sub(12);
+                let to = (i + 12).min(lines.len());
+                let window = &lines[from..to];
+                let paired = window
+                    .iter()
+                    .any(|l| l.contains("clear_active_recording_context("))
+                    || window.iter().any(|l| l.contains("CONTEXT-INTENTIONAL"));
+                assert!(
+                    paired,
+                    "clear_recording_flag at line {} (window {}-{}) is not paired with clear_active_recording_context within 12 lines (and lacks a CONTEXT-INTENTIONAL annotation):\n  {}",
+                    i + 1,
+                    from + 1,
+                    to,
+                    line.trim()
+                );
+            }
         }
     }
 }

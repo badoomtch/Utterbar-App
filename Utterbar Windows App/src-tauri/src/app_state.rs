@@ -157,7 +157,59 @@ pub struct AppState {
     /// Cleared by its own RAII guard — drop runs on success, error,
     /// and panic alike.
     pub meeting_preflight_in_progress: AtomicBool,
+    /// Active-recording session context (v0.15.3+). Bound at
+    /// `start_recording` time, read by `stop_recording` and
+    /// `cancel_recording`, cleared on every recording-end path. The
+    /// purpose is to make the recording session immune to settings
+    /// drift mid-recording: a recording started as Meeting stops as
+    /// Meeting, the meeting model used at stop is the one approved
+    /// at start, and a recording started as non-Meeting stops as
+    /// non-Meeting. See `commands::dictation::ActiveRecordingContext`
+    /// for the per-field contract; field is `pub(crate)` because the
+    /// dictation module needs to read/write it but no other code
+    /// should touch it.
+    pub(crate) active_recording_context: RwLock<Option<ActiveRecordingContext>>,
     handle: RwLock<Option<AppHandle>>,
+}
+
+/// Snapshot of the recording session at start time. Held in
+/// `AppState::active_recording_context` for the lifetime of the
+/// recording (start → stop or cancel). Defined here rather than in
+/// `commands::dictation` so the field type on `AppState` doesn't
+/// need to leak a private struct from another module.
+///
+/// Fields are minimal by design — only the values that meaningfully
+/// affect the stop-side behaviour are bound. Other Mode fields
+/// (target_language, target_app, formatting rules, etc.) are read
+/// fresh from `state.modes.get(&mode_id)` at stop-time because they
+/// don't change semantics mid-recording the way `is_meeting` and
+/// the meeting model id do.
+#[derive(Debug, Clone)]
+pub(crate) struct ActiveRecordingContext {
+    /// Mode id that was active when `start_recording`'s preflight
+    /// passed. Used at stop time to look up the same Mode row in
+    /// `state.modes` and to populate `history.mode_id`. Pinning this
+    /// means a user who swaps their active mode mid-recording still
+    /// gets the recording attributed to the mode that originally
+    /// armed it.
+    pub mode_id: String,
+    /// Whether the start-time mode was a meeting mode. Pinned so
+    /// the recording's character (Meeting vs non-Meeting) cannot
+    /// change after capture begins. Drives stop-side routing
+    /// (chunked transcribe vs single-pass), `history.is_meeting`,
+    /// post-processing skip, and text-inject skip.
+    pub is_meeting: bool,
+    /// The meeting model id resolved at start time. `None` for
+    /// non-meeting starts. Used verbatim by stop_recording — no
+    /// re-resolve, no settings re-snapshot. If the user changes
+    /// `meeting_asr_model_id` mid-recording the in-flight session
+    /// keeps the start-time choice; the new pick takes effect on
+    /// the NEXT recording.
+    pub meeting_model_id: Option<String>,
+    /// `now_ms()` at the moment the context was claimed.
+    /// Diagnostic only — surfaces in logs to correlate
+    /// start/stop pairs.
+    pub started_at_ms: i64,
 }
 
 impl AppState {
@@ -330,6 +382,7 @@ impl AppState {
             transcribe_started_at_ms: std::sync::atomic::AtomicI64::new(0),
             start_recording_pending: AtomicBool::new(false),
             meeting_preflight_in_progress: AtomicBool::new(false),
+            active_recording_context: RwLock::new(None),
             handle: RwLock::new(None),
         })
     }
