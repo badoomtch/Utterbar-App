@@ -32,20 +32,33 @@ type GpuProbe = {
   has_hardware_gpu: boolean;
 };
 
+/**
+ * v0.15.5 (Phase A) — what execution providers the SHIPPING ONNX Runtime
+ * in this build can serve. Distinct from `GpuProbe` (which describes
+ * the hardware). Today's vendored runtime ships CPU-only — both these
+ * are `false`. v0.15.6 (Phase B) flips them when DirectML actually
+ * lands. The UI uses this to avoid claiming GPU acceleration is
+ * active when it isn't.
+ */
+type RuntimeCapabilities = {
+  has_dml_ep: boolean;
+  has_cuda_ep: boolean;
+};
+
 type GpuAcceleration = 'auto' | 'direct_ml' | 'cuda' | 'cpu';
 
 const GPU_LABELS: Record<GpuAcceleration, { title: string; hint: string }> = {
   auto: {
     title: 'Auto',
-    hint: 'Use your GPU if one is detected, otherwise CPU. Recommended.',
+    hint: 'Use your GPU if one is detected and the runtime supports it, otherwise CPU. Recommended.',
   },
   direct_ml: {
     title: 'DirectML',
-    hint: 'Force DirectML. Runs on any DX12 GPU, NVIDIA, AMD, or Intel.',
+    hint: 'Prefer DirectML when the build includes it. Runs on any DX12 GPU.',
   },
   cuda: {
     title: 'CUDA',
-    hint: 'Force NVIDIA CUDA. Fastest on NVIDIA cards.',
+    hint: 'Prefer NVIDIA CUDA when the build includes it. Fastest on NVIDIA cards.',
   },
   cpu: {
     title: 'CPU only',
@@ -80,6 +93,10 @@ export function AdvancedSettings() {
   const patch = useSettings((x) => x.patch);
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [gpu, setGpu] = useState<GpuProbe | null>(null);
+  // v0.15.5: shipping-runtime EP capability. Drives the "currently
+  // inactive" notice on DML/CUDA rows when the loaded ORT can't
+  // serve the requested provider.
+  const [runtimeCaps, setRuntimeCaps] = useState<RuntimeCapabilities | null>(null);
 
   // Backup / restore state. We keep it local (not persisted), the "last
   // export" hint is a session courtesy, not a durable record, and resetting
@@ -94,6 +111,9 @@ export function AdvancedSettings() {
   useEffect(() => {
     void invoke<Diagnostics>('get_diagnostics').then(setDiag).catch(() => undefined);
     void invoke<GpuProbe>('probe_gpu').then(setGpu).catch(() => undefined);
+    void invoke<RuntimeCapabilities>('runtime_capabilities')
+      .then(setRuntimeCaps)
+      .catch(() => undefined);
   }, []);
 
   if (!s) return null;
@@ -157,6 +177,25 @@ export function AdvancedSettings() {
 
   const current = (s.advanced as { gpu_acceleration?: GpuAcceleration }).gpu_acceleration ?? 'auto';
   const bestAdapter = gpu?.adapters.find((a) => !a.is_software);
+  // v0.15.5: a single source of truth for "this build can actually
+  // run inference on a GPU". Both flags `false` against today's
+  // shipping runtime — see services/gpu.rs::runtime_capabilities.
+  // The card description and per-row notices key off this so the
+  // UI never claims GPU is active when the runtime can't deliver.
+  const runtimeHasAnyGpuEp = !!runtimeCaps?.has_dml_ep || !!runtimeCaps?.has_cuda_ep;
+  const cardDescription = (() => {
+    if (!gpu || !runtimeCaps) return 'Checking what hardware is available…';
+    // Shipping runtime is CPU-only — be explicit about it.
+    if (!runtimeHasAnyGpuEp) {
+      return 'This build runs on CPU only. DirectML and CUDA appear here so your preference is preserved for a future release that ships GPU support, but they have no effect today.';
+    }
+    // Phase B path: runtime supports a GPU EP. Reuse the original
+    // hardware-driven copy.
+    if (gpu.has_hardware_gpu && bestAdapter) {
+      return `Detected ${bestAdapter.name}. Running inference on the GPU is typically 3–10× faster than CPU, at the cost of briefly competing with other GPU apps (games, 3D tools, heavy browser pages).`;
+    }
+    return 'No dedicated or integrated GPU detected. Utterbar will run on CPU. This is fine for short dictation but longer recordings will feel sluggish.';
+  })();
 
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
@@ -164,19 +203,28 @@ export function AdvancedSettings() {
       <div className="mt-6 space-y-4">
         <Card
           title="GPU acceleration"
-          description={
-            gpu
-              ? gpu.has_hardware_gpu && bestAdapter
-                ? `Detected ${bestAdapter.name}. Running inference on the GPU is typically 3–10× faster than CPU, at the cost of briefly competing with other GPU apps (games, 3D tools, heavy browser pages).`
-                : 'No dedicated or integrated GPU detected. Utterbar will run on CPU. This is fine for short dictation but longer recordings will feel sluggish.'
-              : 'Checking what hardware is available…'
-          }
+          description={cardDescription}
         >
           <div className="space-y-2">
             {(['auto', 'direct_ml', 'cuda', 'cpu'] as GpuAcceleration[]).map((opt) => {
+              // v0.15.5: rows are no longer disabled when the runtime
+              // lacks the EP — the user's preference is preserved for
+              // when v0.15.6 (Phase B) actually ships DirectML. Disable
+              // is reserved for the genuine "no hardware GPU" case so
+              // a non-GPU machine doesn't show a tickable DML/CUDA row
+              // that can never make sense.
               const disabled =
                 !gpu?.has_hardware_gpu && (opt === 'direct_ml' || opt === 'cuda');
               const selected = current === opt;
+              // The "currently inactive" notice fires when the user
+              // has selected DML/CUDA but the loaded runtime can't
+              // serve it. Spec wording: "Selected, but currently
+              // inactive — this build does not include that execution
+              // provider. Transcribes are running on CPU."
+              const epUnavailable =
+                (opt === 'direct_ml' && runtimeCaps && !runtimeCaps.has_dml_ep) ||
+                (opt === 'cuda' && runtimeCaps && !runtimeCaps.has_cuda_ep);
+              const showInactiveNotice = selected && !!epUnavailable;
               return (
                 <label
                   key={opt}
@@ -205,6 +253,12 @@ export function AdvancedSettings() {
                       {GPU_LABELS[opt].hint}
                       {disabled && ', not available on this machine.'}
                     </span>
+                    {showInactiveNotice && (
+                      <span className="mt-1.5 block rounded-input bg-bg-2/60 px-2 py-1 text-[11px] text-muted">
+                        Selected, but currently inactive — this build does not include
+                        that execution provider. Transcribes are running on CPU.
+                      </span>
+                    )}
                   </span>
                 </label>
               );

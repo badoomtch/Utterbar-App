@@ -4,7 +4,7 @@
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::services::gpu::{self, GpuProbe};
+use crate::services::gpu::{self, GpuProbe, RuntimeCapabilities};
 use crate::util::paths;
 use crate::util::result::{CmdResult, OrliqError};
 
@@ -48,6 +48,16 @@ pub async fn get_diagnostics() -> CmdResult<Diagnostics> {
 #[tauri::command]
 pub async fn probe_gpu() -> CmdResult<GpuProbe> {
     Ok(gpu::probe())
+}
+
+/// What execution providers the SHIPPED ONNX Runtime in this build
+/// can actually serve. Distinct from `probe_gpu` (which describes the
+/// hardware), this answers "if I asked the loaded ORT for the DML EP,
+/// would it succeed?". v0.15.5 uses this to decide whether the
+/// Advanced settings UI should claim GPU acceleration is active.
+#[tauri::command]
+pub async fn runtime_capabilities() -> CmdResult<RuntimeCapabilities> {
+    Ok(gpu::runtime_capabilities())
 }
 
 /// Open a directory or file in the OS's native file explorer.
