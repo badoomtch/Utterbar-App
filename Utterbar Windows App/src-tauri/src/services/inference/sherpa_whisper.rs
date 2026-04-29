@@ -404,3 +404,185 @@ fn first_with_suffix(dir: &Path, suffix: &str) -> Result<PathBuf> {
     }
     Err(anyhow!("no *{suffix} file in {}", dir.display()))
 }
+
+#[cfg(test)]
+mod step0 {
+    //! Step 0 benchmark harness for the v0.15.4 Whisper-Small-as-default
+    //! decision. Loads the production `SherpaWhisper` engine against a
+    //! real WAV on disk and emits the same shape as the production
+    //! `meeting transcribe complete` log line so the numbers are
+    //! directly comparable to the v0.15.3 Medium baseline.
+    //!
+    //! Both tests are `#[ignore]` — they require a real model bundle
+    //! at `%APPDATA%/Utterbar/models/sherpa-whisper-small` and a WAV
+    //! at the path given by `UTTERBAR_STEP0_WAV`. Run manually:
+    //!
+    //!   $env:UTTERBAR_STEP0_WAV="C:\Users\jaypa\AppData\Roaming\Utterbar\recordings\01KQBPA10SN2GZ8RFGF5NK1Y91.wav"
+    //!   cargo test --release -p utterbar -- --ignored step0_small_verification --nocapture
+    //!
+    //! Release mode is required — the benchmark is meaningless on a
+    //! debug build (5-10× slower).
+    use super::*;
+    use crate::services::inference::provider::AudioBuffer;
+    use std::time::Instant;
+
+    fn model_dir() -> PathBuf {
+        let appdata = std::env::var("APPDATA").expect("APPDATA env var");
+        PathBuf::from(appdata)
+            .join("Utterbar")
+            .join("models")
+            .join("sherpa-whisper-small")
+    }
+
+    fn wav_path() -> PathBuf {
+        PathBuf::from(std::env::var("UTTERBAR_STEP0_WAV").expect("UTTERBAR_STEP0_WAV env var"))
+    }
+
+    /// Read a 16 kHz mono i16 WAV into the `AudioBuffer` shape the
+    /// production transcribe path expects. Mirrors the recorder's
+    /// own format so the test exercises the real path.
+    fn read_wav(path: &Path) -> AudioBuffer {
+        let mut reader = hound::WavReader::open(path)
+            .unwrap_or_else(|e| panic!("open wav {}: {e}", path.display()));
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, 16_000, "Step 0 wav must be 16 kHz");
+        assert_eq!(spec.channels, 1, "Step 0 wav must be mono");
+        assert_eq!(spec.bits_per_sample, 16, "Step 0 wav must be 16-bit");
+        let pcm: Vec<i16> = reader
+            .samples::<i16>()
+            .map(|s| s.expect("read sample"))
+            .collect();
+        AudioBuffer {
+            pcm,
+            sample_rate: spec.sample_rate,
+            channels: spec.channels,
+        }
+    }
+
+    /// Mirrors `CHUNKED_MEETING_CHUNK_SECS` / `_OVERLAP_SECS` in
+    /// dictation.rs. The harness duplicates the chunking arithmetic
+    /// here rather than calling into the orchestrator because building
+    /// an `AppState` from a test requires the full app boot. If the
+    /// production constants change, update these too.
+    const HARNESS_CHUNK_SECS: usize = 29;
+    const HARNESS_OVERLAP_SECS: usize = 2;
+
+    async fn run_step0(label: &str) {
+        let model_dir = model_dir();
+        assert!(
+            model_dir.is_dir(),
+            "Step 0 needs Whisper Small installed at {}",
+            model_dir.display()
+        );
+        let wav = wav_path();
+        let audio = read_wav(&wav);
+        let audio_ms = (audio.pcm.len() as u64 * 1000 / audio.sample_rate.max(1) as u64) as u32;
+        let sample_rate = audio.sample_rate;
+        let pcm = audio.pcm;
+        let engine = SherpaWhisper::new(
+            "sherpa-whisper-small".to_string(),
+            model_dir,
+            "en".to_string(), // English-pinned to match meeting-mode default
+            "cpu".to_string(),
+        );
+
+        let warm_start = Instant::now();
+        engine.warm().await.expect("whisper warm");
+        let warm_ms = warm_start.elapsed().as_millis();
+
+        // Slice PCM into 29 s windows with 2 s overlap, mirroring
+        // `transcribe_chunked` in dictation.rs. Each chunk goes through
+        // the same `engine.transcribe` call the production path uses,
+        // so the cumulative processing time is directly comparable to
+        // the v0.15.3 chunked-path RTF baseline (0.87 on Medium).
+        let chunk_samples = HARNESS_CHUNK_SECS * sample_rate as usize;
+        let overlap_samples = HARNESS_OVERLAP_SECS * sample_rate as usize;
+        let stride = chunk_samples.saturating_sub(overlap_samples);
+        let total = pcm.len();
+
+        let transcribe_start = Instant::now();
+        let mut all_text = String::new();
+        let mut chunk_count: u32 = 0;
+        if total <= chunk_samples {
+            // Single-chunk fast path — matches the same branch in
+            // transcribe_chunked.
+            let buf = AudioBuffer {
+                pcm: pcm.clone(),
+                sample_rate,
+                channels: 1,
+            };
+            let r = engine
+                .transcribe(buf, AsrOptions::default())
+                .await
+                .expect("whisper transcribe");
+            all_text.push_str(&r.text);
+            chunk_count = 1;
+        } else {
+            let mut start = 0usize;
+            while start < total {
+                let end = (start + chunk_samples).min(total);
+                let slice = pcm[start..end].to_vec();
+                let buf = AudioBuffer {
+                    pcm: slice,
+                    sample_rate,
+                    channels: 1,
+                };
+                let r = engine
+                    .transcribe(buf, AsrOptions::default())
+                    .await
+                    .expect("whisper transcribe chunk");
+                if !all_text.is_empty() && !r.text.is_empty() {
+                    all_text.push(' ');
+                }
+                all_text.push_str(&r.text);
+                chunk_count += 1;
+                if end == total {
+                    break;
+                }
+                start += stride;
+            }
+        }
+        let processing_ms = transcribe_start.elapsed().as_millis() as u64;
+
+        let rtf = if audio_ms == 0 {
+            0.0
+        } else {
+            processing_ms as f32 / audio_ms as f32
+        };
+
+        // Same field set as the production `meeting transcribe complete`
+        // log line in dictation.rs:2383 so a tail|grep diff is direct.
+        eprintln!(
+            "STEP0 {label}: audio_duration_ms={audio_ms} \
+             total_processing_ms={processing_ms} \
+             realtime_factor={rtf:.3} \
+             selected_model_id=sherpa-whisper-small \
+             chunk_count={chunk_count} \
+             whisper_language=en \
+             warm_ms={warm_ms} \
+             chars={}",
+            all_text.len()
+        );
+        eprintln!(
+            "STEP0 {label} TEXT START >>>\n{}\n<<< STEP0 {label} TEXT END",
+            all_text
+        );
+    }
+
+    /// Apples-to-apples vs the v0.15.3 Medium real-meeting baseline
+    /// (116.6s audio → 101.6s processing → RTF 0.87). Same WAV, same
+    /// language pin, same code path — only the model id changes.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore]
+    async fn step0_small_verification() {
+        run_step0("116s").await;
+    }
+
+    /// 5-minute meeting test for the v0.15.4 release-notes headline
+    /// number. Run with UTTERBAR_STEP0_WAV pointed at a ~5 min WAV.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore]
+    async fn step0_small_5min() {
+        run_step0("5min").await;
+    }
+}

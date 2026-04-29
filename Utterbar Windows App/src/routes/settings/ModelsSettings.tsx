@@ -189,10 +189,13 @@ export function ModelsSettings() {
       models: { ...(settings.models as Record<string, unknown>), meeting_asr_model_id: id },
     });
   };
-  // The three meeting-mode picker options + their catalogue ids. Order
-  // is "Fast → Balanced (recommended) → Best accuracy" so the
-  // recommended default sits in the middle, matching how the user
-  // would naturally read the trade-off ladder.
+  // The three meeting-mode picker options + their catalogue ids.
+  // Order is "Fast (recommended) → Balanced → Best accuracy" — the
+  // recommended option sits at the top, matching how the user
+  // reads the trade-off ladder. v0.15.3 had the Recommended chip
+  // on Balanced (Medium); v0.15.4 moves it to Fast (Small) because
+  // Step 0 measurements showed Medium was too slow on laptop CPUs
+  // to be a sane no-preference default.
   const meetingPickerOptions: Array<{
     id: string;
     label: string;
@@ -201,12 +204,14 @@ export function ModelsSettings() {
     {
       id: 'sherpa-whisper-small',
       label: 'Fast — Whisper Small',
-      subtitle: 'Fastest. Acceptable for clear speech in a quiet room.',
+      subtitle:
+        'Fastest Meeting Mode option. Acceptable for clear speech; proper nouns and unusual words are weaker than Medium or Large.',
     },
     {
       id: 'sherpa-whisper-medium',
       label: 'Balanced — Whisper Medium',
-      subtitle: 'Recommended for most meetings.',
+      subtitle:
+        'Slower than Small with slightly higher quality, especially on proper nouns and unusual words.',
     },
     {
       id: 'sherpa-whisper-large-v3',
@@ -307,7 +312,12 @@ export function ModelsSettings() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 text-[13px] font-bold text-fg-hi">
                       {opt.label}
-                      {opt.id === 'sherpa-whisper-medium' && (
+                      {opt.id === 'sherpa-whisper-small' && (
+                        // v0.15.4: Recommended chip moved from
+                        // Medium to Small. Keep this in lockstep
+                        // with `recommended: true` in the
+                        // services/models.rs catalogue entry —
+                        // both surfaces describe the same default.
                         <span className="ub-chip ub-chip--live">
                           <span className="ub-led" aria-hidden />
                           Recommended

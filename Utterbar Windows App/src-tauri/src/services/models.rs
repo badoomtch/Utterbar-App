@@ -527,17 +527,19 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 6,
             requires_pro: false,
         },
-        // Whisper small — Pro tier. Bigger checkpoint than base.
-        // Multilingual; works for dictation in non-English languages,
-        // and from v0.15.3 also exposed in the Meeting Mode picker
-        // as the "Fast" choice — quickest meeting transcribes, lower
-        // accuracy than Medium / Large but acceptable for clear
-        // speech in a quiet room.
+        // Whisper small — Pro tier. Multilingual. From v0.15.4 the
+        // recommended Meeting Mode default: the fastest of the three
+        // allow-listed meeting models, with acceptable accuracy on
+        // clear speech. Step 0 measurements on Jay's machine showed
+        // it transcribes a real meeting comfortably faster than
+        // realtime — Medium took ~real-time on the same audio, and
+        // a no-preference user wants something that returns text
+        // before the next meeting starts.
         ModelInfo {
             id: "sherpa-whisper-small".into(),
             kind: ModelKind::Asr,
             display_name: "Whisper small (multilingual)".into(),
-            description: "Smaller, faster Whisper checkpoint. Picked as the Meeting Mode \"Fast\" option when you want the quickest transcribe and your audio is clear enough that the lower accuracy is acceptable.".into(),
+            description: "Fastest Meeting Mode option. Lower accuracy than Medium or Large v3 — proper nouns and unusual words are the weakest point — but acceptable for clear speech and the quickest of the three options.".into(),
             version: "small".into(),
             size_bytes: 639_387_718,
             backend: ModelBackend::Onnx,
@@ -551,16 +553,26 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
                 "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2"
                     .into(),
             ),
-            recommended: false,
+            // v0.15.4: recommended default for Meeting Mode. The
+            // picker's Recommended chip lights up on whichever
+            // meeting-allow-listed model has this flag set; v0.15.3
+            // had it on Medium.
+            recommended: true,
             accuracy_score: 9,
             speed_score: 4,
             requires_pro: true,
         },
-        // Whisper medium — Pro tier, recommended Meeting Mode default
-        // (v0.15.3+). Multilingual. The "balanced" point in the
-        // Meeting Mode picker — better accuracy than Small, faster
-        // than Large. Bundle ships fp32 + int8 variants in the same
-        // tarball; the resolver in services/inference/sherpa_whisper.rs
+        // Whisper medium — Pro tier. Multilingual. The "Balanced"
+        // explicit option in the Meeting Mode picker. v0.15.3 made
+        // Medium the default; v0.15.4 demoted it to "explicit
+        // choice" because Step 0 measurements showed it ran roughly
+        // real-time on Jay's machine — too slow to be a sane
+        // no-preference default on laptop-class CPUs. Still picked
+        // when the user wants slightly higher accuracy than Small
+        // and is willing to wait.
+        //
+        // Bundle ships fp32 + int8 variants in the same tarball;
+        // the resolver in services/inference/sherpa_whisper.rs
         // picks int8 at runtime, so the on-disk footprint is bigger
         // than the int8-only Large but the runtime memory load is
         // similar.
@@ -575,7 +587,7 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             id: "sherpa-whisper-medium".into(),
             kind: ModelKind::Asr,
             display_name: "Whisper medium (multilingual, balanced)".into(),
-            description: "Balanced choice for Meeting Mode — recommended unless you have a specific reason to choose Small (faster) or Large v3 (more accurate). Multilingual; pin Whisper language to your meeting language for best results on quiet or music-heavy audio.".into(),
+            description: "Balanced Meeting Mode option. Slower than Small with slightly higher quality, especially on proper nouns and unusual words. Multilingual; pin Whisper language to your meeting language for best results on quiet or music-heavy audio.".into(),
             version: "medium".into(),
             size_bytes: 1_931_372_882,
             backend: ModelBackend::Onnx,
@@ -588,12 +600,9 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
                 "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2"
                     .into(),
             ),
-            // Recommended for Meeting Mode (the picker uses this
-            // chip to mark its default option). Parakeet TDT v3
-            // remains the recommended dictation default; both can
-            // be `recommended: true` because the picker UI groups
-            // by engine.
-            recommended: true,
+            // v0.15.4: NOT recommended — Small is the new Meeting
+            // Mode default. v0.15.3 had this `true`.
+            recommended: false,
             accuracy_score: 9,
             speed_score: 5,
             requires_pro: true,
@@ -601,10 +610,11 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
         // Whisper large v3 — Pro tier, the highest-accuracy Meeting
         // Mode option. Multilingual. Picked when the audio is very
         // noisy / multi-speaker / heavily accented and the user is
-        // willing to wait for a slower transcribe. v0.15.3 stops
-        // auto-routing meetings here — the meeting model is now an
-        // explicit user choice in Settings → Models, and Medium is
-        // the default if no choice has been made.
+        // willing to wait for a slower transcribe. v0.15.3 stopped
+        // auto-routing meetings here — the meeting model is an
+        // explicit user choice in Settings → Models. v0.15.4 made
+        // Small the no-preference default; Medium and Large remain
+        // explicit-only choices.
         ModelInfo {
             id: "sherpa-whisper-large-v3".into(),
             kind: ModelKind::Asr,
@@ -685,5 +695,66 @@ pub(crate) mod test_helpers {
         // create the directory.
         let _ = std::mem::discriminant(&ModelKind::Asr); // keep ModelKind in scope
         std::fs::create_dir_all(models_root.join(path_rel)).expect("create test model dir");
+    }
+}
+
+#[cfg(test)]
+mod catalogue_tests {
+    //! Pinning tests for the v0.15.4 Meeting Mode catalogue contract.
+    //! `recommended` drives the "Recommended" chip in the picker, so
+    //! a silent flip would change visible UI without a code review.
+    use super::built_in_catalogue;
+
+    fn find(id: &str) -> super::ModelInfo {
+        built_in_catalogue()
+            .into_iter()
+            .find(|m| m.id == id)
+            .unwrap_or_else(|| panic!("catalogue must contain {id}"))
+    }
+
+    /// **v0.15.4 contract.** Whisper Small carries the Recommended
+    /// chip; Medium does not. Pre-v0.15.4 it was the other way
+    /// around — guard the flip so a future catalogue edit can't
+    /// silently revert.
+    #[test]
+    fn whisper_small_is_recommended_and_medium_is_not() {
+        assert!(
+            find("sherpa-whisper-small").recommended,
+            "Whisper Small must carry the Recommended chip in v0.15.4"
+        );
+        assert!(
+            !find("sherpa-whisper-medium").recommended,
+            "Whisper Medium must NOT carry the Recommended chip in v0.15.4"
+        );
+    }
+
+    /// Whisper Large v3 is never the recommended option — it's
+    /// the explicit "Best accuracy / slowest" choice.
+    #[test]
+    fn whisper_large_is_not_recommended() {
+        assert!(!find("sherpa-whisper-large-v3").recommended);
+    }
+
+    /// Catalogue copy must not bake numeric performance claims into
+    /// user-facing description strings. Step 0 numbers go in release
+    /// notes; the catalogue surfaces relative speed/quality only.
+    /// Pinned because it's tempting to add "RTF 0.2" or "5× faster"
+    /// to the description and that's the kind of claim that ages
+    /// badly across hardware.
+    #[test]
+    fn meeting_model_descriptions_avoid_numeric_performance_claims() {
+        for id in [
+            "sherpa-whisper-small",
+            "sherpa-whisper-medium",
+            "sherpa-whisper-large-v3",
+        ] {
+            let desc = find(id).description;
+            for needle in ["RTF", "real-time", "realtime", "× faster", "x faster"] {
+                assert!(
+                    !desc.to_lowercase().contains(&needle.to_lowercase()),
+                    "{id} description must not contain {needle:?} — keep numeric perf out of the catalogue. Got: {desc}"
+                );
+            }
+        }
     }
 }
