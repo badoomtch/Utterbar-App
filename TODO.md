@@ -4,92 +4,64 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-29 (v0.15.5 implemented in tree — Phase A of the GPU split. Provider truthfulness only: AdvancedSettings card stops claiming "3-10× faster than CPU" when the runtime is CPU-only; new inactive notice on DML/CUDA rows when selected; provider downgrade actually passes "cpu" to the engine when DML/CUDA can't be served (no more false "provider_used=cpu while passing directml" telemetry); meeting + dictation logs gain provider_requested + provider_used + fallback_used + fallback_reason; runtime_capabilities probe is file-presence based. v0.15.4 catalogue audit corrected an earlier mistake — there are NO fp16 entries in tree, the legacy fp16-related code is migration machinery for v2-era ids only. v0.15.6 = real DirectML (DLL bundle + sherpa source build + sentinel containment). Beta only. Stable still on v0.12.0.)**
+**Last updated: 2026-04-29 (v0.15.6 in tree, validation passed, deterministic UTF-8 panic fix landed, awaiting installer rebuild + commit + publish. DirectML validated on real 5-min meetings on Jay's machine: Whisper Small CPU 5:43→RTF 0.190, Small DML 9:27→RTF 0.222 (DML still slower; auto-Small stays CPU), Medium DML 8:55→RTF 0.754, Parakeet CPU clean. No native crashes. One non-DML panic surfaced: src/services/llm/deterministic.rs sliced UTF-8 byte indices and crashed on "£200" — fixed (use eq_ignore_ascii_case + str::get(idx..) instead of byte-index slicing of a precomputed lowercase). Two follow-up cleanup items also landed: CUDA policy_reason was incorrectly "user_explicit_directml" (now "user_explicit_cuda"), and show-info.cmake header had stale script name. 302s dictation cap is a separate UX follow-up. Stable still v0.12.0; beta still v0.15.5; in-tree target v0.15.6.)**
 
 ---
 
-## v0.15.5 (in tree, awaiting commit + publish) — Phase A: provider truthfulness
+## v0.15.6 (in tree, awaiting installer rebuild + commit + publish) — Phase B: DirectML
 
-Make GPU-acceleration controls honest about what's actually
-running. No DirectML enablement. No runtime DLL changes. No
-behaviour change to transcripts.
+DirectML execution provider actually runs. v0.8.7 Whisper CPU-force
+lifted. Auto policy is model-aware to handle Whisper Small's
+short-clip DML regression.
 
-- `services/gpu.rs::runtime_capabilities()` probes the
-  shipping runtime for the DML/CUDA satellite DLLs. File-
-  presence check; both `false` today.
-- `services/inference/mod.rs::resolve_provider` (new pure
-  helper) returns `ProviderResolution { requested, used,
-  fallback_used, fallback_reason }`. When DML/CUDA is
-  requested but the runtime can't serve it, `used` is `"cpu"`
-  AND that's the string actually passed to the engine. Old
-  behaviour passed `"directml"` to sherpa-onnx and lied in
-  the log line — that's gone.
-- `Active.resolution` field on the orchestrator. Exposed via
-  `current_provider_resolution()` so dictation can read it
-  for the transcribe-complete log.
-- `meeting transcribe complete` log gains `provider_requested`
-  alongside the v0.15.4 fields. `inference.transcribe done`
-  (the dictation path) gains all four fields.
-- `commands::diagnostics::runtime_capabilities` Tauri command,
-  registered in main.rs invoke_handler.
-- AdvancedSettings.tsx: card description gates the "3-10×
-  faster" speed claim behind a runtime-capabilities check;
-  inactive notice on DML/CUDA rows when selected against a
-  runtime that can't serve them; user's preference is preserved
-  (rows stay selectable so v0.15.6 picks them up automatically).
+- Vendored bundle at `src-tauri/vendor/sherpa-onnx/` rebuilt with
+  ORT 1.14.1 DirectML + DirectML 1.15.0. Same `SHERPA_LIB_PATH`
+  shape as before; production cargo builds DO NOT compile
+  sherpa-onnx from source.
+- `src-tauri/runtime/` mirrors the vendored DLLs. DirectML.dll
+  added; onnxruntime_providers_shared.dll preserved (defensive,
+  small) until a Zipformer DML smoke test confirms it can be
+  dropped.
+- BUNDLE_MANIFEST.txt records build date + ORT/DML versions +
+  every shipped binary's SHA-256.
+- `Cargo.toml`: `sherpa-rs = { version = "0.6", default-features = false }` (no `directml` feature in production builds — only used in the bundle-rebuild chore branch).
+- `services/gpu.rs::runtime_capabilities()` updated for embedded
+  DML EP. Detects either (legacy satellite layout: providers_dml +
+  DirectML) OR (embedded layout: DirectML.dll + onnxruntime.dll
+  contains "OrtSessionOptionsAppendExecutionProvider_DML"
+  substring).
+- `services/inference/mod.rs::resolve_provider` is now model-aware:
+  takes `model_id`, applies auto-Small CPU exception. Eight
+  policy_reason strings, all pinned by test.
+- `services/inference/sherpa_whisper.rs` lifts the v0.8.7 CPU-force.
+  Engine honours the resolved provider string. Source-grep test
+  pins the literal is gone.
+- Meeting + dictation logs gain `dml_available` + `provider_policy_reason`.
+- AdvancedSettings.tsx: honest copy when DML available; inactive
+  notice still fires for CUDA (we don't bundle it). No marketing
+  speedup claims in UI — release notes carry measured numbers.
+- `scripts/build-directml-bundle.ps1` documented as dev-maintenance
+  (not production build). RELEASE_RUNBOOK has a "Bundle rebuild"
+  section.
+- `src/services/inference/step2_dml.rs` — the Step 2 8-cell smoke
+  harness — registered as a permanent #[ignore] regression suite.
+  Run when the bundle is rebuilt (ORT/DML version bumps).
 
-## v0.15.6 priorities — Phase B: DirectML / GPU runtime work
+**Validation matrix before publish (REQUIRED):**
+- Whisper Small CPU vs DirectML on a real 5+ min meeting
+- Whisper Medium CPU vs DirectML
+- Whisper Large v3 CPU vs DirectML
+- Parakeet int8 CPU vs DirectML
+For each: RTF, output sanity, crash.log status, provider telemetry.
+If Whisper Small DirectML beats CPU on real meeting audio, flip
+auto-Small policy from CPU to DirectML in resolver.
 
-Hardest deferred item. Doing this properly means runtime-infra
-work, not just toggling the provider string.
-
-**Why deferred from v0.15.5:** the vendored ONNX Runtime in
-`Utterbar Windows App/src-tauri/runtime/` ships only
-`onnxruntime.dll` + `onnxruntime_providers_shared.dll` —
-**no `onnxruntime_providers_dml.dll`, no `DirectML.dll`.**
-DirectML is structurally unavailable in current builds
-regardless of the `provider` config string. Re-enabling it is
-not a one-line change.
-
-**Plan (paper feasibility from the v0.15.5 packet):**
-1. Switch sherpa-rs features from `download-binaries` to
-   `directml` (mutually exclusive per upstream `compile_error!`).
-   This triggers a CMake source build of sherpa-onnx — fetches
-   `microsoft.ml.onnxruntime.directml.1.14.1.nupkg` and
-   `Microsoft.AI.DirectML.1.15.0.nupkg`. New build dependency:
-   CMake on the build machine. Sherpa-rs prebuilt binaries do
-   not have DirectML support — this is documented upstream.
-2. Bundle the resulting DLL set into `src-tauri/runtime/` and
-   `tauri.conf.json` `bundle.resources`. Installer payload
-   grows ~25-40 MB on the wire (estimate; see v0.15.5
-   feasibility packet for methodology).
-3. Wire CPU fallback at session-create / transcribe failure.
-   Sentinel-file design (write-before / clear-after, scan at
-   boot, quarantine-after-crash) — design only in v0.15.5;
-   implement as production code paths in v0.15.6 alongside
-   the actual DML runtime.
-4. Per-model validation on Jay's machine pre-publish:
-   Parakeet TDT v3 int8, Whisper Small, Whisper Medium,
-   Whisper Large v3. Three of four were never tested against
-   the new sherpa+ORT build.
-5. Wire the v0.15.5-reserved telemetry to start reporting
-   `provider_used="directml"` for real, plus new fallback
-   reasons (`"native_crash_quarantine"`, `"output_validation_failed"`,
-   `"session_create_failed"`).
-
-**Risk: high.** Mitigation is the validation matrix and the
-sentinel-based crash containment. If DML lands cleanly, the
-expected speedup combined with v0.15.4's Small default takes
-typical-laptop Meeting Mode RTF below 0.1.
-
-**Phase B design items not shipped in v0.15.5:**
-- Sentinel module (write-before-transcribe / clear-after /
-  scan-at-boot / quarantine list). Spec'd in the v0.15.5
-  feasibility packet; implementation lands when DML actually
-  ships.
-- Output validation (foreign-script-when-English-pinned,
-  empty-output detection). Same shape — designed, not coded
-  yet. Must NOT break legitimate non-English dictation.
+**Phase B design items deferred (NOT shipped in v0.15.6):**
+- Sentinel + post-mortem crash detection. Step 2 had zero crashes;
+  defence-in-depth deferred unless soak data shows a need.
+- Output validation that drops text (foreign-script, empty). Still
+  designed-only.
+- CUDA support. DirectML covers all DX12 GPUs already.
 
 ## Future hardening — Parakeet fp16
 
@@ -114,18 +86,16 @@ useful error rather than a crash. No work needed today.
 Same shape as before. Per the v0.15.1 review notes, the
 design is "transcribe whole buffer once, diarise separately,
 assign speaker labels by interval-overlap on word/segment
-timestamps". Don't start until v0.15.6 lands and the perf
-ceiling is gone.
+timestamps". Don't start until v0.15.6 lands cleanly on
+beta and a soak window proves DML is stable.
 
-**Out of scope for v0.15.5:** DirectML runtime (now v0.15.6),
-sentinel/quarantine production code (Phase B design item),
-output validation that drops text (Phase B design item),
-real-time meeting transcription (streaming Whisper),
-per-mode meeting-model override (the dormant
-`Mode.asr_model_id` field stays unused), GPU-via-CUDA
-(non-NVIDIA users would be left out), stable promotion of
-any 0.15.x (waiting on real-meeting QA + the 2026-05-04
-v0.15.4 readiness recheck).
+**Out of scope for v0.15.6:** sentinel/quarantine production
+code (deferred — zero Step 2 crashes); output validation that
+drops text (still designed-only); real-time meeting
+transcription (streaming Whisper); per-mode meeting-model
+override (dormant `Mode.asr_model_id` field unused); CUDA;
+stable promotion of any 0.15.x (waiting on the v0.15.x
+readiness recheck and the new v0.15.6 soak window).
 
 ---
 

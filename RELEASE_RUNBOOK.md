@@ -293,6 +293,54 @@ You find out a shipped build crashes / has a regression / breaks activation. Res
 
 ---
 
+## 9b. Bundle rebuild (sherpa-onnx + ORT + DirectML)
+
+This is a **dev-maintenance procedure**, not part of normal releases.
+Run it only when:
+- sherpa-rs / sherpa-rs-sys version bumps
+- An ORT security patch lands in a new sherpa-onnx release
+- DirectML version refresh
+
+Production cargo builds DO NOT compile sherpa-onnx from source — they
+link against the prebuilt bundle vendored at `Utterbar Windows App/src-tauri/vendor/sherpa-onnx/`
+through `SHERPA_LIB_PATH` (see `.cargo/config.toml`). The bundle gets
+rebuilt manually by following these steps.
+
+### 9b.1 Prerequisites
+- CMake 4.x on PATH (4.3 used to produce the v0.15.6 bundle)
+- Visual Studio 2022 Build Tools with VC.Tools.x86.x64 + Win10 SDK
+- Rust toolchain stable-x86_64-pc-windows-msvc
+- `C:\ut-target` writable (avoids MSBuild FileTracker MAX_PATH=260)
+
+### 9b.2 Procedure
+1. Branch from main: `git checkout -b chore/v<ver>-rebuild-dml-bundle`
+2. Edit `Utterbar Windows App/src-tauri/Cargo.toml`:
+   - `sherpa-rs = { version = "X", default-features = false, features = ["directml"] }`
+3. Edit `Utterbar Windows App/src-tauri/.cargo/config.toml`:
+   - Comment out the `[env] SHERPA_LIB_PATH = ...` stanza
+4. `pwsh -File "Utterbar Windows App/scripts/build-directml-bundle.ps1"`. Two-pass build: pass 1 fails at `show-info.cmake` (expected — wmic missing on Win11 24H2+), patch overlay applies, pass 2 builds successfully (~5 min).
+5. Copy DLLs + `.lib` import libraries from `C:\ut-target\release\build\sherpa-rs-sys-*\out\lib\` to `Utterbar Windows App/src-tauri/vendor/sherpa-onnx/lib/`.
+6. Mirror DLLs (no `.lib`) to `Utterbar Windows App/src-tauri/runtime/`.
+7. Update `Utterbar Windows App/src-tauri/vendor/sherpa-onnx/BUNDLE_MANIFEST.txt` with new SHAs + ORT/DirectML versions + build date.
+8. Revert Cargo.toml + `.cargo/config.toml` to production state (default-features = false, SHERPA_LIB_PATH restored).
+9. Run the regression suite to confirm the new bundle still passes:
+   ```
+   $env:UTTERBAR_STEP2_WAV="<path-to-real-wav>"
+   cd "Utterbar Windows App/src-tauri"
+   cargo test --release -- --ignored --nocapture --test-threads=1 step2_
+   ```
+   Should run 8 cells, all pass, no crashes.
+10. Commit on the chore branch. Merge to main as a normal feature.
+11. The next regular release picks up the new bundle automatically — no per-release work needed.
+
+### 9b.3 Notes
+- The patched `cmake/show-info.cmake` lives in `Utterbar Windows App/src-tauri/vendor/sherpa-onnx-patches/`. Don't lose it — without the patch the build dies on Win11 24H2+ because `wmic` was removed from default Windows installs.
+- `CARGO_TARGET_DIR=C:\ut-target` is mandatory. The `Utterbar Windows App\src-tauri\target\` path is too long for MSBuild FileTracker (`MAX_PATH=260`).
+- The bundle rebuild takes 3-6 minutes plus ~600 MB of cached downloads in `C:\ut-target\`. Disk space ~5 GB recommended.
+- See `memory/v0156_directml_step0_results.md` and `memory/v0156_directml_step2_results.md` for the original v0.15.6 evidence and per-model speedup numbers.
+
+---
+
 ## 10. What this runbook does NOT cover
 
 - **Ed25519 keypair rotation** — completed 2026-04-26. The licence keypair is now v2 in production and the v1 sandbox key is accepted transitionally on the client. The updater pipeline has its own separate Ed25519 key (operator-local). To rotate again in future, see [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md) and the helper script [scripts/rotate-licence-key.ps1](scripts/rotate-licence-key.ps1).

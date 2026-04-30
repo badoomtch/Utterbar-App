@@ -6,23 +6,34 @@
  *
  * This is distinct from `GpuProbe` (which asks "does the user own a
  * GPU?"). A user can have a perfectly capable DX12 GPU and still get
- * `has_dml_ep: false` here, because today's vendored runtime in
- * `src-tauri/runtime/` ships the CPU provider only — no
- * `onnxruntime_providers_dml.dll`, no `DirectML.dll`. Asking the
- * hardware doesn't tell you anything about what the loaded ORT can do.
+ * `has_dml_ep: false` here if the runtime DLL set next to the exe
+ * doesn't include DirectML. Asking the hardware doesn't tell you
+ * anything about what the loaded ORT can do.
  *
- * **Phase A semantics (v0.15.5):** file-presence check next to the
- * running exe. Cheap, deterministic, no native API calls. The two
- * satellite DLLs are required by ORT's DML path; their absence is
- * definitive proof the EP is unreachable. A future build that ships
- * the DLLs will flip these to `true` automatically.
+ * **v0.15.5 (Phase A) semantics:** file-presence check for the legacy
+ * satellite layout (`onnxruntime_providers_dml.dll` +
+ * `DirectML.dll`). The shipping CPU-only runtime has neither,
+ * returning `false`. Conservative and easy to test.
  *
- * **Why not parse PE exports?** A previous design considered
- * introspecting `onnxruntime.dll` for the DML EP factory symbol. It's
- * more work, more failure modes, and produces the same answer for
- * every realistic ORT build — if the satellite DLLs are missing, the
- * EP is unusable regardless of what symbols `onnxruntime.dll`
- * advertises.
+ * **v0.15.6 (Phase B) semantics:** ORT 1.14.1's DirectML build
+ * embeds the DML EP statically into `onnxruntime.dll` itself — there
+ * is no `onnxruntime_providers_dml.dll` satellite. So the v0.15.5
+ * rule would mark the v0.15.6 bundle as `has_dml_ep: false` even
+ * though DML is fully wired. The probe now accepts EITHER layout:
+ *
+ *   has_dml_ep =
+ *     file_exists(DirectML.dll) AND
+ *     ( file_exists(onnxruntime_providers_dml.dll)            [legacy]
+ *       OR onnxruntime.dll contains the export-name string
+ *          "OrtSessionOptionsAppendExecutionProvider_DML" )    [embedded]
+ *
+ * The embedded-layout check uses a substring scan of the DLL bytes
+ * rather than a full PE export-table parse. The export name is a
+ * C-API entry point — it appears in the DLL bytes if and only if
+ * it's exported. For a real ORT build the binary distinction maps
+ * 1:1 onto the substring presence (verified during Step 1 + Step 2
+ * of the v0.15.6 work: CPU-only ORT lacks the string, DML ORT has
+ * it). No PE parser dependency needed.
  */
 export type RuntimeCapabilities = { 
 /**
@@ -31,6 +42,6 @@ export type RuntimeCapabilities = {
 has_dml_ep: boolean, 
 /**
  * Whether the loaded ORT can serve the CUDA execution provider.
- * Always `false` on Phase A — we have never bundled CUDA.
+ * We have never bundled CUDA; `false` until that changes.
  */
 has_cuda_ep: boolean, };

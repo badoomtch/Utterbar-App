@@ -1,0 +1,108 @@
+Utterbar v0.15.6 sherpa-onnx vendored bundle (DirectML-enabled)
+================================================================
+
+Build date:        2026-04-29
+Build host:        Windows 11 Pro 10.0.26200, MSVC 14.44.35207, CMake 4.3
+Build profile:     release (cmake-rs default)
+Source target dir: C:\ut-target\release\build\sherpa-rs-sys-01cc0909d7479f22\out\lib\
+
+sherpa-rs:         0.6.8
+sherpa-rs-sys:     0.6.8 (with feature "directml")
+sherpa-onnx:       extracted from sherpa-rs-sys-0.6.8 vendored source,
+                   with cmake/show-info.cmake patched per
+                   src-tauri/vendor/sherpa-onnx-patches/show-info.cmake
+                   (wmic call removed for Windows 11 24H2+ compatibility).
+
+ONNX Runtime:      1.14.20230224.5.c57cf37
+                   (ProductVersion from onnxruntime.dll metadata)
+                   Source: microsoft.ml.onnxruntime.directml.1.14.1.nupkg
+                   (URL pinned in sherpa-rs-sys-0.6.8/sherpa-onnx/cmake/
+                    onnxruntime-win-x64-directml.cmake)
+
+DirectML:          1.15.0+240708-1738.1.dml-1.15.a106403
+                   (ProductVersion from DirectML.dll metadata)
+                   Source: Microsoft.AI.DirectML.1.15.0.nupkg
+                   (URL + sha pinned in sherpa-rs-sys-0.6.8/sherpa-onnx/cmake/
+                    onnxruntime-win-x64-directml.cmake)
+
+Build procedure:   See Utterbar Windows App/scripts/build-directml-bundle.ps1
+                   and the "Bundle rebuild" section of RELEASE_RUNBOOK.md.
+                   Production app builds DO NOT compile sherpa-onnx; they
+                   link against this vendored bundle via SHERPA_LIB_PATH.
+
+DirectML EP layout: EMBEDDED. ORT 1.14.1 statically links the DML execution
+                    provider into onnxruntime.dll. No
+                    onnxruntime_providers_dml.dll satellite is shipped.
+                    runtime_capabilities() probes for either layout
+                    (legacy satellite OR PE-export of
+                    OrtSessionOptionsAppendExecutionProvider_DML on
+                    onnxruntime.dll).
+
+----------------------------------------------------------------
+Shipped files (vendor/sherpa-onnx/lib/)
+----------------------------------------------------------------
+
+DirectML.dll                                                  18,545,584 bytes
+  SHA-256: 913b6e436b7292f0b3af6d0c37d2201ab3435cb5f0a7c08c0beaa644602f5312
+DirectML.lib                                                       1,956 bytes
+  SHA-256: dee39565f2cfdb4252c91abf421c49f79b5076f99df9edfe094f68166911779f
+onnxruntime.dll                                               11,324,824 bytes
+  SHA-256: 6ed5853e37d8c7b1f27cfb99cafd0006eccee7c97cefdc701ddcde962460ae87
+onnxruntime.lib                                                    3,198 bytes
+  SHA-256: f7a39b1d1506a2a5aa195834b2dbc27065118d4f31d149c8463ce1a96817e5d9
+onnxruntime_providers_shared.dll                                  22,560 bytes
+  SHA-256: ba645bf03bd60df622cf27d6111d1359506a90d0e3b5558f0a271f0b560cf97c
+  Note: preserved from the previous CPU-only bundle. The DML build does
+  not produce this file. Kept defensively against the (untested) chance
+  that legacy Zipformer loads need it. Cost is 22.5 KB; eliminate in a
+  later release once a Zipformer DML smoke-test confirms it can be
+  dropped.
+sherpa-onnx-c-api.dll                                          3,784,192 bytes
+  SHA-256: a733a1075c4ec51710657799cc10839336058eb22ac52d2077d4d03ab833df50
+sherpa-onnx-c-api.lib                                             48,464 bytes
+  SHA-256: 56e9a557923f3b6b7afaad9b2c5e54f7e3519a367344e3256384dfc667228d56
+sherpa-onnx-cxx-api.dll                                          195,584 bytes
+  SHA-256: d110c673b41bf0c93f710a68a0b115f0358be11fe307d435ec16a8cfd70987e6
+sherpa-onnx-cxx-api.lib                                          150,164 bytes
+  SHA-256: 789a5913e1ffc41db7d2e87087d5da667cbbe0f72c0f5d04b9a1735ae946c93b
+
+cargs.dll, cargs.lib, cargs.h                                  unchanged from
+  pre-v0.15.6 vendor. sherpa-rs-sys link helper. Not part of the DML
+  build artefacts; preserved.
+
+include/, pkgconfig/                                           unchanged from
+  pre-v0.15.6 vendor. Sherpa-onnx C API headers + pkgconfig files for
+  sherpa-rs-sys link discovery. Not regenerated on bundle rebuild
+  unless the sherpa-rs-sys version changes.
+
+----------------------------------------------------------------
+Files mirrored at src-tauri/runtime/ (for tauri.conf.json bundle.resources)
+----------------------------------------------------------------
+
+DirectML.dll                                                  same SHA
+onnxruntime.dll                                               same SHA
+onnxruntime_providers_shared.dll                              same SHA
+sherpa-onnx-c-api.dll                                         same SHA
+sherpa-onnx-cxx-api.dll                                       same SHA
+
+These five DLLs get unpacked alongside utterbar.exe at install time.
+Production builds DO NOT use the .lib import libraries — those exist
+only in vendor/sherpa-onnx/lib/ for the link step.
+
+----------------------------------------------------------------
+Step 1 / Step 2 evidence
+----------------------------------------------------------------
+
+Build feasibility verified by the v0.15.6 Step 1 + Step 2 experiments
+(memory: v0156_directml_step0_results.md, v0156_directml_step2_results.md).
+
+Step 2 model smoke matrix on Jay's machine (30 s clip, all 8 cells PASS,
+zero crashes):
+
+  Whisper Small         CPU 0.143  DML 0.183   (DML 0.78x CPU short-clip)
+  Whisper Medium        CPU 0.362  DML 0.200   (DML 1.81x CPU)
+  Whisper Large v3      CPU 0.734  DML 0.267   (DML 2.75x CPU)
+  Parakeet TDT v3 int8  CPU 0.086  DML 0.060   (DML 1.43x CPU)
+
+Real-meeting RTF for v0.15.6 release notes will be measured by the
+validation matrix immediately before publish.

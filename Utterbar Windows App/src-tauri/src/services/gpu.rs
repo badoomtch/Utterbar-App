@@ -64,30 +64,41 @@ pub struct GpuProbe {
 ///
 /// This is distinct from `GpuProbe` (which asks "does the user own a
 /// GPU?"). A user can have a perfectly capable DX12 GPU and still get
-/// `has_dml_ep: false` here, because today's vendored runtime in
-/// `src-tauri/runtime/` ships the CPU provider only — no
-/// `onnxruntime_providers_dml.dll`, no `DirectML.dll`. Asking the
-/// hardware doesn't tell you anything about what the loaded ORT can do.
+/// `has_dml_ep: false` here if the runtime DLL set next to the exe
+/// doesn't include DirectML. Asking the hardware doesn't tell you
+/// anything about what the loaded ORT can do.
 ///
-/// **Phase A semantics (v0.15.5):** file-presence check next to the
-/// running exe. Cheap, deterministic, no native API calls. The two
-/// satellite DLLs are required by ORT's DML path; their absence is
-/// definitive proof the EP is unreachable. A future build that ships
-/// the DLLs will flip these to `true` automatically.
+/// **v0.15.5 (Phase A) semantics:** file-presence check for the legacy
+/// satellite layout (`onnxruntime_providers_dml.dll` +
+/// `DirectML.dll`). The shipping CPU-only runtime has neither,
+/// returning `false`. Conservative and easy to test.
 ///
-/// **Why not parse PE exports?** A previous design considered
-/// introspecting `onnxruntime.dll` for the DML EP factory symbol. It's
-/// more work, more failure modes, and produces the same answer for
-/// every realistic ORT build — if the satellite DLLs are missing, the
-/// EP is unusable regardless of what symbols `onnxruntime.dll`
-/// advertises.
+/// **v0.15.6 (Phase B) semantics:** ORT 1.14.1's DirectML build
+/// embeds the DML EP statically into `onnxruntime.dll` itself — there
+/// is no `onnxruntime_providers_dml.dll` satellite. So the v0.15.5
+/// rule would mark the v0.15.6 bundle as `has_dml_ep: false` even
+/// though DML is fully wired. The probe now accepts EITHER layout:
+///
+///   has_dml_ep =
+///     file_exists(DirectML.dll) AND
+///     ( file_exists(onnxruntime_providers_dml.dll)            [legacy]
+///       OR onnxruntime.dll contains the export-name string
+///          "OrtSessionOptionsAppendExecutionProvider_DML" )    [embedded]
+///
+/// The embedded-layout check uses a substring scan of the DLL bytes
+/// rather than a full PE export-table parse. The export name is a
+/// C-API entry point — it appears in the DLL bytes if and only if
+/// it's exported. For a real ORT build the binary distinction maps
+/// 1:1 onto the substring presence (verified during Step 1 + Step 2
+/// of the v0.15.6 work: CPU-only ORT lacks the string, DML ORT has
+/// it). No PE parser dependency needed.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
 pub struct RuntimeCapabilities {
     /// Whether the loaded ORT can serve the DirectML execution provider.
     pub has_dml_ep: bool,
     /// Whether the loaded ORT can serve the CUDA execution provider.
-    /// Always `false` on Phase A — we have never bundled CUDA.
+    /// We have never bundled CUDA; `false` until that changes.
     pub has_cuda_ep: bool,
 }
 
@@ -95,12 +106,9 @@ pub struct RuntimeCapabilities {
 /// optional execution-provider satellites. See `RuntimeCapabilities`
 /// for the design rationale.
 ///
-/// Falls back to `false / false` if the exe path can't be resolved
-/// (e.g. an unusual launch context). That's the safe default — the
-/// fallback to CPU is correct, the UI banner is correct, the only
-/// loss is a user with a working DML setup is told it's inactive
-/// when it could have worked. Phase A is paper-honest about today's
-/// shipping reality, so this conservative answer is fine.
+/// Falls back to `false / false` if the exe path can't be resolved.
+/// Conservative default — at worst a user with a working DML setup
+/// gets told it's inactive.
 pub fn runtime_capabilities() -> RuntimeCapabilities {
     let exe_dir = match std::env::current_exe() {
         Ok(p) => p.parent().map(|d| d.to_path_buf()),
@@ -119,21 +127,70 @@ pub fn runtime_capabilities() -> RuntimeCapabilities {
 /// drive it against the in-tree `src-tauri/runtime/` directory or a
 /// fixture without depending on the test binary's location.
 pub fn probe_runtime_dir(dir: &std::path::Path) -> RuntimeCapabilities {
-    // DirectML EP requires both files. Either missing means the EP
-    // can't load. Names are pinned by the microsoft/onnxruntime DML
-    // build artefact.
-    let has_dml_ep =
-        dir.join("onnxruntime_providers_dml.dll").is_file() && dir.join("DirectML.dll").is_file();
+    // DirectML.dll is the DirectML runtime satellite. Required by
+    // both the legacy (ORT < 1.14) and embedded (ORT 1.14.1+) layouts.
+    let directml_dll = dir.join("DirectML.dll");
+    let has_directml_dll = directml_dll.is_file();
 
-    // CUDA EP requires the satellite providers DLL. We've never
-    // shipped the CUDA runtime; this is `false` today and stays
-    // `false` until a CUDA build is explicitly bundled.
+    // Legacy satellite layout: onnxruntime_providers_dml.dll exists
+    // alongside DirectML.dll. Pre-1.14 ORT builds shipped this; our
+    // v0.15.6+ DML bundle does not, but the probe accepts either
+    // layout for forward-compat with future ORT versions or
+    // hand-rolled bundles.
+    let has_legacy_satellite = dir.join("onnxruntime_providers_dml.dll").is_file();
+
+    // Embedded layout: ORT 1.14.1+ DirectML build embeds the DML EP
+    // into onnxruntime.dll. Detect by substring scan of the DLL
+    // bytes for the C-API export name.
+    let has_embedded_dml_ep = onnxruntime_exports_dml_symbol(&dir.join("onnxruntime.dll"));
+
+    let has_dml_ep = has_directml_dll && (has_legacy_satellite || has_embedded_dml_ep);
+
+    // CUDA EP requires the satellite providers DLL. We have never
+    // bundled CUDA; this stays `false` until a future build does.
     let has_cuda_ep = dir.join("onnxruntime_providers_cuda.dll").is_file();
 
     RuntimeCapabilities {
         has_dml_ep,
         has_cuda_ep,
     }
+}
+
+/// Substring-scan `onnxruntime.dll` for the DML EP C-API export name.
+/// Returns `false` if the file can't be read for any reason.
+///
+/// Why a substring scan rather than a PE-export parse: the export
+/// name appears in the DLL's exports section as a NUL-terminated
+/// ASCII string. For a real ORT build the binary distinction
+/// (DML EP exported vs not) maps 1:1 onto the string's presence.
+/// A full PE parser would handle pathological cases — a DLL that
+/// contains the string in a debug-info section without actually
+/// exporting the symbol — but no realistic ORT build does that.
+/// The simpler check is good enough; we trust the build chain.
+fn onnxruntime_exports_dml_symbol(path: &std::path::Path) -> bool {
+    const NEEDLE: &[u8] = b"OrtSessionOptionsAppendExecutionProvider_DML";
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    contains_subslice(&bytes, NEEDLE)
+}
+
+/// Trivial subslice search. `[u8]::windows(N).any(...)` would do but
+/// is `O(N*M)` worst-case; for ~11 MB ORT DLL × 44-byte needle that's
+/// fine but a cheap manual loop is clearer and avoids the iterator
+/// overhead.
+fn contains_subslice(haystack: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return false;
+    }
+    let last = haystack.len() - needle.len();
+    for i in 0..=last {
+        if &haystack[i..i + needle.len()] == needle {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn probe() -> GpuProbe {
@@ -222,17 +279,19 @@ mod windows_impl {
 mod tests {
     use super::*;
 
-    /// **v0.15.5 contract.** Today's shipping `src-tauri/runtime/`
-    /// contains only `onnxruntime.dll`, `onnxruntime_providers_shared.dll`,
-    /// and the two sherpa-onnx API DLLs. No DirectML satellite, no
-    /// CUDA satellite. The capability probe must agree.
+    /// **v0.15.6 contract.** Today's shipping `src-tauri/runtime/`
+    /// is the DirectML-enabled bundle: ORT 1.14.1 with the DML EP
+    /// statically embedded into onnxruntime.dll, plus DirectML.dll
+    /// as the runtime satellite. The capability probe must agree:
+    /// has_dml_ep = true via the embedded-layout branch.
     ///
-    /// Phase B (v0.15.6 DirectML) will swap the runtime DLL set and
-    /// flip these expectations. When that change ships, this test
-    /// must be updated alongside the new DLLs — that's the deliberate
-    /// signal.
+    /// If a future bundle rebuild changes this — e.g. drops back
+    /// to a CPU-only ORT, or moves to a sherpa-onnx version that
+    /// ships the legacy onnxruntime_providers_dml.dll satellite
+    /// — this test will fail and signal that BUNDLE_MANIFEST.txt
+    /// needs review.
     #[test]
-    fn runtime_capabilities_against_shipped_runtime_are_cpu_only() {
+    fn runtime_capabilities_against_shipped_dml_bundle() {
         let runtime_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
         assert!(
             runtime_dir.is_dir(),
@@ -241,8 +300,8 @@ mod tests {
         );
         let caps = probe_runtime_dir(&runtime_dir);
         assert!(
-            !caps.has_dml_ep,
-            "shipping runtime/ must NOT contain a DirectML EP; if v0.15.6 has landed, update this test"
+            caps.has_dml_ep,
+            "shipping runtime/ must contain a DirectML EP — v0.15.6 vendors the DML-enabled bundle"
         );
         assert!(
             !caps.has_cuda_ep,
@@ -265,34 +324,108 @@ mod tests {
         ))
     }
 
-    /// Confirm a fixture directory containing the DML satellite DLLs
-    /// flips `has_dml_ep` to true. Uses an empty file as the test
-    /// fixture — `probe_runtime_dir` only checks file presence (not
-    /// PE structure), so an empty file is sufficient and keeps the
-    /// test free of binary fixtures.
+    /// **Legacy satellite layout** (pre-ORT 1.14): a separate
+    /// `onnxruntime_providers_dml.dll` next to `DirectML.dll`.
+    /// The probe must still recognise this as DML-available because
+    /// nothing stops a future bundle reverting to it. Empty fixture
+    /// files are sufficient: this branch only checks file presence.
     #[test]
-    fn runtime_capabilities_dml_present_when_both_dlls_exist() {
-        let tmp = unique_tmp("dml-both");
+    fn runtime_capabilities_legacy_satellite_layout() {
+        let tmp = unique_tmp("dml-legacy");
         std::fs::create_dir_all(&tmp).unwrap();
         std::fs::write(tmp.join("onnxruntime_providers_dml.dll"), b"").unwrap();
         std::fs::write(tmp.join("DirectML.dll"), b"").unwrap();
+        // No onnxruntime.dll at all -- legacy path doesn't need
+        // the symbol check.
         let caps = probe_runtime_dir(&tmp);
         let _ = std::fs::remove_dir_all(&tmp);
-        assert!(caps.has_dml_ep);
-        assert!(!caps.has_cuda_ep);
+        assert!(
+            caps.has_dml_ep,
+            "legacy satellite layout must still satisfy has_dml_ep"
+        );
     }
 
-    /// One of the two DML DLLs is not enough — both must be present
-    /// for the EP to load.
+    /// **DirectML.dll alone is not enough.** A user could end up
+    /// with DirectML.dll next to their exe via Windows update or
+    /// system policy, without our ORT being DML-enabled. The probe
+    /// must NOT report has_dml_ep in that state.
     #[test]
-    fn runtime_capabilities_dml_absent_when_only_satellite_present() {
-        let tmp = unique_tmp("dml-satellite-only");
+    fn runtime_capabilities_directml_dll_alone_is_not_enough() {
+        let tmp = unique_tmp("dml-alone");
         std::fs::create_dir_all(&tmp).unwrap();
-        std::fs::write(tmp.join("onnxruntime_providers_dml.dll"), b"").unwrap();
+        std::fs::write(tmp.join("DirectML.dll"), b"").unwrap();
+        // No onnxruntime.dll, no providers_dml satellite.
+        let caps = probe_runtime_dir(&tmp);
+        let _ = std::fs::remove_dir_all(&tmp);
+        assert!(
+            !caps.has_dml_ep,
+            "DirectML.dll alone must not satisfy has_dml_ep"
+        );
+    }
+
+    /// **DML symbol alone is not enough.** Even if onnxruntime.dll
+    /// exposes the DML EP factory, without DirectML.dll nearby the
+    /// EP can't load — there's no DirectML runtime to talk to.
+    #[test]
+    fn runtime_capabilities_symbol_alone_is_not_enough() {
+        let tmp = unique_tmp("dml-symbol-only");
+        std::fs::create_dir_all(&tmp).unwrap();
+        // Synthesise an onnxruntime.dll that contains the export
+        // name as a substring. Doesn't have to be a real PE — the
+        // probe just substring-scans the file bytes.
+        std::fs::write(
+            tmp.join("onnxruntime.dll"),
+            b"prefix bytes... OrtSessionOptionsAppendExecutionProvider_DML ...suffix",
+        )
+        .unwrap();
         // DirectML.dll deliberately missing.
         let caps = probe_runtime_dir(&tmp);
         let _ = std::fs::remove_dir_all(&tmp);
+        assert!(
+            !caps.has_dml_ep,
+            "DML symbol without DirectML.dll runtime must not satisfy has_dml_ep"
+        );
+    }
+
+    /// **Embedded layout, synthetic fixture.** ORT 1.14.1+ embeds
+    /// the DML EP into onnxruntime.dll and ships only DirectML.dll
+    /// as the satellite. The probe must accept this layout.
+    #[test]
+    fn runtime_capabilities_embedded_layout_synthetic() {
+        let tmp = unique_tmp("dml-embedded");
+        std::fs::create_dir_all(&tmp).unwrap();
+        // Fake onnxruntime.dll containing the DML export name in
+        // its bytes. Real PE structure not required for the probe.
+        std::fs::write(
+            tmp.join("onnxruntime.dll"),
+            b"\x00\x00\x00\x00OrtSessionOptionsAppendExecutionProvider_DML\x00more",
+        )
+        .unwrap();
+        std::fs::write(tmp.join("DirectML.dll"), b"").unwrap();
+        // No legacy satellite -- the embedded branch must take over.
+        let caps = probe_runtime_dir(&tmp);
+        let _ = std::fs::remove_dir_all(&tmp);
+        assert!(
+            caps.has_dml_ep,
+            "embedded layout (DML symbol + DirectML.dll) must satisfy has_dml_ep"
+        );
+    }
+
+    /// CPU-only fixture: onnxruntime.dll without the DML symbol,
+    /// no DirectML.dll, no satellite. Pre-v0.15.6 layout.
+    #[test]
+    fn runtime_capabilities_cpu_only_layout() {
+        let tmp = unique_tmp("cpu-only");
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(
+            tmp.join("onnxruntime.dll"),
+            b"plain CPU build, no DML EP exported",
+        )
+        .unwrap();
+        let caps = probe_runtime_dir(&tmp);
+        let _ = std::fs::remove_dir_all(&tmp);
         assert!(!caps.has_dml_ep);
+        assert!(!caps.has_cuda_ep);
     }
 
     #[test]
@@ -304,5 +437,19 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
         assert!(caps.has_cuda_ep);
         assert!(!caps.has_dml_ep);
+    }
+
+    /// Substring search helper smoke test.
+    #[test]
+    fn contains_subslice_matches_expected_cases() {
+        assert!(super::contains_subslice(b"hello world", b"world"));
+        assert!(super::contains_subslice(b"foo", b"foo"));
+        assert!(super::contains_subslice(b"prefix Foo suffix", b"Foo"));
+        assert!(!super::contains_subslice(b"hello", b"world"));
+        assert!(!super::contains_subslice(b"short", b"longer than haystack"));
+        assert!(
+            !super::contains_subslice(b"any", b""),
+            "empty needle must not match"
+        );
     }
 }
