@@ -25,6 +25,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // not Laravel's default /login.
         $middleware->redirectGuestsTo(fn () => route('sign-in.show'));
 
+        // Baseline browser-hardening headers (XFO, nosniff, referrer-policy,
+        // permissions-policy, Report-Only CSP) on every response. Appended
+        // to the global stack so it covers /up + every web/api route.
+        // CSP is Report-Only in this commit; HSTS is intentionally not
+        // emitted yet. See SecurityHeaders.php for the why.
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
         // Route middleware aliases.
         $middleware->alias([
             'admin'     => \App\Http\Middleware\AdminOnly::class,
