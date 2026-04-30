@@ -716,18 +716,22 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 
 ---
 
-## 12. Current state (2026-04-27, post-v0.12.1 beta ship)
+## 12. Current state (2026-04-30, post-v0.15.6 stable promotion)
 
 ### Desktop app
-- **Last publicly-shipped stable:** `v0.12.0` (admin release row id=26, 2026-04-27). Shown on `/download` with the `latest` pill. Stable channel: v0.7.0 → v0.8.7 → v0.10.0 → v0.12.0.
-- **Beta channel:** `v0.12.1` (id=27, 2026-04-27, **Ed25519-signed**). Settings clarity pass + long-recording safety patches in response to a confirmed crash on a 40-min meeting.
-- **In-tree version:** `v0.12.1` across `package.json`, `Cargo.toml`, `tauri.conf.json` — matches the published beta binary. Tag `v0.12.1` points at commit `45271df`.
-- **Versioning convention** (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)): `0.x.0` minor = mainline / stable, `0.x.y` patch = beta soak. v0.11.0 / v0.11.1 were the soak for the v0.12.0 mainline; v0.12.1 is the soak for v0.13.0 (queued — see [STREAMING_PLAN.md](STREAMING_PLAN.md)).
-- **Long-form transcription crash, known + tracked.** v0.12.0 user reproduced a hard crash on a 40-min mic+loopback recording (process to 12 GB RAM, processed 5 min, then died in `SherpaOnnxDecodeOfflineStream` per dump `utterbar.exe.73872.dmp`). Sherpa's offline decoder allocates O(duration) memory. v0.12.1 ships two safety patches (recording cap lifted to 8 h, transcribe-input ceiling at 5 min that returns a clear user-facing error instead of crashing the process). The proper fix is the streaming-recogniser rebuild queued as v0.13.0; full plan in [STREAMING_PLAN.md](STREAMING_PLAN.md).
+- **Last publicly-shipped stable:** `v0.15.6` (admin release row id=56, 2026-04-30). Shown on `/download` with the `latest` pill. Stable channel: v0.7.0 → v0.8.7 → v0.10.0 → v0.12.0 → v0.15.6. Promotion brought forward from the planned 2026-05-05 soak floor after compressed QA on Jay's machine and a v0.12.0 → v0.15.6 upgrade test on a second machine.
+- **Beta channel:** `v0.15.6` (id=54, 2026-04-30). Same binary as stable, same SHA. Beta row preserved through the stable promotion so beta clients continue to receive normal feed responses.
+- **What v0.15.6 ships.** DirectML execution provider via vendored sherpa-onnx + ORT 1.14.1 + DirectML 1.15.0 bundle at [src-tauri/vendor/sherpa-onnx/](Utterbar%20Windows%20App/src-tauri/vendor/sherpa-onnx/). v0.8.7 Whisper-on-CPU pin lifted. Model-aware Auto policy: Medium / Large / Parakeet route to DML on DX12 hardware, Small stays on CPU (real-meeting QA: Small CPU RTF 0.190 vs Small DML RTF 0.222 on a 9-minute meeting). Telemetry adds `dml_available` + `provider_policy_reason` (nine pinned strings). UTF-8 `£`-input panic in `services/llm/deterministic.rs` fixed pre-publish. SHA-256 `39ed250fa3d0ee94f5fb7c3d695e02693cfcdbf3766c94b0c4ce9cf9424885f9` across all three rows (54, 55-deleted, 56).
+- **Stable promotion ritual on 2026-04-30.** Initial stable publish created row 55 with the original beta-only notes; row 55 was then deleted with `delete_file=0` and superseded by row 56 carrying consolidated v0.12.0 → v0.15.6 release notes (stable users skipped the entire beta line and needed the recap). Same SHA across both. No `--announce` on either stable publish; subscriber list was empty.
+- **In-tree version:** `v0.15.6` across `package.json`, `Cargo.toml`, `tauri.conf.json`. Build commit: `cb1cf31`. Merge commit on `main`: `fda8785`. Release-note prep: `0c78569`. Release-note consolidation: `44e5f0b`. Tag `v0.15.6` points at the build commit `cb1cf31` per the runbook ("tag points at the exact commit that was built"); docs commits sit on `main` after the tag.
+- **Versioning convention** (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)): `0.x.0` minor = mainline / stable, `0.x.y` patch = beta soak. v0.15.6 is the exception that proved the rule — the patch carrying DirectML went straight to stable after compressed QA, but only because the binary had already soaked on beta and a real-machine v0.12.0 → v0.15.6 upgrade had been tested. Future releases should still follow the minor-on-stable / patch-on-beta cadence.
+- **Beta-channel chain since the v0.12.0 stable cut:** v0.12.1 → v0.13.0 → v0.13.1 → v0.13.2 → v0.13.3 → v0.14.0 → v0.14.1 → v0.14.2 → v0.14.3 → v0.14.4 → v0.14.5 → v0.14.6 → v0.14.7 → v0.14.8 → v0.14.9 → v0.14.10 → v0.14.11 → v0.14.12 → v0.14.13 → v0.15.0 (pulled by v0.15.1) → v0.15.1 → v0.15.2 → v0.15.3 → v0.15.4 → v0.15.5 → v0.15.6.
+- **Long-form transcription crash, addressed in v0.12.1.** v0.12.0 user reproduced a hard crash on a 40-min mic+loopback recording (sherpa offline decoder allocates O(duration) memory; OOM at ~12 GB). v0.12.1 shipped two safety patches: recording cap lifted to 8 h, transcribe-input ceiling at 5 min returning a clear user-facing error rather than crashing the process. The 5-min cap manifests on regular (non-meeting) dictation as a 302s refusal-with-audio-loss UX issue — tracked as a v0.15.6 follow-up in [TODO.md](TODO.md). The proper fix (streaming-recogniser rebuild) is queued as a future major work item.
+- **Speaker diarisation:** disabled in shipping builds since v0.15.1. The first attempt (v0.15.0) produced 91 speaker clusters on a 5-min meeting with cross-language Whisper hallucinations; pulled by v0.15.1 hotfix. Diariser code stays in tree behind `#[allow(dead_code)]` for the eventual rework. See [TODO.md "Diarisation — still deferred"](TODO.md) for the architecture sketch + open verification questions.
 - v0.6.1 was pulled (crashes); v0.6.2–v0.6.9 were internal-only iterations. All their user-facing fixes rolled forward into v0.7.0.
 - **Tauri IPC crash** — patched via vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). See §10.9.
 - Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed.
-- Multi-engine ASR live: Parakeet-TDT (default), Whisper (CPU-pinned, multilingual), Zipformer.
+- Multi-engine ASR live: Parakeet-TDT (default), Whisper (Small / Medium / Large v3, multilingual; v0.15.6 lifted the v0.8.7 CPU-pin so Whisper now honours user-selected provider), Zipformer.
 
 ### B2B / business surface (2026-04-27, in-tree)
 - **Marketing:** `/business` landing page (privacy + deployment +
@@ -764,13 +768,13 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 ### Website
 - Live on Cloudways. All contract endpoints deployed:
   - `GET /api/pricing` → `£39.99 GBP`.
-  - `GET /api/updater/check?current=<v>&channel=<stable|beta>` — returns the latest **eligibility-filtered** row for the channel. Eligibility now includes `updater_signature IS NOT NULL` when `UPDATER_PUBLIC_KEY_B64` is configured. Net effect today: stable returns `available:false` (no signed stable row yet); beta returns v0.9.0.
+  - `GET /api/updater/check?current=<v>&channel=<stable|beta>` — returns the latest **eligibility-filtered** row for the channel. Eligibility includes `updater_signature IS NOT NULL` when `UPDATER_PUBLIC_KEY_B64` is configured. Net effect today (verified 2026-04-30, post-stable-promotion): both stable and beta return v0.15.6 with the same SHA. Both rows are Ed25519-signed.
   - `POST /api/licence/{fetch,activate,deactivate,heartbeat}` → working under v2 keypair.
   - `POST /api/stripe/webhook` → live; mints licences on `checkout.session.completed` under v2 keypair.
   - `POST /api/admin/releases` → admin token + audit log + signed-metadata required when key is configured.
 - Sign-in + update-subscriber tokens hashed; staged rotation in place.
 - Release table populated; `/changelog` + `/download` render from it.
-- `config/site.php` `version` is `0.8.7` (informational — tracks last shipped stable).
+- `config/site.php` `version` is informational fallback only — real release data served from the `releases` table.
 - 58 PHP tests still only one-machine-green, not CI-verified. Re-run before each deploy.
 - Deploy: `Utterbar Website/scripts/deploy-website.ps1`.
 

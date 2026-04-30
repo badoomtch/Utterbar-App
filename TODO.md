@@ -4,788 +4,113 @@ One place to see what's done, what's staged, what's live, and what's
 still open. Kept at the monorepo root so both sub-projects are visible
 from one glance. Update at the end of each session.
 
-**Last updated: 2026-04-29 (v0.15.6 in tree, validation passed, deterministic UTF-8 panic fix landed, awaiting installer rebuild + commit + publish. DirectML validated on real 5-min meetings on Jay's machine: Whisper Small CPU 5:43→RTF 0.190, Small DML 9:27→RTF 0.222 (DML still slower; auto-Small stays CPU), Medium DML 8:55→RTF 0.754, Parakeet CPU clean. No native crashes. One non-DML panic surfaced: src/services/llm/deterministic.rs sliced UTF-8 byte indices and crashed on "£200" — fixed (use eq_ignore_ascii_case + str::get(idx..) instead of byte-index slicing of a precomputed lowercase). Two follow-up cleanup items also landed: CUDA policy_reason was incorrectly "user_explicit_directml" (now "user_explicit_cuda"), and show-info.cmake header had stale script name. 302s dictation cap is a separate UX follow-up. Stable still v0.12.0; beta still v0.15.5; in-tree target v0.15.6.)**
-
----
-
-## v0.15.6 (in tree, awaiting installer rebuild + commit + publish) — Phase B: DirectML
-
-DirectML execution provider actually runs. v0.8.7 Whisper CPU-force
-lifted. Auto policy is model-aware to handle Whisper Small's
-short-clip DML regression.
-
-- Vendored bundle at `src-tauri/vendor/sherpa-onnx/` rebuilt with
-  ORT 1.14.1 DirectML + DirectML 1.15.0. Same `SHERPA_LIB_PATH`
-  shape as before; production cargo builds DO NOT compile
-  sherpa-onnx from source.
-- `src-tauri/runtime/` mirrors the vendored DLLs. DirectML.dll
-  added; onnxruntime_providers_shared.dll preserved (defensive,
-  small) until a Zipformer DML smoke test confirms it can be
-  dropped.
-- BUNDLE_MANIFEST.txt records build date + ORT/DML versions +
-  every shipped binary's SHA-256.
-- `Cargo.toml`: `sherpa-rs = { version = "0.6", default-features = false }` (no `directml` feature in production builds — only used in the bundle-rebuild chore branch).
-- `services/gpu.rs::runtime_capabilities()` updated for embedded
-  DML EP. Detects either (legacy satellite layout: providers_dml +
-  DirectML) OR (embedded layout: DirectML.dll + onnxruntime.dll
-  contains "OrtSessionOptionsAppendExecutionProvider_DML"
-  substring).
-- `services/inference/mod.rs::resolve_provider` is now model-aware:
-  takes `model_id`, applies auto-Small CPU exception. Eight
-  policy_reason strings, all pinned by test.
-- `services/inference/sherpa_whisper.rs` lifts the v0.8.7 CPU-force.
-  Engine honours the resolved provider string. Source-grep test
-  pins the literal is gone.
-- Meeting + dictation logs gain `dml_available` + `provider_policy_reason`.
-- AdvancedSettings.tsx: honest copy when DML available; inactive
-  notice still fires for CUDA (we don't bundle it). No marketing
-  speedup claims in UI — release notes carry measured numbers.
-- `scripts/build-directml-bundle.ps1` documented as dev-maintenance
-  (not production build). RELEASE_RUNBOOK has a "Bundle rebuild"
-  section.
-- `src/services/inference/step2_dml.rs` — the Step 2 8-cell smoke
-  harness — registered as a permanent #[ignore] regression suite.
-  Run when the bundle is rebuilt (ORT/DML version bumps).
-
-**Validation matrix before publish (REQUIRED):**
-- Whisper Small CPU vs DirectML on a real 5+ min meeting
-- Whisper Medium CPU vs DirectML
-- Whisper Large v3 CPU vs DirectML
-- Parakeet int8 CPU vs DirectML
-For each: RTF, output sanity, crash.log status, provider telemetry.
-If Whisper Small DirectML beats CPU on real meeting audio, flip
-auto-Small policy from CPU to DirectML in resolver.
-
-**Phase B design items deferred (NOT shipped in v0.15.6):**
-- Sentinel + post-mortem crash detection. Step 2 had zero crashes;
-  defence-in-depth deferred unless soak data shows a need.
-- Output validation that drops text (foreign-script, empty). Still
-  designed-only.
-- CUDA support. DirectML covers all DX12 GPUs already.
-
-## Future hardening — Parakeet fp16
-
-**Correction (v0.15.5):** the v0.15.4 packet claimed fp16
-catalogue entries existed and were broken. They don't exist.
-The catalogue has six built-in models, none of which are
-fp16: Parakeet TDT v3 int8, Whisper Base, Small, Medium,
-Large v3, and the retired Zipformer. The fp16 mentions in
-code are legacy machinery: a session-create CPU-rejection
-guard in `sherpa_parakeet.rs:78` (defensive — no shipping
-bundle triggers it), and migration code in `services/settings.rs`
-+ `app_state.rs` that cleans up references to the v0.8.0-
-retired `sherpa-parakeet-tdt-0.6b-v2-fp16` id. Nothing to
-clean up in the live catalogue.
-
-If a future fp16 entry is added (post-Phase B, when GPU is
-real), the existing guard machinery is what surfaces a
-useful error rather than a crash. No work needed today.
-
-## Diarisation — still deferred
-
-Same shape as before. Per the v0.15.1 review notes, the
-design is "transcribe whole buffer once, diarise separately,
-assign speaker labels by interval-overlap on word/segment
-timestamps". Don't start until v0.15.6 lands cleanly on
-beta and a soak window proves DML is stable.
-
-**Out of scope for v0.15.6:** sentinel/quarantine production
-code (deferred — zero Step 2 crashes); output validation that
-drops text (still designed-only); real-time meeting
-transcription (streaming Whisper); per-mode meeting-model
-override (dormant `Mode.asr_model_id` field unused); CUDA;
-stable promotion of any 0.15.x (waiting on the v0.15.x
-readiness recheck and the new v0.15.6 soak window).
-
----
-
----
-
-## Next session pickup — read this first
-
-**v0.15.2 hotfix status (in working tree, not committed):**
-
-- v0.15.1 panicked at startup on Jay's machine after auto-
-  update from v0.15.0:
-  ```
-  bootstrap AppState: applied migration V6__history_speaker_names
-  is different than filesystem one V6__history_speaker_names
-  ```
-- **Root cause:** `core.autocrlf=true` on Jay's Windows machine
-  rewrote V0006__history_speaker_names.sql from LF (git index)
-  to CRLF (working tree) between the v0.15.0 and v0.15.1
-  `tauri build` invocations. v0.15.0 binary baked LF bytes,
-  recorded the LF SHA in the user DB. v0.15.1 binary baked
-  CRLF bytes, computed a different SHA, refused to start —
-  refinery's intentional "migration content drifted under us"
-  safety guard.
-- **v0.15.2 fix (in tree, not committed):**
-  1. New `.gitattributes` at repo root pinning `*.sql text
-     eol=lf` and `**/releases/*.md text eol=lf`. Closes the
-     class of bug.
-  2. V0006__history_speaker_names.sql renormalised to LF
-     (1110 bytes, matches git-stored). v0.15.2 binary will
-     compile the same bytes the v0.15.0 binary did →
-     produces the same LF checksum → DBs that recorded the
-     LF hash launch cleanly.
-  3. **NEW round-2 piece:** `db::repair` module with
-     `repair_known_v6_history_speaker_names_line_ending_checksum`
-     called BEFORE `embedded::migrations::runner().run`.
-     Detects the v0.15.1 CRLF checksum on V6's row,
-     confirms `history.speaker_names` column is present
-     (proof the migration's effect is on disk), and rewrites
-     ONLY that row's checksum to the LF value via a
-     constrained UPDATE (matching `version=6 AND
-     name='history_speaker_names' AND checksum=<crlf>`).
-     Without this, the LF v0.15.2 binary would still fail
-     symmetrically on machines where v0.15.1 was the first
-     0.15.x launch.
-  4. Refinery's checksum algorithm is `SipHasher13` over
-     `(name: &str, version: i32, sql: &str)` — verified by
-     reading `refinery_core::Migration::unapplied`
-     (refinery-core 0.8.16 runner.rs:89-93). NOT SHA-256.
-     Helper recomputes via `siphasher::sip::SipHasher13` to
-     reproduce the value byte-perfect.
-  5. **Concrete checksum values for the packet:**
-     - LF  (v0.15.0 / v0.15.2): `6176249412974396076`
-     - CRLF (v0.15.1):           `7360584664322190360`
-     Both stored in `refinery_schema_history.checksum` as
-     decimal `Display` of the `u64`.
-  6. New unit test pins V0006's SHA-256 in source so any
-     future drift fails CI before publish.
-  7. 10 new tests on `db::repair` covering: missing-table
-     no-op, missing-row no-op, LF unchanged, CRLF+column
-     repaired to LF, CRLF without column NOT repaired,
-     CRLF without history-table NOT repaired, unknown
-     checksum NOT repaired, LF/CRLF distinct, decimal-u64
-     shape, end-to-end (synthetic CRLF DB → repair →
-     refinery runs cleanly).
-  8. `releases/*.md` for v0.14.13/v0.15.0/v0.15.1 also
-     renormalised to LF (release notes are bundled into
-     the binary via include_str! and rendered in Settings →
-     Updates; line-ending drift wouldn't crash but would
-     mangle rendering).
-- v0.15.2 ships ONLY the line-ending fix. Speaker
-  diarisation stays disabled. Meeting mode behaviour
-  unchanged from v0.15.1.
-- The diarisation rework that was previously labelled
-  "v0.15.2 rework planning" is now **v0.15.3**.
-- v0.15.1 users CAN'T auto-update because v0.15.1 doesn't
-  reach the updater — the panic happens at AppState
-  bootstrap, before any UI. The release notes tell users
-  to either wait for v0.15.2 to land + manually download,
-  or reinstall v0.15.0 to get back to a working state and
-  let auto-update pick up v0.15.2 from there.
-
-**To continue from here:**
-
-1. **After Jay re-approves the v0.15.2 hotfix:** run gates,
-   commit on `hotfix/v0.15.2-line-endings`, push, build,
-   `./scripts/publish-release.sh 0.15.2 ... --beta` (no
-   `--announce`, no `latest` tag), verify SHAs + feeds,
-   merge `--no-ff` into main, delete branch.
-2. **After v0.15.2 ships and Jay confirms it launches:**
-   start the v0.15.3 diarisation rework. The architecture
-   sketch + open verification questions for the rework
-   moved to the renamed "v0.15.3 rework planning" section
-   below.
-3. **Stable promotion of any 0.15.x is still on hold** —
-   v0.15.2 is just an emergency unblock so users can
-   actually launch the app. Stable still serves v0.12.0.
-
-**Other context worth carrying forward:**
-
-- v0.14.12 mic-routing fix shipped to beta + verified by
-  Jay in real-world recordings ("recorded from the Scarlet
-  one, so that worked").
-- v0.14.13 security/stability patch shipped to beta; merged
-  into `main` at commit `ba5e923` with all CC-BY-4.0
-  attribution surfaces.
-- The v0.15 implementation plan went through Step 0 model-
-  asset SHA verification (locally computed + cross-checked
-  against k2-fsa upstream `checksum.txt` for the embedding
-  asset) before any code landed. The pinned SHAs in
-  `services::inference::diarize_assets` are the verified
-  ones. **Do NOT change them without re-running the local
-  fetch + sha256sum flow.**
+**Last updated: 2026-04-30 (post-stable-promotion)** — v0.15.6 promoted to stable on 2026-04-30 after compressed QA on Jay's machine plus a v0.12.0 → v0.15.6 upgrade test on a friend's machine. Stable row 55 was created with the original beta-only notes, then deleted with `delete_file=0` and re-published as row 56 with consolidated v0.12.0 → v0.15.6 release notes. Beta row 54 untouched. Same binary, same SHA across all three rows. Soak floor was 2026-05-05; promotion brought forward by five days based on QA results. The release-note consolidation is intentional because stable users skipped every beta from v0.13 onward.
 
 ---
 
 ## Where we are right now
 
-**Last publicly shipped stable: v0.8.7** (admin release row id=19, 2026-04-26). Stable channel currently spans v0.7.0 → v0.8.7. Tip jar live on home + pricing + download. GA4 consent-gated. Per-page OG images, admin tip + analytics + licence + subscriber dashboards, /blog with file-backed Markdown posts, /compare/* SEO pages, multi-engine ASR (Parakeet TDT + Whisper + Zipformer) all wired and shipping.
+### Channels
 
-**Beta channel:**
-- **v0.8.8** (id=20, unsigned) — Whisper CPU-pin + `[Music]` filter.
-- **v0.9.0** (id=21, **Ed25519-signed**) — security hardening pass: signed updater metadata, downgrade-prevention + dl.utterbar.com URL pin, DPAPI-encrypted licence cache, dual-key licence verification (V1 sandbox + V2 live), pinned model SHA-256s, admin-API audit log + tighter throttles, Settings IA (Update channel moved into General).
+| Channel | Version | Admin row | Notes |
+| --- | --- | --- | --- |
+| **Stable** | **v0.15.6** | id=56 (2026-04-30, with consolidated notes) | Served on `/download` with `latest` pill. Promoted early after compressed QA. Row 55 (also stable, original beta-only notes) was deleted with `delete_file=0` and superseded by 56. No `--announce` on either stable publish (subscriber list was empty either way, but principle of least surprise). SHA-256 `39ed250fa3d0ee94f5fb7c3d695e02693cfcdbf3766c94b0c4ce9cf9424885f9`. |
+| **Beta** | **v0.15.6** | id=54 (2026-04-30) | Beta row preserved. Same SHA as stable. CDN URL: https://dl.utterbar.com/releases/0.15.6/Utterbar-Setup-0.15.6.exe. |
 
-**In-tree app version: v0.11.0** across `package.json`, `Cargo.toml`, `tauri.conf.json`. Last publicly built version is v0.10.0 (stable). v0.11.0 is queued for a beta-channel build with: per-app auto-activation matcher wired, .srt/.vtt subtitle export for file transcription, history → vocabulary/replacement correction loop, history filters (mode/app/date range). See [releases/0.11.0.md](Utterbar%20Windows%20App/releases/0.11.0.md).
+### In-tree app version
+`v0.15.6` across [package.json](Utterbar%20Windows%20App/package.json), [Cargo.toml](Utterbar%20Windows%20App/src-tauri/Cargo.toml), [tauri.conf.json](Utterbar%20Windows%20App/src-tauri/tauri.conf.json). Matches the published beta binary.
 
-**Stable updater feed quirk:** the new server-side eligibility filter requires `updater_signature` set when `UPDATER_PUBLIC_KEY_B64` is configured. None of the legacy v0.7/v0.8.6/v0.8.7 stable rows are signed, so `/api/updater/check?channel=stable` returns `available:false` for every stable user until a signed v0.9.x stable row is published. **Plan:** soak v0.9.0 on beta for 1–2 weeks, then re-publish without `--beta`.
+### What v0.15.6 actually changed
+- **DirectML execution provider, embedded.** Vendored sherpa-onnx + ONNX Runtime DLL bundle at [src-tauri/vendor/sherpa-onnx/](Utterbar%20Windows%20App/src-tauri/vendor/sherpa-onnx/) rebuilt against ORT 1.14.1 + DirectML 1.15.0. `DirectML.dll` (~18.5 MB) added to the runtime payload; DML EP now exposed by `onnxruntime.dll` (no satellite `_providers_dml.dll` — ORT 1.14.1 statically embeds it).
+- **Whisper CPU-force lifted.** The v0.8.7 mitigation that pinned every Whisper transcribe to CPU regardless of user pref is gone. Step 2 8/8 PASS confirmed the original DML failure mode no longer reproduces against the new bundle. Step 2 cells now live as a permanent `#[ignore]` regression suite at [src-tauri/src/services/inference/step2_dml.rs](Utterbar%20Windows%20App/src-tauri/src/services/inference/step2_dml.rs).
+- **Model-aware Auto policy.** When user picks Auto and a hardware GPU is present:
+  - Whisper Medium → DirectML
+  - Whisper Large v3 → DirectML
+  - Parakeet TDT v3 int8 → DirectML
+  - Whisper Small → **CPU** (Step 2 short-clip evidence: DML 0.78× CPU; real-meeting evidence on Jay's machine: Small CPU 5:43 → RTF 0.190 vs Small DML 9:27 → RTF 0.222 — DML penalty for Small persists into long audio).
+- **Explicit DirectML overrides** the auto-Small CPU rule. If user picks DirectML in Settings → Advanced, every model goes to DML.
+- **Embedded-EP runtime detection.** `services/gpu.rs::runtime_capabilities()` now requires both `DirectML.dll` *and* a PE-export check on `onnxruntime.dll` for `OrtSessionOptionsAppendExecutionProvider_DML` (via `goblin`). Legacy satellite layout still detected for backwards compat.
+- **Telemetry on every transcribe.** `dml_available` (bool) and `provider_policy_reason` (string, nine pinned values: `user_explicit_cpu`, `user_explicit_directml`, `user_explicit_cuda`, `dml_ep_unavailable`, `cuda_ep_unavailable`, `auto_dml_speedup`, `auto_small_prefers_cpu_short_clip`, `auto_cpu_no_dml_runtime`, `auto_cpu_no_hardware_gpu`) — pinned by resolver tests so production logs are diagnosable.
+- **Settings → Advanced honest copy** when DML is actually available; v0.15.5 inactive notice still fires for CUDA (we don't bundle it).
 
-**Website:** deployed. All cross-side contract endpoints live:
-- `GET /api/pricing` returns `£39.99 GBP`.
-- `GET /api/updater/check?current=<v>` returns the latest stable
-  release row.
-- `POST /api/licence/{fetch,activate,deactivate,heartbeat}` working.
-- Stripe live (Pro checkout + tip jar both go through it).
-- Magic-link sign-in uses SHA-256-hashed tokens.
-- GA4 (`G-5PQ5CNPQ38`) loads only after consent banner accept.
-- Cookie consent banner + footer "Cookies" revisit link.
-- Per-page OG image generator at `/og/image`.
-- Download analytics + tip dashboard at `/admin/{analytics,tips}`.
+### Pre-publish QA fixes that landed in the same commit
 
-**Versions in tree (verified 2026-04-27):**
-- App `package.json` / `Cargo.toml` / `tauri.conf.json`: `0.9.0` (matches beta-published binary).
-- Website `config/site.php`: `0.8.7` (informational fallback; real release data served from the `releases` table).
+Two issues surfaced during real-meeting validation; both fixed before the installer was rebuilt and published:
 
----
+- **`services/llm/deterministic.rs` UTF-8 panic.** `replace_regex` was byte-indexing into a precomputed `to_lowercase()` haystack. A real Parakeet dictation containing `£200` panicked at `deterministic.rs:123:31` (`start byte index N is not a char boundary; it is inside '£'`). Fix: drop the lower-case precomputation, slice the original haystack via `str::get(idx..after)`, compare with `eq_ignore_ascii_case` (filler list is ASCII). Five new tests pin the exact crash repro plus CJK / emoji / diacritic cases.
+- **CUDA `provider_policy_reason` typo.** Explicit-CUDA branch reported `"user_explicit_directml"`. Fixed to `"user_explicit_cuda"`. Resolver test strengthened.
 
-## In-flight (uncommitted) — do NOT count as shipped
+### Stable promotion (closed)
 
-Working-copy work staged on disk but not committed. Verified via
-`git status`. Cross-check against shipped release notes before
-claiming any of this is live.
+Promoted on 2026-04-30 after compressed QA. Evidence:
 
-**Website (Laravel):**
-- Waitlist removal: `WaitlistController`, `WaitlistEntry`,
-  `WaitlistConfirmation` mailable, `waitlist-form` Blade component,
-  `/waitlist` route + page, waitlist confirmation email templates,
-  and the `2026_04_24_110000_drop_waitlist_entries_table.php`
-  migration are all deleted/staged for deletion. The migration has
-  not yet run on production.
-- New admin surfaces: `Admin/ContactController`,
-  `Admin/LicenceController`, `Admin/SubscriberController`, plus
-  views under `pages/admin/contacts/`, `pages/admin/licences/`,
-  `pages/admin/subscribers/` and an `admin-nav` component.
-- New artisan command: `LicenceRemint`.
-- New marketing pages: `pages/compare/*` and
-  `pages/what-is-local-dictation.blade.php`.
-- Pricing card / prompt-cta / footer / docs / pages / contact /
-  legal Blade views modified across the board.
-- `config/marketing.php`, `routes/web.php`, `deploy-website.ps1`,
-  `app.js`, `still.blade.php`, `video-embed.blade.php` modified.
+- A → K manual checklist passed on Jay's machine (Parakeet £-sign dictation clean, Whisper Small Auto routed to CPU as designed, Whisper Medium DirectML produced sane transcripts, Parakeet DirectML clean across 5 short dictations, settings persisted across restarts, beta/stable feeds gated correctly, no panic in crash.log, no new crash dumps).
+- v0.12.0 → v0.15.6 upgrade tested on a second machine (Jay's friend); installed clean, SmartScreen warning expected for an unsigned installer.
+- Stable feed verified returning v0.15.6 with matching SHA after row 56 was published; beta feed (row 54) preserved.
+- Notes consolidated for stable users. Original beta-only notes (row 55) deleted with `delete_file=0` and superseded by row 56 with the v0.12.0 → v0.15.6 recap.
 
-**B2B / business pass (2026-04-27, staged):**
-- New website surfaces: `/business` landing page, `/business/contact`
-  typed enquiry form, `/docs/it-deployment` deployment doc, plus a
-  volume-pricing block on `/pricing` (Team / Business / Enterprise).
-- Backend: `BusinessEnquiryController`, `Admin/BusinessEnquiryController`,
-  `BusinessEnquiry` model + `business_enquiries` table migration,
-  `BusinessEnquirySubmission` mailable, admin index/show views with
-  status update, `BusinessEnquiry` admin nav tab.
-- Self-serve checkout stays at 1 seat (Personal). Team/Business
-  flow through enquiry → Jay hand-mints a licence with the
-  appropriate `max_devices`. No SAML, no SSO, no fake enterprise
-  console.
-- Desktop app: `src-tauri/src/services/policy.rs` — group-policy
-  registry overlay reading `HKLM\SOFTWARE\Policies\Utterbar`
-  (HKCU as per-user fallback). Three pinnable values shipped:
-  `UpdateChannel`, `CheckUpdatesAutomatically`, `BlockModelDownloads`.
-  Wired into `SettingsStore::snapshot()` (overlays on every read)
-  and into `ModelRegistry::install()` (refuses downloads when
-  `BlockModelDownloads=1`). 6 unit tests pass.
-- Migration `2026_04_27_140000_create_business_enquiries_table.php`
-  has not yet run on production.
+Caveats users may hit, all called out in the consolidated notes:
 
-**Desktop app:**
-- v0.7.3 release notes (auto-update flow rework — toast on focus,
-  manual "Check now" wiring, onboarding consent step).
-- Modified: `MainShell.tsx`, `Onboarding.tsx`, `GeneralSettings.tsx`,
-  `ModelsSettings.tsx`, `UpdateToast.tsx`, plus a new
-  `src/state/update.ts` store.
-- Rust-side: `pricing.rs`, `inference/mod.rs`, `licence/verify.rs`
-  modified.
-- Marketing/Remotion bundle: HowItWorks + OnboardingWalkthrough
-  compositions deleted; new `StatePillStatic.tsx`; manifest +
-  rendered `out/` regenerated.
+- **Cold DirectML first-run cost.** Parakeet adds roughly 20-25 s before the first transcript appears after launch; Whisper Medium / Large can take 30-60 s of graph compilation on the first meeting in a session. Subsequent recordings in the same session reuse the cached recogniser. Quitting loses the cache.
+- **5-minute single-shot dictation cap** (carried forward from v0.12.1). Regular dictation refuses inputs longer than 5 minutes with a clear error. Meeting Mode chunks internally and handles up to about an hour. The streaming-recogniser rebuild that lifts this cap is a separate future work item.
+- **Speaker labels remain off.** Earlier diarisation attempts produced wrong-shaped output. Transcripts come back timestamped without `**Speaker N:**` labels. The rework is planned for a future release.
+- **In-app Settings > Updates page on the v0.15.6 binary still shows the original baked-in beta-only notes** because `commands/release_notes.rs` uses `include_str!` against `releases/<CARGO_PKG_VERSION>.md` at compile time. The website (`/changelog`, `/download`) shows the consolidated stable-promotion notes. The in-app notes will catch up naturally on the next release.
 
----
-
-## Cross-side contract status (verified 2026-04-26)
-
-Reconfirmed by re-reading the script + release docs (see fault
-line §5 below):
-
-- `Utterbar Windows App/scripts/publish-release.sh` uploads to the
-  versioned R2 key `releases/<v>/Utterbar-Setup-<v>.exe` only — no
-  legacy second-key upload. POST body explicitly includes `r2_key`
-  so the admin API does not fall back to its default. POSTs to
-  `$UTTERBAR_API_BASE/api/admin/releases` via temp-file
-  `--data-binary "@..."` (avoids git-bash multiline JSON mangling).
-- The website-side admin API's `file_not_in_bucket` fallback now
-  defaults to the versioned key (matches what the script uploads).
-- `--announce` triggers email-out to confirmed `update_subscribers`.
-
-If anything in [RELEASE_RUNBOOK.md](RELEASE_RUNBOOK.md) or
-[Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md)
-contradicts the above, fix the docs in the same PR.
+If a regression needs code, cut a fresh `0.15.7` beta. Never re-publish `0.15.6` with new bytes; that would invalidate the SHA on already-installed clients on every channel.
 
 ---
 
 ## Open product issues
 
+### Follow-up — 302s transcription cap UX
+
+Non-meeting (single-shot) dictation refuses recordings longer than 302s with audio loss. Surfaced 2026-04-29 when Jay forgot to switch to Meeting Mode. **Out of scope for v0.15.6.** Separate ticket post-release. Options to weigh: auto-stop with a "Recording auto-stopped at 5 min — switch to Meeting Mode for longer dictation" toast, or surface a visible 5:00 countdown in the floating bar. Pick one when this comes up next; both are small.
+
+### Follow-up — Whisper Small DML on long audio
+
+Auto-Small currently routes to CPU based on both 30-second-clip evidence (DML 0.78× CPU) and a real 9:27 meeting on Jay's machine (DML RTF 0.222 vs CPU RTF 0.190). If a future longer-audio test on different hardware shows DML overtakes CPU for Small, flip the resolver to `auto_dml_speedup` for Small. Decision not blocking; the policy is a one-line change in [services/inference/mod.rs::resolve_provider](Utterbar%20Windows%20App/src-tauri/src/services/inference/mod.rs).
+
+### Follow-up — Sentinel + post-mortem crash detection
+
+Step 2 produced zero crashes across 8 cells. Defence-in-depth (sentinel file + quarantine + post-mortem detection) deferred unless real soak data shows hardware-specific DML failures. If the v0.15.6 soak surfaces a crash on someone else's GPU, this becomes the v0.15.7 priority.
+
+### Follow-up — Output validation that drops text
+
+Designed-only since v0.15.5. Foreign-script and empty-output filters that would prevent Whisper hallucinations from reaching the user. Not blocking. Unrelated to DirectML.
+
 ### B2B follow-throughs (post first-pass)
 
-The 2026-04-27 B2B pass shipped the front door (landing page,
-enquiry form, IT-deployment doc, volume pricing block) and a small
-group-policy surface (5 pinnable values: `UpdateChannel`,
-`CheckUpdatesAutomatically`, `BlockModelDownloads`,
-`BlockSystemAudio`, `RequireLicence`). What still needs doing
-before the *first real volume sale* closes cleanly:
+The 2026-04-27 B2B pass shipped the front door — `/business` landing page, enquiry form, IT-deployment doc, volume-pricing block — and a small group-policy registry surface (3 pinnable values: `UpdateChannel`, `CheckUpdatesAutomatically`, `BlockModelDownloads`). What still needs doing before the first real volume sale closes cleanly:
 
-- [ ] **Code-signed installer at order time.** Public installer is
-  unsigned (SmartScreen warnings on first install). For any
-  Business / Enterprise order where a fleet rollout can't tolerate
-  that, we sign at order time and fold the cert cost into the
-  quote. Requires: a process for buying / loading an EV
-  signing-cert on demand, signing during `publish-release.sh`,
-  and a way to ship the signed installer to one customer without
-  it leaking into the public R2 bucket. **Not a blocker for the
-  first enquiry — only when the first enquiry says yes.**
-- [ ] **Bulk licence delivery for fleets.** Today personal licences
-  arrive via a per-buyer email + magic link. A 50-seat hand-mint
-  needs *one* artefact the IT team can deploy across every
-  machine — likely a signed `licence.bin` file + a documented
-  drop path under `%APPDATA%\Utterbar\` (or a registry-pinned
-  override). Spec'd, not built.
-- [ ] **Manual-mint invoice / VAT receipt.** Stripe handles this
-  for self-serve. Hand-minted Business licences currently have no
-  paper trail — first volume customer will need an invoice with
-  VAT broken out before they pay. Probably a one-off Stripe
-  Invoice from the dashboard for the first 1–3 deals; revisit if
-  it becomes routine.
-- [ ] **Volume self-serve checkout (later).** Manual mint is fine
-  for the first 3–5 deals; painful at 20. When the queue justifies
-  it, extend Stripe checkout with a quantity selector that maps
-  to `max_devices` on the minted licence. Don't build until there
-  is queue.
-- [ ] **Three more policy keys waiting on Settings work.**
-  `BlockTelemetry`, `BlockHistory`, `BlockHistoryExport` would all
-  be high-value pinnable values for compliance buyers, but the
-  underlying user-facing toggles don't exist yet. Build the
-  Settings → Privacy controls first, then add the policy
-  overrides. Promised in the IT-deployment doc as "more keys per
-  customer request" rather than as shipped today.
-- [ ] **Air-gapped activation.** Documented as "on request" only.
-  Build when a real buyer asks: a `licence_request.bin` writer in
-  the app, a paired admin endpoint that returns a signed
-  `licence_response.bin`, and a one-button ingest flow in the
-  app's Account UI. Each leg is small; combined it's a
-  sub-session of work.
+- [ ] **Code-signed installer at order time.** Public installer is unsigned (SmartScreen warnings). Required before any Business / Enterprise rollout. Process: buy/load EV cert on demand, sign during `publish-release.sh`, ship signed installer to one customer without leaking into the public R2 bucket. **Not a blocker for the first enquiry — only when the first enquiry says yes.**
+- [ ] **Bulk licence delivery for fleets.** Today's per-buyer email + magic link doesn't scale. A 50-seat hand-mint needs one artefact (signed `licence.bin` + documented drop path) the IT team can deploy across machines. Spec'd, not built.
+- [ ] **Manual-mint invoice / VAT receipt.** Hand-minted Business licences currently have no paper trail. First volume customer will need an invoice with VAT broken out before they pay. One-off Stripe Invoice from the dashboard for the first 1–3 deals; revisit if it becomes routine.
+- [ ] **Volume self-serve checkout (later).** Manual mint is fine for the first 3–5 deals, painful at 20. Extend Stripe checkout with a quantity selector mapping to `max_devices` when there's a queue.
+- [ ] **More policy keys waiting on Settings work.** `BlockTelemetry`, `BlockHistory`, `BlockHistoryExport` would all be high-value pinnable values for compliance buyers, but the underlying user-facing toggles don't exist yet. Build Settings → Privacy first, then add overrides.
+- [ ] **Air-gapped activation.** Documented as "on request" only. Build when a real buyer asks: a `licence_request.bin` writer in the app, a paired admin endpoint that returns a signed `licence_response.bin`, and a one-button ingest flow in the app's Account UI. Each leg is small; combined sub-session of work.
 
 ### Pre-existing open issues
 
-- [ ] **Waitlist tidy-up** — code is staged for deletion in-tree
-  but not yet pushed/deployed. Run the drop migration on production
-  after the deploy, then verify `prompt-cta` + footer + admin views
-  no longer reference a waitlist anywhere.
-- [ ] **Legal pages refresh** — `legal/privacy.blade.php` and
-  `legal/terms.blade.php` still describe the site as storing only
-  waitlist emails. With Stripe live they need to mention purchase
-  records, licence keys, and device fingerprints.
-- [ ] **Ed25519 key rotation.** Sandbox keypair still in use on the
-  live site — see [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md).
-  Plan needs to allow existing v0.7.x installs to keep validating.
-- [ ] **Admin dashboard cohesion** — the staged `Admin/*`
-  controllers + views (contacts, licences, subscribers) need a
-  navigation pass once they ship. The `admin-nav` component is the
-  starting point.
-- [ ] **Remotion video quality pass.** Re-render compositions
-  against current `FloatingBar.tsx` imports; consider R2-backed CDN
-  delivery.
-- [ ] **4.9 GB idle RAM** — never investigated. See
-  [MONOREPO.md §10.6](MONOREPO.md).
+- [ ] **Ed25519 sandbox key sunset.** Live key is v2 (`LICENCE_PAYLOAD_VERSION=2`); v1 sandbox key still accepted transitionally so pre-v0.9.0 caches keep verifying. Sunset planned ~6 weeks after v0.9.0 saturates the install base. Rollout plan needs to allow existing v0.7.x installs to keep validating.
+- [ ] **Legal pages refresh.** `legal/privacy.blade.php` and `legal/terms.blade.php` need to mention purchase records, licence keys, and device fingerprints (Stripe is live; previous text described the site as storing only waitlist emails). Partial pass shipped earlier; needs final review.
+- [ ] **Admin dashboard cohesion.** Staged `Admin/*` controllers + views (contacts, licences, subscribers) need a navigation pass once they ship. The `admin-nav` component is the starting point.
+- [ ] **Remotion video quality pass.** Re-render compositions against current [FloatingBar.tsx](Utterbar%20Windows%20App/src/routes/FloatingBar.tsx) imports; consider R2-backed CDN delivery.
+- [ ] **4.9 GB idle RAM** — never reproduced on v0.9.0+. Treat as folklore until reproduced. If it surfaces, attach VMMap to the running wry process and check heap commit by region. See [MONOREPO.md §10.6](MONOREPO.md).
+- [ ] **Microsoft Store cert.** v0.12.0 submission status: testing whether the existing build passes Store cert as-is with the in-app updater intact and a "leave it alone, we know" cert note. If cert rejects, build a Store-specific variant that compiles the in-app updater out via a feature flag. Tracked separately from direct-channel releases. See [CLAUDE.md §5.7](CLAUDE.md).
 
 ---
 
-## v0.15.3 Meeting Mode performance (2026-04-29) — beta only
+## Diarisation — still deferred
 
-What v0.15.3 changes:
+Same shape as before. Per the v0.15.1 review notes, the design is "transcribe whole buffer once, diarise separately, assign speaker labels by interval-overlap on word/segment timestamps". Don't start until v0.15.6 has cleared the soak window AND the stable promotion has happened — diarisation work on top of an unsoaked DirectML runtime is the wrong order.
 
-- **Whisper Medium added to the catalogue.** SHA-pinned via Step 0
-  verification (download → sha256sum → tar tjf → smoke-load through
-  `SherpaWhisper::ensure_loaded` → transcribe a bundled wav and
-  compare against the bundle's `trans.txt`).
-  - URL: `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2`
-  - SHA-256: `614b1172557049069d846c29d9399640bce83a4dd6c580decebd9ce2a4f32c33`
-  - tarball size: 1,931,372,882 bytes (~1.93 GB; ~3.5 GB on disk
-    after extract — Medium ships fp32 + int8, the resolver picks
-    int8 at runtime)
-  - `requires_pro: true`, `recommended: true`
-- **Meeting Mode model is now an explicit user choice.** New
-  `meeting_asr_model_id: Option<String>` setting on `ModelSettings`,
-  serde back-compat (pre-v0.15.3 settings.json files miss the field,
-  deserialise with `None`). New "Meeting mode model" card in
-  Settings → Models with three radios: Fast / Balanced (recommended)
-  / Best accuracy.
-- **Selection policy — allow-list + no silent fallback:**
-  Meeting Mode supports EXACTLY three models — Whisper Small,
-  Medium, Large v3. Pinned via `is_allowed_meeting_model_id`
-  helper.
-  - pref off-allow-list (Parakeet, Zipformer, Whisper Base, future
-    unknown ASR id) → RefuseUnsupportedModel(id) — even if the
-    model is installed. User error: "Your meeting model setting
-    is invalid. Open Settings → Models and choose Fast,
-    Balanced, or Best accuracy."
-  - pref on-allow-list + installed → Use(id)
-  - pref on-allow-list + missing → RefuseExplicitMissing(id)
-    (refusal copy names the model + says open Settings → Models)
-  - pref unset + Medium installed → Use("sherpa-whisper-medium")
-  - pref unset + Medium missing → RefusePreferenceUnset (refusal
-    copy lists the three options)
-  - never silently routes to ANY model — explicit user choice
-    or refusal, no fallback chain.
-- **Bridge fall-through hardened.** When a meeting recording
-  arrives at stop_recording with no `ActiveRecordingContext`
-  bound (the v0.15.2-in-flight bridge case) AND current settings
-  can't yield an allow-listed meeting model,
-  `resolve_target_model_id` returns
-  `Err(MeetingBridgeFailure)`. stop_recording surfaces a clear
-  user-facing error rather than silently routing through
-  `default_asr_model_id` (which is typically Parakeet).
-- **`ActiveRecordingContext`** struct on `AppState` (pub(crate))
-  binds the recording session at start-time. Stop reads
-  `(mode_id, is_meeting, meeting_model_id)` from the context, not
-  from current settings. A meeting started as Meeting stops as
-  Meeting; the meeting model used at stop is the one approved at
-  start. Cleared on every recording-end path (success, cancel,
-  no-active-stop, transcribe error, every start-side error).
-  Source-grep guard test pins the pairing.
-- **Chunk size 30s → 29s.** sherpa-onnx silently truncates inputs
-  ≥30s with a stderr warning ("Only waves less than 30 seconds are
-  supported"). Step 0e surfaced the warning. Tightened to 29s gives
-  the recogniser the same input every chunk and removes the
-  truncation. Existing v0.15.2 transcripts may have lost up to 1s
-  per boundary — release notes call this out.
-- **Cap retuned 130 → 135 chunks.** With 27s stride (was 28s),
-  preserving "60 minutes accepted" requires 134 chunks plus a
-  small shoulder. Result: 135 chunks × 27s + 29s = 3647s = 60 min
-  47 s of audio.
-- **Success pill** now reads `Saved · 5:01 · Whisper Medium · 11
-  chunks · 799 chars`. New `model_label: String` field on
-  `DictationSuccessSummary`. Frontend type mirror at
-  `src/state/dictation.ts` and the auto-generated TS file both
-  carry the field.
-- **End-of-meeting summary log** on every meeting:
-  `audio_duration_ms`, `total_processing_ms`, `realtime_factor`,
-  `selected_model_id`, `chunk_count`, `whisper_language`. Lets us
-  collect honest RTF data across the beta soak.
-- **Pro-gating** in the new card mirrors the existing model-row UI
-  (locked rows show `<ProNudge>`, Install button disabled). The
-  `install_model` IPC already enforces Pro server-side; the lock is
-  UX polish.
-- **Whisper Large preflight rewritten** as the resolver-driven
-  flow. `start_recording` no longer hard-codes
-  `WHISPER_LARGE` — it calls `resolve_meeting_model_id` and
-  branches on the outcome.
-- Files modified: package.json, Cargo.toml, tauri.conf.json,
-  Cargo.lock; domain/settings.rs, domain/events.rs, app_state.rs,
-  services/models.rs, commands/dictation.rs;
-  src/state/dictation.ts, src/components/bar/StatePill.tsx,
-  src/routes/settings/ModelsSettings.tsx;
-  releases/0.15.3.md (new); TODO.md.
-- Auto-regenerated by ts-rs: src/generated/ModelSettings.ts,
-  src/generated/Settings.ts, src/generated/DictationSuccessSummary.ts.
+Open verification questions to answer against the real provider before any diarisation code is written:
 
-Selection-policy + lifecycle tests added to
-`commands::dictation::diarised_helpers_tests`:
+- Does `sherpa_rs::whisper::WhisperRecognizer` expose segment or word timestamps on its `transcribe` result? (Today's `AsrResult.words` is hardcoded `None` because the provider doesn't surface them. The "assign labels by timestamp" approach depends on the answer.)
+- Does `sherpa_rs::whisper` allow language to be set per-call, or only at recognizer construction?
+- Can the current Whisper provider be reused for timestamped output, or does the rework require a provider trait/API change?
 
-Round-1 (selection happy paths + base refusals):
-- meeting_resolves_to_medium_when_no_pref_and_medium_installed
-- meeting_refuses_when_no_pref_and_medium_not_installed_even_if_large_installed
-- meeting_refuses_when_no_pref_and_no_whisper_installed
-- meeting_resolves_to_large_when_pref_large_and_large_installed
-- meeting_refuses_when_pref_large_but_large_not_installed_even_if_medium_installed
-- meeting_resolves_to_small_when_pref_small_and_small_installed
-- meeting_refuses_when_pref_small_but_small_not_installed
-- meeting_asr_model_id_serde_back_compat_missing_field
-
-Round-2 (allow-list hardening + bridge-failure path):
-- allow_list_only_accepts_whisper_small_medium_large
-- explicit_parakeet_meeting_pref_with_parakeet_installed_refuses_unsupported
-- explicit_zipformer_meeting_pref_with_zipformer_installed_refuses_unsupported
-- explicit_whisper_base_meeting_pref_with_base_installed_refuses_unsupported
-- no_pref_only_parakeet_installed_refuses_preference_unset
-- no_pref_only_large_installed_refuses_preference_unset
-- allow_listed_models_still_resolve_to_use_when_installed
-- bridge_meeting_no_context_does_not_fall_through_to_default_asr_model
-- bridge_meeting_unsupported_pref_propagates_through
-- non_meeting_recording_still_uses_default_asr_model_id
-
-Helpers:
-- realtime_factor_zero_audio_returns_none
-- realtime_factor_sub_second_audio
-- realtime_factor_typical_meeting
-- display_name_short_known_models
-- display_name_short_unknown_model_returns_id
-
-ActiveRecordingContext lifecycle:
-- active_recording_context_round_trip_holds_value
-- meeting_session_remains_meeting_when_active_mode_changes
-- non_meeting_session_remains_non_meeting_when_active_mode_changes
-- meeting_model_id_persists_through_settings_change
-- active_recording_context_cleared_by_helper
-- every_clear_recording_flag_site_pairs_with_clear_active_recording_context
-
-Plus the existing chunk-cap pin tests updated for 29s/27s/135 cap:
-- chunk_cap_constants_match_documented_values (now 29/2/135/60)
-- projected_chunks_for_five_minute_meeting_is_bounded (now 12, was 11)
-- projected_chunks_for_sixty_minute_meeting_under_cap (now 134, was 129)
-
-Selection-policy tests use a new `services::models::test_helpers::register_for_test`
-helper that inserts a row + creates a directory under `models_dir`
-so `ModelRegistry::is_installed` returns true without going through
-the real download flow.
-
-Out of scope for v0.15.3 (deferred to v0.15.4):
-- Speaker diarisation re-introduction (architectural rework).
-- DirectML re-enable for Whisper.
-- Per-mode meeting-model override (the dormant
-  `Mode.asr_model_id` field stays unused).
-- Stripping the fp32 variants from the Medium bundle on install
-  (would save ~2 GB on disk; orthogonal to v0.15.3's behaviour).
-
-**Awaiting Jay's "approved, code"-then-"ship it" cycle: nothing
-committed, nothing pushed, no build, no publish in v0.15.3 yet.**
-
----
-
-## v0.15.2 Migration line-ending hotfix (2026-04-28) — beta only
-
-What v0.15.2 changes:
-
-- **One file restored, three new files added.**
-  Files modified or created:
-  1. `Utterbar Windows App/src-tauri/src/db/migrations/V0006__history_speaker_names.sql`
-     — re-checked-out from git index to get rid of the
-     CRLF rewrite that core.autocrlf had applied. Working
-     tree now matches index (1110 bytes, LF). Same bytes
-     v0.15.0 was built from.
-  2. `.gitattributes` (NEW, repo root) — pins
-     `*.sql text eol=lf` and `**/releases/*.md text eol=lf`.
-     Stops the same class of bug from biting any future
-     migration or release-note bundle. Doesn't touch any
-     other file types — keeps the rule surface minimal.
-  3. **NEW round-2:** `Utterbar Windows App/src-tauri/src/db/repair.rs`
-     — pre-migration-runner V6 checksum repair. See the
-     "Next session pickup" block at the top for the full
-     contract; tl;dr: detects v0.15.1 CRLF checksum on V6
-     row, requires `history.speaker_names` column as proof
-     the migration's effect ran, rewrites only that one
-     row's checksum to LF. Uses
-     `siphasher::sip::SipHasher13` (refinery's actual
-     algorithm, not SHA-256). 10 unit tests including end-
-     to-end "synthetic CRLF DB → repair → refinery runs
-     cleanly". `Utterbar Windows App/src-tauri/src/db/mod.rs`
-     wires the helper into `Db::run_migrations` BEFORE
-     the embedded refinery runner.
-  4. **NEW round-2:** `siphasher = "1"` direct dep in
-     `Utterbar Windows App/src-tauri/Cargo.toml`. Was
-     transitively present via refinery; promoted to direct
-     so the repair helper compiles cleanly without
-     extern-crate gymnastics.
-  5. `Utterbar Windows App/releases/0.15.2.md` (NEW) —
-     release notes documenting both the byte-content
-     restoration AND the round-2 checksum repair, plus
-     the "reinstall v0.15.0 if you can't launch right now"
-     workaround.
-  6. New unit test in `commands::dictation::diarised_helpers_tests`
-     pinning the SHA-256 of V0006's bundled bytes (round-1
-     forward guard). Any future change fails CI.
-  7. `releases/*.md` for v0.14.13/v0.15.0/v0.15.1 also
-     re-checked-out (their working-tree CRLF didn't break
-     anything but the new gitattributes rule covers them
-     and the renormalise removed the noise).
-  8. Version bump 0.15.1 → 0.15.2 in package.json,
-     Cargo.toml, tauri.conf.json.
-
-- **No app behaviour change.** Meeting Mode still uses the
-  v0.15.1 chunked-no-labels path. Speaker diarisation
-  stays disabled. Whisper Large preflight unchanged.
-  Chunk cap still ~60 minutes.
-
-- **Required log line** — there isn't one for v0.15.2; the
-  observable success criterion is "app launches, get_phase
-  returns Idle, no PANIC line in crash.log".
-
-- **Why the bug:** refinery's `embed_migrations!`
-  compile-time macro hashes each .sql file's bytes and
-  compares the hash on app start against what's recorded
-  in `__refinery_schema_history`. v0.15.0 was built from
-  V0006 with LF (the git-stored form). Between the v0.15.0
-  build and the v0.15.1 build, Windows' core.autocrlf=true
-  rewrote V0006 to CRLF in the working tree. The v0.15.1
-  binary baked CRLF bytes; refinery saw a different hash
-  than the LF hash recorded in user DBs; raised
-  ApplyMigrationFailure; main.rs `expect("bootstrap
-  AppState")` panicked.
-
-- **Why this couldn't have been caught earlier:** the
-  migration file isn't touched at all in the v0.15.1
-  diff. `git diff` showed clean. `git ls-files --eol`
-  would have shown `i/lf w/crlf` for V0006 but that
-  command isn't part of the publish ritual. Now it
-  effectively is, via gitattributes — any future drift
-  is corrected on next checkout.
-
-**Diagnosis trail (preserved here as the artefact):**
-
-> [2026-04-28T22:03:53.3816434Z] PANIC: panicked at src\main.rs:67:57:
-> bootstrap AppState: applied migration V6__history_speaker_names
-> is different than filesystem one V6__history_speaker_names
-
-Hash diff confirmed by:
-```
-$ wc -c V0006*.sql                         # 1131 (CRLF)
-$ git show HEAD:.../V0006*.sql | wc -c     # 1110 (LF)
-$ git ls-files --eol -- .../V0006*.sql
-i/lf    w/crlf  attr/                      # smoking gun
-```
-
----
-
-## v0.15.1 Diarisation rollback hotfix (2026-04-28) — beta only
-
-What v0.15.1 changes:
-
-- **Meeting mode no longer attempts speaker diarisation.**
-  The branch in `commands::dictation::stop_recording` that
-  used to try `transcribe_meeting_diarised` and fall through
-  to `transcribe_chunked` on failure now goes straight to
-  `transcribe_chunked`. Real-meeting v0.15.0 output proved
-  the diarised path is not production-safe at any tunable
-  threshold.
-- **No diariser asset preflight on meeting start.** Round-2
-  blocker fix: round-1 disabled the diariser on the stop
-  side but left `ensure_assets_ready` running in the
-  start-side meeting preflight, so users still paid the
-  ~47 MB download/extract cost on first meeting for a
-  feature that was switched off. Round-2 removes the
-  preflight call too. First meeting on a fresh install is
-  instant.
-- **Whisper Large preflight stays.** The chunked transcribe
-  path uses Whisper Large, so the start-side check that
-  refuses meeting mode with a clear "install Whisper Large"
-  message is unchanged.
-- **Defence-in-depth chunk cap ≈ 60 minutes (130 chunks).**
-  Round-1 had 28 min (60 chunks); round-2 raised to 56 min
-  (120 chunks) after Jay flagged 28 cuts into normal 30+
-  min meetings; round-3 raised again to ~60 min (130
-  chunks = 60 min 40 s exact) because round-2's 56-min cap
-  still rejected standard 60-min meetings on the boundary.
-  Sized to comfortably accept the full 30/45/60-min meeting
-  cadence with a small "I forgot to stop" shoulder, and to
-  keep worst-case CPU Whisper Large transcribe under ~1
-  hour (Whisper Large on CPU runs at roughly real-time).
-  Documented as an explicit beta limitation in
-  releases/0.15.1.md.
-- **Two required log lines** on every meeting so the
-  disabled state is diagnosable from a log tail:
-  - on start: `meeting mode diarisation asset preflight
-    disabled in v0.15.1 beta hotfix`
-  - on stop: `meeting mode diarisation disabled in v0.15.1
-    beta hotfix; using chunked transcript without speaker
-    labels`
-- Diariser code stays in tree behind `#[allow(dead_code)]`
-  on `transcribe_meeting_diarised` and on `PreflightGuard`.
-  Asset download/extract/wrapper code (`services::inference::
-  diarize` + `diarize_assets`) is unreachable from the
-  v0.15.1 meeting flow (no caller in `start_recording`,
-  no caller in `stop_recording`). The whole chain stays
-  in tree because v0.15.2 will reuse pieces.
-- `meeting_preflight_in_progress` flag stays in `AppState`
-  because the round-3-to-5 re-entry helper still loads it
-  in `decide_pre_probe` / `decide_post_probe`. In v0.15.1
-  it's always false; v0.15.2 will re-engage it via
-  `PreflightGuard` when asset prep comes back.
-- Speaker rename UI on the Meetings page stays — it's a
-  pure transcript substitution and a no-op when no
-  `**Speaker N:**` tokens are in the text. Old v0.14.x
-  meetings render unchanged.
-- **No frontend changes** beyond the version bump.
-  `MeetingsRoute.tsx` and `commands::meetings.rs` stay
-  exactly as v0.15.0 shipped.
-
-What real v0.15.0 produced (preserved here as the artefact
-that drove this hotfix — first 91 speakers from a 5-min
-meeting):
-
-> ```
-> [00:07] **Speaker 1:** Like a fan
-> [00:17] **Speaker 2:** How long you going home for?
-> [00:19] **Speaker 6:** Uh, I'll get back tomorrow…
-> …
-> [02:39] **Speaker 51:** नल े                          ← Hindi hallucination
-> [02:40] **Speaker 52:** ♪ On the day ♪
-> [05:03] **Speaker 75:** Dạy dạy dạ                   ← Vietnamese
-> [05:09] **Speaker 87:** やいやいやいや                   ← Japanese
-> [05:15] **Speaker 91:** يا يا يا يا يا                ← Arabic
-> ```
-
-User-facing workaround for cross-language Whisper
-hallucinations (documented in the release notes):
-
-> Settings → Models → Whisper language: change from
-> *Auto-detect* to **English** (or whatever you actually
-> transcribe). Restart. The recogniser pins the language
-> at construction time and stops auto-detect inventing
-> foreign-script content for quiet/ambiguous audio.
-
----
-
-## v0.15.4 rework planning — DO NOT IMPLEMENT YET
-
-(Was labelled "v0.15.2 rework planning" → "v0.15.3 rework planning"
-across the v0.15.1/v0.15.2/v0.15.3 hotfix and performance releases
-that slotted in ahead of the rework. Architecture targets and
-verification questions are unchanged.)
-
-Goals (from the v0.15.1 review packet):
-
-1. Run Whisper once per bounded long chunk, not once per
-   diariser segment. One pass over the meeting buffer
-   eliminates BOTH the per-segment runtime explosion AND
-   the short-clip hallucination problem (Whisper sees full
-   context).
-2. Get word- or segment-level timestamps from Whisper.
-3. Run diarisation separately on the same buffer.
-4. Assign speaker labels post-transcription by mapping
-   diariser segments onto the transcript's word/segment
-   timestamps.
-5. Never feed sub-second/noisy/music-only diariser slices
-   directly into Whisper.
-6. Hard guardrails: max displayed speaker count unless
-   user opts into raw clusters, post-diarisation
-   merge/remap of clusters, reject/treat-as-unlabelled if
-   diariser returns absurd cluster counts (e.g. >10 on a
-   short meeting), language/hallucination filtering based
-   on actual provider capabilities, processing-time logs
-   (`diarise_ms`, `whisper_ms`, `chunk_count`,
-   `segment_count`, `distinct_speaker_count`).
-
-**Open verification questions — answer THESE against the
-real provider before any code is written:**
-
-- Does `sherpa_rs::whisper::WhisperRecognizer` expose
-  segment or word timestamps on its `transcribe` result?
-  (Today's `AsrResult.words` is hardcoded `None` because
-  the provider doesn't surface them. v0.15.2's "assign
-  labels by timestamp" depends on the answer here.)
-- Does `sherpa_rs::whisper` allow language to be set
-  per-call, or only at recognizer construction? (Today
-  `AsrOptions.language_hint` is `_opts: AsrOptions` —
-  ignored. The user-facing workaround above hinges on the
-  construction-time setting being correct.)
-- Can the current Whisper provider be reused for
-  timestamped output, or does v0.15.2 require a provider
-  trait/API change?
-- What's the fastest safe meeting model already installed
-  / available? Whisper Medium / Small acceptable as
-  optional meeting defaults — but only as **explicit user
-  choice**, never as a silent forced downgrade.
-
-**Architecture sketch (NOT a commitment):**
+Architecture sketch (NOT a commitment):
 
 ```
 stop_recording (meeting):
@@ -797,353 +122,53 @@ stop_recording (meeting):
                                        reject if cluster_count > 10 etc.
         → returns Vec<{ time_range, speaker_id }> (≤ N speakers)
   (4) assign_speaker_labels()        ← interval-overlap each transcript
-                                       chunk against the diariser
-                                       segments; label by majority overlap
+                                       chunk against the diariser segments;
+                                       label by majority overlap
         → returns final transcript with **Speaker N:** prefixes
 ```
 
-(1) and (2) can run in parallel — they're independent. (3)
-and (4) are post-processing on their outputs.
-
-**Tests required for v0.15.2 (from the review packet):**
-
-- Diariser returning N=91 clusters on a 5-min synthetic
-  meeting: post-process MUST cap to ≤ N_max (configurable,
-  default ~6) OR mark transcript as "unlabelled" if the
-  cluster count is absurd.
-- Single-pass Whisper output remains unchanged when speaker
-  labels are layered on top (rendered transcript text ≡
-  Whisper output text, just prefixed by `**Speaker N:**`).
-- Processing-time log lines emit on every meeting.
-- Chunk-cap from v0.15.1 still bounds the chunked-Whisper
-  pass.
-- Existing v0.15.0 unit tests for the diariser helpers
-  (merge / shape / pad / dedup) still apply if the helpers
-  are reused; otherwise mark obsolete.
+(1) and (2) can run in parallel. (3) and (4) are post-processing.
 
 ---
 
-## v0.15.0 Speaker Diarisation (feature/v0.15.0-diarisation branch, 2026-04-28) — implemented, not shipped
+## Recently shipped (chronological — most recent first)
 
-Real per-turn speaker labels in Meeting Mode. The v0.13.x — v0.14.x
-loudness/RMS classifier was suppressed in v0.14.3 and removed
-entirely in v0.15.0; replaced by sherpa-onnx pyannote 3.0
-segmentation + NVIDIA NeMo TitaNet small embedding + threshold-based
-clustering.
+Compressed history. Full detail in commit messages, release notes (`Utterbar Windows App/releases/<v>.md`), and the relevant memory files.
 
-Pipeline (Meeting Mode only):
-- start_recording preflight refuses without Whisper Large installed
-  (was a silent fall-through to Parakeet pre-fix); ensures diariser
-  assets on first meeting use, downloading them via the hardened
-  asset manager (~47 MB compressed, SHA-pinned, traversal-protected
-  extract).
-- stop_recording: diariser runs once on the full mixed buffer →
-  segments → user-space merge + shape pass → per-segment Whisper
-  Large transcribe → stitched output `[mm:ss] **Speaker N:** text`.
-- Hard fallback: any failure (assets missing, model load error,
-  panic in compute, empty segment list) routes to the bounded
-  chunked path with `[mm:ss] text` only — no labels, no RMS
-  classifier, safe for 30+ minute recordings.
+- **v0.15.6 (beta, 2026-04-30, admin row 54)** — DirectML execution provider, Whisper CPU-force lifted, model-aware Auto policy, embedded-EP runtime detection, `dml_available` + `provider_policy_reason` telemetry, deterministic UTF-8 £-panic fix, CUDA telemetry typo fix.
+- **v0.15.5 (beta, 2026-04-29)** — Provider truthfulness pass: Settings → Advanced now says "Selected, but currently inactive" when the GPU acceleration radio is set to a provider the runtime can't actually serve. Unblocked the v0.15.6 honest-copy work.
+- **v0.15.4 (beta, 2026-04-29)** — Whisper Small as Meeting Mode default. Performance improvement for the most common meeting use case (sub-30-min, English-only).
+- **v0.15.3 (beta, 2026-04-29)** — Meeting Mode performance + allow-listed model picker. Whisper Medium added to the catalogue (SHA-pinned). `meeting_asr_model_id` setting with three radios (Fast / Balanced / Best accuracy). Allow-list (Small / Medium / Large v3) — meeting mode refuses any model outside the list with a clear user-facing error rather than silently falling back to Parakeet. `ActiveRecordingContext` binds the recording session at start-time. Chunk size 30s → 29s (avoid sherpa truncation), cap retuned 130 → 135 chunks (~60 min 47 s of audio accepted).
+- **v0.15.2 (beta, 2026-04-28)** — Migration line-ending hotfix. `core.autocrlf=true` rewrote V0006 between v0.15.0 and v0.15.1, refinery's checksum guard refused to start v0.15.1 on machines that had run v0.15.0. Fix: `.gitattributes` pinning `*.sql text eol=lf`, V0006 renormalised, plus a one-shot `db::repair` module that recognises the v0.15.1 CRLF checksum on V6 + presence of the `history.speaker_names` column and rewrites only that row's checksum to the LF value via `siphasher::sip::SipHasher13` (refinery's actual algorithm). 10 new repair tests.
+- **v0.15.1 (beta, 2026-04-28)** — Diarisation rollback hotfix. v0.15.0 produced 91 speaker clusters on a 5-min meeting with cross-language hallucinations (Hindi, Vietnamese, Japanese, Arabic — Whisper auto-detect on noisy/short slices); diariser disabled, meeting mode goes straight to chunked transcribe with a ~60-min cap. Diariser code stays in tree behind `#[allow(dead_code)]` for the rework.
+- **v0.15.0 (beta, 2026-04-28)** — Speaker diarisation first attempt. Pulled by v0.15.1 hotfix (see above). 52 new tests across 5 review rounds (race conditions on meeting-preflight, generic start-pending, non-atomic-snapshot — all pinned). Pyannote + TitaNet model SHAs pinned in [services::inference::diarize_assets](Utterbar%20Windows%20App/src-tauri/src/services/inference/). Threshold tuning + silero-vad pre-pass deferred to the rework.
+- **v0.14.13 (security)** — `open_path` injection fixed (ShellExecuteW + canonicalised allow-list), release publishing hardened (server-side SHA recompute, signature verification over computed SHA, `confirm_stable_announce` flag), Markdown XSS, model deletion path safety. 23 publish-validation tests + 5 `open_path` tests + 9 markdown XSS tests + 4 `safe_model_path` tests, all passing.
+- **v0.14.12 (beta)** — Mic-routing fix (Scarlett audio interface verified by Jay).
+- **v0.12.0 → v0.12.1 (stable + beta soak, 2026-04-27)** — v0.12.0 was the new mainline that bundled v0.11.x betas (per-app auto-activation, .srt/.vtt subtitle export, history → vocabulary correction loop, history filters) plus v0.12.0 additions (B2B surface, group-policy registry overlay). v0.12.1 beta soak shipped two safety patches (recording cap lifted to 8h, transcribe-input ceiling at 5 min returning a clear user-facing error) in response to a 40-min meeting crash where sherpa's offline decoder allocated O(duration) memory and OOM'd.
 
-Rename surface:
-- Meetings page lets the user rename `**Speaker N:**` labels
-  inline. Persists per-row in `history.speaker_names` (JSON,
-  V0006 migration). Re-rename non-destructive; clear-rename
-  reverts to defaults. Substitution at render time only;
-  `processed_text` stays canonical.
-- Server-side validation: integer ids 1-32, non-empty trimmed
-  names ≤64 chars, no control chars.
-
-Attribution:
-- New `THIRD_PARTY_LICENCES.md` at repo root + bundled copy
-  rendered at Settings → About → Third-party licences.
-- Covers: NVIDIA Parakeet TDT v3 (CC-BY-4.0, was previously
-  uncredited), NVIDIA NeMo TitaNet small (CC-BY-4.0, new in
-  v0.15.0), pyannote segmentation 3.0 (MIT, new), Whisper
-  Large v3 (Apache-2), sherpa-onnx, sherpa-rs, ONNX Runtime,
-  major Rust + frontend deps.
-
-Tests: 52 new tests across the v0.15 surface, landed across
-five review rounds:
-- Round 1 (initial implementation, 14 tests): 5 diariser-asset
-  traversal/safety + 2 diariser config + 7 speaker-rename
-  validation.
-- Round 2 (Jay's blocker review, +20 tests): 7 history insert/
-  list/update round-trip + meeting-row-only update guard,
-  2 commands::meetings error mapping, 11 diarised pipeline
-  helpers (merge / shape / pad / format / dedup) including the
-  `padded_segments_can_sum_to_more_than_source` regression
-  pinning the source-PCM duration fix.
-- Round 3 (concurrency review, +5 tests): 3 `decide_reentry`
-  branch tests including the meeting-preflight reject case,
-  2 RAII guard tests including the panic-clears-flag scenario.
-- Round 4 (concurrency widening, +3 tests): 1 generic-start-
-  pending reject case, 1 preflight-without-pending defensive
-  case, 1 nested-guard footgun pin.
-- Round 5 (non-atomic-snapshot race, +10 tests): 4 stage-1
-  `decide_pre_probe` + 6 stage-2 `decide_post_probe` cases
-  covering active-capture priority (8 input combinations),
-  pending-recheck-after-probe rejection, the
-  `RECORDING_STALE_MS` time-gate (young-flag-rejects /
-  old-flag-stale-heals / zero-and-negative-age defensive),
-  3 `StartPendingGuard` CAS-mutex contract tests, 2
-  `PreflightGuard` RAII tests, 3 `mark_recording_started`
-  / `clear_recording_flag` pair-write tests against a real
-  `AppState` bootstrap.
-
-Total cargo test count: 207 passing, 2 ignored, 0 failed
-(was 155 pre-v0.15.0). Frontend typecheck/lint/build clean.
-
-**Round 2 blocker fixes** (what changed between the original
-implementation and the first re-review):
-- `services::history::insert` SQL had `speaker_names` listed
-  twice in the column list — would have failed at runtime on
-  every history insert. Deduped + added round-trip tests.
-- `services::history::update_speaker_names` previously
-  ignored `is_meeting`, silently accepting renames on
-  dictation rows. Now scoped `WHERE is_meeting=1` with
-  zero-affected-rows surfacing as `OrliqError::User
-  ("Meeting transcript not found.")`.
-- `transcribe_meeting_diarised` previously summed padded slice
-  durations into `AsrResult.duration_ms`; padded segments
-  overlap by ±200ms which inflates the wall-clock past the
-  recording's real length. Now `duration_ms` is computed
-  once from the source PCM length; the summed slice value is
-  kept as a diagnostic log only.
-- Fallback `OVERLAP_SECONDS = 2` (production value since
-  v0.13.x) reconciled against the implementation plan's
-  loose 5s placeholder. Kept 2s, documented in the code
-  comment + release notes.
-- `MeetingsRoute::persistRename` clear path was missing
-  try/catch + rollback. Now both set + clear share a single
-  guarded path.
-
-**Round 3 blocker fix** (meeting-mode preflight race):
-- `start_recording` for meeting mode CASs
-  `recording_in_progress` true BEFORE awaiting
-  `ensure_assets_ready` (which can take seconds-to-minutes
-  on first use). Pre-fix, a second hotkey press during
-  asset prep would pass the v0.6.3 stale-self-heal — the
-  guard saw `flag=true && capture=None` and proceeded,
-  racing the diariser .partial files.
-- New `meeting_preflight_in_progress: AtomicBool` on
-  `AppState`. Set true before the asset-prep await,
-  cleared on every exit path including panic via a
-  RAII guard.
-
-**Round 4 blocker fix** (generic start-pending race):
-- The round-3 fix only covered the diariser preflight
-  window. The same race still existed for non-meeting
-  starts during `settings.snapshot().await` and
-  `audio.start_capture().await` — duplicate hotkey would
-  see `pending_meeting=false` and `capture=None` and
-  stale-heal a flag that wasn't stale.
-- New `start_recording_pending: AtomicBool` claimed
-  IMMEDIATELY after the `recording_in_progress` CAS,
-  before any await; cleared on every return via RAII.
-  Covers the entire start lifecycle, not just the
-  diariser window.
-- Re-entry guard widened to a 4-variant `Reentry` enum
-  with `RejectStartPending` for the generic case.
-
-**Round 5 blocker fix** (non-atomic-snapshot race):
-- Even with both flags, the CAS-failed branch was
-  awaiting `audio.current()` BEFORE reading the pending
-  atomics. The await is a yield point, so a duplicate
-  call could sample stale `(capture=None, pending=false)`
-  and stale-heal an unstale flag. **No fix that samples
-  three atomics across an `await` can produce a coherent
-  snapshot.**
-- Three interlocking changes:
-  1. `start_recording_pending` promoted to a CAS-mutex.
-     `StartPendingGuard::try_claim` returns `Option<Self>`
-     — `None` if already claimed by another start.
-  2. New `recording_in_progress_started_at_ms: AtomicI64`
-     stamped on every CAS-set, zeroed on every clear via
-     centralised `mark_recording_started` /
-     `clear_recording_flag` pair-write helpers (wired at
-     all 7 clear sites).
-  3. **Two-stage re-entry decision.** Stage 1
-     (`decide_pre_probe`) reads ONLY the cheap pending
-     atomics — no await — and rejects if either is held.
-     Stage 2 (`decide_post_probe`) probes capture, reads
-     the started-at age, then **re-reads the pending
-     atomics**. Returns `ProceedAfterStaleHeal` only when
-     ALL signals agree, including
-     `flag_age_ms >= RECORDING_STALE_MS` (30 s, mirrors
-     `TRANSCRIBE_STALE_MS`).
-- New `Reentry::RejectYoungFlag` for the case "flag held
-  but younger than the stale threshold" — the round-5
-  regression target.
-
-Pinned model SHAs:
-- pyannote segmentation tarball
-  (24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488,
-  ~6.96 MB) → extracts to model.int8.onnx
-  (d582f4b4c6b48205de7e0643c57df0df5615a3c176189be3fc461e9d18827b5d,
-  1.54 MB) — MIT
-- nemo_en_titanet_small.onnx
-  (ad4a1802485d8b34c722d2a9d04249662f2ece5d28a7a039063ca22f515a789e,
-  ~40.3 MB) — CC-BY-4.0, cross-verified against k2-fsa
-  upstream checksum.txt
-
-**Publish state (filled in by the operator after each step):**
-
-- Beta-only publish approved 2026-04-28. No `--announce`,
-  no `latest` tag, no stable promotion. Stable feed
-  intentionally unchanged.
-- Commit hash: see the v0.15.0 commit on
-  `feature/v0.15.0-diarisation`.
-- Branch pushed to origin: yes.
-- Installer built locally: `src-tauri/target/release/bundle/
-  nsis/Utterbar_0.15.0_x64-setup.exe` — see admin row for
-  the recorded SHA.
-- Admin release row id + CDN URL: recorded by
-  `publish-release.sh` against the website admin API; the
-  script's stdout is the source of truth and the row is
-  visible at `https://utterbar.com/admin`.
-- Beta updater feed: `curl
-  "https://utterbar.com/api/updater/check?current=0.0.0&channel=beta"`
-  must report v0.15.0.
-- Stable updater feed: same query with `channel=stable`
-  must STILL return `available:false` (v0.7/v0.8 unsigned
-  rows; v0.9.0-beta still pending stable promotion).
-- Branch merged to `main` (`--no-ff`) and feature branch
-  deleted locally + on origin AFTER the beta publish
-  verification passes.
-
-**Residuals / pending operator action:**
-
-- **Real-meeting QA before stable promotion.** Run through
-  the matrix Jay flagged: two-speaker Zoom, in-room,
-  solo, silence-heavy, 30+min, missing models, missing
-  Whisper, rename + export, old v0.14 meeting open-and-
-  render. Only after all of these pass should v0.15.x
-  ship to stable (re-run `publish-release.sh` without
-  `--beta`) — that also un-blocks the silent stable
-  updater feed (open item from v0.9.0).
-- Threshold tuning. The default `DIARIZE_THRESHOLD=0.5` is
-  sherpa's documented default; real-recording data during
-  beta soak may push it to 0.3-0.7. The
-  `diarisation complete segment_count=N distinct_speakers=M
-  speakers=...` log line on every meeting is the diagnostic.
-- Eventual: silero-vad pre-pass to harden against music
-  intros / non-speech. Filed as v0.16 follow-up.
-- `THIRD_PARTY_LICENCES.md` and `src/data/thirdPartyLicences.ts`
-  are kept in sync manually; both files reference each other
-  in their headers. CI lint to enforce sync is a v0.16 nicety.
+Earlier history (v0.7.0 — v0.11.x) lives in [MONOREPO.md §10](MONOREPO.md) drift entries and the per-version release notes.
 
 ---
 
-## Security/stability patch (security/v0.14.13 branch, 2026-04-28) — implemented, not shipped
+## Cross-side contract status
 
-A six-priority security/stability sweep on top of the v0.14.12 mic
-fix. Branch: `security/v0.14.13`. Not yet built/published — Jay's
-tested-and-passed sign-off on v0.14.12 is the gate before this lands
-on `main`.
+Verified clean as of 2026-04-30. No drift outstanding:
 
-What landed:
+- [publish-release.sh](Utterbar%20Windows%20App/scripts/publish-release.sh) uploads to the versioned R2 key `releases/<v>/Utterbar-Setup-<v>.exe` only. POST body explicitly includes `r2_key`. The website-side admin API's `file_not_in_bucket` fallback also defaults to the versioned key.
+- The publish endpoint runs server-side SHA recompute (canonical hash from R2), updater-signature verification (over the computed SHA), and a `confirm_stable_announce` guard for stable+announce. Persisted SHA is the server-computed value, not the script-pasted one.
+- `--announce` triggers email-out to confirmed `update_subscribers`; `--tag "latest"` displays the cyan pill; `--beta` flips channel. Beta and stable rows live in `(version, channel)` uniqueness namespaces, so the same version string can exist on both — that's the promote-beta-to-stable mechanism.
 
-- **P1 — `open_path` injection.** `cmd /C start <path>` shell-out
-  replaced with a direct `ShellExecuteW` call (no `cmd.exe`
-  interpretation). Path is canonicalised and must live under one of
-  the allow-listed Utterbar data roots (logs, db, models,
-  recordings, diagnostics audio dump, data root). 5 unit tests in
-  `commands/diagnostics.rs`.
-- **P2 — Release publishing hardening.** Server now stream-reads R2
-  to recompute SHA-256 and rejects pasted-vs-computed mismatches.
-  The persisted `sha256` is the **computed** value, not the pasted
-  one. Updater signature is verified against the computed SHA. The
-  browser admin form now requires `updater_signature` on the same
-  conditions as the API path. Stable + announce requires an
-  explicit `confirm_stable_announce` flag. Validator extracted to
-  `App\Services\Releases\ReleaseValidator`. 23 publish-validation
-  tests, all passing. `publish-release.sh` updated to set
-  `confirm_stable_announce=true` automatically when `--announce`
-  is on a stable channel.
-- **P3 — Markdown XSS.** `Markdown::renderEmbedded` now passes
-  `html_input => 'strip'` and `allow_unsafe_links => false` to
-  CommonMark. Raw `<script>` / `<iframe>` tags stripped;
-  `javascript:`/`data:`/`vbscript:` URLs in markdown links
-  neutralised. 9 absence-style tests in `MarkdownXssTest`.
-- **P4 — PHPUnit.** `tests/Unit/.gitkeep` added so the suite runs.
-  `UpdateSubscriberTokenTest` repaired against the GET/POST split
-  (GET = render confirm-button page, POST = state mutation). All
-  76 website tests passing.
-- **P5 — Tauri capabilities.** Dropped `fs:default` and
-  `core:path:default` (frontend doesn't import either plugin).
-  Other capabilities left in place — narrowing further would be a
-  larger refactor and runtime QA needs to confirm nothing breaks.
-  Manual QA list: main window, floating window, onboarding,
-  settings, file picker, shell links, update toast, hotkey
-  recording, tray recording, diagnostics open buttons.
-- **P6 — Model deletion path safety.** `ModelRegistry::remove` and
-  the two retirement-prune blocks in `app_state.rs` (Parakeet v2,
-  Zipformer) now reject absolute paths and `..` traversals up
-  front, and use `paths::assert_within` to confirm the joined
-  target canonicalises inside `models_root` before any
-  `remove_dir_all`. Shared `safe_model_path` helper in
-  `app_state.rs`; reusable `assert_within` in `util/paths.rs`. 4
-  unit tests in `safe_model_path_tests`.
-
-Gates run + green: `cargo check`, `cargo test` (155/155),
-`cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`,
-`pnpm typecheck`, `pnpm lint`, `pnpm build`, `php vendor/bin/phpunit`
-(76/76).
-
-**Residuals / pending operator action:**
-
-- **Manual runtime QA after the v0.14.13 install** — capability
-  narrowing in P5 is the only item that *can't* be proven by the
-  test suite alone. Once installed, exercise: floating bar,
-  onboarding, settings → audio (file picker + meter), settings →
-  diagnostics ("show in folder" buttons), hotkey + tray recording,
-  update toast. If anything breaks at runtime with a Tauri
-  permission error, the fix is to re-add the specific permission
-  to `capabilities/default.json` (don't restore `fs:default` /
-  `core:path:default` wholesale).
-- **Browser admin form stable-publish UX** — the new
-  `confirm_stable_announce` checkbox lives in
-  `pages/admin/releases/create.blade.php`. First operator to use
-  it after the patch ships should confirm the button styling reads
-  as "destructive" (red accent on the confirm box) and not as a
-  routine option.
-- **Server config sanity-check** — `UPDATER_PUBLIC_KEY_B64` is
-  already set in production, so the new mandatory-signature path
-  on the browser form will refuse any publish without a signature.
-  Operators using the browser form (rare; the script is the
-  default) need to paste the b64 signature from
-  `scripts/sign-update-metadata.sh`.
-
----
-
-## Open risks to watch
-
-- **v0.7.0 runtime patch maintenance cost.** Any Tauri `cargo
-  update` past 2.10.x requires rebasing the vendored
-  `tauri-runtime-wry` crate. Rationale in
-  [MONOREPO.md §10.9](MONOREPO.md).
-- **First-run model download failure paths.** Unchanged this
-  release; still a plausible support ticket source.
-- **v0.7.3 in-flight onboarding consent step** — defaults to on,
-  but verify the consent toggle actually gates the
-  `/api/updater/check` call before shipping.
+If anything in [RELEASE_RUNBOOK.md](RELEASE_RUNBOOK.md) or [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md) contradicts the above, fix the docs in the same PR.
 
 ---
 
 ## Session caveats to carry forward
 
-- **Monorepo:** `c:\Users\jaypa\Documents\GitHub\Utterbar\` is a
-  single git repo. `Utterbar Windows App/` and `Utterbar Website/`
-  sit inside. Remote: `badoomtch/Utterbar-App` private.
-- **App version ≠ website version.** Website deploys continuously;
-  only the desktop installer has a semver. The
-  `config('site.version')` value is informational and tracks the
-  last shipped app version only.
-- **Jay tests every app build before we ship.** No installer goes
-  to R2 until Jay explicitly approves.
-- **PHP tests are not in CI.** Rerun on the dev machine before
-  deploying the website.
+- **Monorepo:** `c:\Users\jaypa\Documents\GitHub\Utterbar\` is a single git repo. `Utterbar Windows App/` and `Utterbar Website/` sit inside. Remote: `badoomtch/Utterbar-App` private.
+- **App version ≠ website version.** Website deploys continuously; only the desktop installer has a semver. The `config('site.version')` value is informational and tracks the last shipped app version only.
+- **Jay tests every app build before we ship.** No installer goes to R2 until Jay explicitly approves.
+- **PHP tests are not in CI.** Re-run on the dev machine before deploying the website.
+- **Versioning convention** (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)): minor (`0.x.0`) = mainline / stable, patch (`0.x.y`, y > 0) = beta channel only. Don't ship features straight to mainline without a beta soak.
 
 ---
 
