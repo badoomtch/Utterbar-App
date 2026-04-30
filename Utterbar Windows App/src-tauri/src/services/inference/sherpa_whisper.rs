@@ -108,24 +108,44 @@ impl SherpaWhisper {
 
         let inner = self.inner.clone();
         let model_id = self.model_id.clone();
-        // Force Whisper onto CPU regardless of the user's GPU
-        // preference. Sherpa-onnx's DirectML provider has incomplete
-        // op coverage for Whisper's encoder/decoder graphs — the
-        // smaller `base` checkpoint mostly survives, the larger `small`
-        // checkpoint reliably crashes the native layer mid-transcribe
-        // (observed in the v0.8.7 logs: process died inside
-        // recognizer.transcribe with no panic returned through the
-        // FFI). Whisper on CPU is slower than ideal but always
-        // correct. Parakeet and Zipformer keep the user's GPU
-        // preference; only Whisper is force-pinned here.
-        let provider = "cpu".to_string();
-        let _user_pref = self.provider.clone(); // tracked for logging
+        // v0.15.6: honour the resolved provider string, lifting the
+        // v0.8.7 CPU-force.
+        //
+        // History:
+        //   * v0.8.7 disabled DirectML for Whisper specifically. The
+        //     observed failure was a process crash mid-transcribe on
+        //     Whisper Small, with no panic propagating through the
+        //     FFI. Larger Whisper checkpoints had the same risk; CPU
+        //     was the only safe path. Parakeet and Zipformer were
+        //     left honouring the user's GPU preference.
+        //   * v0.15.5 Phase A made the gap between requested and used
+        //     provider strings observable in telemetry but kept the
+        //     engine-side CPU-force in place — production users were
+        //     still on CPU regardless of what they picked.
+        //   * v0.15.6 Step 2 smoke-test matrix re-tested all four
+        //     supported engines (Whisper Small / Medium / Large v3
+        //     + Parakeet TDT v3 int8) against the new ORT 1.14.1 +
+        //     DirectML 1.15.0 bundle. 8/8 cells passed. Zero crashes.
+        //     Output identical to CPU on Whisper Medium / Large.
+        //     The original failure mode does not reproduce against
+        //     the new bundle.
+        //
+        // The CPU-force is lifted. The orchestrator's `resolve_provider`
+        // already routes DirectML/CUDA -> CPU when the runtime can't
+        // serve them (v0.15.5 fallback contract preserved) and applies
+        // the auto-Small CPU policy (v0.15.6 model-aware path). The
+        // engine trusts the resolved string.
+        //
+        // If a future ORT/DML upgrade reintroduces the failure, the
+        // mitigation surface is `resolve_provider`'s model-aware
+        // path, NOT this engine. Engine-side CPU-force was always
+        // an information loss in the telemetry layer.
+        let provider = self.provider.clone();
         let language = self.language.clone();
         tracing::info!(
             model = %self.model_id,
-            user_pref = %_user_pref,
-            forced = "cpu",
-            "whisper: forcing CPU provider (DirectML known-flaky on Whisper graphs)"
+            provider = %provider,
+            "whisper: building WhisperConfig with resolved provider"
         );
 
         tokio::task::spawn_blocking(move || -> Result<()> {

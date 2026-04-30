@@ -33,12 +33,12 @@ type GpuProbe = {
 };
 
 /**
- * v0.15.5 (Phase A) — what execution providers the SHIPPING ONNX Runtime
- * in this build can serve. Distinct from `GpuProbe` (which describes
- * the hardware). Today's vendored runtime ships CPU-only — both these
- * are `false`. v0.15.6 (Phase B) flips them when DirectML actually
- * lands. The UI uses this to avoid claiming GPU acceleration is
- * active when it isn't.
+ * v0.15.5+ — what execution providers the SHIPPING ONNX Runtime in
+ * this build can serve. Distinct from `GpuProbe` (which describes the
+ * hardware). The UI keys card copy and per-row inactive notices off
+ * this so we never tell a user GPU is active when the runtime can't
+ * deliver. v0.15.6 ships a DirectML-enabled runtime, so on most
+ * Windows installs `has_dml_ep` is now `true`.
  */
 type RuntimeCapabilities = {
   has_dml_ep: boolean;
@@ -177,24 +177,29 @@ export function AdvancedSettings() {
 
   const current = (s.advanced as { gpu_acceleration?: GpuAcceleration }).gpu_acceleration ?? 'auto';
   const bestAdapter = gpu?.adapters.find((a) => !a.is_software);
-  // v0.15.5: a single source of truth for "this build can actually
-  // run inference on a GPU". Both flags `false` against today's
-  // shipping runtime — see services/gpu.rs::runtime_capabilities.
-  // The card description and per-row notices key off this so the
-  // UI never claims GPU is active when the runtime can't deliver.
+  // v0.15.5+: single source of truth for "this build can actually run
+  // inference on a GPU". v0.15.6 ships a DirectML-enabled runtime, so
+  // `has_dml_ep` is now true on most Windows installs. The card copy
+  // and per-row notices key off this so the UI never lies about GPU
+  // activation.
   const runtimeHasAnyGpuEp = !!runtimeCaps?.has_dml_ep || !!runtimeCaps?.has_cuda_ep;
   const cardDescription = (() => {
     if (!gpu || !runtimeCaps) return 'Checking what hardware is available…';
-    // Shipping runtime is CPU-only — be explicit about it.
+    // Runtime can't serve any GPU EP (e.g. CPU-only build, or DML
+    // satellite missing). Be explicit about it.
     if (!runtimeHasAnyGpuEp) {
       return 'This build runs on CPU only. DirectML and CUDA appear here so your preference is preserved for a future release that ships GPU support, but they have no effect today.';
     }
-    // Phase B path: runtime supports a GPU EP. Reuse the original
-    // hardware-driven copy.
+    // Runtime supports DML + we have a GPU + a meaningful adapter.
+    // v0.15.6 introduces the DirectML path. Per-model speedups vary
+    // by audio length and hardware; the auto policy keeps Whisper
+    // Small on CPU because short clips can be slower on the GPU
+    // than on CPU. Copy intentionally avoids quoting numbers that
+    // would mislead on hardware we haven't measured.
     if (gpu.has_hardware_gpu && bestAdapter) {
-      return `Detected ${bestAdapter.name}. Running inference on the GPU is typically 3–10× faster than CPU, at the cost of briefly competing with other GPU apps (games, 3D tools, heavy browser pages).`;
+      return `Detected ${bestAdapter.name}. Auto runs Whisper Medium / Large and Parakeet on the GPU when one is present, and keeps Whisper Small on CPU. You can override the choice by picking a specific provider below.`;
     }
-    return 'No dedicated or integrated GPU detected. Utterbar will run on CPU. This is fine for short dictation but longer recordings will feel sluggish.';
+    return 'GPU acceleration is built in but no dedicated or integrated GPU was detected on this machine. Utterbar will run on CPU.';
   })();
 
   return (

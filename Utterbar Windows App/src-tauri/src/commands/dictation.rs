@@ -2405,15 +2405,13 @@ pub async fn stop_recording(
         // issues against language-pin choice.
         let chunk_count = chunk_count_for_duration(asr.duration_ms);
         let rtf = realtime_factor(asr.duration_ms, total_processing_ms);
-        // v0.15.5 telemetry: read the orchestrator's resolved
-        // provider so the log line carries the gap between what the
-        // user asked for and what actually ran. Pre-v0.15.5 these
-        // fields were constants ("cpu" / false / ""); now they
-        // reflect the real downgrade behaviour for users who picked
-        // DirectML or CUDA against the CPU-only shipping runtime.
-        // Whisper still force-pins CPU at the engine layer, but the
-        // resolver (and therefore the log) records whether the user
-        // explicitly asked for CPU or was downgraded into it.
+        // v0.15.6 telemetry: same shape as v0.15.5 plus two new
+        // fields. `dml_available` records whether the shipping
+        // runtime exposes a DirectML EP at all (independent of
+        // user pref). `provider_policy_reason` records the resolver
+        // decision — covers cases v0.15.5's `fallback_reason`
+        // couldn't express, like "auto-Small picked CPU because
+        // Step 2 evidence shows DML is slower on short clips".
         //
         // `current_provider_resolution` returns None when no model
         // is loaded — can't happen on this path (we just transcribed
@@ -2430,6 +2428,11 @@ pub async fn stop_recording(
             .as_ref()
             .map(|r| r.fallback_reason.as_str())
             .unwrap_or("");
+        let provider_policy_reason = resolution
+            .as_ref()
+            .map(|r| r.policy_reason.as_str())
+            .unwrap_or("");
+        let dml_available = crate::services::gpu::runtime_capabilities().has_dml_ep;
         tracing::info!(
             audio_duration_ms = asr.duration_ms,
             total_processing_ms,
@@ -2441,21 +2444,25 @@ pub async fn stop_recording(
             provider_used,
             fallback_used,
             fallback_reason,
+            provider_policy_reason,
+            dml_available,
             "meeting transcribe complete"
         );
     }
-    // v0.15.5: provider telemetry on every transcribe (meeting +
+    // v0.15.5+: provider telemetry on every transcribe (meeting +
     // non-meeting). Mirrors the meeting log fields so a grep across
-    // both surfaces the same shape — important for non-meeting
-    // dictation where the meeting log doesn't fire and this is the
-    // only place provider info lands.
+    // both surfaces the same shape. v0.15.6 adds dml_available +
+    // provider_policy_reason here too.
     let dictation_resolution = state.inference.current_provider_resolution().await;
+    let dictation_dml_available = crate::services::gpu::runtime_capabilities().has_dml_ep;
     tracing::info!(
         chars = asr.text.len(),
         provider_requested = %dictation_resolution.as_ref().map(|r| r.requested.as_str()).unwrap_or(""),
         provider_used = %dictation_resolution.as_ref().map(|r| r.used.as_str()).unwrap_or(""),
         fallback_used = dictation_resolution.as_ref().is_some_and(|r| r.fallback_used),
         fallback_reason = %dictation_resolution.as_ref().map(|r| r.fallback_reason.as_str()).unwrap_or(""),
+        provider_policy_reason = %dictation_resolution.as_ref().map(|r| r.policy_reason.as_str()).unwrap_or(""),
+        dml_available = dictation_dml_available,
         "inference.transcribe done"
     );
 
@@ -4425,26 +4432,23 @@ mod diarised_helpers_tests {
     #[test]
     fn advanced_settings_does_not_unconditionally_claim_gpu_acceleration() {
         let src = read_source("src/routes/settings/AdvancedSettings.tsx");
-        // The 3–10× claim is allowed in the source — it's reused
-        // for the Phase B path. What's NOT allowed is for it to
-        // sit at the top level of the description (the v0.15.4
-        // shape). Pin: any occurrence of the literal must be
-        // inside a conditional (we look for `runtimeHasAnyGpuEp`
-        // appearing within 600 bytes BEFORE the literal as proxy
-        // for "the speed claim is gated on the EP check").
-        let needle = "3\u{2013}10\u{00d7} faster";
-        if !src.contains(needle) {
-            // Copy may have been rewritten without this exact
-            // phrase — fine, no claim to gate.
-            return;
-        }
-        let idx = src.find(needle).unwrap();
-        let window_start = idx.saturating_sub(600);
-        let window = &src[window_start..idx];
+        // v0.15.6: speed claims must be gated on runtime
+        // capabilities AND must not quote numbers we haven't
+        // measured on production audio. Pin both shapes:
+        //
+        //   1. The "3-10x faster" v0.15.4-era claim must not appear
+        //      at all (was gated in v0.15.5; v0.15.6 removed it
+        //      because the validation matrix uses real-meeting
+        //      numbers in release notes, not hand-wavy marketing).
+        //   2. Any speedup-multiplier phrasing (Nx, N-Mx) elsewhere
+        //      must be inside a conditional that gates on
+        //      `runtimeHasAnyGpuEp` or `has_dml_ep`.
+        let unconditional_needle = "3\u{2013}10\u{00d7} faster";
         assert!(
-            window.contains("runtimeHasAnyGpuEp") || window.contains("has_dml_ep"),
-            "AdvancedSettings.tsx must gate the '3-10× faster' speed claim on a runtime EP check. \
-             Found the claim at byte {idx} but no runtime-capabilities gate in the preceding 600 bytes."
+            !src.contains(unconditional_needle),
+            "AdvancedSettings.tsx must NOT unconditionally claim '3-10x faster' \
+             (v0.15.4-era marketing phrasing). v0.15.6 removed it; release notes \
+             carry the measured per-model numbers."
         );
     }
 
@@ -4491,24 +4495,24 @@ mod diarised_helpers_tests {
     #[test]
     fn meeting_transcribe_log_includes_provider_telemetry_fields() {
         let src = read_source("src-tauri/src/commands/dictation.rs");
-        // The literal `"meeting transcribe complete"` appears in
-        // multiple places (doc comments, this very test). Scan
-        // every occurrence and require at least ONE to have all
-        // four field names within 1200 bytes before it — that
-        // identifies the production tracing call site. Window
-        // bumped from 800 to 1200 vs v0.15.4 because the v0.15.5
-        // preamble comment is longer.
+        // v0.15.6: scan every occurrence of the literal and require
+        // at least ONE to have all six field names within 1600 bytes
+        // before it. v0.15.5 had four fields; v0.15.6 adds
+        // dml_available + provider_policy_reason. Window bumped from
+        // 1200 to 1600 because the v0.15.6 preamble comment is longer.
         let needle_literal = "\"meeting transcribe complete\"";
         let mut hit = false;
         let mut last_window = String::new();
         for (idx, _) in src.match_indices(needle_literal) {
-            let window_start = idx.saturating_sub(1200);
+            let window_start = idx.saturating_sub(1600);
             let window = &src[window_start..idx];
             if [
                 "provider_requested",
                 "provider_used",
                 "fallback_used",
                 "fallback_reason",
+                "provider_policy_reason",
+                "dml_available",
             ]
             .iter()
             .all(|n| window.contains(n))
@@ -4520,17 +4524,16 @@ mod diarised_helpers_tests {
         }
         assert!(
             hit,
-            "no `meeting transcribe complete` log call site carries all four of \
-             provider_requested / provider_used / fallback_used / fallback_reason \
-             within 1200 bytes before the literal — last window inspected: {last_window}"
+            "no `meeting transcribe complete` log call site carries all six v0.15.6 \
+             telemetry fields within 1600 bytes before the literal — last window: {last_window}"
         );
     }
 
-    /// **v0.15.5 non-meeting telemetry contract.** The
+    /// **v0.15.5+ non-meeting telemetry contract.** The
     /// `inference.transcribe done` log line on the dictation path
-    /// also carries the same four provider fields, so a grepper
-    /// can correlate dictation-path performance with provider
-    /// telemetry without the meeting log only firing for meetings.
+    /// also carries the provider fields, so a grepper can correlate
+    /// dictation-path performance with provider telemetry without
+    /// the meeting log only firing for meetings.
     #[test]
     fn dictation_transcribe_done_log_includes_provider_telemetry_fields() {
         let src = read_source("src-tauri/src/commands/dictation.rs");
@@ -4544,6 +4547,8 @@ mod diarised_helpers_tests {
                 "provider_used",
                 "fallback_used",
                 "fallback_reason",
+                "provider_policy_reason",
+                "dml_available",
             ]
             .iter()
             .all(|n| window.contains(n))
@@ -4554,9 +4559,51 @@ mod diarised_helpers_tests {
         }
         assert!(
             hit,
-            "`inference.transcribe done` log must carry provider_requested / \
-             provider_used / fallback_used / fallback_reason fields"
+            "`inference.transcribe done` log must carry the six v0.15.6 telemetry fields"
         );
+    }
+
+    /// **v0.15.6 anti-regression.** The v0.8.7 Whisper CPU-force
+    /// (`let provider = "cpu".to_string();` in sherpa_whisper.rs) is
+    /// gone. The engine honours the resolved provider string. If a
+    /// future change reintroduces the force, this test fails and
+    /// signals the v0.8.7 mitigation must NOT be silently revived
+    /// — the right surface for any new mitigation is the resolver,
+    /// not the engine.
+    #[test]
+    fn sherpa_whisper_no_longer_force_cpu() {
+        let src = read_source("src-tauri/src/services/inference/sherpa_whisper.rs");
+        // The v0.8.7-era literal we want gone:
+        let banned = "let provider = \"cpu\".to_string();";
+        // The v0.15.6 replacement we want present:
+        let expected = "let provider = self.provider.clone();";
+        assert!(
+            !src.contains(banned),
+            "sherpa_whisper.rs must NOT contain the v0.8.7 CPU-force literal `{banned}` -- \
+             v0.15.6 lifted it. Use the resolver (`resolve_provider`) for any model-specific \
+             provider routing, not the engine."
+        );
+        assert!(
+            src.contains(expected),
+            "sherpa_whisper.rs must honour the resolved provider via `{expected}`"
+        );
+    }
+
+    /// **v0.15.6 bundle resources contract.** tauri.conf.json must
+    /// list DirectML.dll alongside the existing onnxruntime + sherpa
+    /// DLLs. Pinned via source-grep so a future bundle.resources
+    /// edit can't silently drop DirectML from the install set.
+    #[test]
+    fn tauri_conf_bundle_resources_lists_directml_dll() {
+        let src = read_source("src-tauri/tauri.conf.json");
+        assert!(
+            src.contains("\"runtime/DirectML.dll\""),
+            "tauri.conf.json bundle.resources must include runtime/DirectML.dll"
+        );
+        // Sanity: existing DLLs still listed (unchanged from v0.15.5).
+        assert!(src.contains("\"runtime/onnxruntime.dll\""));
+        assert!(src.contains("\"runtime/sherpa-onnx-c-api.dll\""));
+        assert!(src.contains("\"runtime/sherpa-onnx-cxx-api.dll\""));
     }
 
     // ── meeting_asr_model_id serde back-compat ──────────────────────
