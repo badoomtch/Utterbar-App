@@ -125,8 +125,9 @@
         </div>
         <p class="mt-4 text-sm max-w-2xl" style="color: var(--muted);">
             Security researchers and enterprise buyers can request access to the Rust core under NDA.
-            The app itself is distributed as a signed binary, not open source. That way
-            the paid features stay paid.
+            The app itself is distributed as a Windows installer, not open source, so the paid features stay paid.
+            The current public installer is unsigned, so Windows SmartScreen will warn on first install. Click &ldquo;More info&rdquo;
+            and then &ldquo;Run anyway&rdquo;. Only download Utterbar from <a href="{{ route('download') }}" style="color: var(--accent);">utterbar.com/download</a>.
         </p>
     </x-section>
 </x-layouts.app>
