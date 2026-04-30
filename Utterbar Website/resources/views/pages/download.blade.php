@@ -221,7 +221,7 @@
                             <a href="{{ route('download.version', ['version' => $r->version]) }}"
                                class="inline-flex items-center mt-4 text-xs font-mono"
                                style="color: var(--accent); letter-spacing: 0.04em;">
-                                Download &rarr;
+                                Download
                             </a>
                         </div>
                         <div class="col-span-12 md:col-span-9">

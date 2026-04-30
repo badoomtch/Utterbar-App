@@ -63,7 +63,13 @@
     {{-- ───────────── Meeting ───────────── --}}
     <h2 class="mt-14 ub-docs-h2">Meeting: verbatim, line-broken</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        Verbatim capture, nothing trimmed, nothing rewritten, with line breaks preserved on natural pauses. Use it when you want a literal record of what was said, not a cleaned-up summary. Combined with system-audio capture (Settings → Audio → System audio), this is what most people use for transcribing a meeting they&rsquo;re sitting in.
+        Verbatim capture, nothing trimmed, nothing rewritten, with line breaks preserved on natural pauses. Use it when you want a literal record of what was said, not a cleaned-up summary. Combined with system-audio capture (Settings &gt; Audio &gt; System audio), this is what most people use for transcribing a meeting they&rsquo;re sitting in.
+    </p>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        Meeting Mode runs through Whisper rather than Parakeet, because Whisper handles longer recordings and multi-speaker audio more reliably. The default is Whisper Small, which is comfortably faster than realtime on most laptops. Pick a different one in Settings &gt; Models &gt; Meeting mode model: Fast (Small), Balanced (Medium), or Best accuracy (Large v3). Parakeet and other engines are not selectable for Meeting Mode; the chunked transcribe path is built around Whisper.
+    </p>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        A single Meeting Mode recording is capped at about an hour. Speaker labels are off in this release; transcripts come back timestamped without speaker names. The diarisation rework is planned for a future release.
     </p>
     <div class="mt-5 ub-card" style="padding: 1rem 1.25rem;">
         <p class="font-mono text-xs uppercase tracking-wider" style="color: var(--muted); letter-spacing: 0.12em;">You said</p>
@@ -81,7 +87,7 @@ We want them fixed before marketing announces.</pre>
     </p>
     <ul class="mt-4 space-y-3 text-base leading-relaxed" style="color: var(--fg);">
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Cycle hotkey.</strong> <x-kbd-chip :keys="['Ctrl','Alt','M']" /> rotates through the active modes. The floating bar shows the current one.</span></li>
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Per-mode hotkey.</strong> Each mode can have its own dedicated key. Useful if you have one or two modes you use 90% of the time. Set in Settings → Shortcuts.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Per-mode hotkey.</strong> Each mode can have its own dedicated key. Useful if you have one or two modes you use 90% of the time. Set in Settings &gt; Shortcuts.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Click the mode chip.</strong> The mode name on the floating bar is clickable; pops a small selector.</span></li>
     </ul>
 

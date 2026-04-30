@@ -32,7 +32,7 @@
             <p>You will not use Utterbar to dictate or transcribe content you do not have the legal right to record (for example, calls or meetings where applicable consent has not been obtained). You are responsible for ensuring your use complies with the laws of your jurisdiction.</p>
 
             <h3>8. Availability and support</h3>
-            <p>We aim to keep utterbar.com and the licence APIs reachable, but we do not guarantee uptime. The desktop app does not require our servers to operate day-to-day &mdash; once a licence is activated, it verifies locally on every launch.</p>
+            <p>We aim to keep utterbar.com and the licence APIs reachable, but we do not guarantee uptime. The desktop app does not require our servers to operate day-to-day. Once a licence is activated, it verifies locally on every launch.</p>
             <p>Support is best-effort via the <a href="{{ route('contact') }}" style="color: var(--accent);">contact form</a> or email. We aim to respond within five business days.</p>
 
             <h3>9. Liability</h3>

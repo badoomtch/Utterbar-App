@@ -1,6 +1,6 @@
 <x-layouts.docs title="Shortcuts" description="Every Utterbar hotkey and how to rebind it: toggle, push-to-talk, hold-to-talk, cancel, cycle mode, settings, history.">
     <h1 class="ub-docs-h1">Every <x-hl>hotkey</x-hl>, your way.</h1>
-    <p class="ub-lead mt-6">Seven hotkey slots, all bound out of the box. Keep the defaults, rebind any of them from Settings &rarr; Shortcuts.</p>
+    <p class="ub-lead mt-6">Seven hotkey slots, all bound out of the box. Keep the defaults, rebind any of them from Settings &gt; Shortcuts.</p>
 
     <div class="mt-10 ub-card p-0 overflow-hidden">
         <table class="w-full text-sm">
@@ -34,7 +34,7 @@
     </div>
 
     <p class="mt-6 text-sm" style="color: var(--muted);">
-        Every slot is rebindable from Settings &rarr; Shortcuts. Per-mode hotkey overrides live in the mode editor (Pro).
+        Every slot is rebindable from Settings &gt; Shortcuts. Per-mode hotkey overrides live in the mode editor (Pro).
     </p>
 
     <div class="mt-8">

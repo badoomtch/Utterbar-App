@@ -2,7 +2,7 @@
     $assets = [
         [
             'slug'  => 'utterbar-logo-dark',
-            'name'  => 'Full lockup — dark',
+            'name'  => 'Full lockup, dark',
             'desc'  => 'Glyph + wordmark. Use on dark surfaces.',
             'bg'    => 'var(--bg-0)',
             'pad'   => '2.25rem 2rem',
@@ -10,7 +10,7 @@
         ],
         [
             'slug'  => 'utterbar-logo-light',
-            'name'  => 'Full lockup — light',
+            'name'  => 'Full lockup, light',
             'desc'  => 'Glyph + wordmark. Use on light surfaces.',
             'bg'    => '#F5F5F4',
             'pad'   => '2.25rem 2rem',
@@ -26,7 +26,7 @@
         ],
         [
             'slug'  => 'utterbar-wordmark',
-            'name'  => 'Wordmark — dark',
+            'name'  => 'Wordmark, dark',
             'desc'  => 'The name alone. White "Utter" for dark surfaces.',
             'bg'    => 'var(--bg-0)',
             'pad'   => '2.5rem 2rem',
@@ -34,7 +34,7 @@
         ],
         [
             'slug'  => 'utterbar-wordmark-light',
-            'name'  => 'Wordmark — light',
+            'name'  => 'Wordmark, light',
             'desc'  => 'The name alone. Dark "Utter" for light surfaces.',
             'bg'    => '#F5F5F4',
             'pad'   => '2.5rem 2rem',
@@ -107,7 +107,7 @@
                 <x-still id="press-05-file-transcription" />
             </div>
             <p class="mt-4 text-xs" style="color: var(--muted);">
-                Right-click &rarr; &ldquo;Save image as&hellip;&rdquo; to download any still at full resolution.
+                Right-click and pick &ldquo;Save image as&hellip;&rdquo; to download any still at full resolution.
             </p>
         </div>
     </section>

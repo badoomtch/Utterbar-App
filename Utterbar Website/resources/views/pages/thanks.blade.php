@@ -25,7 +25,7 @@
                     <ol class="space-y-3 text-sm" style="color: var(--fg);">
                         <li>1. Open the email from <span style="color: var(--accent);">hello@ddraig.dev</span></li>
                         <li>2. Copy the licence key (<span class="font-mono" style="color: var(--fg-hi);">UB-XXXX-XXXX-XXXX-XXXX-XXXX</span>)</li>
-                        <li>3. Paste it into Utterbar &rarr; Settings &rarr; Licence</li>
+                        <li>3. Paste it into Utterbar &gt; Settings &gt; Licence</li>
                     </ol>
                 </div>
 

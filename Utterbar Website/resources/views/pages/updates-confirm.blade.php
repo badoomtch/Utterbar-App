@@ -8,7 +8,7 @@
                 </h1>
 
                 <p class="ub-lead mt-6" style="font-size: 1rem;">
-                    Click the button to finish subscribing. We&rsquo;ll only email when there&rsquo;s a new release worth installing &mdash; never marketing, never digests, never anyone else&rsquo;s product.
+                    Click the button to finish subscribing. We&rsquo;ll only email when there&rsquo;s a new release worth installing. Never marketing, never digests, never anyone else&rsquo;s product.
                 </p>
 
                 <form method="POST" action="{{ route('updates.confirm.post') }}" class="mt-10">
@@ -18,7 +18,7 @@
                 </form>
 
                 <p class="mt-8" style="color: var(--muted); font-size: 0.875rem;">
-                    Didn&rsquo;t mean to subscribe? Just close this tab — your subscription stays unconfirmed and the link expires by itself.
+                    Didn&rsquo;t mean to subscribe? Just close this tab. Your subscription stays unconfirmed and the link expires by itself.
                 </p>
 
             </div>

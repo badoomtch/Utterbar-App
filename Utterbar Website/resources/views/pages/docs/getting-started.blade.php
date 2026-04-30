@@ -10,7 +10,7 @@
             Download the installer from the <a href="{{ route('download') }}" style="color: var(--accent);">download page</a>. It&rsquo;s a single <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">.exe</code>, around 11&nbsp;MB. Run it. Utterbar installs to your local app data folder, no admin rights required, no system services, no registry pollution beyond the start-menu shortcut.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-            Windows 10 22H2 or Windows 11, x86_64. WebView2 is required, it&rsquo;s already on every Windows 11 machine and auto-bootstrapped on Windows 10. If you see a SmartScreen warning the first time, that&rsquo;s because the installer isn&rsquo;t code-signed. Click &ldquo;More info&rdquo; → &ldquo;Run anyway&rdquo;. SmartScreen learns over time; once enough installs go through, the warning goes away on its own.
+            Windows 10 22H2 or Windows 11, x86_64. WebView2 is required, it&rsquo;s already on every Windows 11 machine and auto-bootstrapped on Windows 10. If you see a SmartScreen warning the first time, that&rsquo;s because the installer isn&rsquo;t code-signed. Click &ldquo;More info&rdquo; and then &ldquo;Run anyway&rdquo;. SmartScreen learns over time; once enough installs go through, the warning goes away on its own.
         </p>
 
         <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">
@@ -31,12 +31,12 @@
             This is the only time Utterbar will ever talk to the network for transcription. After this, you can disconnect from the internet entirely and dictation keeps working, the model lives on your disk, the inference runs on your CPU (or GPU, if you have one), and the audio never leaves your machine.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-            Other models live in Settings &rarr; Models. Whisper base (free) and Whisper small (Pro) cover ~99 languages between them, and Zipformer (free) is a smaller English-only build for low-spec PCs. GPU acceleration (DirectML on any DX12 card, CUDA on NVIDIA) speeds any of them up if you have a supported GPU.
+            Other models live in Settings &gt; Models. Whisper Base (free) and Whisper Small / Medium / Large v3 (Pro) cover 30+ languages between them. If you have a DirectX 12 graphics card, Utterbar uses it via DirectML for Whisper Medium, Whisper Large, and Parakeet. CUDA is not bundled.
         </p>
 
         <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">
             <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
-                <strong style="color: var(--fg-hi);">Cold-start.</strong> The first dictation after launch can take 5&ndash;12 seconds while the engine warms up, the model is loaded into memory and the runtime initialises. The pill shows &ldquo;Initialising model&rdquo; during this window. Subsequent dictations are instant.
+                <strong style="color: var(--fg-hi);">Cold-start.</strong> The first dictation after launch loads the model. On CPU that takes a few seconds. On the DirectML GPU path the first Parakeet dictation takes about 20 to 25 seconds while the GPU compiles the model graph for your hardware; the first Whisper Medium or Whisper Large meeting in a session takes longer still, around 30 to 60 seconds before the transcribe itself starts. The pill shows &ldquo;Initialising model&rdquo; or &ldquo;Warming&hellip;&rdquo; during this window. Subsequent dictations and meetings reuse the cached recogniser and start straight away. Quitting the app loses the cache.
             </p>
         </div>
     </div>
@@ -63,8 +63,8 @@
     </p>
     <ul class="mt-4 space-y-3 text-base leading-relaxed" style="color: var(--fg);">
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Try a different mode.</strong> Press <x-kbd-chip :keys="['Ctrl','Alt','M']" /> to cycle through Voice-to-text, Message, and Meeting. Same speech, three different output shapes. The <a href="{{ route('docs.modes') }}" style="color: var(--accent);">modes doc</a> covers what each one does.</span></li>
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Add your custom vocabulary.</strong> If your name, your company name, or a domain term keeps coming out wrong, drop it into Settings → Vocabulary. The <a href="{{ route('docs.vocabulary') }}" style="color: var(--accent);">vocabulary doc</a> shows how.</span></li>
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Pick the audio source you actually want.</strong> Mic by default, but you can also capture system audio (for transcribing meetings) or both at once. Settings → Audio.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Add your custom vocabulary.</strong> If your name, your company name, or a domain term keeps coming out wrong, drop it into Settings &gt; Vocabulary. The <a href="{{ route('docs.vocabulary') }}" style="color: var(--accent);">vocabulary doc</a> shows how.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Pick the audio source you actually want.</strong> Mic by default, but you can also capture system audio (for transcribing meetings) or both at once. Settings &gt; Audio.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">Rebind the hotkey if Ctrl+Space conflicts.</strong> Some Chinese IMEs and IDE keybindings claim it. <a href="{{ route('docs.shortcuts') }}" style="color: var(--accent);">Shortcuts</a> covers every binding.</span></li>
     </ul>
 
@@ -74,12 +74,12 @@
         The fastest things to check, in order:
     </p>
     <ul class="mt-4 space-y-3 text-base leading-relaxed" style="color: var(--fg);">
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">No floating bar visible?</strong> Check the system tray . Utterbar is running but its pill might be off-screen on a monitor that&rsquo;s no longer connected. Right-click the tray icon → &ldquo;Reset Utterbar position&rdquo;.</span></li>
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Hotkey does nothing?</strong> Another app is probably holding it globally. Settings → Shortcuts to rebind, or close whichever app is conflicting.</span></li>
-        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">&ldquo;No audio detected&rdquo; even when you spoke?</strong> Your mic input may be wrong . Settings → Audio Input. Bluetooth headsets often register twice; pick the one with &ldquo;Hands-Free&rdquo; in the name.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">No floating bar visible?</strong> Check the system tray. Utterbar is running but its pill might be off-screen on a monitor that&rsquo;s no longer connected. Right-click the tray icon, then &ldquo;Reset Utterbar position&rdquo;.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Hotkey does nothing?</strong> Another app is probably holding it globally. Settings &gt; Shortcuts to rebind, or close whichever app is conflicting.</span></li>
+        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">&ldquo;No audio detected&rdquo; even when you spoke?</strong> Your mic input may be wrong. Settings &gt; Audio Input. Bluetooth headsets often register twice; pick the one with &ldquo;Hands-Free&rdquo; in the name.</span></li>
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--muted);"></span><span><strong style="color: var(--fg-hi);">Slow first transcription?</strong> Expected. The model warms up over the first few seconds; subsequent dictations are instant.</span></li>
     </ul>
     <p class="mt-6 text-base leading-relaxed" style="color: var(--fg);">
-        For anything else, the <a href="{{ route('docs.troubleshooting') }}" style="color: var(--accent);">troubleshooting page</a> covers the common edge cases. If you&rsquo;re still stuck, email <a href="mailto:{{ config('site.email.contact') }}" style="color: var(--accent);">{{ config('site.email.contact') }}</a> with the output of Settings → About → Copy diagnostics.
+        For anything else, the <a href="{{ route('docs.troubleshooting') }}" style="color: var(--accent);">troubleshooting page</a> covers the common edge cases. If you&rsquo;re still stuck, email <a href="mailto:{{ config('site.email.contact') }}" style="color: var(--accent);">{{ config('site.email.contact') }}</a> with the output of Settings &gt; About &gt; Copy diagnostics.
     </p>
 </x-layouts.docs>

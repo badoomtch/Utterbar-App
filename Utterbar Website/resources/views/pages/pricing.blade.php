@@ -1,9 +1,8 @@
 @php
     $freeFeatures = [
-        'Unlimited dictation, any length',
+        'Unlimited dictations, no daily quota (single-shot capped at 5 minutes; Meeting Mode chunks longer recordings)',
         'Parakeet v3 (English, compact). ~460 MB, runs on any modern CPU',
         'Whisper base (multilingual, 30+ languages). ~145 MB',
-        'Zipformer (English, lightweight). ~220 MB, smallest footprint',
         'All seven hotkey slots',
         'All three built-in modes',
         'Microphone, system-audio (WASAPI loopback), mixed',

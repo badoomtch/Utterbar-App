@@ -4,7 +4,7 @@
     $subjectPrefill = request()->query('subject', '');
 @endphp
 
-<x-layouts.app title="Contact" description="Get in touch with Jay at hello@ddraig.dev. Questions, feature ideas, bug reports, partnership pitches — one inbox, one person, usually a reply within a day.">
+<x-layouts.app title="Contact" description="Get in touch with Jay at hello@ddraig.dev. Questions, feature ideas, bug reports, partnership pitches. One inbox, one person, usually a reply within a day.">
     <section class="relative overflow-hidden">
         <div class="ub-hero-glow" aria-hidden="true"></div>
         <div class="relative ub-container pt-20 md:pt-28 pb-12">

@@ -6,7 +6,7 @@
 
 <x-layouts.app
     title="Blog"
-    description="Notes from building Utterbar — local dictation for Windows. Updates, design choices, and the occasional dive into how local ASR actually works.">
+    description="Notes from building Utterbar, local dictation for Windows. Updates, design choices, and the occasional dive into how local ASR actually works.">
 
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">
@@ -48,7 +48,7 @@
                                     <p class="mt-3 text-base leading-relaxed" style="color: var(--muted);">{{ $post->excerpt }}</p>
                                 @endif
                                 <a href="{{ $post->url() }}" class="inline-flex items-center mt-5 font-mono text-xs" style="color: var(--accent); letter-spacing: 0.04em;">
-                                    Read &rarr;
+                                    Read
                                 </a>
                             </li>
                         @endforeach

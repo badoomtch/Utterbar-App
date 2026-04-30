@@ -16,15 +16,16 @@
     ];
 
     $shipped = [
-        ['title' => 'Multi-engine ASR',                  'desc' => 'Parakeet-TDT (default English), Whisper (multilingual base + small), Zipformer (fast English). Pick per-mode or globally.'],
+        ['title' => 'Multi-engine ASR',                  'desc' => 'Parakeet-TDT (default English) and Whisper (multilingual; Base, Small, Medium, Large v3). Pick per-mode or globally.'],
+        ['title' => 'DirectML GPU acceleration',         'desc' => 'Embedded ONNX Runtime DirectML build runs Whisper Medium, Whisper Large, and Parakeet on any DirectX 12 graphics card. Auto picks the right path per model. CUDA is not bundled.'],
         ['title' => 'Auto-update with signed metadata',  'desc' => 'Updater verifies an Ed25519 signature over release metadata before downloading; SHA-256-checks the binary; refuses anything older than what\'s installed; only pulls from dl.utterbar.com.'],
-        ['title' => 'Stable + Beta channels',            'desc' => 'Two tracks: Stable for everyone, Beta for early adopters. Toggle in Settings &rarr; Updates.'],
+        ['title' => 'Stable + Beta channels',            'desc' => 'Two tracks: Stable for everyone, Beta for early adopters. Toggle in Settings > Updates.'],
         ['title' => 'File transcription',                'desc' => 'Drop an audio or video file in, get a transcript. Queues, history, retranscribe.'],
         ['title' => 'First-run onboarding + model picker', 'desc' => 'Three-engine picker on first launch with download progress. No more cold-boot README moment.'],
         ['title' => 'Vocabulary capture',                'desc' => '"Add to vocab" from any dictation; literal + regex replacements; hinted words for ASR decoding.'],
         ['title' => 'WASAPI system-audio capture',       'desc' => 'Direct loopback on the default render endpoint. No virtual-cable install. Mic / system / mixed.'],
         ['title' => 'Cycle-mode + 6 other global hotkeys', 'desc' => 'All seven hotkey slots individually rebindable.'],
-        ['title' => 'Adaptive noise suppression',        'desc' => 'DC blocker &rarr; high-pass &rarr; adaptive gate, in-house, calibrates from the quietest 20% of the frame.'],
+        ['title' => 'Adaptive noise suppression',        'desc' => 'DC blocker, high-pass, and adaptive gate, in-house, calibrates from the quietest 20% of the frame.'],
         ['title' => 'Keystroke fallback for UIPI-blocked targets', 'desc' => 'If clipboard paste is blocked (RDP, elevated apps), per-character Unicode keystroke injection takes over automatically.'],
         ['title' => 'Shift-to-auto-send',                'desc' => 'Hold Shift while dictating to fire Enter after the paste. For chat-box dictation.'],
         ['title' => 'Retain-audio with day slider',      'desc' => '1&ndash;90 day retention. Off by default. Pruning runs on every new dictation.'],

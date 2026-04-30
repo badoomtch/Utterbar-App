@@ -14,7 +14,7 @@
                     Every release, <x-hl>in detail</x-hl>.
                 </h1>
                 <p class="ub-lead mt-8 max-w-2xl">
-                    What shipped, when, and why. Each release note is the same one that goes out to the in-app updater &mdash; no marketing rewrite, no &ldquo;various improvements and bug fixes&rdquo;.
+                    What shipped, when, and why. Each release note is the same one that goes out to the in-app updater. No marketing rewrite, no &ldquo;various improvements and bug fixes&rdquo;.
                 </p>
                 @if ($latest)
                     <p class="mt-6 font-mono text-sm" style="color: var(--muted);">
@@ -66,6 +66,6 @@
 
     <x-prompt-cta
         :heading="'Get the latest build.'"
-        :sub="'Auto-update is built in &mdash; if you&rsquo;re already running Utterbar, the app will tell you when there&rsquo;s a new version.'"
+        :sub="'Auto-update is built in. If you&rsquo;re already running Utterbar, the app will tell you when there&rsquo;s a new version.'"
     />
 </x-layouts.app>

@@ -11,11 +11,11 @@
     $faqs = [
         ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run, and those are logged so you can read them.'],
         ['q' => 'Which Windows versions work?', 'a' => 'Windows 10 22H2 and Windows 11, x86_64. WebView2 is required (already on Windows 11; auto-bootstrapped on Windows 10).'],
-        ['q' => 'Do I need a GPU?', 'a' => 'No. The default Parakeet v3 build runs comfortably on any modern CPU. GPU acceleration (DirectML on any DX12 card, CUDA on NVIDIA) is supported and speeds things up if you have one, but it isn\'t required.'],
-        ['q' => 'What languages does it support?', 'a' => 'Over 30 out of the box: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and more. English uses Parakeet by default for speed; everything else uses Whisper. Pick a default in Settings → Models, or leave it on auto-detect.'],
+        ['q' => 'Do I need a GPU?', 'a' => 'No. The default Parakeet build runs comfortably on any modern CPU. If you have a DirectX 12 graphics card (NVIDIA, AMD, or Intel), Utterbar uses it via DirectML for Whisper Medium, Whisper Large, and Parakeet. CUDA is not bundled.'],
+        ['q' => 'What languages does it support?', 'a' => 'Over 30 out of the box: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and more. English uses Parakeet by default for speed; everything else uses Whisper. Pick a default in Settings > Models, or leave it on auto-detect.'],
         ['q' => 'Does it work with Claude / ChatGPT / Gemini / Copilot?', 'a' => 'Yes. Utterbar isn\'t an integration. It types into whichever app has the cursor, so any chat input becomes a voice input. Click the input, hold the hotkey, ask. The text lands in the box as if you\'d typed it. No API key, no extension, no per-assistant setup.'],
         ['q' => 'How does it compare to the Mac-native ones?', 'a' => 'Same philosophy, different platform. The Mac alternatives are great if you\'re on Mac. Utterbar is Windows-native from day one. No Python shim, no Electron wrapper, a smaller installer. Different camp, same conviction about local.'],
-        ['q' => 'Why three engines instead of one?', 'a' => 'Each one is best at something different. Parakeet is fastest and most accurate on English. Whisper covers 30+ other languages. Zipformer is the smallest, for older PCs. The app picks sensibly by default; you can override in Settings → Models.'],
+        ['q' => 'Why two engines instead of one?', 'a' => 'Each one is best at something different. Parakeet is fastest and most accurate on English; Whisper covers 30+ other languages. The app picks sensibly by default; you can override in Settings > Models.'],
         ['q' => 'Can I use this in video-call and chat apps?', 'a' => 'Only for typing into the chat box. Utterbar transcribes your voice into text; it won\'t (and will never) inject audio into a call. Your colleagues hear nothing from Utterbar.'],
         ['q' => 'Does it work offline?', 'a' => 'Yes. Pull your ethernet cable mid-sentence and nothing changes. The app doesn\'t authenticate against anything.'],
         ['q' => 'Will there be a macOS version?', 'a' => 'Eventually, after Windows 1.0 ships. Mac already has decent local-only options; I\'d rather make Windows actually good first.'],
@@ -471,7 +471,7 @@
                     </div>
                     <p class="mt-2 text-sm" style="color: var(--muted);">No account. No trial clock.</p>
                     <ul class="mt-6 space-y-2.5">
-                        @foreach (['Unlimited dictation, any length', '30+ languages, all on-device', 'Every built-in mode, deterministic post-processing', 'Mic, system-audio, and mixed capture', 'Vocabulary, history, privacy controls'] as $f)
+                        @foreach (['Unlimited dictations, no daily quota', '30+ languages, all on-device', 'Every built-in mode, deterministic post-processing', 'Mic, system-audio, and mixed capture', 'Vocabulary, history, privacy controls'] as $f)
                             <li class="flex items-start gap-2.5 text-sm">
                                 <span class="mt-0.5 shrink-0" style="color: var(--muted);"><x-icon name="check" size="16" stroke="2" /></span>
                                 <span style="color: var(--fg);">{{ $f }}</span>

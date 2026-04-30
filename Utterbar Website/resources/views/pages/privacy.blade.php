@@ -22,7 +22,7 @@
                     Your voice <x-hl>never</x-hl> leaves.
                 </h1>
                 <p class="ub-lead mt-8 max-w-xl">
-                    Not &lsquo;encrypted in transit&rsquo;. Not &lsquo;processed on secure servers&rsquo;. It just doesn&rsquo;t go anywhere. This is the plain-English promise &mdash; the formal UK GDPR policy is at <a href="{{ route('legal.privacy') }}" style="color: var(--accent);">/legal/privacy</a>.
+                    Not &lsquo;encrypted in transit&rsquo;. Not &lsquo;processed on secure servers&rsquo;. It just doesn&rsquo;t go anywhere. This is the plain-English promise. The formal UK GDPR policy is at <a href="{{ route('legal.privacy') }}" style="color: var(--accent);">/legal/privacy</a>.
                 </p>
             </div>
         </div>
@@ -125,7 +125,7 @@
         </div>
         <p class="mt-4 text-sm max-w-2xl" style="color: var(--muted);">
             Security researchers and enterprise buyers can request access to the Rust core under NDA.
-            The app itself is distributed as a signed binary, not open source &mdash; that way
+            The app itself is distributed as a signed binary, not open source. That way
             the paid features stay paid.
         </p>
     </x-section>

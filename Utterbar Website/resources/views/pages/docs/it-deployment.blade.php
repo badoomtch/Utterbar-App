@@ -25,7 +25,7 @@
     <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">
         <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
             <strong style="color: var(--fg-hi);">Code-signing status, plainly.</strong>
-            The public installer is not code-signed. End users see a Windows SmartScreen warning on first install. For any Business or Enterprise order where SmartScreen warnings are unacceptable on a fleet rollout, we sign the installer at order time &mdash; the signing-cert cost is folded into the quote, not invented as a separate line. Mention &ldquo;signed installer&rdquo; in your enquiry and we&rsquo;ll include it.
+            The public installer is not code-signed. End users see a Windows SmartScreen warning on first install. For any Business or Enterprise order where SmartScreen warnings are unacceptable on a fleet rollout, we sign the installer at order time. The signing-cert cost is folded into the quote, not invented as a separate line. Mention &ldquo;signed installer&rdquo; in your enquiry and we&rsquo;ll include it.
         </p>
     </div>
 
@@ -51,12 +51,12 @@
             </tr>
             <tr>
                 <td class="py-3 pr-4" style="font-family: var(--font-mono); color: var(--fg-hi);">non-zero (other)</td>
-                <td class="py-3" style="color: var(--muted);">Generic install failure. NSIS does not distinguish between disk-full, file-system-permission, or anti-virus quarantine — they all bubble up as a non-zero exit. Investigate via the system Event Log if a deployment tool reports a failure.</td>
+                <td class="py-3" style="color: var(--muted);">Generic install failure. NSIS does not distinguish between disk-full, file-system-permission, or anti-virus quarantine; they all bubble up as a non-zero exit. Investigate via the system Event Log if a deployment tool reports a failure.</td>
             </tr>
         </tbody>
     </table>
     <p class="mt-3 text-base leading-relaxed" style="color: var(--muted); font-size: 0.95rem;">
-        The installer never requires a reboot, never prompts for elevation (per-user install), never registers a system service, and never makes a network call during install &mdash; everything that touches the network happens after the user runs the app for the first time.
+        The installer never requires a reboot, never prompts for elevation (per-user install), never registers a system service, and never makes a network call during install. Everything that touches the network happens after the user runs the app for the first time.
     </p>
 
     <h2 class="mt-14 ub-docs-h2">File locations</h2>
@@ -190,7 +190,7 @@ HKEY_CURRENT_USER\SOFTWARE\Policies\Utterbar     (HKLM wins on conflict)</pre>
         </tbody>
     </table>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        More keys land per customer request. The pattern is small &mdash; one new field, one registry read, one apply rule &mdash; so adding one more is a same-day change for us. Tell us what you need pinned in the enquiry.
+        More keys land per customer request. The pattern is small (one new field, one registry read, one apply rule), so adding one more is a same-day change for us. Tell us what you need pinned in the enquiry.
     </p>
 
     <h2 class="mt-14 ub-docs-h2">Licensing</h2>
@@ -206,7 +206,7 @@ HKEY_CURRENT_USER\SOFTWARE\Policies\Utterbar     (HKLM wins on conflict)</pre>
 
     <h2 class="mt-14 ub-docs-h2">Diagnostic info on the user&rsquo;s machine</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        Settings &rarr; Advanced &rarr; Diagnostics shows the version, OS, CPU thread count, ONNX backend feature flag, and the on-disk paths for logs, the database, and models. Useful for the first-line IT support call. Logs are rotated automatically; the newest is always at <code class="font-mono text-sm" style="color: var(--accent);">%APPDATA%\Utterbar\logs\latest.log</code>.
+        Settings &gt; Advanced &gt; Diagnostics shows the version, OS, CPU thread count, ONNX backend feature flag, and the on-disk paths for logs, the database, and models. Useful for the first-line IT support call. Logs are rotated automatically; the newest is always at <code class="font-mono text-sm" style="color: var(--accent);">%APPDATA%\Utterbar\logs\latest.log</code>.
     </p>
 
     <h2 class="mt-14 ub-docs-h2">What we do NOT have</h2>

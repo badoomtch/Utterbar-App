@@ -10,7 +10,7 @@
                     Thank you.
                 </h1>
                 <p class="mt-5 text-lg leading-relaxed" style="color: var(--muted);">
-                    Your tip is in. Stripe is sending you a receipt now &mdash; check your inbox if you want one for the records. Tips go straight into the next release.
+                    Your tip is in. Stripe is sending you a receipt now. Check your inbox if you want one for the records. Tips go straight into the next release.
                 </p>
                 <div class="mt-10 flex flex-wrap justify-center gap-3">
                     <a href="{{ route('home') }}" class="ub-btn ub-btn-ghost">Back to Utterbar</a>

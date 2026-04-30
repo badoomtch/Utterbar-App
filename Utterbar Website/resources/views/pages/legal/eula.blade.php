@@ -5,7 +5,7 @@
 <x-layouts.app title="EULA" :noIndex="true">
     <x-section eyebrow="Legal" title="End-user licence agreement">
         <article class="max-w-3xl space-y-5 leading-relaxed" style="color: var(--fg);">
-            <p class="font-mono text-sm" style="color: var(--muted);">Last updated: {{ date('j F Y') }} · Placeholder — full EULA ships inside the 1.0 installer.</p>
+            <p class="font-mono text-sm" style="color: var(--muted);">Last updated: {{ date('j F Y') }} · Placeholder, full EULA ships inside the 1.0 installer.</p>
 
             <h3>Licence grant</h3>
             <p>Utterbar grants you a personal, non-transferable, non-exclusive licence to install and use the Utterbar desktop application on any Windows machine you control, subject to the tier you've licensed (Free, Pro, or Team).</p>

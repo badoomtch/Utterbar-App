@@ -120,7 +120,7 @@
 
                                         @if ($devices->isEmpty())
                                             <p class="text-sm" style="color: var(--muted);">
-                                                No devices activated yet. Paste your key into Utterbar &rarr; Settings &rarr; Licence.
+                                                No devices activated yet. Paste your key into Utterbar &gt; Settings &gt; Licence.
                                             </p>
                                         @else
                                             <ul class="space-y-2">
@@ -180,8 +180,8 @@
 
                 {{-- Support --}}
                 <p class="mt-10 text-center text-sm" style="color: var(--muted);">
-                    Something wrong? <a href="{{ route('contact') }}" style="color: var(--accent);">Email Jay</a> &mdash;
-                    usually within a day, always within two.
+                    Something wrong? <a href="{{ route('contact') }}" style="color: var(--accent);">Email Jay</a>.
+                    Usually within a day, always within two.
                 </p>
 
             </div>

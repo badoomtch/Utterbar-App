@@ -28,7 +28,7 @@
                         Wispr Flow is the most-marketed modern dictation app and the closest direct comparison. They send your voice to their servers and bill you monthly; we run it on your PC and charge once. Full table, honest essay.
                     </p>
                     <p class="mt-6 font-mono text-xs uppercase tracking-wider" style="color: var(--accent); letter-spacing: 0.14em;">
-                        Read the comparison &rarr;
+                        Read the comparison
                     </p>
                 </a>
                 <div class="ub-card" style="opacity: 0.55;">

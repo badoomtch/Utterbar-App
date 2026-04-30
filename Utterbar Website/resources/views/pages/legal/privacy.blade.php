@@ -18,7 +18,7 @@
             <ul class="list-disc pl-5 space-y-1.5" style="color: var(--muted);">
                 <li><strong>Speech-model download.</strong> On first run, fetches the Parakeet ASR model file from a content delivery network. No identifiers are sent.</li>
                 <li><strong>Licence verification.</strong> If you buy Pro, the app contacts our API to activate your licence on the device. We store the activation (see &sect;4).</li>
-                <li><strong>Update check.</strong> If the &ldquo;Check for updates automatically&rdquo; setting is on (you choose during onboarding), the app sends one HTTP request per launch containing only your current version number, asking whether a newer build is available. You can turn it off any time in Settings &rarr; General.</li>
+                <li><strong>Update check.</strong> If the &ldquo;Check for updates automatically&rdquo; setting is on (you choose during onboarding), the app sends one HTTP request per launch containing only your current version number, asking whether a newer build is available. You can turn it off any time in Settings &gt; Updates.</li>
                 <li><strong>Update download.</strong> If you accept an update, the new installer is fetched from <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">dl.utterbar.com</code>; this download is logged on our side as described in &sect;5.</li>
             </ul>
 
@@ -43,13 +43,13 @@
             <h3>7. Cookies</h3>
             <ul class="list-disc pl-5 space-y-1.5" style="color: var(--muted);">
                 <li><strong>Essential.</strong> Laravel session cookie for sign-in and checkout, an XSRF token for form security, and the consent cookie itself (<code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">utterbar_consent</code>) so we don&rsquo;t re-prompt you on every page. These are set without consent because the site cannot work without them.</li>
-                <li><strong>Optional &mdash; Analytics.</strong> Google Analytics sets <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">_ga</code> and <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">_ga_*</code> cookies (default lifetime ~13 months) only if you accept.</li>
+                <li><strong>Optional, Analytics.</strong> Google Analytics sets <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">_ga</code> and <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">_ga_*</code> cookies (default lifetime ~13 months) only if you accept.</li>
             </ul>
             <p>You can revisit the choice any time via the <button type="button" onclick="utterbarRevisitCookieConsent(); return false;" style="color: var(--accent); text-decoration: underline; background: none; border: none; padding: 0; cursor: pointer; font: inherit;">Cookies</button> link in the footer.</p>
 
             <h3>8. Lawful basis for processing</h3>
             <ul class="list-disc pl-5 space-y-1.5" style="color: var(--muted);">
-                <li><strong>Contract.</strong> Purchase records, licence keys, device activations &mdash; necessary to provide the product you bought.</li>
+                <li><strong>Contract.</strong> Purchase records, licence keys, device activations: necessary to provide the product you bought.</li>
                 <li><strong>Legitimate interests.</strong> Aggregate, hashed download counters; abuse prevention on the contact form; security logs.</li>
                 <li><strong>Consent.</strong> Google Analytics and any future optional cookies. You can withdraw consent any time using the Cookies link in the footer.</li>
             </ul>
@@ -59,7 +59,7 @@
                 <li><strong>Purchase + licence records.</strong> Kept for the lifetime of the product (so we can re-issue your key if you ask) and for any period required by UK tax law.</li>
                 <li><strong>Activations.</strong> Until you deactivate the device or delete the licence.</li>
                 <li><strong>Contact form messages.</strong> Up to 24 months, after which they&rsquo;re deleted unless they form part of an open support thread.</li>
-                <li><strong>Download events.</strong> Indefinitely &mdash; they contain only hashes and country codes, no personal data.</li>
+                <li><strong>Download events.</strong> Indefinitely. They contain only hashes and country codes, no personal data.</li>
                 <li><strong>Update subscribers.</strong> Until you unsubscribe, then deleted within 30 days.</li>
             </ul>
 
