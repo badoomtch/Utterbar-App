@@ -103,4 +103,31 @@ class ComparePagesTest extends TestCase
         $response = $this->get(route('compare.voice-access'));
         $response->assertSee('not documented', false);
     }
+
+    public function test_compare_superwhisper_renders(): void
+    {
+        $response = $this->get(route('compare.superwhisper'));
+        $response->assertStatus(200);
+        $response->assertSee('Superwhisper', false);
+    }
+
+    public function test_compare_superwhisper_shows_utterbar_pricing_anchor(): void
+    {
+        $response = $this->get(route('compare.superwhisper'));
+        $response->assertStatus(200);
+        $response->assertSee('£39.99', false);
+    }
+
+    public function test_compare_superwhisper_does_not_describe_competitor_as_mac_only(): void
+    {
+        // Superwhisper is NOT Mac-only — they ship on Mac, Windows,
+        // and iOS. A previous version of the website's
+        // alternatives table called Superwhisper "Mac-first
+        // heritage; Windows is newer", which under-described
+        // their cross-platform reach. Pin the corrected
+        // multi-platform framing so a future edit can't quietly
+        // re-introduce the Mac-only mistake.
+        $response = $this->get(route('compare.superwhisper'));
+        $response->assertSee('Mac, Windows', false);
+    }
 }

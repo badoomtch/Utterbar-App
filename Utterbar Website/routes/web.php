@@ -66,6 +66,7 @@ Route::prefix('compare')->name('compare.')->group(function () {
     Route::get('/wispr-flow', [PageController::class, 'compareWisprFlow'])->name('wispr-flow');
     Route::get('/dragon', [PageController::class, 'compareDragon'])->name('dragon');
     Route::get('/voice-access', [PageController::class, 'compareVoiceAccess'])->name('voice-access');
+    Route::get('/superwhisper', [PageController::class, 'compareSuperwhisper'])->name('superwhisper');
 });
 
 Route::prefix('docs')->name('docs.')->group(function () {
