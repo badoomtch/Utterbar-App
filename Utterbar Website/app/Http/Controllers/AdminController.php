@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Licence;
+use App\Services\Pricing\VolumePricing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,6 +16,8 @@ class AdminController extends Controller
      */
     public function index(Request $request)
     {
+        $volumeSku = VolumePricing::sku();
+
         $counts = [
             'licences_total'    => Licence::count(),
             'licences_active'   => Licence::where('status', 'active')->count(),
@@ -24,6 +27,20 @@ class AdminController extends Controller
             'webhook_total'     => DB::table('stripe_webhook_events')->count(),
             'webhook_errors'    => DB::table('stripe_webhook_events')->whereNotNull('error')->count(),
             'contact_total'     => DB::table('contact_messages')->count(),
+
+            // B2B counts. Cheap aggregates over the licences table —
+            // one COUNT and one SUM, both indexed on `sku` is fine for
+            // current cardinality. If volume rows ever 100x in
+            // volume, revisit.
+            'volume_licences_total'  => Licence::where('sku', $volumeSku)->count(),
+            'volume_licences_active' => Licence::where('sku', $volumeSku)->where('status', 'active')->count(),
+            // Total seats sold across volume rows. Refunded / revoked
+            // rows are NOT excluded — the operator wants to see the
+            // gross seat count that came in through self-serve, not
+            // the currently-active count, because seat reconciliation
+            // happens at the row level (the "Active volume" stat
+            // above is the live-Pro figure).
+            'volume_seats_sold'      => (int) Licence::where('sku', $volumeSku)->sum('max_devices'),
         ];
 
         // Revenue: count active + refunded separately for quick eyeball.
