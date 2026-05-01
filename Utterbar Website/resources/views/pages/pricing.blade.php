@@ -203,7 +203,7 @@
                     Volume pricing, <x-hl>still lifetime</x-hl>.
                 </h2>
                 <p class="ub-lead mt-6 max-w-2xl">
-                    Same product, per seat, in plain GBP. Pay by card or invoice. Volume discounts kick in at three seats and again at twenty-five. No subscription, no per-user accounts to provision.
+                    Same product, per seat, in plain GBP. Pay by card or invoice. Self-serve volume starts at five seats; the business rate kicks in at twenty-five. No subscription, no per-user accounts to provision.
                 </p>
             </div>
 
@@ -231,7 +231,7 @@
                     <div class="flex items-baseline gap-1">
                         <span class="text-2xl font-extrabold tracking-tight" style="color: var(--fg-hi);">Talk to us</span>
                     </div>
-                    <p class="mt-3 text-sm" style="color: var(--muted);">100+ seats, custom quote.</p>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">More than 100 seats, custom quote.</p>
                 </div>
             </div>
 
@@ -353,7 +353,7 @@
             @endif
 
             <div class="mt-10 flex flex-wrap items-center gap-4">
-                <a href="{{ route('business.contact') }}" class="ub-btn ub-btn-ghost">Need {{ $maxSeats }}+ seats? Get a quote</a>
+                <a href="{{ route('business.contact') }}" class="ub-btn ub-btn-ghost">Need more than {{ $maxSeats }} seats? Get a quote</a>
                 <a href="{{ route('business') }}" class="ub-btn ub-btn-ghost">See the business page</a>
                 <a href="{{ route('docs.it-deployment') }}" class="ub-btn ub-btn-ghost">IT deployment notes</a>
             </div>

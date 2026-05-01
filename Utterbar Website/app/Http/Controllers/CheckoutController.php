@@ -104,8 +104,12 @@ class CheckoutController extends Controller
      *
      * Server controls every monetary value. The request carries only
      * `email` (optional) and `quantity`. Anything else is ignored.
-     * Quantity is validated as an int in range; a float, string, or
-     * out-of-bounds value rejects with 422.
+     * Quantity is validated by Laravel's `integer` rule, which accepts
+     * a real int or a numeric string that parses as an int (e.g. "10")
+     * and rejects floats, non-numeric strings, decimal strings, arrays,
+     * and out-of-range values. Whatever passes is cast to a real int
+     * before any pricing math runs, and re-checked against the helper's
+     * range as defence in depth.
      */
     public function createVolumeSession(Request $request): JsonResponse
     {
@@ -119,11 +123,15 @@ class CheckoutController extends Controller
             return response()->json(['error' => 'misconfigured', 'message' => 'Checkout is misconfigured.'], 500);
         }
 
-        // Validation. `integer` rejects strings/floats/booleans/arrays.
-        // `min`/`max` lock the bounds to the helper's documented range
-        // so the boundary cannot drift between this method and the
-        // helper. The Laravel validator also returns a clean 422 with
-        // field-keyed messages, which the volume UI surfaces inline.
+        // Validation. Laravel's `integer` rule accepts a real int or
+        // a numeric string that parses cleanly as an int (e.g. "10"),
+        // and rejects floats, non-numeric strings, decimal strings,
+        // booleans, and arrays. `min`/`max` lock the bounds to the
+        // helper's documented range so the boundary cannot drift
+        // between this method and the helper. Whatever passes here is
+        // cast to a real int below before any pricing math runs.
+        // The Laravel validator returns a clean 422 with field-keyed
+        // messages, which the volume UI surfaces inline.
         $validated = $request->validate([
             'email'    => 'nullable|email:rfc|max:255',
             'quantity' => 'required|integer|min:' . VolumePricing::MIN_SEATS . '|max:' . VolumePricing::MAX_SEATS,

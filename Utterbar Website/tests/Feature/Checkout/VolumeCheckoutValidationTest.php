@@ -109,14 +109,18 @@ class VolumeCheckoutValidationTest extends TestCase
         $response->assertJsonValidationErrors(['quantity']);
     }
 
-    public function test_rejects_string_quantity(): void
+    public function test_rejects_non_numeric_string_quantity(): void
     {
         $this->enableStripe();
 
-        // Stringy quantity. Laravel's `integer` rule is strict by
-        // default — strings are rejected even if they parse to a
-        // valid number. This pins that behaviour so a future
-        // permissive cast can't silently widen the surface.
+        // Non-numeric string. Laravel's `integer` rule rejects this.
+        // Note: a numeric string like "10" would PASS the rule (it
+        // parses cleanly as an int), and the controller then casts
+        // it via `(int) $validated['quantity']` before pricing math.
+        // We don't test the numeric-string accept path here because
+        // it would require a real Stripe API key to reach a 200, but
+        // it is the documented behaviour. This test pins only the
+        // narrower property: gibberish strings hit 422.
         $response = $this->postJson(route('checkout.create.volume'), ['quantity' => 'lots']);
 
         $response->assertStatus(422);

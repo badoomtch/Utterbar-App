@@ -113,10 +113,16 @@ class VolumePricingTest extends TestCase
     }
 
     /**
-     * Defence-in-depth: the helper rejects non-int inputs even
-     * though the controller's Laravel validator should have already
-     * cast and rejected. A future caller that bypasses the
-     * validator can't sneak a stringy "5" or "5.5" through.
+     * The helper is strict on type — strings, floats, null, arrays,
+     * booleans all return false. Worth pinning explicitly because
+     * the request-side Laravel `integer` rule is MORE permissive:
+     * it accepts numeric strings like "5" (which parse as ints) and
+     * leaves the controller to cast the validated value via
+     * `(int) $validated['quantity']` before any pricing math. This
+     * helper sits downstream of that cast on the request path, but
+     * is also called from non-request paths (the webhook re-checks
+     * metadata.quantity here) where no Laravel validator runs first.
+     * For those callers, the strict type predicate is the only fence.
      */
     public function test_is_valid_quantity_rejects_non_int_types(): void
     {

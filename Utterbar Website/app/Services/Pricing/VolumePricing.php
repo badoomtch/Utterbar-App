@@ -95,19 +95,27 @@ class VolumePricing
     }
 
     /**
-     * True when `$quantity` is an integer (or integer-valued numeric
-     * string) inside the self-serve range. The Laravel validator
-     * already enforces this for the request path; the helper is
-     * exposed so the UI's preview can guard its display logic with
-     * the same predicate.
+     * True when `$quantity` is a real PHP int inside the self-serve
+     * range. Strict on type: numeric strings ("10"), floats (5.0),
+     * null, arrays, and booleans all return false. The Laravel
+     * `integer` validation rule on the request side is more
+     * permissive (it accepts numeric strings that parse as ints),
+     * so the controller casts validated input to a real int via
+     * `(int) $validated['quantity']` before reaching this helper.
+     * The helper exists so callers that don't go through the request
+     * pipeline (UI preview logic, the webhook re-validation, future
+     * artisan commands) can apply the same boundary check without
+     * worrying about coercion drift.
      */
     public static function isValidQuantity(mixed $quantity): bool
     {
         if (!is_int($quantity)) {
             // Reject anything non-int (float, string, null, array).
-            // The controller validates 'integer' before this is hit
-            // in production, so this branch is defence in depth for
-            // any future caller that bypasses the validator.
+            // The controller is the only request-path caller, and it
+            // casts validated input to a real int before getting
+            // here, so this branch is defence in depth for non-
+            // request callers (webhook handler, UI preview helpers,
+            // future tooling).
             return false;
         }
         return $quantity >= self::MIN_SEATS && $quantity <= self::MAX_SEATS;
