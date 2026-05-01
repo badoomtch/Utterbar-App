@@ -88,10 +88,21 @@ export const useDictation = create<DictationState>((set, get) => ({
     // the next recording.
     const meetingProgress =
       phase.kind === 'transcribing_background' ? get().meetingProgress : null;
+    // Reset the meter slot when entering a fresh `listening` phase.
+    // Without this, the floating bar's MeterBars rAF loop would read
+    // the stale frame from the *previous* recording on its first tick
+    // (the meter pump only emits while a capture is live, so the slot
+    // freezes at the last frame after stop). For ~30 ms (until the
+    // next live frame arrives) the bars would visibly start tall on a
+    // recording the user has just begun, contradicting the whole
+    // "react to detected audio" point of the meter-driven waveform.
+    const meter =
+      phase.kind === 'listening' ? { rms: 0, peak: 0, ts_ms: 0 } : get().meter;
     set({
       phase,
       elapsedMs: phase.kind === 'listening' ? 0 : get().elapsedMs,
       meetingProgress,
+      meter,
     });
   },
   setMeter(frame) {

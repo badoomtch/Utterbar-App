@@ -695,4 +695,48 @@ mod tests {
             "https://dl.utterbar.com/x"
         ));
     }
+
+    /// Pins the on-disk JSON shape of `pending_relaunch.json` so a
+    /// future struct rename can't silently break the post-update
+    /// toast AND the post-update force-show window decision. Both
+    /// consumers parse this exact shape; if the field name drifts,
+    /// every freshly-installed user lands silently in the tray
+    /// after an update and the "Updated to vX.Y.Z" toast disappears.
+    #[test]
+    fn pending_relaunch_json_shape_is_stable() {
+        let rec = PendingRelaunch {
+            target_version: "0.16.2".to_string(),
+            written_at_unix: 1_700_000_000,
+        };
+        let json = serde_json::to_string(&rec).expect("serialise");
+        // Field names are load-bearing — both peek and consume read
+        // them as `target_version` / `written_at_unix`. Don't rename
+        // without bumping the marker file format.
+        assert!(
+            json.contains("\"target_version\":\"0.16.2\""),
+            "expected target_version field, got: {json}"
+        );
+        assert!(
+            json.contains("\"written_at_unix\":1700000000"),
+            "expected written_at_unix field, got: {json}"
+        );
+
+        // Roundtrip — the consumer-side `serde_json::from_str` must
+        // accept what the producer wrote.
+        let parsed: PendingRelaunch = serde_json::from_str(&json).expect("deserialise");
+        assert_eq!(parsed.target_version, "0.16.2");
+        assert_eq!(parsed.written_at_unix, 1_700_000_000);
+
+        // The historic on-disk shape (literally written by 0.16.x
+        // installs) MUST also still parse — this is the failure mode
+        // the test exists to catch. If a future struct change makes
+        // either of these strings fail to deserialise, the next
+        // post-update launch from the previous version cannot
+        // surface its toast or force-show its window.
+        let historic_one_liner = r#"{"target_version":"0.16.2","written_at_unix":1700000000}"#;
+        let historic: PendingRelaunch = serde_json::from_str(historic_one_liner).expect(
+            "historic 0.16.x marker shape must keep parsing — see test for rename guidance",
+        );
+        assert_eq!(historic.target_version, "0.16.2");
+    }
 }
