@@ -104,6 +104,11 @@ class StripeWebhookMintTest extends TestCase
     {
         Mail::fake();
 
+        // No amount_total / currency on the synthetic session, so
+        // the helper falls back to services.stripe.pro_amount /
+        // pro_currency. This test pins the *fallback* path; the
+        // session-amount-wins behaviour is in
+        // test_single_user_mint_persists_session_amount_total below.
         $session = $this->makeSession([
             'metadata' => (object) ['sku' => 'utterbar-pro-lifetime'],
         ]);
@@ -118,11 +123,7 @@ class StripeWebhookMintTest extends TestCase
         $this->assertSame('active', $row->status);
         $this->assertNotEmpty($row->signed_blob, 'signed_blob must be populated by the signer');
 
-        // amount_pence + currency are captured at mint time so the
-        // dashboard SUM stays honest even if pro_amount changes
-        // later (added 2026-05-02). Single-user reads from
-        // services.stripe.pro_amount; the test setUp pins that to
-        // 3999 (£39.99).
+        // Fallback: services.stripe.pro_amount = 3999 (per setUp).
         $this->assertSame(3999, $row->amount_pence);
         $this->assertSame('gbp', $row->currency);
 
@@ -131,11 +132,63 @@ class StripeWebhookMintTest extends TestCase
         });
     }
 
+    public function test_single_user_mint_persists_session_amount_total(): void
+    {
+        Mail::fake();
+
+        // The buyer was charged 4500 pence (£45.00) at checkout.
+        // The pro_amount config is 3999. The webhook MUST persist
+        // what the buyer paid, NOT what the current config would
+        // recompute. This is the load-bearing property: a price
+        // change between Checkout-Session creation and webhook
+        // delivery cannot rewrite history.
+        $session = $this->makeSession([
+            'metadata'     => (object) ['sku' => 'utterbar-pro-lifetime'],
+            'amount_total' => 4500,
+            'currency'     => 'gbp',
+        ]);
+
+        $this->callHandler($session);
+
+        $row = Licence::where('stripe_checkout_session_id', $session->id)->first();
+        $this->assertNotNull($row);
+        $this->assertSame(4500, $row->amount_pence, 'session amount_total must win over pro_amount config');
+        $this->assertSame('gbp', $row->currency);
+    }
+
+    public function test_single_user_mint_lowercases_session_currency(): void
+    {
+        Mail::fake();
+
+        // Stripe sends currency lowercase in practice, but defensive:
+        // if a session ever carries an uppercase code (Stripe libs
+        // returning ISO-style "USD", a test fixture, a custom
+        // checkout integration), the persisted column must still
+        // be lowercase so AdminController's most-common-currency
+        // grouping stays consistent.
+        $session = $this->makeSession([
+            'metadata'     => (object) ['sku' => 'utterbar-pro-lifetime'],
+            'amount_total' => 5000,
+            'currency'     => 'USD',
+        ]);
+
+        $this->callHandler($session);
+
+        $row = Licence::where('stripe_checkout_session_id', $session->id)->first();
+        $this->assertSame(5000, $row->amount_pence);
+        $this->assertSame('usd', $row->currency);
+    }
+
     public function test_volume_mint_creates_licence_with_quantity_max_devices(): void
     {
         Mail::fake();
 
         $quantity = 50; // business tier
+        // No amount_total / currency on the synthetic session, so
+        // the helper falls back to VolumePricing::totalPence /
+        // currency. This test pins the *fallback* path; session-
+        // amount-wins is in
+        // test_volume_mint_persists_session_amount_total below.
         $session = $this->makeSession([
             'metadata' => (object) [
                 'sku'         => VolumePricing::sku(),
@@ -156,10 +209,10 @@ class StripeWebhookMintTest extends TestCase
         $this->assertSame('active', $row->status);
         $this->assertNotEmpty($row->signed_blob);
 
-        // Volume mint at business tier: 50 seats × £19/seat =
-        // £950.00 = 95000 pence. The webhook reads the rate fresh
-        // from VolumePricing (NOT the Stripe metadata), so a
-        // future rate change doesn't retroactively rewrite history.
+        // Fallback: 50 seats × £19/seat = 95000 pence. Reached
+        // because amount_total is absent on the synthetic session
+        // — the helper computes from VolumePricing as the second
+        // arm.
         $this->assertSame(50 * 1900, $row->amount_pence);
         $this->assertSame('gbp', $row->currency);
 
@@ -186,13 +239,74 @@ class StripeWebhookMintTest extends TestCase
         $this->assertNotNull($row);
         $this->assertSame(5, $row->max_devices);
 
-        // Team tier amount: 5 seats × £29/seat = £145.00 = 14500
-        // pence. Pinned alongside max_devices so a future change to
-        // VolumePricing's tier boundary (e.g. moving from 25 to 20
-        // seats) is caught by this test rather than silently
-        // shifting the per-row stored figure.
+        // Fallback (no amount_total on the session): team tier
+        // computes 5 × £29 = 14500 pence. Pinned so a future
+        // VolumePricing boundary change (e.g. 25 → 20) is caught
+        // by this test rather than silently shifting the
+        // fallback figure.
         $this->assertSame(5 * 2900, $row->amount_pence);
         $this->assertSame('gbp', $row->currency);
+    }
+
+    public function test_volume_mint_persists_session_amount_total(): void
+    {
+        Mail::fake();
+
+        // The buyer was charged 30000 pence (£300.00) at checkout
+        // for a 10-seat order. VolumePricing today computes
+        // 10 × £29 = 29000 pence. The £10 discrepancy stands in
+        // for any drift between Checkout-Session creation and
+        // webhook delivery (a rate change, a one-off discount, a
+        // promo we ran for a customer, anything). The persisted
+        // amount MUST be 30000 — what the card was charged — not
+        // 29000 — what the helper would compute now.
+        $quantity = 10;
+        $session = $this->makeSession([
+            'metadata' => (object) [
+                'sku'         => VolumePricing::sku(),
+                'quantity'    => (string) $quantity,
+                'max_devices' => (string) $quantity,
+                'unit_pence'  => '2900',  // matches VolumePricing today
+            ],
+            'amount_total' => 30000,       // what Stripe says was paid
+            'currency'     => 'gbp',
+        ]);
+
+        $this->callHandler($session);
+
+        $row = Licence::where('stripe_checkout_session_id', $session->id)->first();
+        $this->assertNotNull($row);
+        $this->assertSame(30000, $row->amount_pence, 'session amount_total must win over VolumePricing recomputation');
+        $this->assertSame('gbp', $row->currency);
+    }
+
+    public function test_volume_mint_ignores_metadata_unit_pence_for_persistence(): void
+    {
+        Mail::fake();
+
+        // Metadata is informational, not authoritative. A buyer
+        // (or an attacker, or a buggy controller) cannot influence
+        // the persisted amount by smuggling a different unit_pence
+        // into the metadata. With amount_total present, only
+        // amount_total is read.
+        $session = $this->makeSession([
+            'metadata' => (object) [
+                'sku'         => VolumePricing::sku(),
+                'quantity'    => '10',
+                'max_devices' => '10',
+                'unit_pence'  => '1', // 1 pence per seat — completely fake
+            ],
+            'amount_total' => 50000,
+            'currency'     => 'gbp',
+        ]);
+
+        $this->callHandler($session);
+
+        $row = Licence::where('stripe_checkout_session_id', $session->id)->first();
+        $this->assertNotNull($row);
+        // Stored amount comes from amount_total, NOT metadata.unit_pence.
+        $this->assertSame(50000, $row->amount_pence);
+        $this->assertNotSame(10, $row->amount_pence, 'metadata unit_pence × quantity must not be used for persistence');
     }
 
     public function test_volume_mint_refuses_out_of_range_quantity(): void
