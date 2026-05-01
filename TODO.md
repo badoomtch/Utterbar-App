@@ -2,15 +2,15 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-05-05**
+**Last updated: 2026-05-01**
 
 ---
 
 ## Current status
 
 - **Stable channel:** v0.16.0 (admin row 63). Bundles the v0.15.7-v0.15.12 beta line: auto-stop near the 5-minute single-shot cap, ASR output validation across regular dictation / file transcription / Meeting Mode chunks, managed fleet licence delivery via `licence.bin`, three new IT policy keys (BlockHistory, BlockHistoryExport, BlockTelemetry), volume self-serve checkout with two-tier rate, admin polish for B2B rows, honest revenue accounting (per-row amount_pence), and air-gapped activation request/import. Tagged `v0.16.0`. Supersedes v0.15.6.
-- **Beta channel:** v0.16.0 (admin row 64). Same bytes as stable; published to beta in lockstep so beta users are not stranded on 0.15.12.
-- **In-tree app version:** v0.16.0 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
+- **Beta channel:** v0.16.2 (admin row 66). Adds structured cold-warm timing for ASR model loads (`asr_warm: begin` / `asr_warm: done` with `file_resolve_ms`, `native_construct_ms`, `total_warm_ms`) and a background prewarm of the default dictation model when `models.warm_duration_secs == u32::MAX` (the "keep loaded" sentinel) so the first dictation after launch is a cache hit. Builds on v0.16.1 (launch-at-startup repair, admin row 65). No DirectML provider policy change; native sherpa-onnx construction time is unchanged.
+- **In-tree app version:** v0.16.2 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
 - **Volume self-serve checkout shipped to the website** (merged into main from `feature/b2b-volume-checkout`). `/api/checkout/create-volume-session` accepts quantity 5-100, mints a licence with `max_devices = quantity`, SKU `utterbar-pro-volume`. Two-tier rate (£29 / £19 at the 25-seat boundary) lives in `App\Services\Pricing\VolumePricing`. Website-only; no desktop app change required.
 - **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
 - **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
@@ -28,9 +28,10 @@ In rough order. Adjust as evidence comes in.
 
 1. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
 2. **Watch v0.16.0 stable soak.** First stable from a wide bundle (six betas worth of work in one promote). Particular attention on: per-chunk Meeting Mode validation false-positives, the 4:55 auto-stop interaction with mid-sentence speech, managed-licence + air-gapped flows on real customer hardware. Hotfix to 0.16.1 if anything load-bearing surfaces.
-3. **Fix launch-at-startup reliability.** User reports the app does not launch after restarting Windows even though the setting is enabled. Treat as a bug: inspect startup registration, installer behaviour, and whether the setting writes the expected Windows startup entry.
-4. **Updater relaunch should open the app, not hide to tray.** After an update and relaunch, bring the app/floating bar/settings surface visibly back instead of starting minimised/closed-to-tray.
-5. **Pick the next product work item** from the backlog below.
+3. **Watch v0.16.2 beta soak for startup + prewarm behaviour.** Confirm `asr_warm: begin` / `asr_warm: done` log lines appear in real-run `%APPDATA%\Utterbar\logs\latest.log` with sensible `file_resolve_ms` / `native_construct_ms` / `total_warm_ms` values across CPU + DirectML. Confirm the "keep loaded" sentinel users see the prewarm kick in shortly after launch and that the first dictation post-launch is a cache hit. Watch for any prewarm-task panics or warn-level `asr_prewarm: failed` lines, and for any regression where startup feels slower than 0.16.1. Promote to 0.17.0 stable only after a clean soak.
+4. **Fix launch-at-startup reliability.** User reports the app does not launch after restarting Windows even though the setting is enabled. Treat as a bug: inspect startup registration, installer behaviour, and whether the setting writes the expected Windows startup entry.
+5. **Updater relaunch should open the app, not hide to tray.** After an update and relaunch, bring the app/floating bar/settings surface visibly back instead of starting minimised/closed-to-tray.
+6. **Pick the next product work item** from the backlog below.
 
 ---
 
