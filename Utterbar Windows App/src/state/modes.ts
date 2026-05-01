@@ -25,8 +25,19 @@ export const useModes = create<ModesStore>((set) => ({
   list: [],
   activeId: null,
   async load() {
+    // Both invokes must be defensive. `get_active_mode` already
+    // catches because it's allowed to be null; `list_modes` was
+    // implicitly assumed never to fail, but a transient IPC failure
+    // (window swap, sidecar restart, or — for the marketing
+    // Remotion bundle — the inert tauri-invoke-stub that throws by
+    // design) would propagate as an unhandled rejection out of
+    // `void load()` callers like BarModeSwitch's mount effect.
+    // Falling back to an empty list preserves the existing
+    // pickVisibleModes behaviour: BarModeSwitch returns null and
+    // the floating bar drops the chip cluster. The next successful
+    // settings:changed event re-runs load() and refills the list.
     const [list, active] = await Promise.all([
-      invoke<Mode[]>('list_modes'),
+      invoke<Mode[]>('list_modes').catch(() => [] as Mode[]),
       invoke<Mode | null>('get_active_mode').catch(() => null),
     ]);
     set({ list, activeId: active?.id ?? null });
