@@ -181,6 +181,8 @@ fn main() {
             commands::release_notes::current_release_notes,
             // pricing lookup (for the in-app upgrade modal)
             commands::pricing::get_pro_price,
+            // group-policy snapshot for the settings UI hints
+            commands::policy::policy_snapshot,
             // diagnostics
             commands::diagnostics::get_diagnostics,
             commands::diagnostics::probe_gpu,

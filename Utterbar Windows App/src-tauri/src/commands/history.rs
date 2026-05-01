@@ -125,6 +125,16 @@ pub async fn reprocess_history(
         // for a rename map to substitute against. None.
         speaker_names: None,
     };
+    // Group-policy `BlockHistory` blocks new persistence even on the
+    // reprocess path — a reprocessed transcript is still a fresh row.
+    // Existing rows are NOT touched. Surfaces as a user-visible error
+    // so the frontend can render "Disabled by your administrator"
+    // rather than silently dropping the result.
+    if state.settings.policy().history_blocked() {
+        return Err(OrliqError::User {
+            message: "History is disabled by your administrator.".into(),
+        });
+    }
     state.history.insert(&entry).map_err(OrliqError::from)?;
     Ok(entry)
 }
@@ -142,6 +152,16 @@ pub async fn export_history(
     state: State<'_, Arc<AppState>>,
     filter: HistoryFilter,
 ) -> CmdResult<String> {
+    // Group-policy gate. `history_export_blocked()` is true when
+    // either `BlockHistoryExport` or the strict-superset `BlockHistory`
+    // is set. The frontend disables the export button via
+    // `policy_snapshot`, but a refusal here is the load-bearing
+    // enforcement — a determined user can still hit the IPC directly.
+    if state.settings.policy().history_export_blocked() {
+        return Err(OrliqError::User {
+            message: "Exporting history is disabled by your administrator.".into(),
+        });
+    }
     let rows = state.history.list(filter).map_err(OrliqError::from)?;
     let json = serde_json::to_string_pretty(&rows).map_err(|e| OrliqError::Internal {
         message: e.to_string(),

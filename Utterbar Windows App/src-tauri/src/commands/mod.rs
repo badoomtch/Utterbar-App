@@ -9,6 +9,7 @@ pub mod licence;
 pub mod meetings;
 pub mod models;
 pub mod modes;
+pub mod policy;
 pub mod pricing;
 pub mod release_notes;
 pub mod settings;
