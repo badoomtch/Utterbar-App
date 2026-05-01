@@ -1169,7 +1169,7 @@ fn schedule_idle(handle: &AppHandle, delay_ms: u64) {
             DictationPhase::Success { .. }
             | DictationPhase::Error { .. }
             | DictationPhase::Cancelled
-            | DictationPhase::NoAudio => {
+            | DictationPhase::NoAudio { .. } => {
                 set_phase(&handle, DictationPhase::Idle).await;
             }
             DictationPhase::Idle => {
@@ -2773,26 +2773,92 @@ pub(crate) async fn stop_recording_inner(
 
     // No-audio-detected gate. Two contributors put empty strings on this
     // path:
-    //   • sherpa_parakeet's hallucination filter (see sherpa_parakeet.rs)
+    //   - sherpa_parakeet's hallucination filter (see sherpa_parakeet.rs)
     //     returns "" on a quiet clip that Parakeet-TDT filled with a
     //     fabricated filler token.
-    //   • Genuine silence clips where the model simply had nothing to
+    //   - Genuine silence clips where the model simply had nothing to
     //     produce.
-    // Either way we have no usable speech. Previously we fell through to
-    // text_inject with an empty `processed`, which paste-injected nothing
-    // but still emitted Success + wrote a history row + played the success
-    // cue. That reads to the user as "it worked, but nothing came out" —
-    // confusing and wrong. Replace that with a NoAudio phase, skip
-    // delivery + history + analytics, but still resume paused media /
-    // ducking so we don't leave the user silent.
-    let is_silence = processed.trim().is_empty();
-    if is_silence {
-        tracing::info!(
-            asr_chars = asr.text.len(),
-            raw_chars = raw.len(),
-            processed_chars = processed.len(),
-            "no-audio: skipping inject/history, emitting NoAudio phase"
-        );
+    // For regular (non-meeting) dictation we additionally run the shared
+    // output_validation::validate, which catches the cases the engine
+    // internals don't: bare "." outputs, Whisper decoder loops ("the the
+    // the the the the"), repeated punctuation runs, and foreign-script
+    // hallucinations on English-only paths.
+    //
+    // Meeting Mode is intentionally NOT subject to the new validator,
+    // because legitimate meeting transcripts can contain repetition,
+    // mixed-language content from multilingual Whisper, or "Output
+    // filtered" UX that wouldn't make sense for a 30-minute capture.
+    // It keeps only the original cheap empty-string check that was the
+    // pre-patch behaviour, so an empty-meeting transcript still
+    // short-circuits the history insert and emits NoAudio. Either way
+    // we have no usable speech to deliver - skip text_inject + history
+    // + analytics, but still resume paused media / ducking so we don't
+    // leave the user silent.
+    use crate::services::output_validation::{
+        validate, EngineFamily, LanguagePin, ValidationContext, ValidationVerdict,
+    };
+    let (drop_now, drop_notice): (bool, Option<String>) = if mode.is_meeting_mode {
+        // Meeting Mode: pre-patch behaviour. Empty/whitespace-only
+        // processed text is the only drop condition; never carries a
+        // user-visible notice (silence is silence). The shared
+        // validator is deliberately bypassed here.
+        (processed.trim().is_empty(), None)
+    } else {
+        // Regular dictation: full validator. Engine family + language
+        // pin are derived locally from the already-known model_id and
+        // settings snapshot - no extra IPC, no registry async lookup,
+        // no coupling between the validator and the rest of the
+        // inference layer. Model IDs are prefix-coded by family
+        // ("sherpa-whisper-*" / "sherpa-parakeet-*"); the catalogue
+        // check at install time enforces the prefix.
+        let engine = if model_id.starts_with("sherpa-whisper") {
+            EngineFamily::Whisper
+        } else {
+            EngineFamily::Parakeet
+        };
+        let lang_setting = settings.models.whisper_language.trim().to_lowercase();
+        let language_pin = match (engine, lang_setting.as_str()) {
+            // Parakeet is hard-pinned English regardless of the
+            // whisper_language field - applying English-only rules.
+            (EngineFamily::Parakeet, _) => LanguagePin::EnglishOnly,
+            (EngineFamily::Whisper, "en") => LanguagePin::EnglishOnly,
+            (EngineFamily::Whisper, "" | "auto") => LanguagePin::Auto,
+            (EngineFamily::Whisper, _) => LanguagePin::OtherExplicit,
+        };
+        let validation_ctx = ValidationContext {
+            engine,
+            language_pin,
+            // u64 -> u32: dictation durations sit in seconds-to-minutes;
+            // saturating cast is fine and avoids a TryFrom dance for a
+            // field no current rule even reads.
+            audio_duration_ms: u32::try_from(final_.duration_ms).unwrap_or(u32::MAX),
+        };
+        let verdict = validate(&processed, &validation_ctx);
+        match verdict {
+            ValidationVerdict::Accept => (false, None),
+            ValidationVerdict::Drop {
+                reason,
+                user_notice,
+            } => {
+                tracing::info!(
+                    reason = %reason.as_str(),
+                    model = %model_id,
+                    language = %lang_setting,
+                    duration_ms = final_.duration_ms,
+                    chars = processed.chars().count(),
+                    user_notice = user_notice,
+                    "output_validation: dropped transcript"
+                );
+                let notice = if user_notice {
+                    Some("Output filtered".to_string())
+                } else {
+                    None
+                };
+                (true, notice)
+            }
+        }
+    };
+    if drop_now {
         {
             let media = state.media.clone();
             tokio::task::spawn_blocking(move || media.resume_paused());
@@ -2801,8 +2867,14 @@ pub(crate) async fn stop_recording_inner(
             let ducking = state.ducking.clone();
             tokio::task::spawn_blocking(move || ducking.restore());
         }
-        set_phase(&handle, DictationPhase::NoAudio).await;
-        // Longer settle than Success (1.2s) — the message is the whole
+        set_phase(
+            &handle,
+            DictationPhase::NoAudio {
+                notice: drop_notice,
+            },
+        )
+        .await;
+        // Longer settle than Success (1.2s) - the message is the whole
         // point so we want the user to actually read it before the bar
         // decays back to idle.
         schedule_idle(&handle, 1800);
@@ -3054,7 +3126,7 @@ async fn set_phase(handle: &AppHandle, phase: DictationPhase) {
         DictationPhase::Success { .. } => "success",
         DictationPhase::Error { .. } => "error",
         DictationPhase::Cancelled => "cancelled",
-        DictationPhase::NoAudio => "no_audio",
+        DictationPhase::NoAudio { .. } => "no_audio",
     };
     tracing::info!(phase = %kind, "set_phase");
     *phase_cell().write().await = phase.clone();
@@ -5047,6 +5119,59 @@ mod diarised_helpers_tests {
                 );
             }
         }
+    }
+
+    /// Output validation must NOT run for Meeting Mode.
+    ///
+    /// The shared output_validation::validate is gated to regular
+    /// dictation only because legitimate meeting transcripts can
+    /// contain repetition, mixed-language content, and other patterns
+    /// the validator's noticed-drop rules would flag. Meeting Mode
+    /// keeps the pre-patch behaviour: drop only on empty/whitespace
+    /// processed text, no user-visible "Output filtered" notice.
+    ///
+    /// This test is a source-grep guard: it proves that the
+    /// validator's only call site in this file lives inside an
+    /// `else` branch whose enclosing `if` tests `mode.is_meeting_mode`.
+    /// Future refactors that hoist the validator out of that branch
+    /// (or wire it into the meeting path) will fail this test.
+    ///
+    /// Obfuscation: the needle is assembled at runtime so this
+    /// doc-comment doesn't itself contain the literal `validate(`.
+    #[test]
+    fn validate_call_is_gated_to_non_meeting_mode() {
+        let src = include_str!("dictation.rs");
+        let test_mod_marker = "#[cfg(test)]";
+        let production_src = src.split(test_mod_marker).next().unwrap_or(src);
+        let lines: Vec<&str> = production_src.lines().collect();
+        let needle = format!("{}{}", "valid", "ate(&processed");
+        let mut found = 0usize;
+        for (i, line) in lines.iter().enumerate() {
+            if !line.contains(&needle) {
+                continue;
+            }
+            found += 1;
+            // Walk backwards to find the nearest control-flow line.
+            // The validator must sit inside the `else` branch of an
+            // `if mode.is_meeting_mode { ... } else { ... }`. We accept
+            // either a literal `} else {` between the call site and
+            // the most recent `if mode.is_meeting_mode {` line, or
+            // the simpler form where the enclosing block opens with
+            // `if mode.is_meeting_mode { ... } else {`.
+            let from = i.saturating_sub(80);
+            let window = &lines[from..i];
+            let saw_else = window.iter().any(|l| l.trim() == "} else {");
+            let saw_meeting_if = window.iter().any(|l| l.contains("if mode.is_meeting_mode"));
+            assert!(
+                saw_meeting_if && saw_else,
+                "validator call at line {} must sit inside the else branch of `if mode.is_meeting_mode {{ ... }} else {{ ... }}`, but the 80-line window above lacks the pairing",
+                i + 1
+            );
+        }
+        assert!(
+            found >= 1,
+            "expected at least one production call to the output validator on `processed`; found 0"
+        );
     }
 
     /// Single-shot auto-stop constants pin.
