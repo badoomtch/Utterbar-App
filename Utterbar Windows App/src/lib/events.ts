@@ -8,6 +8,13 @@ export const EVT = {
   // busy (previous recording mid-transcribe, guard still held, etc.).
   // FloatingBar listens for this and runs a one-second border flash.
   dictationBusy: 'dictation:busy',
+  // Fired during chunked Meeting Mode transcription, once per chunk
+  // boundary. Payload: { chunk_index, total_chunks }. Listened to in
+  // AppBootstrap; stored in `useDictation.meetingProgress` so StatePill
+  // can paint a thin progress bar under "Transcribing meeting…" while
+  // a long meeting is being stitched. Single-chunk fast path doesn't
+  // emit; non-meeting recordings never enter the chunked path.
+  dictationChunkProgress: 'dictation:chunk-progress',
   modelProgress: 'model:progress',
   modelChanged: 'model:changed',
   settingsChanged: 'settings:changed',

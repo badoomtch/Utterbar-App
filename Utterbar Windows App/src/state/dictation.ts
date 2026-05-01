@@ -51,10 +51,17 @@ export type DictationPhase =
 
 export type MeterFrame = { rms: number; peak: number; ts_ms: number };
 
+// Meeting Mode chunked-transcribe progress. Populated from
+// `dictation:chunk-progress` events in AppBootstrap; reset on every
+// phase transition that leaves `transcribing_background`. `null` when
+// no meeting is currently being transcribed (the common case).
+export type MeetingProgress = { chunkIndex: number; totalChunks: number };
+
 export type DictationState = {
   phase: DictationPhase;
   meter: MeterFrame;
   elapsedMs: number;
+  meetingProgress: MeetingProgress | null;
   // Last successfully-delivered dictation text. Populated from the
   // `dictation:result` event in AppBootstrap so any window (floating bar
   // especially) can surface "copy last message" without re-querying SQLite.
@@ -63,6 +70,7 @@ export type DictationState = {
   lastText: string | null;
   setPhase(phase: DictationPhase): void;
   setMeter(frame: MeterFrame): void;
+  setMeetingProgress(progress: MeetingProgress | null): void;
   setLastText(text: string | null): void;
   tickElapsed(): void;
 };
@@ -71,12 +79,26 @@ export const useDictation = create<DictationState>((set, get) => ({
   phase: { kind: 'idle' },
   meter: { rms: 0, peak: 0, ts_ms: 0 },
   elapsedMs: 0,
+  meetingProgress: null,
   lastText: null,
   setPhase(phase) {
-    set({ phase, elapsedMs: phase.kind === 'listening' ? 0 : get().elapsedMs });
+    // Clear meeting progress whenever we leave the
+    // transcribing_background phase. Otherwise a stale
+    // "11/12 chunks" would linger past the success pill into
+    // the next recording.
+    const meetingProgress =
+      phase.kind === 'transcribing_background' ? get().meetingProgress : null;
+    set({
+      phase,
+      elapsedMs: phase.kind === 'listening' ? 0 : get().elapsedMs,
+      meetingProgress,
+    });
   },
   setMeter(frame) {
     set({ meter: frame });
+  },
+  setMeetingProgress(progress) {
+    set({ meetingProgress: progress });
   },
   setLastText(text) {
     set({ lastText: text });
