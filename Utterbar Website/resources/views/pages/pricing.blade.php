@@ -214,7 +214,7 @@
                         <span class="text-4xl font-extrabold tracking-tight" style="color: var(--fg-hi);">&pound;29</span>
                         <span class="text-sm" style="color: var(--muted);">per seat</span>
                     </div>
-                    <p class="mt-3 text-sm" style="color: var(--muted);">3 to 24 seats, lifetime.</p>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">5 to 24 seats, lifetime.</p>
                 </div>
                 <div class="ub-card relative" style="background:
                         radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%),
@@ -224,19 +224,136 @@
                         <span class="text-4xl font-extrabold tracking-tight ub-gradient-text">&pound;19</span>
                         <span class="text-sm" style="color: var(--muted);">per seat</span>
                     </div>
-                    <p class="mt-3 text-sm" style="color: var(--muted);">25 to 249 seats, lifetime.</p>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">25 to 100 seats, lifetime.</p>
                 </div>
                 <div class="ub-card">
                     <p class="ub-eyebrow mb-3">Enterprise</p>
                     <div class="flex items-baseline gap-1">
                         <span class="text-2xl font-extrabold tracking-tight" style="color: var(--fg-hi);">Talk to us</span>
                     </div>
-                    <p class="mt-3 text-sm" style="color: var(--muted);">250+ seats, custom quote.</p>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">100+ seats, custom quote.</p>
                 </div>
             </div>
 
+            {{-- Self-serve volume checkout. Quantity selector backed by
+                 the same VolumePricing helper the controller and webhook
+                 read, so the displayed total is exactly what Stripe
+                 will charge. Hidden when Stripe is disabled (sandbox /
+                 dev) — same gate as the consumer Pro button. --}}
+            @php
+                $vp = \App\Services\Pricing\VolumePricing::class;
+                $minSeats = $vp::MIN_SEATS;
+                $maxSeats = $vp::MAX_SEATS;
+                $threshold = $vp::BUSINESS_TIER_THRESHOLD;
+                $teamPence = (int) config('services.stripe.volume_per_seat_pence', 2900);
+                $bizPence  = (int) config('services.stripe.volume_per_seat_business_pence', 1900);
+                // £29 / £19 with no decimals when whole pounds.
+                $teamGbp = number_format($teamPence / 100, $teamPence % 100 ? 2 : 0);
+                $bizGbp  = number_format($bizPence / 100, $bizPence % 100 ? 2 : 0);
+            @endphp
+
+            @if (config('services.stripe.enabled'))
+                <div class="mt-10 ub-card max-w-2xl"
+                     x-data="{
+                        qty: {{ $minSeats }},
+                        min: {{ $minSeats }},
+                        max: {{ $maxSeats }},
+                        threshold: {{ $threshold }},
+                        teamPence: {{ $teamPence }},
+                        bizPence: {{ $bizPence }},
+                        busy: false,
+                        err: '',
+                        unitPence() { return this.qty >= this.threshold ? this.bizPence : this.teamPence; },
+                        unitGbp()   { const p = this.unitPence(); return (p / 100).toFixed(p % 100 ? 2 : 0); },
+                        totalGbp()  { const p = this.unitPence() * this.qty; return (p / 100).toFixed(p % 100 ? 2 : 0); },
+                        clamp() {
+                            let n = parseInt(this.qty, 10);
+                            if (!Number.isFinite(n)) n = this.min;
+                            if (n < this.min) n = this.min;
+                            if (n > this.max) n = this.max;
+                            this.qty = n;
+                        },
+                        async checkout() {
+                            this.clamp();
+                            this.busy = true; this.err = '';
+                            try {
+                                const res = await fetch('{{ route('checkout.create.volume') }}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                    },
+                                    credentials: 'same-origin',
+                                    body: JSON.stringify({ quantity: this.qty }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok || !data.url) {
+                                    this.err = data.message || 'Checkout failed. Try again?';
+                                    this.busy = false;
+                                    return;
+                                }
+                                window.location.href = data.url;
+                            } catch (e) {
+                                this.err = 'Network error.';
+                                this.busy = false;
+                            }
+                        }
+                     }">
+                    <p class="ub-eyebrow mb-3">Buy now (5 to {{ $maxSeats }} seats)</p>
+                    <p class="mt-2 text-sm" style="color: var(--muted);">
+                        One licence covers your selected device allowance.
+                        {{ $minSeats }} to {{ $threshold - 1 }} seats are &pound;{{ $teamGbp }} per seat.
+                        {{ $threshold }} to {{ $maxSeats }} seats are &pound;{{ $bizGbp }} per seat.
+                        Need more than {{ $maxSeats }}? <a href="{{ route('business.contact') }}" style="color: var(--accent);">Get a quote</a>.
+                    </p>
+
+                    <div class="mt-5 flex flex-wrap items-center gap-4">
+                        <label class="flex items-center gap-2 text-sm" style="color: var(--fg);">
+                            <span class="ub-eyebrow" style="margin: 0;">Seats</span>
+                            <input type="number"
+                                   x-model.number="qty"
+                                   @input="clamp()"
+                                   @change="clamp()"
+                                   :min="min"
+                                   :max="max"
+                                   step="1"
+                                   class="ub-input font-mono"
+                                   style="width: 6rem; text-align: right;">
+                        </label>
+                        <div class="text-sm" style="color: var(--muted);">
+                            &pound;<span x-text="unitGbp()"></span> per seat
+                            &middot;
+                            <span style="color: var(--fg-hi);">total &pound;<span x-text="totalGbp()"></span></span>
+                            <span class="font-mono text-xs" style="color: var(--muted); margin-left: 0.25rem;">GBP</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-5">
+                        <button type="button"
+                                class="ub-btn ub-btn-cta"
+                                :disabled="busy"
+                                @click="checkout()">
+                            <span x-show="!busy">Buy <span x-text="qty"></span> seats &mdash; &pound;<span x-text="totalGbp()"></span></span>
+                            <span x-show="busy">One moment&hellip;</span>
+                        </button>
+                        <p x-show="err" x-text="err" class="mt-3 text-sm" style="color: var(--danger);"></p>
+                    </div>
+
+                    <p class="mt-5 text-xs" style="color: var(--muted);">
+                        Lifetime licence. One key per order. Each device activates once.
+                        Need to deploy across a fleet without users pasting the key?
+                        Your IT admin can download a signed
+                        <code class="font-mono">licence.bin</code> from the admin licence
+                        page after purchase &mdash; see
+                        <a href="{{ route('docs.it-deployment') }}" style="color: var(--accent);">IT deployment</a>.
+                    </p>
+                </div>
+            @endif
+
             <div class="mt-10 flex flex-wrap items-center gap-4">
-                <a href="{{ route('business.contact') }}" class="ub-btn ub-btn-cta">Get a quote</a>
+                <a href="{{ route('business.contact') }}" class="ub-btn ub-btn-ghost">Need {{ $maxSeats }}+ seats? Get a quote</a>
                 <a href="{{ route('business') }}" class="ub-btn ub-btn-ghost">See the business page</a>
                 <a href="{{ route('docs.it-deployment') }}" class="ub-btn ub-btn-ghost">IT deployment notes</a>
             </div>
