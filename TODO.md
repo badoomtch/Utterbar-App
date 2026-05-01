@@ -2,7 +2,7 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-05-01**
+**Last updated: 2026-05-02**
 
 ---
 
@@ -11,6 +11,7 @@ Active working list. Keep short. When something ships, move it out of Next actio
 - **Stable channel:** v0.15.6 (admin row 56). DirectML execution provider live, Whisper Small stays on CPU on Auto.
 - **Beta channel:** v0.15.11 (admin row 61). First B2B drop: managed fleet licence delivery via `%APPDATA%\Utterbar\licence.bin`, three new group policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`), admin "Download licence.bin" button, three-arm `ManagedLicenceState` so a corrupt managed file fails closed AND blocks paste-flow override, source-grep guard on production `state.history.insert(...)` callsites.
 - **In-tree app version:** v0.15.11 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
+- **Volume self-serve checkout shipped to the website** (merged into main from `feature/b2b-volume-checkout`). `/api/checkout/create-volume-session` accepts quantity 5-100, mints a licence with `max_devices = quantity`, SKU `utterbar-pro-volume`. Two-tier rate (£29 / £19 at the 25-seat boundary) lives in `App\Services\Pricing\VolumePricing`. Website-only; no desktop app change required.
 - **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
 - **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
 - **Cloudflare Always Use HTTPS** enabled. Plain HTTP redirects to HTTPS for apex, www, and dl. subdomains.
@@ -25,10 +26,9 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 In rough order. Adjust as evidence comes in.
 
-1. **B2B sprint: volume self-serve checkout.** Let a business buyer purchase multiple seats through Stripe Checkout without emailing first. Quantity selector (5-100), per-seat price, mint a licence row with `max_devices = quantity`, SKU `utterbar-pro-volume`. Website-only sprint; no desktop app changes. Branch `feature/b2b-volume-checkout`.
-2. **Promote v0.15.x beta line to stable as v0.16.0.** Bundles three things once soak signals are clean: (a) the validation work from 0.15.8/0.15.9/0.15.10 (regular dictation + file transcription + Meeting Mode per-chunk validators), (b) the v0.15.11 B2B sprint (managed fleet licence + three new policy keys), and (c) whatever lands in 0.15.12 from the volume-checkout sprint above if a desktop change ends up being required. Single-version cut.
-3. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
-4. **Pick the next product work item** from the backlog below.
+1. **Promote v0.15.x beta line to stable as v0.16.0.** Bundles the validation work from 0.15.8/0.15.9/0.15.10 (regular dictation + file transcription + Meeting Mode per-chunk validators) and the v0.15.11 B2B sprint (managed fleet licence + three new policy keys). Single-version cut once soak signals are clean.
+2. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
+3. **Pick the next product work item** from the backlog below.
 
 ---
 
