@@ -278,4 +278,83 @@ mod tests {
         // filler matches — pin a string of pure non-ASCII.
         let _ = strip_fillers("£€¥₹");
     }
+
+    // ── v1 Smart rewrite contract ────────────────────────────────────
+    //
+    // The user-visible "Smart rewrite" toggle in Settings → Text
+    // Output runs `DeterministicProvider::rewrite_sync` on regular
+    // (non-meeting) dictation output. Pin the canonical "um this is
+    // a test" example from the v1 brief so a future change to the
+    // deterministic provider can't silently change what the toggle
+    // produces. Ditto for the no-LLM, no-network guarantee — the
+    // toggle is "deterministic only" per its description copy.
+
+    /// Crate-internal smoke that the smart-rewrite path called by
+    /// the dictation pipeline (`DeterministicProvider.rewrite_sync`)
+    /// turns the brief's exact example into clean prose. Stable
+    /// across runs; no clock, no IO.
+    #[test]
+    fn smart_rewrite_cleans_the_canonical_example() {
+        let out = DeterministicProvider.rewrite_sync("um this is a test");
+        // The whitespace / filler / capitalisation transforms run in
+        // a fixed order:
+        //   1. normalise_whitespace
+        //   2. strip_fillers ("um " → "")
+        //   3. ensure_terminal_punctuation (".")
+        //   4. capitalise_sentences ("t" → "T")
+        // We assert on observable properties rather than an exact
+        // string so a future tweak to e.g. the comma-gobble rule
+        // doesn't break this test for an unrelated reason.
+        let lower = out.to_lowercase();
+        assert!(
+            !lower.contains("um "),
+            "filler 'um ' must be stripped; got: {out:?}"
+        );
+        assert!(
+            out.starts_with('T'),
+            "first letter must be capitalised; got: {out:?}"
+        );
+        assert!(
+            out.ends_with('.'),
+            "terminal punctuation must be added; got: {out:?}"
+        );
+        // After capitalise_sentences, "this" becomes "This"; assert
+        // case-insensitively so the test pins the content not the
+        // capitalisation (capitalisation is asserted on its own
+        // above).
+        assert!(
+            out.to_lowercase().contains("this is a test"),
+            "core content must survive; got: {out:?}"
+        );
+    }
+
+    /// `rewrite_sync` is purely string-in/string-out. No async, no
+    /// IO, no network. This test does not prove "no network"
+    /// directly — there is no syscall hook in unit tests — but it
+    /// pins the synchronous signature, which is the contract the
+    /// dictation pipeline relies on to know smart-rewrite cannot
+    /// initiate a remote call. Removing `rewrite_sync` or making
+    /// it async would break this test, surface in code review, and
+    /// require updating the dictation post-processing block.
+    #[test]
+    fn smart_rewrite_is_sync_and_deterministic() {
+        // Run twice on the same input; output must be byte-identical.
+        let input = "um, this is a, like, test of the rewrite path";
+        let a = DeterministicProvider.rewrite_sync(input);
+        let b = DeterministicProvider.rewrite_sync(input);
+        assert_eq!(
+            a, b,
+            "deterministic rewrite must be byte-stable across repeated calls"
+        );
+    }
+
+    /// Empty / whitespace-only inputs must not panic and must not
+    /// produce surprising characters. The dictation pipeline can
+    /// route empty strings through here (e.g. silence-trimmed
+    /// recordings) and we don't want a stray full stop showing up.
+    #[test]
+    fn smart_rewrite_handles_empty_input() {
+        assert_eq!(DeterministicProvider.rewrite_sync(""), "");
+        assert_eq!(DeterministicProvider.rewrite_sync("   "), "");
+    }
 }
