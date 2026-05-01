@@ -3,6 +3,7 @@
 namespace App\Services\Notify;
 
 use App\Models\Licence;
+use App\Services\Pricing\VolumePricing;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -18,12 +19,49 @@ class AdminNotify
 {
     public static function newLicence(Licence $licence): void
     {
-        $amountPence = (int) config('services.stripe.pro_amount', 4900);
-        $currency    = strtoupper((string) config('services.stripe.pro_currency', 'gbp'));
-        $amount      = sprintf('%s %0.2f', $currency, $amountPence / 100);
+        $isVolume = $licence->sku === VolumePricing::sku();
+        $currency = strtoupper((string) config('services.stripe.pro_currency', 'gbp'));
 
-        $subject = "[Utterbar] New purchase · {$licence->email} · {$amount}";
-        $body = <<<BODY
+        if ($isVolume) {
+            // Volume row: amount comes from the per-seat tier × seat
+            // count, NOT the single-user pro_amount which would be
+            // wildly wrong for a 50-seat order.
+            $quantity    = (int) $licence->max_devices;
+            $unitPence   = VolumePricing::unitPence($quantity);
+            $totalPence  = $unitPence * $quantity;
+            $amount      = sprintf('%s %0.2f', $currency, $totalPence / 100);
+            $unitAmount  = sprintf('%s %0.2f', $currency, $unitPence / 100);
+
+            $subject = "[Utterbar] New volume purchase · {$licence->email} · {$amount} · {$quantity} seats";
+            $body = <<<BODY
+Someone just bought a volume Utterbar Pro licence.
+
+Email:        {$licence->email}
+Amount:       {$amount}
+SKU:          {$licence->sku}
+Seats:        {$quantity} (per-seat {$unitAmount})
+Max devices:  {$quantity}
+Key:          {$licence->displayKey()}
+Licence:      https://utterbar.com/admin
+Issued:       {$licence->issued_at}
+
+Fleet deployment:
+  Admin can download licence.bin from
+  https://utterbar.com/admin/licences/{$licence->id} (Download licence.bin
+  button) and drop it at %APPDATA%\\Utterbar\\licence.bin on managed
+  machines. See /docs/it-deployment for the full IT play.
+
+Stripe:
+  Session:    {$licence->stripe_checkout_session_id}
+  PaymentInt: {$licence->stripe_payment_intent_id}
+BODY;
+        } else {
+            // Single-user row — original copy preserved byte-for-byte.
+            $amountPence = (int) config('services.stripe.pro_amount', 4900);
+            $amount      = sprintf('%s %0.2f', $currency, $amountPence / 100);
+
+            $subject = "[Utterbar] New purchase · {$licence->email} · {$amount}";
+            $body = <<<BODY
 Someone just bought Utterbar Pro.
 
 Email:     {$licence->email}
@@ -36,6 +74,7 @@ Stripe:
   Session:    {$licence->stripe_checkout_session_id}
   PaymentInt: {$licence->stripe_payment_intent_id}
 BODY;
+        }
 
         self::send($subject, $body, replyTo: $licence->email);
     }
