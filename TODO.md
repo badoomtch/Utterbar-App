@@ -9,8 +9,8 @@ Active working list. Keep short. When something ships, move it out of Next actio
 ## Current status
 
 - **Stable channel:** v0.15.6 (admin row 56). DirectML execution provider live, Whisper Small stays on CPU on Auto.
-- **Beta channel:** v0.15.6 (admin row 54). Same SHA as stable.
-- **In-tree app version:** v0.15.6 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
+- **Beta channel:** v0.15.7 (admin row 57). Single-shot dictation auto-stops at 4:55 instead of refusing past the 5-minute cap.
+- **In-tree app version:** v0.15.7 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
 - **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
 - **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
 - **Cloudflare Always Use HTTPS** enabled. Plain HTTP redirects to HTTPS for apex, www, and dl. subdomains.
@@ -25,10 +25,9 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 In rough order. Adjust as evidence comes in.
 
-1. **Fix the 5-minute single-shot dictation UX.** Regular dictation refuses recordings longer than 5 minutes with a clear error but the audio is lost. Two reasonable shapes: auto-stop with a "Recording auto-stopped at 5 min, switch to Meeting Mode for longer recordings" toast, or a visible 5:00 countdown in the floating bar. Pick one. Carries from v0.12.1.
-2. **Output validation that drops bad transcripts.** Designed-only since v0.15.5. Foreign-script and empty-output filters that prevent Whisper hallucinations from reaching the user. Not blocking. Unrelated to DirectML.
-3. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
-4. **Pick the next product work item** from the backlog below.
+1. **Output validation that drops bad transcripts.** Designed-only since v0.15.5. Foreign-script and empty-output filters that prevent Whisper hallucinations from reaching the user. Not blocking. Unrelated to DirectML.
+2. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
+3. **Pick the next product work item** from the backlog below.
 
 ---
 
