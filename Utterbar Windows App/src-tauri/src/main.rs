@@ -285,6 +285,23 @@ fn main() {
                 let snap = tauri::async_runtime::block_on(state.settings.snapshot());
                 let start_minimised = snap.general.start_minimised;
 
+                // Repair-on-launch for HKCU\\...\\Run. The toggle
+                // in Settings → General writes settings.json AND
+                // the registry, but a stale registry value can
+                // outlive the binary it points at (third-party
+                // cleaners, manual reinstall to a different path,
+                // a portable copy followed by a fresh install).
+                // Re-asserting on every launch heals the entry
+                // without making the user toggle off and back on.
+                // Repair is a no-op when the registry already
+                // matches the intended state. Failures are logged,
+                // never propagated — startup must not fail because
+                // a registry write failed.
+                #[cfg(windows)]
+                crate::platform::windows::startup::repair_launch_on_login(
+                    snap.general.launch_on_login,
+                );
+
                 // Post-migration prompt. When the v0.8.0 v2 retirement
                 // migration has cleared `default_asr_model_id`, the user
                 // is now past onboarding (otherwise we'd be in the
