@@ -2,15 +2,15 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-05-02**
+**Last updated: 2026-05-03**
 
 ---
 
 ## Current status
 
 - **Stable channel:** v0.15.6 (admin row 56). DirectML execution provider live, Whisper Small stays on CPU on Auto.
-- **Beta channel:** v0.15.11 (admin row 61). First B2B drop: managed fleet licence delivery via `%APPDATA%\Utterbar\licence.bin`, three new group policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`), admin "Download licence.bin" button, three-arm `ManagedLicenceState` so a corrupt managed file fails closed AND blocks paste-flow override, source-grep guard on production `state.history.insert(...)` callsites.
-- **In-tree app version:** v0.15.11 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
+- **Beta channel:** v0.15.12 (admin row 62). Air-gapped activation: desktop exports a JSON request file from Settings, Licence; admin uploads it at `/admin/licences/{id}/activations/upload`; admin downloads `licence.bin` and the user imports it on the offline machine. The resulting `licence.bin` is NOT machine-bound in this version (same bytes for every device on the licence); the admin upload records audit + `max_devices` intent rather than a cryptographic binding. v0.15.11 (admin row 61) was the previous beta; superseded by 0.15.12 on the beta channel.
+- **In-tree app version:** v0.15.12 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
 - **Volume self-serve checkout shipped to the website** (merged into main from `feature/b2b-volume-checkout`). `/api/checkout/create-volume-session` accepts quantity 5-100, mints a licence with `max_devices = quantity`, SKU `utterbar-pro-volume`. Two-tier rate (£29 / £19 at the 25-seat boundary) lives in `App\Services\Pricing\VolumePricing`. Website-only; no desktop app change required.
 - **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
 - **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
@@ -26,7 +26,7 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 In rough order. Adjust as evidence comes in.
 
-1. **Promote v0.15.x beta line to stable as v0.16.0.** Bundles the validation work from 0.15.8/0.15.9/0.15.10 (regular dictation + file transcription + Meeting Mode per-chunk validators) and the v0.15.11 B2B sprint (managed fleet licence + three new policy keys). Single-version cut once soak signals are clean.
+1. **Promote v0.15.x beta line to stable as v0.16.0.** Bundles the validation work from 0.15.8/0.15.9/0.15.10 (regular dictation + file transcription + Meeting Mode per-chunk validators), the v0.15.11 B2B sprint (managed fleet licence + three new policy keys + per-row revenue accounting), and the v0.15.12 air-gapped activation beta (export request + import licence.bin + offline activation rows). Single-version cut once soak signals are clean.
 2. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
 3. **Pick the next product work item** from the backlog below.
 
@@ -40,11 +40,11 @@ One or two lines each. Expand only if the item moves to Next actions.
 
 ### B2B follow-throughs (post first-pass)
 
-The 2026-04-27 B2B pass shipped the front door (`/business`, enquiry form, `/docs/it-deployment`, volume pricing, the original five group-policy registry keys). The 2026-05-01 v0.15.11 beta added managed fleet licence delivery via `licence.bin` and three more policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`). Volume self-serve checkout is now in Next actions above. Still open:
+The 2026-04-27 B2B pass shipped the front door (`/business`, enquiry form, `/docs/it-deployment`, volume pricing, the original five group-policy registry keys). The 2026-05-01 v0.15.11 beta added managed fleet licence delivery via `licence.bin` and three more policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`). The 2026-05-03 v0.15.12 beta added air-gapped activation (export request, admin upload, import licence.bin). Still open:
 
 - **Code-signed installer at order time.** EV cert procurement, sign during `publish-release.sh`, ship to one customer without leaking into the public R2 bucket. Not a blocker for the first enquiry; only when the first one says yes.
 - **Manual-mint invoice / VAT receipt.** First volume customer needs an invoice with VAT broken out. One-off Stripe Invoice for the first 1-3 deals.
-- **Air-gapped activation.** Build only when a real buyer asks. `licence_request.bin` writer + paired admin endpoint + one-button ingest.
+- **Machine-bound licence.bin (v3 payload).** The 0.15.12 air-gapped flow records audit / `max_devices` intent, but the resulting `licence.bin` is the same bytes for every device on the licence; a user can technically copy it to a second offline machine. The 14 reserved bytes in the v2 signed payload were left there for a fingerprint hash, but the v2 verifier silently ignores them, so binding can't be load-bearing until a v3-aware desktop saturates the install base. Build only when a buyer needs hard binding and is willing to soak through the version-skew window. Spec'd on the v0.15.12 docs page; not built.
 - ~~**Admin dashboard revenue counters under-report volume revenue.**~~ Shipped 2026-05-02 (`feature/admin-volume-revenue-accounting`). Migration adds nullable `amount_pence` + `currency` to `licences`; the Stripe webhook (single-user and volume) populates them at mint time, manual admin mints stay null. The Gross / Net tiles now SUM the column, and a new "Untracked rows" tile flags how many rows lack an amount (admin manual mints + any pre-2026-05-02 Stripe row, which we deliberately do not backfill).
 
 ### Pre-existing open issues
