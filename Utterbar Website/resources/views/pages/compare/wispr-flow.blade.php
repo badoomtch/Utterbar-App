@@ -1,84 +1,88 @@
 @php
     // Comparison rows. Honest, factual where possible. Sourced from each
     // product's own pricing/features pages on 2026-04-25.
+    //
+    // Schema is uniform across every /compare/<competitor> page so the
+    // <x-compare-table> component can render any of them without
+    // per-page conditionals.
     $rows = [
         [
-            'topic'    => 'Where transcription happens',
-            'utterbar' => 'On your PC. The audio never leaves your machine.',
-            'wispr'    => 'In the cloud. Audio is sent to Wispr&rsquo;s servers for processing.',
-            'edge'     => 'utterbar',
+            'topic'      => 'Where transcription happens',
+            'utterbar'   => 'On your PC. The audio never leaves your machine.',
+            'competitor' => 'In the cloud. Audio is sent to Wispr&rsquo;s servers for processing.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => 'Pricing model',
-            'utterbar' => 'Free forever for unlimited dictation. Pro is one-time, &pound;39.99, lifetime.',
-            'wispr'    => 'Subscription. Free Basic capped at 2,000 words/week. Pro is $15/mo or $144/year.',
-            'edge'     => 'utterbar',
+            'topic'      => 'Pricing model',
+            'utterbar'   => 'Free forever for unlimited dictation. Pro is one-time, &pound;39.99, lifetime.',
+            'competitor' => 'Subscription. Free Basic capped at 2,000 words/week. Pro is $15/mo or $144/year.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => 'Works offline',
-            'utterbar' => 'Yes. Pull your ethernet cable mid-sentence; nothing changes.',
-            'wispr'    => 'No. Cloud processing requires a network connection.',
-            'edge'     => 'utterbar',
+            'topic'      => 'Works offline',
+            'utterbar'   => 'Yes. Pull your ethernet cable mid-sentence; nothing changes.',
+            'competitor' => 'No. Cloud processing requires a network connection.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => 'Account required',
-            'utterbar' => 'No account for the app. The licence key arrives by email and that&rsquo;s it.',
-            'wispr'    => 'Sign-up required to use it.',
-            'edge'     => 'utterbar',
+            'topic'      => 'Account required',
+            'utterbar'   => 'No account for the app. The licence key arrives by email and that&rsquo;s it.',
+            'competitor' => 'Sign-up required to use it.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => 'Word / time limits on the free tier',
-            'utterbar' => 'None. Free is genuinely unlimited.',
-            'wispr'    => '2,000 words/week on desktop, 1,000/week on iPhone.',
-            'edge'     => 'utterbar',
+            'topic'      => 'Word / time limits on the free tier',
+            'utterbar'   => 'None. Free is genuinely unlimited.',
+            'competitor' => '2,000 words/week on desktop, 1,000/week on iPhone.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => 'AI rewriting / formatting',
-            'utterbar' => 'Three modes: voice-to-text, message, meeting. Deterministic post-processing.',
-            'wispr'    => 'AI rewriting is the headline feature. Cloud LLM rewrites your speech.',
-            'edge'     => 'wispr',
+            'topic'      => 'AI rewriting / formatting',
+            'utterbar'   => 'Three modes: voice-to-text, message, meeting. Deterministic post-processing.',
+            'competitor' => 'AI rewriting is the headline feature. Cloud LLM rewrites your speech.',
+            'edge'       => 'competitor',
         ],
         [
-            'topic'    => 'Custom vocabulary',
-            'utterbar' => 'Yes. Custom words and replacements, applied locally before output.',
-            'wispr'    => 'Yes.',
-            'edge'     => 'tie',
+            'topic'      => 'Custom vocabulary',
+            'utterbar'   => 'Yes. Custom words and replacements, applied locally before output.',
+            'competitor' => 'Yes.',
+            'edge'       => 'tie',
         ],
         [
-            'topic'    => 'System-audio capture (transcribe meetings)',
-            'utterbar' => 'Yes, native WASAPI loopback. No virtual cable needed.',
-            'wispr'    => 'Microphone only.',
-            'edge'     => 'utterbar',
+            'topic'      => 'System-audio capture (transcribe meetings)',
+            'utterbar'   => 'Yes, native WASAPI loopback. No virtual cable needed.',
+            'competitor' => 'Microphone only.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => 'Languages',
-            'utterbar' => '30+ out of the box. English uses Parakeet for speed; the rest use Whisper. All processed on your PC.',
-            'wispr'    => 'Multilingual transcription, but every word goes through their cloud.',
-            'edge'     => 'tie',
+            'topic'      => 'Languages',
+            'utterbar'   => '30+ out of the box. English uses Parakeet for speed; the rest use Whisper. All processed on your PC.',
+            'competitor' => 'Multilingual transcription, but every word goes through their cloud.',
+            'edge'       => 'tie',
         ],
         [
-            'topic'    => 'File transcription',
-            'utterbar' => 'Yes, Pro tier. Drop a recording, get a plain-text transcript next to the source file.',
-            'wispr'    => 'Not advertised on the consumer plans.',
-            'edge'     => 'utterbar',
+            'topic'      => 'File transcription',
+            'utterbar'   => 'Yes, Pro tier. Drop a recording, get a plain-text transcript next to the source file.',
+            'competitor' => 'Not advertised on the consumer plans.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => 'Platforms',
-            'utterbar' => 'Windows 10 / 11.',
-            'wispr'    => 'macOS, Windows, iOS, Android.',
-            'edge'     => 'wispr',
+            'topic'      => 'Platforms',
+            'utterbar'   => 'Windows 10 / 11.',
+            'competitor' => 'macOS, Windows, iOS, Android.',
+            'edge'       => 'competitor',
         ],
         [
-            'topic'    => 'Telemetry',
-            'utterbar' => 'None. The app does not phone home.',
-            'wispr'    => 'Standard cloud-product analytics, plus the audio itself for processing.',
-            'edge'     => 'utterbar',
+            'topic'      => 'Telemetry',
+            'utterbar'   => 'None. The app does not phone home.',
+            'competitor' => 'Standard cloud-product analytics, plus the audio itself for processing.',
+            'edge'       => 'utterbar',
         ],
         [
-            'topic'    => '5-year cost',
-            'utterbar' => '&pound;39.99, one-time, on three devices.',
-            'wispr'    => '~$720 USD on the annual plan, ~$900 on monthly.',
-            'edge'     => 'utterbar',
+            'topic'      => '5-year cost',
+            'utterbar'   => '&pound;39.99, one-time, on three devices.',
+            'competitor' => '~$720 USD on the annual plan, ~$900 on monthly.',
+            'edge'       => 'utterbar',
         ],
     ];
 
@@ -180,45 +184,13 @@
         <div class="ub-container">
             <div class="max-w-5xl mx-auto">
                 <h2 class="text-2xl md:text-3xl mb-8" style="letter-spacing: -0.025em;">The full comparison.</h2>
-                <div class="rounded-2xl overflow-hidden" style="background: var(--bg-1); border: 1px solid var(--border);">
-                    @foreach ($rows as $i => $row)
-                        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 p-5 md:p-6"
-                             style="{{ $i > 0 ? 'border-top: 1px solid var(--border);' : '' }}">
-                            <div class="md:col-span-3">
-                                <p class="font-mono text-xs uppercase tracking-wider" style="color: var(--muted); letter-spacing: 0.12em;">{{ $row['topic'] }}</p>
-                            </div>
-                            <div class="md:col-span-{{ 9 / 2 }} md:col-span-4 lg:col-span-4">
-                                <div class="flex items-start gap-2.5">
-                                    @if ($row['edge'] === 'utterbar')
-                                        <span class="mt-0.5 shrink-0" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.4" /></span>
-                                    @elseif ($row['edge'] === 'tie')
-                                        <span class="mt-0.5 shrink-0" style="color: var(--muted);"><x-icon name="check" size="16" stroke="2" /></span>
-                                    @else
-                                        <span class="mt-0.5 shrink-0" style="color: var(--fg-dim); opacity: 0.6;"><x-icon name="check" size="16" stroke="1.6" /></span>
-                                    @endif
-                                    <span style="color: {{ $row['edge'] === 'utterbar' ? 'var(--fg-hi)' : 'var(--fg)' }};">{!! $row['utterbar'] !!}</span>
-                                </div>
-                                <p class="font-mono text-[10px] uppercase tracking-wider mt-2 ml-6" style="color: var(--muted);">Utterbar</p>
-                            </div>
-                            <div class="md:col-span-5">
-                                <div class="flex items-start gap-2.5">
-                                    @if ($row['edge'] === 'wispr')
-                                        <span class="mt-0.5 shrink-0" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.4" /></span>
-                                    @elseif ($row['edge'] === 'tie')
-                                        <span class="mt-0.5 shrink-0" style="color: var(--muted);"><x-icon name="check" size="16" stroke="2" /></span>
-                                    @else
-                                        <span class="mt-0.5 shrink-0" style="color: var(--fg-dim); opacity: 0.6;"><x-icon name="check" size="16" stroke="1.6" /></span>
-                                    @endif
-                                    <span style="color: {{ $row['edge'] === 'wispr' ? 'var(--fg-hi)' : 'var(--muted)' }};">{!! $row['wispr'] !!}</span>
-                                </div>
-                                <p class="font-mono text-[10px] uppercase tracking-wider mt-2 ml-6" style="color: var(--muted);">Wispr Flow</p>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-                <p class="mt-4 text-xs" style="color: var(--muted);">
-                    Wispr Flow data sourced from <a href="https://wisprflow.ai/pricing" target="_blank" rel="noopener" style="color: var(--accent);">wisprflow.ai/pricing</a>, verified 2026-04-25. We&rsquo;ll keep this in sync as their plans change.
-                </p>
+                <x-compare-table
+                    :rows="$rows"
+                    competitor="Wispr Flow"
+                    sourceUrl="https://wisprflow.ai/pricing"
+                    sourceLabel="wisprflow.ai/pricing"
+                    sourceDate="2026-04-25"
+                />
             </div>
         </div>
     </section>
@@ -279,8 +251,8 @@
                     </div>
                     @foreach ([
                         ['app' => 'Windows Voice Access', 'platforms' => 'Windows 11', 'pricing' => 'Free (built-in)', 'local' => 'Yes', 'note' => 'Accessibility-first; basic dictation, limited customisation.'],
-                        ['app' => 'Dragon Professional v16', 'platforms' => 'Windows', 'pricing' => '~$500 one-time', 'local' => 'Yes', 'note' => 'Legacy incumbent; Microsoft no longer markets it to consumers.'],
-                        ['app' => 'Superwhisper', 'platforms' => 'Mac, Windows, iOS', 'pricing' => '~$8/mo', 'local' => 'Yes (or cloud)', 'note' => 'Mac-first heritage; Windows is newer.'],
+                        ['app' => 'Dragon Professional v16', 'platforms' => 'Windows', 'pricing' => '~$699 via reseller', 'local' => 'Yes', 'note' => 'Legacy enterprise/legal/medical incumbent.'],
+                        ['app' => 'Superwhisper', 'platforms' => 'Mac, Windows, iOS', 'pricing' => 'From $8.49/mo', 'local' => 'Yes (or cloud)', 'note' => 'Cross-platform sibling; subscription or lifetime.'],
                         ['app' => 'MacWhisper', 'platforms' => 'macOS only', 'pricing' => '~&euro;44–54 one-time', 'local' => 'Yes', 'note' => 'Mac equivalent in spirit; pay-once, local-first.'],
                         ['app' => 'Talon Voice', 'platforms' => 'Mac, Windows, Linux', 'pricing' => 'Free (Patreon for early access)', 'local' => 'Yes', 'note' => 'Power-user voice control framework; steep learning curve.'],
                     ] as $i => $row)
@@ -288,7 +260,7 @@
                              style="{{ $i > 0 ? 'border-top: 1px solid var(--border);' : '' }}">
                             <div class="col-span-3" style="color: var(--fg-hi);">{{ $row['app'] }}</div>
                             <div class="col-span-2" style="color: var(--fg);">{{ $row['platforms'] }}</div>
-                            <div class="col-span-2" style="color: var(--fg);">{{ $row['pricing'] }}</div>
+                            <div class="col-span-2" style="color: var(--fg);">{!! $row['pricing'] !!}</div>
                             <div class="col-span-2" style="color: var(--accent);">{{ $row['local'] }}</div>
                             <div class="col-span-3" style="color: var(--muted); line-height: 1.5;">{{ $row['note'] }}</div>
                         </div>
