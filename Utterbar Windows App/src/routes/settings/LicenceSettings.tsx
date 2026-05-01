@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, Copy, Eye, EyeOff, ExternalLink, FileDown, Laptop, ShieldX } from 'lucide-react';
-import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { AlertTriangle, Check, Copy, Eye, EyeOff, ExternalLink, FileDown, FileUp, Laptop, ShieldX } from 'lucide-react';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 
 import { Button } from '@/components/common/Button';
@@ -291,6 +291,7 @@ function FreePanel() {
 function AirGappedActivationCard() {
   const [busy, setBusy] = useState(false);
   const [savedAs, setSavedAs] = useState<string | null>(null);
+  const [imported, setImported] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function exportRequest() {
@@ -298,6 +299,7 @@ function AirGappedActivationCard() {
     setBusy(true);
     setErr(null);
     setSavedAs(null);
+    setImported(false);
     try {
       // Get the desktop's preferred filename (carries 12 hex chars
       // from the fingerprint so an admin's inbox doesn't fill up
@@ -328,6 +330,38 @@ function AirGappedActivationCard() {
     }
   }
 
+  async function importLicence() {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    setSavedAs(null);
+    setImported(false);
+    try {
+      const picked = await openDialog({
+        title: 'Import licence.bin',
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'Utterbar licence', extensions: ['bin'] }],
+      });
+      if (!picked || typeof picked !== 'string') {
+        // Cancelled or multi-select fallback — no-op.
+        return;
+      }
+      await invoke('licence_import_managed_file', { sourcePath: picked });
+      setImported(true);
+    } catch (e) {
+      // The Rust side surfaces `malformed` for truncated files,
+      // `verification_failed` for unsigned / V1 blobs, `internal`
+      // for I/O issues. The user-facing message is the same shape
+      // either way: we show the underlying message verbatim so
+      // support can decode the case from a screenshot.
+      const msg = e instanceof Error ? e.message : String(e);
+      setErr(msg || 'Could not import licence.bin.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card className="mt-4">
       <div className="ub-eyebrow mb-3">Air-gapped activation</div>
@@ -336,10 +370,11 @@ function AirGappedActivationCard() {
         request and send it to your IT administrator. They&rsquo;ll upload
         it from the admin licence page and send you back a
         <code className="font-mono mx-1 text-fg-hi">licence.bin</code>
-        file to drop into Utterbar.
+        file. Click <strong className="text-fg-hi">Import licence.bin</strong> below to install it,
+        then restart Utterbar.
       </p>
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <Button
           type="button"
           variant="ghost"
@@ -348,15 +383,32 @@ function AirGappedActivationCard() {
           className="sm:shrink-0"
         >
           <FileDown className="h-3.5 w-3.5 mr-2" aria-hidden />
-          {busy ? 'Exporting…' : 'Export activation request'}
+          {busy ? 'Working…' : 'Export activation request'}
         </Button>
-        {savedAs && (
-          <p className="text-[13px] text-muted">
-            Saved. Suggested filename:{' '}
-            <code className="font-mono text-fg-hi">{savedAs}</code>
-          </p>
-        )}
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => void importLicence()}
+          className="sm:shrink-0"
+        >
+          <FileUp className="h-3.5 w-3.5 mr-2" aria-hidden />
+          {busy ? 'Working…' : 'Import licence.bin'}
+        </Button>
       </div>
+
+      {savedAs && (
+        <p className="mt-3 text-[13px] text-muted">
+          Request saved. Suggested filename:{' '}
+          <code className="font-mono text-fg-hi">{savedAs}</code>
+        </p>
+      )}
+
+      {imported && (
+        <p className="mt-3 text-[13px]" style={{ color: 'var(--accent)' }}>
+          Imported. <strong>Restart Utterbar</strong> to activate.
+        </p>
+      )}
 
       {err && (
         <p className="mt-3 text-[13px]" style={{ color: 'var(--danger)' }}>
