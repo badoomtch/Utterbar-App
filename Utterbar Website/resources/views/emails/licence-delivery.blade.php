@@ -106,6 +106,37 @@
                         </td>
                     </tr>
 
+                    @if (! empty($isVolume))
+                    {{-- Volume-only block: short note pointing IT teams at
+                         the licence.bin fleet drop. Single-user emails skip
+                         this entirely so the existing flow is unchanged. --}}
+                    <tr>
+                        <td style="padding:24px 32px 0 32px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#0A0E17; border:1px solid rgba(255,255,255,0.08); border-radius:12px;">
+                                <tr>
+                                    <td style="padding:18px 18px;">
+                                        <p style="margin:0 0 8px 0; font-family:'SF Mono',Menlo,Consolas,monospace; font-size:11px; letter-spacing:0.12em; color:#22D3EE; text-transform:uppercase;">
+                                            For your IT team
+                                        </p>
+                                        <p style="margin:0 0 10px 0; font-size:14px; color:#E6EEF6;">
+                                            This is a volume licence covering <strong>{{ $maxDevices }} devices</strong>.
+                                            Each device activates by pasting the key once, the same as a single-user purchase.
+                                        </p>
+                                        <p style="margin:0; font-size:13px; color:#8A8A94;">
+                                            If you&rsquo;d rather deploy across a fleet without each user pasting the key,
+                                            sign in at <a href="https://utterbar.com/admin" style="color:#22D3EE; text-decoration:none;">utterbar.com/admin</a>,
+                                            open this licence, and download a signed <code style="color:#E6EEF6;">licence.bin</code>.
+                                            Drop it at <code style="color:#E6EEF6;">%APPDATA%\Utterbar\licence.bin</code> on each managed machine
+                                            and Utterbar treats it as the active Pro licence at startup, no activation prompt.
+                                            Full doc: <a href="https://utterbar.com/docs/it-deployment" style="color:#22D3EE; text-decoration:none;">utterbar.com/docs/it-deployment</a>.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    @endif
+
                     {{-- Manage account CTA --}}
                     <tr>
                         <td style="padding:24px 32px 0 32px;">
