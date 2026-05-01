@@ -664,10 +664,24 @@ html.floating-shell *::-webkit-scrollbar {
 .ub-bar-wave__bar:nth-child(6) { animation-duration: 0.52s; animation-delay: 0.48s; }
 .ub-bar-wave__bar:nth-child(7) { animation-duration: 0.30s; animation-delay: 0.08s; }
 
-/* Reduce-motion respect: freeze wave bars at mid-height, kill the ripple. */
+/* Meter-driven variant — bar heights come from inline styles fed by the
+ * `dictation:meter` event (rms + peak). Disable the decorative keyframe
+ * so the inline `height` is the single source of truth. The transition
+ * smooths the ~30 Hz updates into a fluid ribbon instead of a jitter. */
+.ub-bar-wave--meter .ub-bar-wave__bar {
+  animation: none;
+  transition: height 80ms ease-out;
+}
+
+/* Reduce-motion respect: freeze wave bars at mid-height, kill the ripple.
+ * Applies to BOTH the decorative animated variant and the meter variant —
+ * users who opt out of motion don't want amplitude jitter either. The
+ * inline heights from the meter component are overridden by !important
+ * here so the freeze is honest. */
 html[data-reduce-motion='true'] .ub-bar-wave__bar {
   animation: none !important;
-  height: 12px;
+  transition: none !important;
+  height: 12px !important;
 }
 html[data-reduce-motion='true'] .ub-bar-ripple::after {
   animation: none !important;
