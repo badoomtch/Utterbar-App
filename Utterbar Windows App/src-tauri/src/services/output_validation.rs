@@ -349,6 +349,120 @@ fn non_latin_script_index(c: char) -> Option<usize> {
     None
 }
 
+// ====================================================================
+// Meeting Mode chunk validation
+// ====================================================================
+//
+// Meeting Mode is a different shape from regular dictation and file
+// transcription. The whole-transcript verdict ("drop everything or
+// accept everything") used by `validate()` is the wrong shape for a
+// 60-minute meeting where one bad 29-second chunk shouldn't take the
+// other 134 with it. This module exposes a separate function and a
+// separate verdict type so future readers cannot accidentally treat
+// Meeting Mode as a whole-transcript validator.
+//
+// The rule set here is deliberately a subset of the regular validator's:
+//
+//   - Empty / whitespace / single punctuation: dropped (silent).
+//     Same shapes regular dictation drops, but per chunk, and the
+//     pre-existing skip in `transcribe_chunked` already did the empty
+//     case; we subsume it.
+//   - >=10 consecutive identical punctuation chars: dropped.
+//     Classic Whisper decoder failure; very low false-positive rate
+//     in real meeting speech.
+//   - Repeated alphabetic token (>=6 in a row): OBSERVED, NOT DROPPED.
+//     Real meetings can carry emphatic agreement ("yes yes yes yes
+//     yes yes okay"), filler-heavy hedge speech, or speakers stuck on
+//     a word. The dictation/file validator drops these because it
+//     applies to short transcripts where the user can re-speak; for
+//     meetings the false-positive cost is too high. We log occurrences
+//     so soak telemetry tells us whether it's safe to promote to a
+//     drop in a later release.
+//
+// Rules deliberately NOT applied to Meeting Mode (vs regular dictation):
+//
+//   - UnexpectedForeignScript: skipped entirely. Multilingual meetings
+//     and English-with-foreign-names meetings are common and the false-
+//     positive cost on a 60-minute recording is unacceptable.
+//   - KnownHallucination ("[Music]", "Thanks for watching", etc.):
+//     skipped here because the engine-internal Whisper hallucination
+//     filter (services/inference/sherpa_whisper.rs) already runs per
+//     chunk and returns empty on these inputs. We don't duplicate
+//     engine-internal checks.
+
+/// Verdict for a single Meeting Mode chunk transcript.
+///
+/// Distinguished from `ValidationVerdict` so the verdict shape itself
+/// signals "I am a per-chunk verdict, not a whole-transcript verdict".
+/// `Observe` is the meeting-specific path for rules we want telemetry
+/// on without acting on them yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MeetingChunkVerdict {
+    /// Keep the chunk; append to the stitched transcript as normal.
+    Accept,
+    /// Drop the chunk; do not append to the stitched transcript.
+    /// Caller logs one structured info line carrying `reason`.
+    Drop { reason: DropReason },
+    /// Keep the chunk, but log it as something we'd consider dropping
+    /// in future. Caller logs one structured info line carrying
+    /// `reason` and `dropped=false` so soak telemetry can measure
+    /// false-positive risk before promotion.
+    Observe { reason: DropReason },
+}
+
+/// Validate a single Meeting Mode chunk transcript.
+///
+/// Per-chunk, conservative rule set. See the module-level comment
+/// above for the rule rationale and the rules deliberately omitted.
+/// Pure string-level; no language pin, no engine family, because at
+/// the meeting callsite the engine is allow-listed to Whisper and the
+/// reduced rules don't depend on it.
+pub fn validate_meeting_chunk(text: &str) -> MeetingChunkVerdict {
+    if text.is_empty() {
+        return MeetingChunkVerdict::Drop {
+            reason: DropReason::Empty,
+        };
+    }
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return MeetingChunkVerdict::Drop {
+            reason: DropReason::WhitespaceOnly,
+        };
+    }
+
+    // Single non-alphanumeric char as the entire chunk. Catches a
+    // chunk that came back as just ".", "?", "—" etc.
+    if trimmed.chars().count() == 1 {
+        let c = trimmed.chars().next().unwrap();
+        if !c.is_alphanumeric() {
+            return MeetingChunkVerdict::Drop {
+                reason: DropReason::SinglePunctuation,
+            };
+        }
+    }
+
+    // Repeated punctuation run. Same threshold as the regular
+    // validator (10+ consecutive identical punctuation chars). Low
+    // false-positive risk in meeting speech.
+    if has_repeated_punctuation(trimmed, 10) {
+        return MeetingChunkVerdict::Drop {
+            reason: DropReason::RepeatedPunctuation,
+        };
+    }
+
+    // Repeated alphabetic token. OBSERVE only for now. Same threshold
+    // as the regular validator (>=6 consecutive). Logged with
+    // `dropped=false` at the callsite; promote to a drop in a later
+    // release if soak telemetry shows it's safe.
+    if has_repeated_alpha_token(trimmed, 6) {
+        return MeetingChunkVerdict::Observe {
+            reason: DropReason::RepeatedToken,
+        };
+    }
+
+    MeetingChunkVerdict::Accept
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -666,5 +780,176 @@ mod tests {
             DropReason::UnexpectedForeignScript.as_str(),
             "unexpected_foreign_script"
         );
+    }
+
+    // ================================================================
+    // Meeting Mode chunk validation
+    // ================================================================
+    //
+    // Different shape from the regular validator: per chunk, no
+    // language pin, no engine context, and an `Observe` verdict for
+    // rules we want telemetry on without acting on. See the module
+    // comment above the helper for the rule rationale.
+
+    fn assert_meeting_drop(v: MeetingChunkVerdict, expected: DropReason) {
+        match v {
+            MeetingChunkVerdict::Drop { reason } => {
+                assert_eq!(reason, expected, "wrong drop reason");
+            }
+            other => panic!("expected Drop({expected:?}), got {other:?}"),
+        }
+    }
+
+    fn assert_meeting_observe(v: MeetingChunkVerdict, expected: DropReason) {
+        match v {
+            MeetingChunkVerdict::Observe { reason } => {
+                assert_eq!(reason, expected, "wrong observe reason");
+            }
+            other => panic!("expected Observe({expected:?}), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn meeting_chunk_empty_drops() {
+        assert_meeting_drop(validate_meeting_chunk(""), DropReason::Empty);
+    }
+
+    #[test]
+    fn meeting_chunk_whitespace_drops() {
+        assert_meeting_drop(
+            validate_meeting_chunk("   \n\t "),
+            DropReason::WhitespaceOnly,
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_lone_period_drops() {
+        assert_meeting_drop(validate_meeting_chunk("."), DropReason::SinglePunctuation);
+        assert_meeting_drop(validate_meeting_chunk("?"), DropReason::SinglePunctuation);
+        // Padded with whitespace - trim happens first.
+        assert_meeting_drop(
+            validate_meeting_chunk("   .   "),
+            DropReason::SinglePunctuation,
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_lone_letter_passes() {
+        // "I" / "a" remain valid one-character utterances inside a
+        // chunk (a speaker pausing on "I... I think we should").
+        assert_eq!(validate_meeting_chunk("I"), MeetingChunkVerdict::Accept);
+        assert_eq!(validate_meeting_chunk("a"), MeetingChunkVerdict::Accept);
+    }
+
+    #[test]
+    fn meeting_chunk_repeated_punctuation_drops() {
+        assert_meeting_drop(
+            validate_meeting_chunk("hello.........."),
+            DropReason::RepeatedPunctuation,
+        );
+        assert_meeting_drop(
+            validate_meeting_chunk("!!!!!!!!!!!!!!"),
+            DropReason::RepeatedPunctuation,
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_short_punctuation_passes() {
+        // "really!!" or "wait..." can occur in genuine meeting
+        // speech; only long runs get caught.
+        assert_eq!(
+            validate_meeting_chunk("really!!"),
+            MeetingChunkVerdict::Accept
+        );
+        assert_eq!(
+            validate_meeting_chunk("wait..."),
+            MeetingChunkVerdict::Accept
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_repeated_token_observed_not_dropped() {
+        // Whisper decoder loop. We log it but DO NOT drop the chunk
+        // because real meeting speech can carry sustained repetition
+        // (emphatic agreement, hedge speech, a stuck speaker) and
+        // dropping a 29-second chunk that contains real spoken
+        // content is more expensive than letting through one ugly
+        // line of "the the the the the the".
+        assert_meeting_observe(
+            validate_meeting_chunk("the the the the the the and then we"),
+            DropReason::RepeatedToken,
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_emphatic_agreement_passes() {
+        // Six consecutive "yes" tokens - the threshold case. Observe,
+        // not drop. The rest of the sentence (" okay") still ships
+        // because Observe keeps the chunk; only the log line is
+        // emitted at the callsite.
+        assert_meeting_observe(
+            validate_meeting_chunk("yes yes yes yes yes yes okay"),
+            DropReason::RepeatedToken,
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_short_repetition_passes_clean() {
+        // Five repeats - below the 6-token threshold; not even
+        // logged.
+        assert_eq!(
+            validate_meeting_chunk("no no no no no it's fine"),
+            MeetingChunkVerdict::Accept
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_cjk_text_accepts() {
+        // Foreign-script filter is deliberately not applied to
+        // Meeting Mode: multilingual meetings, English-with-foreign-
+        // names meetings, and Welsh/Cantonese mid-meeting switches
+        // are all legitimate. The dictation/file validator's
+        // English-only gate would catch these; we don't.
+        assert_eq!(
+            validate_meeting_chunk("你好世界"),
+            MeetingChunkVerdict::Accept
+        );
+        assert_eq!(
+            validate_meeting_chunk("Привет мир"),
+            MeetingChunkVerdict::Accept
+        );
+        assert_eq!(
+            validate_meeting_chunk("مرحبا بالعالم"),
+            MeetingChunkVerdict::Accept
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_normal_sentence_passes() {
+        assert_eq!(
+            validate_meeting_chunk("Tell me about the proposal Marcus sent yesterday."),
+            MeetingChunkVerdict::Accept
+        );
+        // Currency, mixed case, punctuation - all fine.
+        assert_eq!(
+            validate_meeting_chunk("We agreed on £39.99 plus shipping."),
+            MeetingChunkVerdict::Accept
+        );
+    }
+
+    #[test]
+    fn meeting_chunk_drop_reason_strings_unchanged() {
+        // Sanity: meeting verdicts use the existing DropReason
+        // variants so the log lines unify with the dictation/file
+        // validator's. If a future refactor adds a meeting-specific
+        // reason this guard fails and forces a deliberate review.
+        assert_eq!(DropReason::Empty.as_str(), "empty");
+        assert_eq!(DropReason::WhitespaceOnly.as_str(), "whitespace_only");
+        assert_eq!(DropReason::SinglePunctuation.as_str(), "single_punctuation");
+        assert_eq!(
+            DropReason::RepeatedPunctuation.as_str(),
+            "repeated_punctuation"
+        );
+        assert_eq!(DropReason::RepeatedToken.as_str(), "repeated_token");
     }
 }
