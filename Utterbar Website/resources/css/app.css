@@ -1975,3 +1975,297 @@
     color: var(--fg-hi);
     font-weight: 500;
 }
+
+/* =================================================================
+   HERO (full design import: aurora, particles, fade, layout)
+   ================================================================= */
+.ub-hero {
+    position: relative;
+    padding: 128px 0 96px;
+    overflow: hidden;
+    isolation: isolate;
+}
+.ub-hero-inner {
+    position: relative;
+    z-index: 1;
+}
+@media (max-width: 980px) {
+    .ub-hero { padding: 96px 0 72px; }
+}
+
+/* Soft fade at the bottom of the hero so it bleeds into the next
+   section without a hard line. */
+.ub-hero::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 160px;
+    background: linear-gradient(180deg, transparent 0%, var(--bg-0) 80%, var(--bg-0) 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Hero copy gets a faint vignette behind it so text reads cleanly
+   against the aurora layer. */
+.ub-hero-copy {
+    position: relative;
+    max-width: 64rem;
+}
+.ub-hero-copy::before {
+    content: "";
+    position: absolute;
+    inset: -32px -48px -32px -32px;
+    background: radial-gradient(60% 70% at 30% 50%, color-mix(in oklab, var(--bg-0) 78%, transparent) 0%, transparent 75%);
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* Animated cyan aurora: three drifting blobs, mix-blend-screen so
+   they layer additively against the dark hero background. */
+.ub-hero-aurora {
+    position: absolute;
+    inset: -10% -10% auto -10%;
+    height: 110%;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+}
+.ub-aurora-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    mix-blend-mode: screen;
+    will-change: transform, opacity;
+}
+.ub-aurora-b1 {
+    width: 620px; height: 620px;
+    top: -240px; left: -180px;
+    background: radial-gradient(circle at 50% 50%, #22D3EE 0%, #22D3EE 14%, transparent 65%);
+    animation: ub-aurora-drift-1 22s ease-in-out infinite;
+    opacity: 0.42;
+}
+.ub-aurora-b2 {
+    width: 520px; height: 520px;
+    top: -200px; right: -120px;
+    background: radial-gradient(circle at 50% 50%, #67E8F9 0%, #0891B2 30%, transparent 70%);
+    animation: ub-aurora-drift-2 28s ease-in-out infinite;
+    opacity: 0.32;
+}
+.ub-aurora-b3 {
+    width: 380px; height: 380px;
+    top: 320px; left: 58%;
+    background: radial-gradient(circle at 50% 50%, #00f6ff 0%, transparent 65%);
+    animation: ub-aurora-drift-3 18s ease-in-out infinite;
+    opacity: 0.22;
+}
+@keyframes ub-aurora-drift-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%      { transform: translate(140px, 60px) scale(1.12); }
+    66%      { transform: translate(-60px, 140px) scale(0.92); }
+}
+@keyframes ub-aurora-drift-2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    40%      { transform: translate(-160px, 100px) scale(1.18); }
+    70%      { transform: translate(80px, -40px) scale(0.95); }
+}
+@keyframes ub-aurora-drift-3 {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.28; }
+    50%      { transform: translate(-180px, -80px) scale(1.25); opacity: 0.42; }
+}
+
+/* Floating cyan dots drifting up. Each :nth-child gets its own
+   horizontal position, animation delay, duration, and lateral drift
+   via the --pdrift custom property the keyframe consumes. */
+.ub-hero-particles {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+}
+.ub-hero-particles span {
+    position: absolute;
+    bottom: -10px;
+    width: 3px; height: 3px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent), 0 0 14px color-mix(in oklab, var(--accent) 50%, transparent);
+    opacity: 0;
+    animation: ub-particle-rise 11s linear infinite;
+}
+.ub-hero-particles span:nth-child(1)  { left: 8%;  animation-delay: 0s;    animation-duration: 13s; }
+.ub-hero-particles span:nth-child(2)  { left: 18%; animation-delay: 2s;    animation-duration: 15s; --pdrift: 18px; }
+.ub-hero-particles span:nth-child(3)  { left: 26%; animation-delay: 4.5s;  animation-duration: 11s; --pdrift: -22px; }
+.ub-hero-particles span:nth-child(4)  { left: 34%; animation-delay: 7s;    animation-duration: 14s; --pdrift: 26px; }
+.ub-hero-particles span:nth-child(5)  { left: 44%; animation-delay: 1.5s;  animation-duration: 12s; --pdrift: -16px; }
+.ub-hero-particles span:nth-child(6)  { left: 54%; animation-delay: 5s;    animation-duration: 16s; --pdrift: 30px; }
+.ub-hero-particles span:nth-child(7)  { left: 62%; animation-delay: 9s;    animation-duration: 13s; --pdrift: -28px; }
+.ub-hero-particles span:nth-child(8)  { left: 72%; animation-delay: 3s;    animation-duration: 15s; --pdrift: 14px; }
+.ub-hero-particles span:nth-child(9)  { left: 82%; animation-delay: 6s;    animation-duration: 12s; --pdrift: -20px; }
+.ub-hero-particles span:nth-child(10) { left: 92%; animation-delay: 8.5s;  animation-duration: 14s; --pdrift: 24px; }
+@keyframes ub-particle-rise {
+    0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
+    10%  { opacity: 0.85; }
+    85%  { opacity: 0.6; }
+    100% { transform: translate(var(--pdrift, 0), -800px) scale(1.2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ub-aurora-blob,
+    .ub-hero-particles span { animation: none !important; }
+}
+
+/* Pill slot positioning. The hero's pill widget sits centred under
+   the copy at the bottom of the hero. The slot is a positioned
+   container so the absolutely-positioned faux field below the pill
+   does not push other layout. */
+.ub-hero-pill-slot {
+    position: relative;
+    margin-top: 80px;
+    display: flex;
+    justify-content: center;
+    min-height: 200px;
+}
+@media (min-width: 768px) {
+    .ub-hero-pill-slot { margin-top: 96px; }
+}
+
+/* =================================================================
+   PILL WIDGET: extended state (Try me + recording + faux field).
+   The base .ub-pill / .ub-pill-widget / .ub-pill-sway / .ub-pill-hint
+   styles already exist further up in this stylesheet from the earlier
+   widget. Below is the additional surface area: anchor wrapper, Try-me
+   button styling, recording state on version + wave, and the faux
+   text field that streams the demo result.
+   ================================================================= */
+.ub-pill-anchor {
+    position: relative;
+    display: inline-block;
+}
+
+/* The "Try me" CTA replaces the design's old download button inside
+   the expanded pill. White rounded button, swaps to the cyan accent
+   while recording. Disabled during recording so a second click does
+   not restart mid-stream. */
+.ub-pill .ub-pill-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--pill-bot);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.8125rem;
+    letter-spacing: -0.005em;
+    text-decoration: none;
+    white-space: nowrap;
+    pointer-events: auto;
+    border: none;
+    cursor: pointer;
+    transition: background 180ms ease, transform 180ms ease, color 180ms ease;
+}
+.ub-pill .ub-pill-cta:hover {
+    background: #f4f4f2;
+    color: var(--pill-bot);
+    transform: translateX(2px);
+}
+.ub-pill .ub-pill-cta.is-rec {
+    background: var(--accent);
+    color: #06121A;
+    cursor: default;
+    transform: none;
+}
+.ub-pill .ub-pill-cta:disabled { cursor: default; }
+
+/* Recording state on the version chip and waveform inside the pill.
+   The version label flips to a red REC tag pulsing softly; the wave
+   bars run faster and pick up a red gradient. */
+.ub-pill-version.is-rec {
+    color: #FF7A7A;
+    background: color-mix(in oklab, #FF6B6B 14%, transparent);
+    border-color: color-mix(in oklab, #FF6B6B 40%, transparent);
+    animation: ub-pill-rec-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ub-pill-rec-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+.ub-pill-wave.is-rec span {
+    animation-duration: 0.32s !important;
+    background: linear-gradient(180deg, #ff8a8a, #ff5959) !important;
+}
+
+/* Faux text field below the pill. Streams the demo result. Sits
+   absolutely positioned so it does not push pill geometry; opacity
+   + transform-Y fade in once recording starts. min-width clamp so
+   it stays readable on narrow viewports. */
+.ub-pill-field {
+    position: absolute;
+    top: calc(100% + 28px);
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    width: min(560px, 90vw);
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 280ms ease, transform 360ms cubic-bezier(0.2, 0.9, 0.3, 1.05);
+    overflow: hidden;
+    text-align: left;
+    z-index: 1;
+}
+.ub-pill-field.is-on {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+.ub-pill-field-chrome {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid color-mix(in oklab, white 6%, transparent);
+    background: color-mix(in oklab, white 2%, transparent);
+}
+.ub-pill-field-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+.ub-pill-field-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.ub-pill-field-body {
+    padding: 18px 20px 22px;
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--fg-hi);
+    min-height: 54px;
+    text-wrap: pretty;
+}
+.ub-pill-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    vertical-align: -0.15em;
+    background: var(--accent);
+    margin-left: 2px;
+    animation: ub-pill-caret-blink 1s steps(2) infinite;
+}
+@keyframes ub-pill-caret-blink {
+    0%, 50%      { opacity: 1; }
+    50.01%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ub-pill-version.is-rec,
+    .ub-pill-caret { animation: none; }
+}
