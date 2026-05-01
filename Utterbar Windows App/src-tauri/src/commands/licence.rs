@@ -33,3 +33,14 @@ pub async fn licence_deactivate(
 ) -> CmdResult<LicenceStatus> {
     state.licence.deactivate(handle).await
 }
+
+/// True when the active Pro status came from a managed (fleet) licence
+/// file at `<data_dir>/licence.bin` rather than the keyring cache or the
+/// paste-flow activation. The Settings > Licence page calls this on
+/// mount to swap the activation form for a "managed by your administrator"
+/// notice. Frozen at startup; matches the rest of the policy/managed
+/// stack - managed-licence changes require restarting Utterbar.
+#[tauri::command]
+pub fn licence_is_managed(state: State<'_, Arc<AppState>>) -> CmdResult<bool> {
+    Ok(state.licence.is_managed())
+}

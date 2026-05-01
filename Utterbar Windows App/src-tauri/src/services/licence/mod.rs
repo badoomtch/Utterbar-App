@@ -20,6 +20,7 @@
 pub mod api;
 pub mod cache;
 pub mod keyfmt;
+pub mod managed;
 pub mod verify;
 
 use std::sync::Arc;
@@ -49,6 +50,15 @@ pub struct LicenceService {
     /// Live status. Updated from cache on launch, then from paste /
     /// heartbeat results.
     status: RwLock<LicenceStatus>,
+    /// Set to `true` when bootstrap loaded a managed (fleet) licence
+    /// file from `<data_dir>/licence.bin`. Frozen at construction
+    /// time; the file is consulted exactly once at startup, matching
+    /// the rest of the licence and policy stack. Surfaced to the
+    /// frontend via `licence_is_managed` so the Settings > Licence
+    /// page can replace the activation form with a "managed by your
+    /// administrator" notice. When true, paste-flow activation, /api
+    /// heartbeats, and cache writes are bypassed entirely.
+    is_managed: bool,
 }
 
 impl LicenceService {
@@ -76,68 +86,108 @@ impl LicenceService {
             }
         };
 
-        // Read the keyring cache + verify the signed blob synchronously
-        // here, so by the time the first webview mounts and calls the
-        // `licence_status` Tauri command, the in-memory `status` already
-        // reflects a Pro licence if one is persisted.
-        //
-        // Without this, there was a race: the frontend's `AppBootstrap`
-        // mount effect called `invoke('licence_status')` which returned
-        // the default `Free`, *then* the background task at `main.rs`
-        // eventually ran `launch_check` which emitted `licence_changed`
-        // — but if that event arrived at the frontend before the
-        // `attachLicenceListener()` promise had resolved, it was lost
-        // and the UI stayed on Free until the user refreshed.
+        // Bootstrap precedence (B2B sprint, fleet licence delivery):
+        //   1. Managed `<data_dir>/licence.bin`. If present and verifies,
+        //      it wins over any cached / paste licence. If present but
+        //      invalid, fail closed: the explicit IT-admin "this machine
+        //      is managed" intent is contradicted by a bad file, so we
+        //      do NOT fall back to the cache. Status stays Free, the
+        //      frontend shows the licence page in its non-Pro state, and
+        //      the IT admin has a clear log line saying why.
+        //   2. Keyring cache (existing behaviour). Same synchronous
+        //      verify-or-clear flow as before, unchanged.
         //
         // Doing the initial verify synchronously at bootstrap is ~0ms
-        // for a no-licence user (one keyring miss) and ~1ms for a
-        // Pro user (one keyring read + one ed25519-dalek verify). No
-        // network calls here — `launch_check` from the background
-        // task still handles the 30-day heartbeat.
-        let initial_status = {
-            let cache = LicenceCache::new();
-            match cache.load() {
-                Ok(Some(cached)) => match STANDARD.decode(&cached.signed_blob_b64) {
-                    Ok(blob) => match verify::verify_signed_blob(&blob) {
-                        Ok(_) => {
-                            let status = LicenceStatus::Pro {
-                                display_key: cached.key_display.clone(),
-                                licence_id: cached.licence_id.to_string(),
-                                sku: cached.sku.clone(),
-                                issued_at_ms: String::new(),
-                                max_devices: cached.max_devices,
-                                devices: Vec::new(),
-                            };
-                            tracing::info!("licence restored from keyring cache");
-                            status
-                        }
+        // for a no-licence user (one path-stat miss) and ~1ms for a
+        // managed or cached user (one read + one ed25519-dalek verify).
+        // No network calls here — `launch_check` from the background
+        // task still handles the 30-day heartbeat for cache-flow users.
+        let cache = LicenceCache::new();
+        let (initial_status, is_managed) = match managed::try_load_managed() {
+            managed::ManagedLicenceOutcome::Loaded { payload, .. } => {
+                // Synthesise a Pro status from the verified payload.
+                // Managed deployments don't have an activation token,
+                // a server-issued device list, or a max_devices count
+                // (those come from the activate flow which managed
+                // licences bypass entirely). The frontend renders this
+                // state as "Managed by your administrator" and hides
+                // the device-list / activation form.
+                let status = LicenceStatus::Pro {
+                    display_key: "Managed".to_string(),
+                    licence_id: payload.key_id.to_string(),
+                    sku: "utterbar-managed".to_string(),
+                    issued_at_ms: payload.issued_at_ms.to_string(),
+                    max_devices: 0,
+                    devices: Vec::new(),
+                };
+                (status, true)
+            }
+            managed::ManagedLicenceOutcome::Rejected { .. } => {
+                // Logged with detail by `try_load_managed`. We do NOT
+                // consult the cache here: an admin who deployed a
+                // bad managed file gets a clear "no Pro" signal
+                // rather than a quiet downgrade to whatever the user
+                // happened to paste.
+                (LicenceStatus::Free, false)
+            }
+            managed::ManagedLicenceOutcome::Absent => {
+                // No managed file present: fall back to the existing
+                // keyring + cache flow, byte-for-byte unchanged from
+                // pre-B2B-sprint behaviour.
+                let status = match cache.load() {
+                    Ok(Some(cached)) => match STANDARD.decode(&cached.signed_blob_b64) {
+                        Ok(blob) => match verify::verify_signed_blob(&blob) {
+                            Ok(_) => {
+                                let s = LicenceStatus::Pro {
+                                    display_key: cached.key_display.clone(),
+                                    licence_id: cached.licence_id.to_string(),
+                                    sku: cached.sku.clone(),
+                                    issued_at_ms: String::new(),
+                                    max_devices: cached.max_devices,
+                                    devices: Vec::new(),
+                                };
+                                tracing::info!("licence restored from keyring cache");
+                                s
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = ?e, "cached licence signature invalid at bootstrap; clearing");
+                                let _ = cache.clear();
+                                LicenceStatus::Free
+                            }
+                        },
                         Err(e) => {
-                            tracing::warn!(error = ?e, "cached licence signature invalid at bootstrap; clearing");
+                            tracing::warn!(error = ?e, "cached blob not base64 at bootstrap; clearing");
                             let _ = cache.clear();
                             LicenceStatus::Free
                         }
                     },
+                    Ok(None) => LicenceStatus::Free,
                     Err(e) => {
-                        tracing::warn!(error = ?e, "cached blob not base64 at bootstrap; clearing");
-                        let _ = cache.clear();
+                        tracing::warn!(error = ?e, "licence cache read failed at bootstrap; running as Free");
                         LicenceStatus::Free
                     }
-                },
-                Ok(None) => LicenceStatus::Free,
-                Err(e) => {
-                    tracing::warn!(error = ?e, "licence cache read failed at bootstrap; running as Free");
-                    LicenceStatus::Free
-                }
+                };
+                (status, false)
             }
         };
 
         Self {
             api: LicenceApi::shared(),
-            cache: LicenceCache::new(),
+            cache,
             fingerprint,
             device_name,
             status: RwLock::new(initial_status),
+            is_managed,
         }
+    }
+
+    /// True when the active Pro status came from a managed (fleet)
+    /// licence file rather than the keyring cache or paste flow. The
+    /// frontend reads this via the `licence_is_managed` Tauri command
+    /// to swap the activation form for a "managed by your administrator"
+    /// notice.
+    pub fn is_managed(&self) -> bool {
+        self.is_managed
     }
 
     pub fn shared() -> Arc<Self> {
@@ -153,6 +203,19 @@ impl LicenceService {
     /// emits the status event, and — if the heartbeat window has elapsed —
     /// kicks a background heartbeat. Never blocks on the network.
     pub async fn launch_check(&self, handle: AppHandle) {
+        // Managed (fleet) licence path: bootstrap already loaded and
+        // verified the file at `<data_dir>/licence.bin` and stored the
+        // resulting Pro state on `self.status`. Re-emit it for the UI
+        // and stop here — no cache read, no heartbeat, no /api round
+        // trips. Managed licences live and die with the file, by
+        // design.
+        if self.is_managed {
+            let s = self.status.read().await.clone();
+            tracing::info!("licence: managed mode active at launch; skipping cache + heartbeat");
+            let _ = handle.emit(EVT_LICENCE_CHANGED, s);
+            return;
+        }
+
         let Ok(maybe) = self.cache.load() else {
             tracing::warn!("licence cache read failed; running as Free");
             let _ = self.cache.clear();
@@ -232,6 +295,23 @@ impl LicenceService {
         handle: AppHandle,
         display_key: &str,
     ) -> Result<LicenceStatus, OrliqError> {
+        // Managed (fleet) licence wins. If the IT admin deployed a
+        // licence.bin, paste-flow activation is rejected with a clear
+        // message: there is nothing for the user to "activate". The
+        // managed file is the entire licence state. Even a successful
+        // /activate call would write a cache row that the next launch
+        // would ignore (bootstrap consults the managed file first), so
+        // we fail closed here rather than silently no-op.
+        if self.is_managed {
+            return Err(OrliqError::Licence {
+                code: "managed_licence_active".to_string(),
+                message: "This machine is managed by your administrator. \
+                          Activation is not available; the licence is delivered \
+                          as a file."
+                    .to_string(),
+            });
+        }
+
         let canonical = keyfmt::normalise(display_key)?;
         let display = keyfmt::format_display(&canonical);
 
@@ -295,6 +375,21 @@ impl LicenceService {
     /// and they can reclaim the slot via utterbar.com/account if the server
     /// call didn't complete.
     pub async fn deactivate(&self, handle: AppHandle) -> Result<LicenceStatus, OrliqError> {
+        // Managed (fleet) licence: deactivation is not user-controlled.
+        // The IT admin removes `licence.bin` from disk; on the next
+        // launch the bootstrap finds it absent and falls back to the
+        // cache flow. Returning an error here is correct: a "remove
+        // this device" button on a managed machine should not mutate
+        // anything.
+        if self.is_managed {
+            return Err(OrliqError::Licence {
+                code: "managed_licence_active".to_string(),
+                message: "This machine is managed by your administrator. \
+                          Removal is handled by deleting the licence file."
+                    .to_string(),
+            });
+        }
+
         let current = self.cache.load().map_err(|e| OrliqError::Licence {
             code: "internal".to_string(),
             message: format!("read cache: {e}"),

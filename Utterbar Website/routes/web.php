@@ -181,6 +181,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/licences',             [\App\Http\Controllers\Admin\LicenceController::class, 'store'])->name('licences.store');
     Route::get('/licences/{id}',         [\App\Http\Controllers\Admin\LicenceController::class, 'show'])
         ->whereNumber('id')->name('licences.show');
+    // Managed-fleet licence file delivery. GET because IT admins drive
+    // this from a browser; the binary is served as application/octet-
+    // stream with a stable filename (utterbar-licence-<id>.bin).
+    // Admin auth is enforced by the surrounding middleware group.
+    Route::get('/licences/{id}/download', [\App\Http\Controllers\Admin\LicenceController::class, 'download'])
+        ->whereNumber('id')->name('licences.download');
     Route::post('/licences/{id}/revoke',   [\App\Http\Controllers\Admin\LicenceController::class, 'revoke'])
         ->whereNumber('id')->name('licences.revoke');
     Route::post('/licences/{id}/unrevoke', [\App\Http\Controllers\Admin\LicenceController::class, 'unrevoke'])

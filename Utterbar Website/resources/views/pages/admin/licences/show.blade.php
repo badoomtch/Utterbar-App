@@ -101,6 +101,19 @@
                             <button type="submit" class="ub-btn ub-btn-ghost">Re-sign blob</button>
                         </form>
 
+                        {{-- Download licence.bin for managed fleet deployment.
+                             Serves the existing signed_blob column as
+                             application/octet-stream with a stable filename so
+                             an IT admin can drop it at %APPDATA%\Utterbar\
+                             licence.bin on managed machines. The desktop app
+                             treats a verified file as the active Pro licence
+                             and skips paste / activation entirely. --}}
+                        <a href="{{ route('admin.licences.download', $licence->id) }}"
+                           class="ub-btn ub-btn-ghost"
+                           download>
+                            Download licence.bin
+                        </a>
+
                         {{-- Revoke / unrevoke --}}
                         @if ($licence->status === 'active')
                             <form method="POST" action="{{ route('admin.licences.revoke', $licence->id) }}" class="inline"
