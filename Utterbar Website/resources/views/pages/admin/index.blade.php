@@ -32,6 +32,18 @@
                     <x-admin-stat label="Webhook events"   :value="$counts['webhook_total']" />
                     <x-admin-stat label="Webhook errors"   :value="$counts['webhook_errors']"
                                    :class="$counts['webhook_errors'] > 0 ? 'danger' : null" />
+
+                    {{-- B2B row. Three small operator-facing rollups.
+                         "Volume licences" is the lifetime count of
+                         volume rows (any status). "Active volume" is
+                         the subset still serving Pro. "Seats sold"
+                         is the lifetime gross sum of max_devices on
+                         every volume row, which is the right
+                         denominator when the operator asks "how many
+                         seats has self-serve volume produced?" --}}
+                    <x-admin-stat label="Volume licences"  :value="$counts['volume_licences_total']" />
+                    <x-admin-stat label="Active volume"    :value="$counts['volume_licences_active']" />
+                    <x-admin-stat label="Seats sold (volume)" :value="$counts['volume_seats_sold']" />
                 </div>
 
                 {{-- Licences --}}

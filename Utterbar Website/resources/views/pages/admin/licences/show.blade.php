@@ -1,4 +1,10 @@
-@php $flash = session('flash'); @endphp
+@php
+    $flash = session('flash');
+    // Single source of truth for the volume SKU. Drives the Volume
+    // hero label, the IT block, and the raised download CTA. A
+    // future SKU rename only needs to touch services.php.
+    $isVolume = $licence->sku === \App\Services\Pricing\VolumePricing::sku();
+@endphp
 
 <x-layouts.app title="Admin · Licence" :no-index="true">
     <section class="pt-16 md:pt-20 pb-20">
@@ -8,7 +14,12 @@
                 <x-admin-nav active="licences" />
 
                 <div class="mb-8">
-                    <p class="ub-eyebrow">Licence</p>
+                    <p class="ub-eyebrow">
+                        Licence
+                        @if ($isVolume)
+                            <span class="font-mono" style="display: inline-flex; align-items: center; margin-left: 0.5rem; padding: 0.15rem 0.55rem; border-radius: 999px; background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--accent); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;">Volume licence &middot; {{ $licence->max_devices }} seats</span>
+                        @endif
+                    </p>
                     <h1 class="ub-fg-hi mt-2 font-mono" style="font-size: clamp(1.5rem, 3vw, 2.25rem); letter-spacing: -0.025em; line-height: 1.1;">
                         {{ $licence->displayKey() }}
                     </h1>
@@ -82,6 +93,42 @@
                         </dl>
                     @endif
                 </div>
+
+                @if ($isVolume)
+                    {{-- Volume / fleet deployment block. Visible only on
+                         volume licences so the single-user Actions card
+                         below is byte-for-byte unchanged for /pricing
+                         consumer rows. The Download licence.bin CTA
+                         lives here AS WELL as in the standard Actions
+                         row below — the duplication is deliberate. The
+                         operator's most common reason to open a volume
+                         row is "send the customer their licence.bin",
+                         so we surface it as a primary CTA at the top
+                         and keep the regular ghost-button copy in the
+                         Actions row for muscle-memory. --}}
+                    <div class="ub-card mb-6" style="padding: 1.5rem 1.75rem; border-color: color-mix(in oklab, var(--accent) 35%, var(--border));">
+                        <p class="ub-eyebrow mb-3" style="color: var(--accent);">Volume / fleet deployment</p>
+                        <p class="text-sm" style="color: var(--fg); line-height: 1.55;">
+                            <strong style="color: var(--fg-hi);">{{ $licence->max_devices }} seats</strong> on this licence.
+                            Either send the buyer the licence key (the email already went out on mint), or send their IT team the signed
+                            <code class="font-mono" style="color: var(--fg-hi);">licence.bin</code>
+                            below for fleet deployment. Drop at
+                            <code class="font-mono" style="color: var(--fg-hi);">%APPDATA%\Utterbar\licence.bin</code>
+                            on each managed machine; Utterbar treats a verified file as the active Pro licence at startup with no activation prompt.
+                            See <a href="{{ route('docs.it-deployment') }}" style="color: var(--accent);">IT deployment</a> for the full play.
+                        </p>
+                        <div class="mt-4 flex flex-wrap items-center gap-3">
+                            <a href="{{ route('admin.licences.download', $licence->id) }}"
+                               class="ub-btn ub-btn-cta"
+                               download>
+                                Download licence.bin
+                            </a>
+                            <span class="text-xs" style="color: var(--muted);">
+                                Serves the {{ \App\Services\Licence\LicenceSigner::SIGNED_BYTES }}-byte signed blob as <code class="font-mono">application/octet-stream</code>.
+                            </span>
+                        </div>
+                    </div>
+                @endif
 
                 {{-- Actions --}}
                 <div class="ub-card mb-6" style="padding: 1.5rem 1.75rem;">

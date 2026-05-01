@@ -1,4 +1,10 @@
-@php $flash = session('flash'); @endphp
+@php
+    $flash = session('flash');
+    // Single source of truth for the volume SKU string. The chip and
+    // seat-count emphasis below key off this so a future SKU rename
+    // requires no template edit.
+    $volumeSku = \App\Services\Pricing\VolumePricing::sku();
+@endphp
 
 <x-layouts.app title="Admin · Licences" :no-index="true">
     <section class="pt-16 md:pt-20 pb-20">
@@ -56,13 +62,15 @@
                                     <th style="padding: 0.75rem 1rem; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;">Key</th>
                                     <th style="padding: 0.75rem 1rem; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;">Email</th>
                                     <th style="padding: 0.75rem 1rem; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;">Status</th>
-                                    <th style="padding: 0.75rem 1rem; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;">Devices</th>
+                                    <th style="padding: 0.75rem 1rem; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;">Type</th>
+                                    <th style="padding: 0.75rem 1rem; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;">Seats</th>
                                     <th style="padding: 0.75rem 1rem; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;">Issued</th>
                                     <th style="padding: 0.75rem 1rem;"></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach ($licences as $l)
+                                    @php $isVolume = $l->sku === $volumeSku; @endphp
                                     <tr style="border-top: 1px solid var(--border);">
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono);">{{ $l->id }}</td>
                                         <td style="padding: 0.75rem 1rem; color: var(--fg-hi); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em;">{{ $l->displayKey() }}</td>
@@ -74,7 +82,22 @@
                                                 <span class="font-mono" style="color: var(--danger); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;">&#9679; {{ $l->status }}</span>
                                             @endif
                                         </td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--fg);">{{ $l->activations_count }} / {{ $l->max_devices }}</td>
+                                        <td style="padding: 0.75rem 1rem;">
+                                            @if ($isVolume)
+                                                <span class="font-mono" title="Multi-seat licence ({{ $l->sku }})"
+                                                      style="display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 999px; background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--accent); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;">Volume</span>
+                                            @else
+                                                <span class="font-mono" style="color: var(--muted); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;">Pro</span>
+                                            @endif
+                                        </td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--fg);">
+                                            <span style="color: {{ $isVolume ? 'var(--fg-hi)' : 'var(--fg)' }}; font-weight: {{ $isVolume ? 600 : 400 }};">
+                                                {{ $l->activations_count }} / {{ $l->max_devices }}
+                                            </span>
+                                            @if ($isVolume)
+                                                <span class="font-mono" style="color: var(--muted); font-size: 11px; margin-left: 0.35rem;">({{ $l->max_devices }} seats)</span>
+                                            @endif
+                                        </td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $l->issued_at?->format('d M Y H:i') }}</td>
                                         <td style="padding: 0.75rem 1rem; text-align: right;">
                                             <a href="{{ route('admin.licences.show', $l->id) }}"
