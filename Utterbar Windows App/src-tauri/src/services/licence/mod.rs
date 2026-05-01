@@ -39,6 +39,65 @@ pub use cache::{CachedLicence, LicenceCache};
 /// state change (activate, deactivate, revoke, launch-check result).
 pub const EVT_LICENCE_CHANGED: &str = "licence_changed";
 
+/// Outcome of inspecting `<data_dir>/licence.bin` at bootstrap, frozen
+/// for the lifetime of `LicenceService`. The file is consulted exactly
+/// once at startup; changes require an app restart (same contract as
+/// the rest of the policy stack).
+///
+/// Three arms instead of a `bool` so the rejected case can block paste
+/// activation independently of whether managed Pro is active. Without
+/// this distinction a corrupt/unreadable managed file would fail the
+/// bootstrap closed (good — no Pro), but a determined user could then
+/// paste their own licence and grant themselves Pro, which is exactly
+/// the override the IT admin's deployment was supposed to prevent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManagedLicenceState {
+    /// No `licence.bin` on disk. The cache / paste flow is the
+    /// authoritative source — byte-for-byte unchanged from the
+    /// pre-B2B-sprint behaviour.
+    Absent,
+    /// File present and verified. Synthesises a Pro `LicenceStatus`
+    /// at bootstrap and blocks paste/deactivate so the IT-admin
+    /// intent isn't accidentally overwritten.
+    Loaded,
+    /// File present but failed verification (corrupt, wrong length,
+    /// wrong signature, unreadable, retired payload version). Status
+    /// is Free — we deliberately do NOT fall back to the cache —
+    /// AND paste/deactivate are blocked. The explicit "this machine
+    /// is managed" intent is contradicted by a bad file; the safe
+    /// read is "no Pro on this machine until the admin fixes the
+    /// file", not "let the user paste whatever they have".
+    Rejected,
+}
+
+impl ManagedLicenceState {
+    /// True when the bootstrap loaded a verified managed licence and
+    /// the machine is running as managed Pro. Backs the
+    /// `licence_is_managed` IPC so the Settings → Licence panel
+    /// renders the "Managed by your administrator" notice. Returns
+    /// false for `Rejected`: the machine is NOT licensed under
+    /// managed rules in that state, so the managed UI shouldn't
+    /// imply otherwise.
+    pub fn is_loaded(self) -> bool {
+        matches!(self, ManagedLicenceState::Loaded)
+    }
+
+    /// True when a managed licence file is present on disk in any
+    /// state — verified or rejected. Used by `activate` and
+    /// `deactivate` to refuse user-driven licence changes. The
+    /// rationale is that an IT admin who deployed *anything* to
+    /// `<data_dir>/licence.bin` has signalled "this machine is
+    /// managed"; the right response to a corrupt file is to fix the
+    /// file, not to let the user paste a personal key as an
+    /// override.
+    pub fn activation_blocked(self) -> bool {
+        matches!(
+            self,
+            ManagedLicenceState::Loaded | ManagedLicenceState::Rejected
+        )
+    }
+}
+
 pub struct LicenceService {
     api: Arc<LicenceApi>,
     cache: LicenceCache,
@@ -50,15 +109,12 @@ pub struct LicenceService {
     /// Live status. Updated from cache on launch, then from paste /
     /// heartbeat results.
     status: RwLock<LicenceStatus>,
-    /// Set to `true` when bootstrap loaded a managed (fleet) licence
-    /// file from `<data_dir>/licence.bin`. Frozen at construction
-    /// time; the file is consulted exactly once at startup, matching
-    /// the rest of the licence and policy stack. Surfaced to the
-    /// frontend via `licence_is_managed` so the Settings > Licence
-    /// page can replace the activation form with a "managed by your
-    /// administrator" notice. When true, paste-flow activation, /api
-    /// heartbeats, and cache writes are bypassed entirely.
-    is_managed: bool,
+    /// Outcome of the managed-licence file probe at bootstrap. Frozen
+    /// at construction; see `ManagedLicenceState` for the three-arm
+    /// semantics. Mostly read via `is_managed()` and
+    /// `activation_blocked_by_managed_file()` rather than this raw
+    /// field.
+    managed_state: ManagedLicenceState,
 }
 
 impl LicenceService {
@@ -103,7 +159,7 @@ impl LicenceService {
         // No network calls here — `launch_check` from the background
         // task still handles the 30-day heartbeat for cache-flow users.
         let cache = LicenceCache::new();
-        let (initial_status, is_managed) = match managed::try_load_managed() {
+        let (initial_status, managed_state) = match managed::try_load_managed() {
             managed::ManagedLicenceOutcome::Loaded { payload, .. } => {
                 // Synthesise a Pro status from the verified payload.
                 // Managed deployments don't have an activation token,
@@ -120,15 +176,17 @@ impl LicenceService {
                     max_devices: 0,
                     devices: Vec::new(),
                 };
-                (status, true)
+                (status, ManagedLicenceState::Loaded)
             }
             managed::ManagedLicenceOutcome::Rejected { .. } => {
                 // Logged with detail by `try_load_managed`. We do NOT
                 // consult the cache here: an admin who deployed a
                 // bad managed file gets a clear "no Pro" signal
                 // rather than a quiet downgrade to whatever the user
-                // happened to paste.
-                (LicenceStatus::Free, false)
+                // happened to paste. Paste activation is also
+                // blocked downstream (see `activate`) so the user
+                // can't override the bad-file state from the UI.
+                (LicenceStatus::Free, ManagedLicenceState::Rejected)
             }
             managed::ManagedLicenceOutcome::Absent => {
                 // No managed file present: fall back to the existing
@@ -167,7 +225,7 @@ impl LicenceService {
                         LicenceStatus::Free
                     }
                 };
-                (status, false)
+                (status, ManagedLicenceState::Absent)
             }
         };
 
@@ -177,17 +235,29 @@ impl LicenceService {
             fingerprint,
             device_name,
             status: RwLock::new(initial_status),
-            is_managed,
+            managed_state,
         }
     }
 
-    /// True when the active Pro status came from a managed (fleet)
-    /// licence file rather than the keyring cache or paste flow. The
-    /// frontend reads this via the `licence_is_managed` Tauri command
-    /// to swap the activation form for a "managed by your administrator"
-    /// notice.
+    /// True when the active Pro status came from a verified managed
+    /// (fleet) licence file. Returns false in the rejected case
+    /// (file present but bad signature / unreadable / wrong length)
+    /// because the machine is NOT licensed under managed rules in
+    /// that state — it's running as Free with paste blocked. The
+    /// frontend reads this via the `licence_is_managed` Tauri
+    /// command to swap the activation form for a "managed by your
+    /// administrator" notice.
     pub fn is_managed(&self) -> bool {
-        self.is_managed
+        self.managed_state.is_loaded()
+    }
+
+    /// True if a managed licence file exists on disk in any state —
+    /// verified or rejected. Used by `activate` and `deactivate` to
+    /// refuse user-driven licence changes; the rejected branch is
+    /// what stops a user pasting a personal key as an override when
+    /// the IT-admin-deployed file is corrupt.
+    pub fn activation_blocked_by_managed_file(&self) -> bool {
+        self.managed_state.activation_blocked()
     }
 
     pub fn shared() -> Arc<Self> {
@@ -203,17 +273,29 @@ impl LicenceService {
     /// emits the status event, and — if the heartbeat window has elapsed —
     /// kicks a background heartbeat. Never blocks on the network.
     pub async fn launch_check(&self, handle: AppHandle) {
-        // Managed (fleet) licence path: bootstrap already loaded and
-        // verified the file at `<data_dir>/licence.bin` and stored the
-        // resulting Pro state on `self.status`. Re-emit it for the UI
-        // and stop here — no cache read, no heartbeat, no /api round
-        // trips. Managed licences live and die with the file, by
-        // design.
-        if self.is_managed {
-            let s = self.status.read().await.clone();
-            tracing::info!("licence: managed mode active at launch; skipping cache + heartbeat");
-            let _ = handle.emit(EVT_LICENCE_CHANGED, s);
-            return;
+        // Managed (fleet) licence path. `Loaded` already populated
+        // the Pro status at bootstrap; re-emit and stop. `Rejected`
+        // already populated Free at bootstrap; re-emit and stop —
+        // we explicitly do NOT consult the cache here, because the
+        // cache fallback would defeat the IT-admin "this machine
+        // is managed" intent. Only `Absent` runs the cache flow.
+        match self.managed_state {
+            ManagedLicenceState::Loaded => {
+                let s = self.status.read().await.clone();
+                tracing::info!(
+                    "licence: managed mode active at launch; skipping cache + heartbeat"
+                );
+                let _ = handle.emit(EVT_LICENCE_CHANGED, s);
+                return;
+            }
+            ManagedLicenceState::Rejected => {
+                tracing::warn!(
+                    "licence: managed file present but invalid; running as Free with paste blocked"
+                );
+                let _ = handle.emit(EVT_LICENCE_CHANGED, LicenceStatus::Free);
+                return;
+            }
+            ManagedLicenceState::Absent => {}
         }
 
         let Ok(maybe) = self.cache.load() else {
@@ -295,20 +377,35 @@ impl LicenceService {
         handle: AppHandle,
         display_key: &str,
     ) -> Result<LicenceStatus, OrliqError> {
-        // Managed (fleet) licence wins. If the IT admin deployed a
-        // licence.bin, paste-flow activation is rejected with a clear
-        // message: there is nothing for the user to "activate". The
-        // managed file is the entire licence state. Even a successful
-        // /activate call would write a cache row that the next launch
-        // would ignore (bootstrap consults the managed file first), so
-        // we fail closed here rather than silently no-op.
-        if self.is_managed {
+        // Managed (fleet) licence wins regardless of whether the
+        // file verified. Three-arm semantics:
+        //   * Absent  — proceed with the paste flow (fall through).
+        //   * Loaded  — managed Pro is already active; user has
+        //               nothing to activate.
+        //   * Rejected — file is present but bad. We MUST also block
+        //                here, otherwise a user could paste their
+        //                own licence and grant themselves Pro on a
+        //                machine the IT admin tried to manage. The
+        //                fix is "delete the file or push a valid
+        //                one", not "let the user override".
+        if self.activation_blocked_by_managed_file() {
+            let message = match self.managed_state {
+                ManagedLicenceState::Loaded => {
+                    "This machine is managed by your administrator. \
+                     Activation is not available; the licence is delivered \
+                     as a file."
+                }
+                ManagedLicenceState::Rejected => {
+                    "A managed licence file is present but invalid. \
+                     Contact your IT administrator."
+                }
+                ManagedLicenceState::Absent => {
+                    unreachable!("activation_blocked_by_managed_file() returned true for Absent")
+                }
+            };
             return Err(OrliqError::Licence {
                 code: "managed_licence_active".to_string(),
-                message: "This machine is managed by your administrator. \
-                          Activation is not available; the licence is delivered \
-                          as a file."
-                    .to_string(),
+                message: message.to_string(),
             });
         }
 
@@ -378,15 +475,27 @@ impl LicenceService {
         // Managed (fleet) licence: deactivation is not user-controlled.
         // The IT admin removes `licence.bin` from disk; on the next
         // launch the bootstrap finds it absent and falls back to the
-        // cache flow. Returning an error here is correct: a "remove
-        // this device" button on a managed machine should not mutate
-        // anything.
-        if self.is_managed {
+        // cache flow. Same three-arm semantics as `activate`: we
+        // block on both `Loaded` (managed Pro active) and `Rejected`
+        // (bad file present) so a user can't clear a stale cache to
+        // sidestep the managed posture.
+        if self.activation_blocked_by_managed_file() {
+            let message = match self.managed_state {
+                ManagedLicenceState::Loaded => {
+                    "This machine is managed by your administrator. \
+                     Removal is handled by deleting the licence file."
+                }
+                ManagedLicenceState::Rejected => {
+                    "A managed licence file is present but invalid. \
+                     Contact your IT administrator."
+                }
+                ManagedLicenceState::Absent => {
+                    unreachable!("activation_blocked_by_managed_file() returned true for Absent")
+                }
+            };
             return Err(OrliqError::Licence {
                 code: "managed_licence_active".to_string(),
-                message: "This machine is managed by your administrator. \
-                          Removal is handled by deleting the licence file."
-                    .to_string(),
+                message: message.to_string(),
             });
         }
 
@@ -450,5 +559,78 @@ fn device_from_api(d: ApiDevice) -> LicenceDevice {
         device_name: d.device_name,
         first_seen: d.first_seen,
         this_device: d.this_device,
+    }
+}
+
+#[cfg(test)]
+mod managed_state_tests {
+    //! Pure semantics tests for `ManagedLicenceState` and the
+    //! `activation_blocked` / `is_loaded` helpers. Constructing a
+    //! full `LicenceService` here would pull in the keyring, the
+    //! fingerprint compute, and the registry probe — none of which
+    //! the enum logic needs. Pinning the helpers at this layer
+    //! catches any future refactor that confuses the two predicates
+    //! (e.g. accidentally letting `Rejected` through as "not
+    //! managed, paste away") without paying for a heavy fixture.
+    use super::ManagedLicenceState;
+
+    /// `Absent` must NOT block activation. This is the fall-through
+    /// case where a normal user without a managed deployment can
+    /// paste their licence as before.
+    #[test]
+    fn absent_does_not_block_activation() {
+        assert!(!ManagedLicenceState::Absent.activation_blocked());
+        assert!(!ManagedLicenceState::Absent.is_loaded());
+    }
+
+    /// `Loaded` must block activation: managed Pro is already
+    /// active, the user has nothing to activate.
+    #[test]
+    fn loaded_blocks_activation() {
+        assert!(ManagedLicenceState::Loaded.activation_blocked());
+        assert!(ManagedLicenceState::Loaded.is_loaded());
+    }
+
+    /// `Rejected` must block activation. This is the load-bearing
+    /// fix for the review finding: a corrupt managed file used to
+    /// leave the bool `is_managed = false`, which let a user paste
+    /// their own licence and grant themselves Pro on a machine the
+    /// IT admin had tried to manage. The new helper closes that
+    /// gap by returning true for both `Loaded` and `Rejected`.
+    #[test]
+    fn rejected_blocks_activation() {
+        assert!(ManagedLicenceState::Rejected.activation_blocked());
+    }
+
+    /// `Rejected` is NOT `is_loaded`. The Settings → Licence panel
+    /// reads `licence_is_managed` (which delegates to `is_loaded`)
+    /// to decide whether to render the "Managed by your
+    /// administrator" notice. Showing that notice for a rejected
+    /// file would be misleading: the machine is running as Free,
+    /// not as managed Pro. The user-visible state for `Rejected`
+    /// is the standard Free panel; the activation form on it is
+    /// what `activation_blocked` disables.
+    #[test]
+    fn rejected_is_not_loaded() {
+        assert!(!ManagedLicenceState::Rejected.is_loaded());
+    }
+
+    /// The two predicates have the documented relationship:
+    /// `is_loaded` ⊂ `activation_blocked`. Anything `is_loaded`
+    /// MUST be `activation_blocked`; the converse is not required.
+    #[test]
+    fn is_loaded_implies_activation_blocked() {
+        for state in [
+            ManagedLicenceState::Absent,
+            ManagedLicenceState::Loaded,
+            ManagedLicenceState::Rejected,
+        ] {
+            if state.is_loaded() {
+                assert!(
+                    state.activation_blocked(),
+                    "is_loaded must imply activation_blocked: {state:?}"
+                );
+            }
+        }
     }
 }
