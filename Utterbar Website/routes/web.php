@@ -193,6 +193,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Admin auth is enforced by the surrounding middleware group.
     Route::get('/licences/{id}/download', [\App\Http\Controllers\Admin\LicenceController::class, 'download'])
         ->whereNumber('id')->name('licences.download');
+    // Air-gapped activation upload. Operator uploads the JSON file
+    // the desktop wrote on the offline machine; the controller
+    // validates, enforces max_devices, creates an offline=true
+    // activation row. The admin then downloads licence.bin via the
+    // route above.
+    Route::post('/licences/{id}/activations/upload',
+        [\App\Http\Controllers\Admin\LicenceController::class, 'uploadActivationRequest'])
+        ->whereNumber('id')
+        ->name('licences.activations.upload');
     Route::post('/licences/{id}/revoke',   [\App\Http\Controllers\Admin\LicenceController::class, 'revoke'])
         ->whereNumber('id')->name('licences.revoke');
     Route::post('/licences/{id}/unrevoke', [\App\Http\Controllers\Admin\LicenceController::class, 'unrevoke'])

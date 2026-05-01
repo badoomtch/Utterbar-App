@@ -12,6 +12,10 @@ class Activation extends Model
     protected $casts = [
         'first_seen'     => 'datetime',
         'last_heartbeat' => 'datetime',
+        // Air-gapped marker (added 2026-05-03). True when the row
+        // was created via /admin/licences/{id}/activations/upload
+        // rather than the online /api/licence/activate endpoint.
+        'offline'        => 'bool',
     ];
 
     public function licence(): BelongsTo

@@ -254,6 +254,32 @@ HKEY_CURRENT_USER\SOFTWARE\Policies\Utterbar     (HKLM wins on conflict)</pre>
         Combined with <code class="font-mono text-sm" style="color: var(--accent);">RequireLicence</code> in the policy table above, this gives you a managed fleet where Utterbar runs as Pro on every machine, the free tier is unreachable, and no one ever sees an activation prompt.
     </p>
 
+    <h3 id="air-gapped-activation" class="mt-10 ub-docs-h3" style="font-size: 1.25rem; font-weight: 600; color: var(--fg-hi); letter-spacing: -0.015em;">Air-gapped activation</h3>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        For machines that cannot reach <code class="font-mono text-sm" style="color: var(--accent);">utterbar.com</code> at all &mdash; air-gapped lab kit, restricted-network admin VMs, classified-environment workstations &mdash; Utterbar supports a fully offline activation flow. Six steps, no network from the offline machine:
+    </p>
+    <ol class="mt-4 space-y-2 list-decimal list-inside text-base leading-relaxed" style="color: var(--fg);">
+        <li>On the offline machine, open <strong style="color: var(--fg-hi);">Settings &rarr; Licence</strong> and click <strong style="color: var(--fg-hi);">Export activation request</strong>. Utterbar writes a small JSON file (around 250 bytes) containing the machine fingerprint, device name, app version and an RFC 3339 timestamp.</li>
+        <li>Hand-carry the file to your IT administrator. Email, USB stick, internal share &mdash; whatever your network policy allows. The file is not a secret; it carries no licence material, only the machine&rsquo;s identity.</li>
+        <li>The administrator signs in to the admin panel at <code class="font-mono text-sm" style="color: var(--accent);">utterbar.com/admin</code>, opens the licence detail page, and uses the <strong style="color: var(--fg-hi);">Air-gapped activation</strong> upload form to submit the JSON. The server validates the format, counts the device against <code class="font-mono text-sm" style="color: var(--accent);">max_devices</code>, and records an activation row marked <code class="font-mono text-sm" style="color: var(--accent);">offline</code>.</li>
+        <li>The administrator clicks the existing <strong style="color: var(--fg-hi);">Download licence.bin</strong> button on the same page. The file served is the same 96-byte Ed25519-signed blob every other holder of this licence gets.</li>
+        <li>Send the <code class="font-mono text-sm" style="color: var(--accent);">licence.bin</code> back to the offline machine via the same out-of-band channel.</li>
+        <li>On the offline machine, open <strong style="color: var(--fg-hi);">Settings &rarr; Licence</strong> again and click <strong style="color: var(--fg-hi);">Import licence.bin</strong>. Utterbar verifies the signature offline, copies the file to <code class="font-mono text-sm" style="color: var(--accent);">%APPDATA%\Utterbar\licence.bin</code>, and asks you to restart. Restart Utterbar; the next launch picks the file up via the same managed-licence loader the fleet flow uses.</li>
+    </ol>
+    <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
+        Limitations worth being explicit about &mdash; this version does the smallest useful thing, and your security team should know the edges:
+    </p>
+    <ul class="mt-3 space-y-2 text-base leading-relaxed" style="color: var(--fg);">
+        <li><strong style="color: var(--fg-hi);">The licence.bin is not machine-bound in this version.</strong> The file the admin sends back is the same bytes for every device on the licence. A user who copies the file to a second offline machine could technically activate it there too. Treat the admin upload as <em>audit and max-device intent</em>, not as a cryptographic binding. If you need hard one-machine-one-file enforcement, that&rsquo;s a future v3 payload format we haven&rsquo;t shipped yet &mdash; mention it in your enquiry.</li>
+        <li><strong style="color: var(--fg-hi);">Offline devices do not heartbeat.</strong> The activation row carries <code class="font-mono text-sm" style="color: var(--accent);">last_heartbeat = null</code> permanently. The admin licence page renders a small <code class="font-mono text-sm" style="color: var(--accent);">offline</code> chip alongside such rows so you can tell at a glance which devices are reachable via heartbeat and which aren&rsquo;t.</li>
+        <li><strong style="color: var(--fg-hi);">Revocation only takes effect on devices that contact the server.</strong> If you revoke the licence in the admin panel, online devices flip to Free on their next heartbeat (a 410 from <code class="font-mono text-sm" style="color: var(--accent);">/api/licence/heartbeat</code>). Air-gapped devices that never contact the server keep running until you replace or remove their <code class="font-mono text-sm" style="color: var(--accent);">licence.bin</code> on disk.</li>
+        <li><strong style="color: var(--fg-hi);">The request file is not signed.</strong> Nothing in it is a secret &mdash; the fingerprint already leaks via the existing online activation path. The administrator&rsquo;s upload-validation step is the trust gate, not a request-side signature.</li>
+        <li><strong style="color: var(--fg-hi);">Idempotent uploads.</strong> Re-uploading the same JSON for the same device is a no-op &mdash; useful when an admin is unsure whether the first upload landed.</li>
+    </ul>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        Combined with <code class="font-mono text-sm" style="color: var(--accent);">BlockTelemetry</code> and <code class="font-mono text-sm" style="color: var(--accent);">BlockHistory</code> in the policy table above, the air-gapped flow gives you a Pro Utterbar install whose only network call is the one the IT admin makes from a different machine when they upload your activation request.
+    </p>
+
     <h2 class="mt-14 ub-docs-h2">Diagnostic info on the user&rsquo;s machine</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
         Settings &gt; Advanced &gt; Diagnostics shows the version, OS, CPU thread count, ONNX backend feature flag, and the on-disk paths for logs, the database, and models. Useful for the first-line IT support call. Logs are rotated automatically; the newest is always at <code class="font-mono text-sm" style="color: var(--accent);">%APPDATA%\Utterbar\logs\latest.log</code>.
