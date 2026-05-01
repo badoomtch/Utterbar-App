@@ -130,6 +130,43 @@
                     </div>
                 @endif
 
+                {{-- Air-gapped activation upload. Available on every
+                     licence detail page (single-user OR volume) because
+                     even single-user buyers occasionally have an
+                     offline / restricted machine. The operator uploads
+                     the JSON request file the user generated via
+                     Settings → Licence → "Export activation request",
+                     and the controller registers an `offline = true`
+                     activation row. Then the operator clicks the
+                     existing "Download licence.bin" action above (or
+                     in the Actions card below) to send the file back.
+                     See /docs/it-deployment air-gapped section for the
+                     full playbook. --}}
+                <div class="ub-card mb-6" style="padding: 1.5rem 1.75rem;">
+                    <p class="ub-eyebrow mb-3">Air-gapped activation</p>
+                    <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
+                        Upload the JSON request file the user generated on their offline machine. We validate the format, count it against
+                        <strong style="color: var(--fg-hi);">{{ $licence->max_devices }}</strong> max devices, and add an
+                        <span class="font-mono" style="color: var(--accent);">offline</span> activation row.
+                        Then click <strong style="color: var(--fg-hi);">Download licence.bin</strong> and send the file back to the user.
+                        See <a href="{{ route('docs.it-deployment') }}#air-gapped-activation" style="color: var(--accent);">air-gapped activation</a> for the full play.
+                    </p>
+                    <form method="POST" action="{{ route('admin.licences.activations.upload', $licence->id) }}"
+                          enctype="multipart/form-data" class="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                        @csrf
+                        <input type="file"
+                               name="request_file"
+                               accept=".json,application/json"
+                               required
+                               class="text-sm"
+                               style="color: var(--fg); flex: 1;">
+                        <button type="submit" class="ub-btn ub-btn-ghost">Register activation</button>
+                    </form>
+                    <p class="mt-3 text-xs" style="color: var(--muted);">
+                        File must be JSON, max 4 KB, format <code class="font-mono">utterbar-licence-request</code> v1. Re-uploading the same fingerprint is a no-op.
+                    </p>
+                </div>
+
                 {{-- Actions --}}
                 <div class="ub-card mb-6" style="padding: 1.5rem 1.75rem;">
                     <p class="ub-eyebrow mb-4">Actions</p>
@@ -202,7 +239,13 @@
                                             <div style="color: var(--fg-hi);">{{ $a->device_name ?: '(unnamed)' }}</div>
                                             <div class="font-mono text-[11px] mt-1" style="color: var(--muted);">{{ \Illuminate\Support\Str::limit($a->fingerprint_hash, 16, '') }}...</div>
                                         </td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--fg);">{{ $a->platform }}</td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--fg);">
+                                            {{ $a->platform }}
+                                            @if ($a->offline)
+                                                <span class="font-mono" title="Activated via /admin/licences/{id}/activations/upload — never heartbeats."
+                                                      style="display: inline-flex; align-items: center; margin-left: 0.4rem; padding: 0.1rem 0.45rem; border-radius: 999px; background: color-mix(in oklab, var(--muted) 12%, transparent); color: var(--muted); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;">Offline</span>
+                                            @endif
+                                        </td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $a->app_version }}</td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $a->last_heartbeat?->diffForHumans() ?? '—' }}</td>
                                         <td style="padding: 0.75rem 1rem; text-align: right;">

@@ -313,4 +313,175 @@ class LicenceController extends Controller
             'Cache-Control'             => 'private, no-store, no-cache, must-revalidate',
         ]);
     }
+
+    /**
+     * Air-gapped activation: register a device against this licence
+     * from a JSON request file the user exported on an offline machine.
+     *
+     * The desktop's Settings → Licence → "Export activation request"
+     * writes a JSON document with format magic
+     * `utterbar-licence-request`, format_version 1, the machine
+     * fingerprint, device name, platform, app_version and
+     * generated_at. The user hand-carries the file to their IT admin,
+     * who uploads it here. We validate the format, enforce
+     * `max_devices`, and create an Activation row identical in shape
+     * to an online activation EXCEPT `offline = true` and
+     * `last_heartbeat` stays null.
+     *
+     * Idempotent on `(licence_id, fingerprint_hash)` — the unique
+     * index on the table already enforces this; on a duplicate
+     * upload we surface a friendly "already registered" flash
+     * rather than a 500. The admin then clicks the existing
+     * "Download licence.bin" button to get the file to send back.
+     *
+     * Hard cap: file size 4 KB. The legitimate document is around
+     * 250 bytes; 4 KB leaves headroom for future fields without
+     * letting an attacker waste server memory parsing JSON.
+     *
+     * Audit: every upload is logged with the actor email, licence
+     * id, and the first 12 chars of the fingerprint. Full
+     * fingerprint stays in the activations row.
+     */
+    public function uploadActivationRequest(Request $request, int $id): RedirectResponse
+    {
+        $licence = Licence::findOrFail($id);
+
+        // File size + presence. A missing file or one over 4 KB
+        // hits 422 before we touch the JSON parser.
+        $request->validate([
+            'request_file' => ['required', 'file', 'max:4'], // KB
+        ]);
+
+        $file = $request->file('request_file');
+        $contents = (string) file_get_contents($file->getRealPath());
+
+        $payload = json_decode($contents, associative: true);
+        if (!is_array($payload)) {
+            return redirect()
+                ->route('admin.licences.show', $licence->id)
+                ->with('flash', [
+                    'type' => 'error',
+                    'text' => 'Activation request: not valid JSON.',
+                ]);
+        }
+
+        $errors = $this->validateActivationRequest($payload);
+        if ($errors !== null) {
+            return redirect()
+                ->route('admin.licences.show', $licence->id)
+                ->with('flash', [
+                    'type' => 'error',
+                    'text' => 'Activation request rejected: ' . $errors,
+                ]);
+        }
+
+        $fingerprint = strtolower((string) $payload['fingerprint']);
+
+        // Idempotent re-upload: if a row already exists for this
+        // (licence, fingerprint), surface a clear "already
+        // registered" flash and bail out without creating a second
+        // row. The unique index on the table would 23000-error
+        // anyway; this short-circuit gives the admin a friendlier
+        // message.
+        $existing = Activation::where('licence_id', $licence->id)
+            ->where('fingerprint_hash', $fingerprint)
+            ->first();
+        if ($existing !== null) {
+            return redirect()
+                ->route('admin.licences.show', $licence->id)
+                ->with('flash', [
+                    'type' => 'ok',
+                    'text' => 'Activation already registered for this device. Re-download licence.bin if needed.',
+                ]);
+        }
+
+        // Max devices: count current activations against the
+        // licence cap. Same enforcement as the online /activate
+        // endpoint, just on the admin upload path.
+        $current = Activation::where('licence_id', $licence->id)->count();
+        if ($current >= (int) $licence->max_devices) {
+            return redirect()
+                ->route('admin.licences.show', $licence->id)
+                ->with('flash', [
+                    'type' => 'error',
+                    'text' => "Device limit reached ({$current}/{$licence->max_devices}). Deactivate a device or raise max_devices first.",
+                ]);
+        }
+
+        $activation = Activation::create([
+            'licence_id'       => $licence->id,
+            'fingerprint_hash' => $fingerprint,
+            'device_name'      => substr((string) $payload['device_name'], 0, 100),
+            'platform'         => (string) $payload['platform'],
+            'app_version'      => substr((string) $payload['app_version'], 0, 32),
+            'activation_token' => bin2hex(random_bytes(32)),
+            'first_seen'       => now(),
+            'last_heartbeat'   => null,
+            'offline'          => true,
+        ]);
+
+        Log::info('admin minted offline activation', [
+            'licence_id'  => $licence->id,
+            'fingerprint' => substr($fingerprint, 0, 12) . '...',
+            'device_name' => $activation->device_name,
+            'app_version' => $activation->app_version,
+            'actor'       => optional($request->user())->email,
+        ]);
+
+        return redirect()
+            ->route('admin.licences.show', $licence->id)
+            ->with('flash', [
+                'type' => 'ok',
+                'text' => "Offline activation registered for {$activation->device_name}. Click \"Download licence.bin\" to send the file to the user.",
+            ]);
+    }
+
+    /**
+     * Validate the activation-request JSON shape. Returns null on
+     * success, or a short error string suitable for flashing to
+     * the operator. Kept separate from the controller body so the
+     * tests can drive the validator directly without juggling
+     * Request fakes.
+     */
+    private function validateActivationRequest(array $payload): ?string
+    {
+        if (($payload['format'] ?? null) !== 'utterbar-licence-request') {
+            return 'wrong format magic';
+        }
+        if (($payload['format_version'] ?? null) !== 1) {
+            return 'unsupported format_version';
+        }
+
+        $fingerprint = $payload['fingerprint'] ?? null;
+        if (!is_string($fingerprint) || !preg_match('/^[a-f0-9]{64}$/', $fingerprint)) {
+            return 'fingerprint must be 64 lowercase hex chars';
+        }
+
+        $device = $payload['device_name'] ?? null;
+        if (!is_string($device) || $device === '' || mb_strlen($device) > 100) {
+            return 'device_name must be 1-100 chars';
+        }
+
+        $platform = $payload['platform'] ?? null;
+        if (!is_string($platform) || !in_array($platform, ['windows'], true)) {
+            return 'platform must be one of: windows';
+        }
+
+        $appVersion = $payload['app_version'] ?? null;
+        if (!is_string($appVersion) || $appVersion === '' || mb_strlen($appVersion) > 32) {
+            return 'app_version must be 1-32 chars';
+        }
+
+        // generated_at is informational; if present it must parse
+        // as a non-empty string. We don't reject stale timestamps;
+        // the operator can read the value for themselves.
+        if (array_key_exists('generated_at', $payload)) {
+            $g = $payload['generated_at'];
+            if (!is_string($g) || $g === '') {
+                return 'generated_at, if present, must be a non-empty string';
+            }
+        }
+
+        return null;
+    }
 }
