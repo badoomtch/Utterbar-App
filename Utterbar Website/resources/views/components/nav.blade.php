@@ -16,8 +16,29 @@
 
 <header x-data="{ open: false }" class="fixed inset-x-0 top-0 z-40" style="backdrop-filter: blur(14px); background: color-mix(in oklab, var(--bg-0) 80%, transparent); border-bottom: 1px solid var(--border);">
     <div class="ub-container flex items-center justify-between h-20">
-        <a href="{{ route('home') }}" class="flex items-center gap-2 no-underline" style="color: inherit;">
+        <a href="{{ route('home') }}" class="ub-nav-brand flex items-center gap-2 no-underline" style="color: inherit;" aria-label="Utterbar home">
             <x-logo size="nav" />
+            {{-- Inline reveal-on-hover waveform. Pure SVG <animate>, no JS.
+                 Hidden by default; the .ub-nav-brand:hover rule slides it
+                 in. Lives next to the wordmark, sized to read against the
+                 28px nav font without competing with the speech-pill mark. --}}
+            <svg class="ub-nav-brand-wave" viewBox="0 0 60 24" aria-hidden="true" focusable="false">
+                <defs>
+                    <linearGradient id="ub-nav-wave-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#00e5ff"/>
+                        <stop offset="100%" stop-color="#00a3ff"/>
+                    </linearGradient>
+                </defs>
+                <g fill="url(#ub-nav-wave-grad)">
+                    <rect x="2" y="9" width="3" height="6" rx="1.5"><animate attributeName="height" values="6;14;6" dur="1.1s" begin="0s" repeatCount="indefinite"/><animate attributeName="y" values="9;5;9" dur="1.1s" begin="0s" repeatCount="indefinite"/></rect>
+                    <rect x="10" y="6" width="3" height="12" rx="1.5"><animate attributeName="height" values="12;20;12" dur="1.0s" begin="0.1s" repeatCount="indefinite"/><animate attributeName="y" values="6;2;6" dur="1.0s" begin="0.1s" repeatCount="indefinite"/></rect>
+                    <rect x="18" y="3" width="3" height="18" rx="1.5"><animate attributeName="height" values="18;22;18" dur="0.9s" begin="0.05s" repeatCount="indefinite"/><animate attributeName="y" values="3;1;3" dur="0.9s" begin="0.05s" repeatCount="indefinite"/></rect>
+                    <rect x="26" y="1" width="3" height="22" rx="1.5"><animate attributeName="height" values="22;14;22" dur="1.2s" begin="0.2s" repeatCount="indefinite"/><animate attributeName="y" values="1;5;1" dur="1.2s" begin="0.2s" repeatCount="indefinite"/></rect>
+                    <rect x="34" y="3" width="3" height="18" rx="1.5"><animate attributeName="height" values="18;10;18" dur="1.0s" begin="0.15s" repeatCount="indefinite"/><animate attributeName="y" values="3;7;3" dur="1.0s" begin="0.15s" repeatCount="indefinite"/></rect>
+                    <rect x="42" y="6" width="3" height="12" rx="1.5"><animate attributeName="height" values="12;18;12" dur="0.95s" begin="0.25s" repeatCount="indefinite"/><animate attributeName="y" values="6;3;6" dur="0.95s" begin="0.25s" repeatCount="indefinite"/></rect>
+                    <rect x="50" y="9" width="3" height="6" rx="1.5"><animate attributeName="height" values="6;14;6" dur="1.1s" begin="0.3s" repeatCount="indefinite"/><animate attributeName="y" values="9;5;9" dur="1.1s" begin="0.3s" repeatCount="indefinite"/></rect>
+                </g>
+            </svg>
         </a>
 
         <nav aria-label="Primary" class="hidden md:flex items-center gap-8">
