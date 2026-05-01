@@ -93,9 +93,12 @@
         <div class="relative ub-container pt-20 md:pt-28 pb-24 md:pb-32">
             <div class="max-w-5xl">
 
-                {{-- Brand plate: the wordmark, scaled as a display element --}}
+                {{-- Brand plate: the wordmark, scaled as a display element.
+                     `:wave="true"` enables the hover-only animated waveform
+                     reveal (matches the same affordance on the nav brand).
+                     Pure SVG <animate>, no JS. --}}
                 <div style="font-size: clamp(2.5rem, 5.5vw, 4.5rem); letter-spacing: -0.045em; line-height: 1; font-weight: 600;">
-                    <x-wordmark />
+                    <x-wordmark :wave="true" />
                 </div>
 
                 {{-- Headline. Keeps the brand voice ("stays on your PC")
