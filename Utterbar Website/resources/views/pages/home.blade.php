@@ -430,7 +430,7 @@
                 </p>
             </div>
             <div class="max-w-5xl mx-auto">
-                <x-video-embed id="feature-talk-to-ai" />
+                <x-talk-to-ai />
             </div>
         </div>
     </section>
@@ -466,7 +466,7 @@
                 </p>
             </div>
             <div class="max-w-5xl mx-auto">
-                <x-still id="press-03-main-shell-dashboard" />
+                <x-app-mock />
             </div>
         </div>
     </section>
