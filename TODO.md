@@ -2,15 +2,15 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-05-03**
+**Last updated: 2026-05-04**
 
 ---
 
 ## Current status
 
-- **Stable channel:** v0.15.6 (admin row 56). DirectML execution provider live, Whisper Small stays on CPU on Auto.
-- **Beta channel:** v0.15.12 (admin row 62). Air-gapped activation: desktop exports a JSON request file from Settings, Licence; admin uploads it at `/admin/licences/{id}/activations/upload`; admin downloads `licence.bin` and the user imports it on the offline machine. The resulting `licence.bin` is NOT machine-bound in this version (same bytes for every device on the licence); the admin upload records audit + `max_devices` intent rather than a cryptographic binding. v0.15.11 (admin row 61) was the previous beta; superseded by 0.15.12 on the beta channel.
-- **In-tree app version:** v0.15.12 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
+- **Stable channel:** v0.16.0 (admin row 63). Bundles the v0.15.7-v0.15.12 beta line: auto-stop near the 5-minute single-shot cap, ASR output validation across regular dictation / file transcription / Meeting Mode chunks, managed fleet licence delivery via `licence.bin`, three new IT policy keys (BlockHistory, BlockHistoryExport, BlockTelemetry), volume self-serve checkout with two-tier rate, admin polish for B2B rows, honest revenue accounting (per-row amount_pence), and air-gapped activation request/import. Tagged `v0.16.0`. Supersedes v0.15.6.
+- **Beta channel:** v0.16.0 (admin row 64). Same bytes as stable; published to beta in lockstep so beta users are not stranded on 0.15.12.
+- **In-tree app version:** v0.16.0 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
 - **Volume self-serve checkout shipped to the website** (merged into main from `feature/b2b-volume-checkout`). `/api/checkout/create-volume-session` accepts quantity 5-100, mints a licence with `max_devices = quantity`, SKU `utterbar-pro-volume`. Two-tier rate (£29 / £19 at the 25-seat boundary) lives in `App\Services\Pricing\VolumePricing`. Website-only; no desktop app change required.
 - **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
 - **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
@@ -26,8 +26,8 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 In rough order. Adjust as evidence comes in.
 
-1. **Promote v0.15.x beta line to stable as v0.16.0.** Bundles the validation work from 0.15.8/0.15.9/0.15.10 (regular dictation + file transcription + Meeting Mode per-chunk validators), the v0.15.11 B2B sprint (managed fleet licence + three new policy keys + per-row revenue accounting), and the v0.15.12 air-gapped activation beta (export request + import licence.bin + offline activation rows). Single-version cut once soak signals are clean.
-2. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
+1. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
+2. **Watch v0.16.0 stable soak.** First stable from a wide bundle (six betas worth of work in one promote). Particular attention on: per-chunk Meeting Mode validation false-positives, the 4:55 auto-stop interaction with mid-sentence speech, managed-licence + air-gapped flows on real customer hardware. Hotfix to 0.16.1 if anything load-bearing surfaces.
 3. **Pick the next product work item** from the backlog below.
 
 ---
