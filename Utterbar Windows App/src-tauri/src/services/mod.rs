@@ -15,6 +15,7 @@ pub mod media;
 pub mod models;
 pub mod modes;
 pub mod numbers;
+pub mod output_validation;
 pub mod policy;
 pub mod settings;
 pub mod subtitles;

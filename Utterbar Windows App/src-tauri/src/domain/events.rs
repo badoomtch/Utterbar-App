@@ -77,7 +77,18 @@ pub enum DictationPhase {
     /// a failure to handle, it's a non-event — the bar shows a neutral
     /// "No audio detected" message and settles back to idle without writing
     /// a history row or firing the success cue.
-    NoAudio,
+    ///
+    /// Optional `notice` carries a short label when the drop was a
+    /// validator-noticed case (repeated token, repeated punctuation,
+    /// unexpected foreign script) rather than plain silence. The
+    /// floating bar swaps the default "No audio detected" pill for
+    /// the notice text, in the same muted tone - non-error, non-alarming.
+    /// Quiet drops (empty/whitespace/single punctuation) leave this None
+    /// so the existing UX is unchanged.
+    NoAudio {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice: Option<String>,
+    },
 }
 
 /// Payload appended to a `Success` phase event for meeting-mode

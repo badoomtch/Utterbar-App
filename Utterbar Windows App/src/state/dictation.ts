@@ -41,7 +41,13 @@ export type DictationPhase =
   // src-tauri/src/domain/events.rs (and with the generated type at
   // src/generated/DictationPhase.ts which ts-rs produces from the Rust
   // source — this hand-maintained copy exists for the zustand store).
-  | { kind: 'no_audio' };
+  //
+  // Optional `notice` carries a short label when the drop was a
+  // validator-noticed case (e.g. "Output filtered" for repeated-token
+  // or foreign-script hallucinations) instead of plain silence. The
+  // floating bar substitutes the default "No audio detected" pill for
+  // the notice text in the same muted tone.
+  | { kind: 'no_audio'; notice?: string };
 
 export type MeterFrame = { rms: number; peak: number; ts_ms: number };
 

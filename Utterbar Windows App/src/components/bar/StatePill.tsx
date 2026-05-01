@@ -110,6 +110,16 @@ function describe(phase: DictationPhase) {
       // Muted tone — silence is a non-event, not a failure. The user
       // tapped the hotkey but nothing usable came out; we want the
       // message legible, not alarming.
+      //
+      // `phase.notice` is set by the Rust output validator when the
+      // drop wasn't plain silence (e.g. a Whisper decoder loop or a
+      // foreign-script hallucination on an English-only path). We
+      // surface it instead of the generic copy so the user can tell
+      // "we recorded but filtered something" apart from "we got
+      // silence". Same muted tone either way - neither is an error.
+      if (phase.notice) {
+        return { label: phase.notice, tone: 'muted' as const };
+      }
       return { label: 'No audio detected', tone: 'muted' as const };
   }
 }
