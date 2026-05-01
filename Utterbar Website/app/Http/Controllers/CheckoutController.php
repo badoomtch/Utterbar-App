@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Pricing\VolumePricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -81,6 +82,134 @@ class CheckoutController extends Controller
             $session = StripeSession::create($params);
         } catch (\Stripe\Exception\ApiErrorException $e) {
             Log::error('Stripe checkout session creation failed', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'stripe_error', 'message' => 'Could not open checkout. Try again?'], 502);
+        }
+
+        return response()->json([
+            'id'  => $session->id,
+            'url' => $session->url,
+        ]);
+    }
+
+    /**
+     * POST /api/checkout/create-volume-session
+     *
+     * Volume self-serve checkout. Buyer picks a seat count in
+     * [VolumePricing::MIN_SEATS, VolumePricing::MAX_SEATS]; the server
+     * computes the per-seat amount at its current tier and creates a
+     * Stripe Checkout Session with `unit_amount × quantity` line-item
+     * pricing. The webhook (StripeWebhookController) recognises the
+     * volume SKU via metadata and mints a single licence row with
+     * `max_devices = quantity`.
+     *
+     * Server controls every monetary value. The request carries only
+     * `email` (optional) and `quantity`. Anything else is ignored.
+     * Quantity is validated as an int in range; a float, string, or
+     * out-of-bounds value rejects with 422.
+     */
+    public function createVolumeSession(Request $request): JsonResponse
+    {
+        if (!config('services.stripe.enabled')) {
+            return response()->json(['error' => 'checkout_disabled', 'message' => 'Checkout is not available yet.'], 503);
+        }
+
+        $secret = config('services.stripe.secret');
+        if (!$secret) {
+            Log::error('Stripe secret key missing');
+            return response()->json(['error' => 'misconfigured', 'message' => 'Checkout is misconfigured.'], 500);
+        }
+
+        // Validation. `integer` rejects strings/floats/booleans/arrays.
+        // `min`/`max` lock the bounds to the helper's documented range
+        // so the boundary cannot drift between this method and the
+        // helper. The Laravel validator also returns a clean 422 with
+        // field-keyed messages, which the volume UI surfaces inline.
+        $validated = $request->validate([
+            'email'    => 'nullable|email:rfc|max:255',
+            'quantity' => 'required|integer|min:' . VolumePricing::MIN_SEATS . '|max:' . VolumePricing::MAX_SEATS,
+        ]);
+
+        $quantity = (int) $validated['quantity'];
+
+        // Defence in depth: the Laravel validator should have already
+        // rejected anything outside the range, but the helper carries
+        // its own predicate so a future refactor that swaps validators
+        // can't silently widen the band.
+        if (!VolumePricing::isValidQuantity($quantity)) {
+            return response()->json([
+                'error'   => 'invalid_quantity',
+                'message' => 'Seat count must be between ' . VolumePricing::MIN_SEATS . ' and ' . VolumePricing::MAX_SEATS . '.',
+            ], 422);
+        }
+
+        Stripe::setApiKey($secret);
+
+        $unitPence = VolumePricing::unitPence($quantity);
+        $currency  = VolumePricing::currency();
+        $sku       = VolumePricing::sku();
+
+        // Stripe line-item description must read clearly on the buyer's
+        // receipt — "Utterbar Pro · Volume licence (N devices)" — so an
+        // accountant looking at the line item six months later can tell
+        // it apart from a single-user purchase. The product name stays
+        // on-brand; the description carries the device-allowance fact.
+        $lineItem = [
+            'price_data' => [
+                'currency'    => $currency,
+                'unit_amount' => $unitPence,
+                'product_data' => [
+                    'name'        => 'Utterbar Pro — Volume licence',
+                    'description' => sprintf(
+                        'One licence covering %d devices. Lifetime, no subscription.',
+                        $quantity
+                    ),
+                ],
+            ],
+            'quantity' => $quantity,
+        ];
+
+        // Metadata travels on both the Checkout Session and the
+        // Payment Intent so the webhook handler can resolve from
+        // either side. `quantity` and `max_devices` are duplicated
+        // intentionally — the value is identical (one device per
+        // purchased seat), but naming both makes the contract
+        // explicit and survives a future refactor that decouples the
+        // two concepts.
+        $metadata = [
+            'sku'         => $sku,
+            'quantity'    => (string) $quantity,
+            'max_devices' => (string) $quantity,
+            'unit_pence'  => (string) $unitPence,
+            'currency'    => $currency,
+        ];
+
+        $params = [
+            'mode' => 'payment',
+            'line_items' => [$lineItem],
+            'success_url' => route('thanks') . '?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url'  => route('pricing'),
+            'billing_address_collection' => 'required',
+            'metadata' => $metadata,
+            'payment_intent_data' => [
+                'metadata' => $metadata,
+            ],
+        ];
+
+        if ($email = $validated['email'] ?? null) {
+            $params['customer_email'] = $email;
+        }
+
+        if (config('services.stripe.automatic_tax')) {
+            $params['automatic_tax'] = ['enabled' => true];
+        }
+
+        try {
+            $session = StripeSession::create($params);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe volume checkout session creation failed', [
+                'error'    => $e->getMessage(),
+                'quantity' => $quantity,
+            ]);
             return response()->json(['error' => 'stripe_error', 'message' => 'Could not open checkout. Try again?'], 502);
         }
 

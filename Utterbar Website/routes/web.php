@@ -88,6 +88,12 @@ Route::get('/thanks', [PageController::class, 'thanks'])->name('thanks');
 Route::post('/api/checkout/create-session', [CheckoutController::class, 'createSession'])
     ->middleware('throttle:12,1')
     ->name('checkout.create');
+// Volume self-serve checkout (B2B). Same throttle as single-user since
+// the abuse profile is identical: a request creates a Stripe Session
+// (a real network call) and returns a URL.
+Route::post('/api/checkout/create-volume-session', [CheckoutController::class, 'createVolumeSession'])
+    ->middleware('throttle:12,1')
+    ->name('checkout.create.volume');
 Route::post('/api/stripe/webhook', [StripeWebhookController::class, 'handle'])
     ->name('stripe.webhook');
 
