@@ -17,4 +17,22 @@ auto_space_on_paste: boolean,
  * transform is conservative (only converts unambiguous numeric
  * phrases, leaves "one of these days" alone).
  */
-numbers_as_digits: boolean, };
+numbers_as_digits: boolean, 
+/**
+ * When true, run the existing deterministic rewrite pass on
+ * regular dictation output globally, regardless of the active
+ * mode's `post_processing` setting. The rewrite removes filler
+ * words ("um", "uh", "like"), normalises whitespace, ensures
+ * terminal punctuation, and capitalises sentence starts. All
+ * transformations are local and rule-based — no LLM, no model
+ * download, no remote calls.
+ *
+ * Default off because most users prefer the verbatim ASR output
+ * (already capitalised correctly by Whisper / Parakeet on most
+ * inputs) and filler removal is opinionated. Meeting Mode is
+ * deliberately out of scope: meeting transcripts are reference
+ * material where verbatim fidelity matters more than polish.
+ * `serde(default)` so settings.json files written before this
+ * field existed deserialise cleanly with `false`.
+ */
+smart_rewrite: boolean, };

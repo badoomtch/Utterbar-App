@@ -403,6 +403,23 @@ pub struct TextOutputSettings {
     /// phrases, leaves "one of these days" alone).
     #[serde(default = "default_numbers_as_digits")]
     pub numbers_as_digits: bool,
+    /// When true, run the existing deterministic rewrite pass on
+    /// regular dictation output globally, regardless of the active
+    /// mode's `post_processing` setting. The rewrite removes filler
+    /// words ("um", "uh", "like"), normalises whitespace, ensures
+    /// terminal punctuation, and capitalises sentence starts. All
+    /// transformations are local and rule-based — no LLM, no model
+    /// download, no remote calls.
+    ///
+    /// Default off because most users prefer the verbatim ASR output
+    /// (already capitalised correctly by Whisper / Parakeet on most
+    /// inputs) and filler removal is opinionated. Meeting Mode is
+    /// deliberately out of scope: meeting transcripts are reference
+    /// material where verbatim fidelity matters more than polish.
+    /// `serde(default)` so settings.json files written before this
+    /// field existed deserialise cleanly with `false`.
+    #[serde(default)]
+    pub smart_rewrite: bool,
 }
 
 fn default_auto_space_on_paste() -> bool {
@@ -424,6 +441,7 @@ impl Default for TextOutputSettings {
             trim_trailing_space: true,
             auto_space_on_paste: true,
             numbers_as_digits: true,
+            smart_rewrite: false,
         }
     }
 }
@@ -612,4 +630,83 @@ pub struct DataPaths {
     pub models: String,
     pub recordings: String,
     pub logs: String,
+}
+
+#[cfg(test)]
+mod text_output_tests {
+    //! Pin the v1 contract for `text_output.smart_rewrite`:
+    //!   1. Default is `false` so users on existing installs see no
+    //!      behaviour change after upgrade.
+    //!   2. `serde(default)` covers settings.json files written
+    //!      before this field existed — they must deserialise to
+    //!      `false` cleanly, no migration step needed.
+    //!
+    //! These guards are cheap and would fail loudly if anyone ever
+    //! flipped the default to `true` without rewriting the privacy /
+    //! marketing copy that calls Utterbar "verbatim, no rewrites by
+    //! default". The deserialise test is the load-bearing one for
+    //! upgrade safety.
+
+    use super::*;
+
+    #[test]
+    fn smart_rewrite_default_is_false() {
+        let t = TextOutputSettings::default();
+        assert!(
+            !t.smart_rewrite,
+            "smart_rewrite must default to false; flipping it to true would silently \
+             change every existing user's transcripts on next launch and contradict \
+             the privacy positioning."
+        );
+    }
+
+    #[test]
+    fn settings_default_smart_rewrite_is_false() {
+        // Same guard via the parent Settings::default() path that
+        // get_settings actually returns when settings.json is missing.
+        let s = Settings::default();
+        assert!(!s.text_output.smart_rewrite);
+    }
+
+    #[test]
+    fn pre_smart_rewrite_settings_json_deserialises_with_false() {
+        // The exact shape of TextOutputSettings as it shipped in
+        // v0.16.3 (before this field existed). settings.json files
+        // written by that build must continue to load cleanly with
+        // smart_rewrite = false. If a future change drops the
+        // serde(default) attribute or makes the field non-optional,
+        // every existing settings.json file fails to parse and the
+        // whole settings layer falls back to defaults — losing the
+        // user's saved preferences.
+        let pre_v1_json = r#"{
+            "paste_automatically": true,
+            "restore_clipboard": true,
+            "keystroke_fallback": true,
+            "shift_to_auto_send": false,
+            "auto_capitalise": true,
+            "trim_trailing_space": true,
+            "auto_space_on_paste": true,
+            "numbers_as_digits": true
+        }"#;
+        let parsed: TextOutputSettings =
+            serde_json::from_str(pre_v1_json).expect("pre-v1 settings.json must still deserialise");
+        assert!(
+            !parsed.smart_rewrite,
+            "missing smart_rewrite field must deserialise to false (default)"
+        );
+        // Sanity: existing fields still round-trip.
+        assert!(parsed.paste_automatically);
+        assert!(parsed.numbers_as_digits);
+    }
+
+    #[test]
+    fn post_v1_settings_json_round_trips_smart_rewrite_value() {
+        let t = TextOutputSettings {
+            smart_rewrite: true,
+            ..TextOutputSettings::default()
+        };
+        let json = serde_json::to_string(&t).expect("serialise");
+        let parsed: TextOutputSettings = serde_json::from_str(&json).expect("deserialise");
+        assert!(parsed.smart_rewrite, "round-trip must preserve true");
+    }
 }
