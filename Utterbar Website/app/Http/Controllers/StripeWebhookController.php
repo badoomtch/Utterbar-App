@@ -175,6 +175,14 @@ class StripeWebhookController extends Controller
                 'max_devices'                 => (int) config('services.licence.max_devices', 3),
                 'status'                      => 'active',
                 'issued_at'                   => Carbon::now(),
+                // Per-row purchase amount (added 2026-05-02). The
+                // single-user price is config-driven; the webhook
+                // captures it at mint time so a future price change
+                // doesn't retroactively rewrite historic dashboard
+                // figures. See AdminController for the SUM that
+                // turns these into the Gross / Net of refunds tiles.
+                'amount_pence'                => (int) config('services.stripe.pro_amount', 4900),
+                'currency'                    => strtolower((string) config('services.stripe.pro_currency', 'gbp')),
             ]);
 
             // Sign and persist. We sign after insert so key_id = licences.id.
@@ -270,6 +278,16 @@ class StripeWebhookController extends Controller
                 'max_devices'                 => $quantity,
                 'status'                      => 'active',
                 'issued_at'                   => Carbon::now(),
+                // Per-row purchase amount (added 2026-05-02). The
+                // VolumePricing helper is the single source of truth
+                // for the team / business tier rate, so the webhook
+                // captures the same total the buyer was charged at
+                // checkout. The metadata also carries unit_pence and
+                // total can be reconstructed, but we read fresh from
+                // the helper here so a future price change doesn't
+                // retroactively rewrite the dashboard figure.
+                'amount_pence'                => VolumePricing::totalPence($quantity),
+                'currency'                    => VolumePricing::currency(),
             ]);
 
             // Sign and persist after insert so key_id = licences.id.

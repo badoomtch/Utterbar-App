@@ -10,9 +10,12 @@ class Licence extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'issued_at'   => 'datetime',
-        'revoked_at'  => 'datetime',
-        'max_devices' => 'int',
+        'issued_at'    => 'datetime',
+        'revoked_at'   => 'datetime',
+        'max_devices'  => 'int',
+        // amount_pence is nullable; cast to int when present so SUMs
+        // and arithmetic in the dashboard don't have to coerce.
+        'amount_pence' => 'int',
     ];
 
     public function activations(): HasMany
