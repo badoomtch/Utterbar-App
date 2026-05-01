@@ -104,6 +104,90 @@ fn record_delivery(now_ms: i64, app_exe: Option<&str>, delivered: &str) {
 /// hangs in a single user-noticeable cycle).
 const RECORDING_STALE_MS: i64 = 30_000;
 
+/// Auto-stop threshold for non-meeting (single-shot) dictation.
+///
+/// `start_recording` schedules a Tokio sleep for this duration on
+/// non-meeting recordings. When it fires, the timer re-reads the
+/// active recording context, confirms the same session is still
+/// running and is non-meeting, and calls the same internal stop
+/// path the user's hotkey would. The captured audio is transcribed
+/// normally and a `notice` is appended to the Success phase so the
+/// user understands what happened.
+///
+/// **Why 295 s, not 300 s.** The transcribe-layer cap in
+/// `services/inference/mod.rs::Inference::transcribe` rejects
+/// inputs whose `pcm.len() / sample_rate` exceeds
+/// `MAX_TRANSCRIBE_SECONDS = 5 * 60 = 300`. The hotkey-release-to-
+/// AudioBuffer-construction path adds a small amount of trailing
+/// audio (resampler tail, last cpal callback) so a buffer that
+/// stops at exactly 300.0 s of wall clock can occasionally produce
+/// a 300.1 s PCM length and trip the cap. A 5-second margin makes
+/// the auto-stop boring: every auto-stopped buffer is comfortably
+/// inside the cap and gets a clean transcript.
+///
+/// **Pinned by tests.** `auto_stop_pin_constants_match_asr_cap`
+/// in this file's test module asserts the 5-second margin against
+/// the `MAX_TRANSCRIBE_SECONDS` constant in `services/inference`.
+/// Bumping one without the other fails CI.
+///
+/// Meeting Mode does not use this timer — the chunked transcribe
+/// path handles long recordings by feeding 29-second chunks to
+/// the recogniser, so the 5-minute single-shot cap doesn't apply.
+pub(crate) const SINGLE_SHOT_AUTO_STOP_MS: i64 = 295_000;
+
+/// Pure decision function used by the single-shot auto-stop timer.
+/// Returns `true` only when ALL of these hold:
+///
+/// - The bound `ActiveRecordingContext` is still present (Some).
+/// - Its `started_at_ms` matches the value captured at schedule
+///   time (i.e. the same session that armed the timer is still
+///   running; a stop+start in between would advance this value).
+/// - The bound session is non-meeting (`is_meeting == false`).
+///
+/// The recording-in-progress flag is NOT checked here — that's a
+/// fast-path the caller does inline before reading the context, so
+/// the cost of acquiring the read lock isn't paid when the user
+/// already pressed stop. Splitting the decision into a pure helper
+/// makes it testable without spawning Tokio tasks or building a
+/// full AppState.
+pub(crate) fn auto_stop_should_proceed(
+    scheduled_started_at_ms: i64,
+    current_ctx: Option<&crate::app_state::ActiveRecordingContext>,
+) -> bool {
+    let Some(ctx) = current_ctx else {
+        return false;
+    };
+    if ctx.started_at_ms != scheduled_started_at_ms {
+        return false;
+    }
+    if ctx.is_meeting {
+        return false;
+    }
+    true
+}
+
+/// Why a `stop_recording` call fired. Threaded through
+/// `stop_recording_inner` so the Success-emit site can attach a
+/// `notice` to the phase event for non-error stop conditions the
+/// user should see (currently: the auto-stop at the 5-minute cap).
+///
+/// Manual stops (the user's hotkey, the floating bar's stop
+/// button, `cancel_recording` triggering after a queued meeting)
+/// emit Success with `notice: None`, which renders as the existing
+/// `Inserted` pill in the floating bar. Auto-stops emit a notice
+/// string so the bar can render `Auto-stopped at 5 min` instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StopReason {
+    /// User pressed the stop hotkey, clicked the bar's stop
+    /// button, or otherwise drove the stop themselves.
+    Manual,
+    /// The Tokio task scheduled at the start of a non-meeting
+    /// recording fired at `SINGLE_SHOT_AUTO_STOP_MS` and the
+    /// session was still the same non-meeting recording, so the
+    /// timer drove the stop instead of the user.
+    AutoStoppedAtCap,
+}
+
 /// Decision returned by the re-entry guard in `start_recording`
 /// when its CAS on `recording_in_progress` failed (some other
 /// invocation already set the flag). Reached by a two-stage
@@ -784,13 +868,14 @@ pub async fn start_recording(
                 .clone()
                 .unwrap_or_else(|| "voice-to-text".into())
         });
+    let context_started_at_ms = now_ms();
     {
         let mut ctx_lock = state.active_recording_context.write().await;
         *ctx_lock = Some(crate::app_state::ActiveRecordingContext {
             mode_id: active_mode_id_for_context,
             is_meeting,
             meeting_model_id: meeting_model_id_for_context,
-            started_at_ms: now_ms(),
+            started_at_ms: context_started_at_ms,
         });
     }
 
@@ -944,6 +1029,84 @@ pub async fn start_recording(
         },
     )
     .await;
+
+    // Schedule the single-shot auto-stop timer for non-meeting
+    // recordings. The transcribe layer in `services/inference` rejects
+    // any input over MAX_TRANSCRIBE_SECONDS (5 minutes) to avoid the
+    // offline-decoder OOM crash on long inputs (v0.12.1 origin), and
+    // before this timer a user who talked past 5 minutes would lose
+    // the entire recording on stop. The timer fires at
+    // SINGLE_SHOT_AUTO_STOP_MS (4:55), re-checks the session identity
+    // via the start-time context's started_at_ms, confirms the
+    // session is still non-meeting, and calls the same internal stop
+    // path the user's hotkey would.
+    //
+    // Meeting Mode is unaffected: it has its own ~60-minute cap and its
+    // chunked transcribe path doesn't hit the 5-minute single-input cap,
+    // so we don't even spawn the timer when is_meeting=true.
+    if !is_meeting {
+        let auto_stop_handle = handle.clone();
+        let auto_stop_state = (*state).clone();
+        let scheduled_started_at_ms = context_started_at_ms;
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(
+                SINGLE_SHOT_AUTO_STOP_MS as u64,
+            ))
+            .await;
+            // Race-safety: a stop or cancel may already have run, or a
+            // brand-new recording may have started between the schedule
+            // and the wake. The timer is "armed for THIS session"; if
+            // the bound context is gone or its started_at_ms differs,
+            // the timer is stale and must do nothing.
+            //
+            // Reading `recording_in_progress` first is a cheap fast-path
+            // for the common case where the user already pressed stop.
+            if !auto_stop_state
+                .recording_in_progress
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                tracing::debug!(
+                    "auto-stop timer fired but recording_in_progress=false; nothing to stop"
+                );
+                return;
+            }
+            let ctx_snapshot = auto_stop_state
+                .active_recording_context
+                .read()
+                .await
+                .clone();
+            if !auto_stop_should_proceed(scheduled_started_at_ms, ctx_snapshot.as_ref()) {
+                tracing::debug!(
+                    scheduled_started_at_ms,
+                    current_ctx = ?ctx_snapshot,
+                    "auto-stop timer fired but the session has changed; nothing to stop"
+                );
+                return;
+            }
+            tracing::info!(
+                scheduled_started_at_ms,
+                cap_ms = SINGLE_SHOT_AUTO_STOP_MS,
+                "auto-stop timer firing stop_recording for single-shot dictation at 5-minute cap"
+            );
+            match stop_recording_inner(
+                auto_stop_handle,
+                &auto_stop_state,
+                StopReason::AutoStoppedAtCap,
+            )
+            .await
+            {
+                Ok(_) => {
+                    tracing::info!("auto-stop timer drove stop_recording successfully");
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "auto-stop timer's stop_recording call returned an error; this can happen if the user's manual stop won the race"
+                    );
+                }
+            }
+        });
+    }
 
     // Drive the meter from the mic when available; fall back to a no-op when we're only
     // capturing loopback (the waveform animation still has its own fallback jitter).
@@ -1914,10 +2077,24 @@ fn dedup_segment_head_against_tail(prev: &str, current: &str) -> String {
     }
 }
 
+/// Tauri command entry. Thin wrapper around `stop_recording_inner`
+/// that supplies the manual-stop reason. The auto-stop timer
+/// scheduled by `start_recording` for non-meeting recordings calls
+/// `stop_recording_inner` directly with `StopReason::AutoStoppedAtCap`
+/// so the same audio path runs but the Success phase carries the
+/// auto-stop notice.
 #[tauri::command]
 pub async fn stop_recording(
     handle: AppHandle,
     state: State<'_, Arc<AppState>>,
+) -> CmdResult<HistoryEntry> {
+    stop_recording_inner(handle, state.inner(), StopReason::Manual).await
+}
+
+pub(crate) async fn stop_recording_inner(
+    handle: AppHandle,
+    state: &Arc<AppState>,
+    reason: StopReason,
 ) -> CmdResult<HistoryEntry> {
     let rec_flag = state
         .recording_in_progress
@@ -1928,6 +2105,7 @@ pub async fn stop_recording(
     tracing::info!(
         recording_in_progress = rec_flag,
         transcribe_in_progress = trx_flag,
+        ?reason,
         "dictation::stop_recording enter"
     );
     // Pull mic and loopback streams separately. Non-meeting-mode paths
@@ -1947,12 +2125,28 @@ pub async fn stop_recording(
     let Some(mut final_) = final_ else {
         tracing::warn!("stop_recording called with no active recording");
         // Clear the guard even on "no-op stop" — the post-v0.6.2 fan-out
-        // fix means this branch is only hit when a client explicitly
+        // fix means this branch is reached when a client explicitly
         // double-taps the hotkey faster than Listening flips to Idle,
-        // but we still want the next genuine start to succeed without
-        // having to click "Reset" anywhere.
-        clear_recording_flag(state.inner());
-        clear_active_recording_context(state.inner()).await;
+        // and (as of the single-shot auto-stop) when the auto-stop
+        // timer's stop call loses a race against the user's manual
+        // stop. Either way, the next genuine start must be able to
+        // succeed without anyone clicking "Reset" anywhere.
+        //
+        // CONTEXT-INTENTIONAL: do NOT clear `active_recording_context`
+        // here. With the auto-stop timer in place, two `stop_recording_inner`
+        // calls can interleave: a winner that drained audio and is
+        // still mid-transcribe (and still reading the bound context for
+        // model resolution, history insert, success summary) plus a
+        // loser that finds `audio.stop_capture_split() == None` and
+        // lands here. Clearing the context from the loser would yank
+        // it out from under the winner, which then falls back to the
+        // legacy current-settings path and can mis-route the recording
+        // (wrong model, wrong is_meeting flag, wrong history mode_id).
+        // Stale context after a no-op stop is safe: every successful
+        // stop / cancel / start-failure path clears the context
+        // normally, and the next successful `start_recording` overwrites
+        // it before the timer would matter.
+        clear_recording_flag(state);
         return Err(OrliqError::User {
             message: "no active recording".into(),
         });
@@ -1967,7 +2161,7 @@ pub async fn stop_recording(
     // here — the rest of stop_recording (model resolution, transcribe,
     // history insert, success summary) reads it. Cleared at the end
     // of the happy path and on the transcribe error path below.
-    clear_recording_flag(state.inner());
+    clear_recording_flag(state);
     tracing::info!(
         samples = final_.pcm.len(),
         sample_rate = final_.sample_rate,
@@ -2068,7 +2262,7 @@ pub async fn stop_recording(
                 let ducking = state.ducking.clone();
                 tokio::task::spawn_blocking(move || ducking.restore());
             }
-            clear_active_recording_context(state.inner()).await;
+            clear_active_recording_context(state).await;
             let user_message = match resolution {
                 MeetingModelResolution::RefuseUnsupportedModel(_) => {
                     "Your meeting model setting is invalid. Open Settings → Models and choose Fast, Balanced, or Best accuracy.".to_string()
@@ -2321,7 +2515,7 @@ pub async fn stop_recording(
         );
 
         transcribe_chunked(
-            state.inner(),
+            state,
             &model_id,
             final_.pcm,
             final_.sample_rate,
@@ -2377,7 +2571,7 @@ pub async fn stop_recording(
             // the bound context so the next start_recording lands
             // with a clean slate. Pinned by
             // `every_clear_recording_flag_site_pairs_with_clear_active_recording_context`.
-            clear_active_recording_context(state.inner()).await;
+            clear_active_recording_context(state).await;
             set_phase(
                 &handle,
                 DictationPhase::Error {
@@ -2754,10 +2948,22 @@ pub async fn stop_recording(
     } else {
         None
     };
+    // When the auto-stop timer fired this stop, attach a user-facing
+    // notice to the Success phase so the bar can render a clear,
+    // non-error explanation instead of the bare "Inserted" pill.
+    // Manual stops (the user's hotkey) carry None here and render
+    // unchanged.
+    let success_notice = match reason {
+        StopReason::Manual => None,
+        StopReason::AutoStoppedAtCap => {
+            Some("Auto-stopped at 5 min. Use Meeting Mode for longer recordings.".to_string())
+        }
+    };
     set_phase(
         &handle,
         DictationPhase::Success {
             summary: success_summary,
+            notice: success_notice,
         },
     )
     .await;
@@ -2771,7 +2977,7 @@ pub async fn stop_recording(
     // Recording session is fully done. Clear the bound context so the
     // next start_recording lands with a clean slate. Pinned by
     // `every_clear_recording_flag_site_pairs_with_clear_active_recording_context`.
-    clear_active_recording_context(state.inner()).await;
+    clear_active_recording_context(state).await;
 
     Ok(entry)
 }
@@ -4779,16 +4985,26 @@ mod diarised_helpers_tests {
         assert!(state.active_recording_context.read().await.is_none());
     }
 
-    /// Source-grep guard: every `clear_recording_flag(state.inner())`
-    /// call site in PRODUCTION code (above the test mod) is paired
-    /// with `clear_active_recording_context(state.inner())` within
-    /// 12 lines, OR is annotated with the magic comment
-    /// `CONTEXT-INTENTIONAL` when the non-pair is deliberate (one
-    /// such site exists in stop_recording where the context must be
-    /// kept alive across the transcribe call).
+    /// Source-grep guard: every clear-recording-flag call site in
+    /// PRODUCTION code (above the test mod) is paired with
+    /// `clear_active_recording_context(...)` within 12 lines, OR is
+    /// annotated with the magic comment `CONTEXT-INTENTIONAL` when
+    /// the non-pair is deliberate (one such site exists in
+    /// stop_recording where the context must be kept alive across
+    /// the transcribe call).
     ///
-    /// Catches a future refactor that adds a new
-    /// `clear_recording_flag` site and forgets the context.
+    /// The needle deliberately matches the function name regardless
+    /// of argument form: both the `state.inner()` callsites in the
+    /// `State<_>`-taking commands and the bare-`state` callsites in
+    /// the `stop_recording_inner` helper (which takes
+    /// `&Arc<AppState>`) need to be covered. Loosening to the
+    /// argument-agnostic form is safe because the window-pair
+    /// check is what actually proves the invariant; the needle
+    /// only has to find candidate sites.
+    ///
+    /// The test mod boundary is split on `#[cfg(test)]` so this
+    /// doc-comment, which talks about the needle, isn't itself
+    /// scanned.
     #[test]
     fn every_clear_recording_flag_site_pairs_with_clear_active_recording_context() {
         let src = include_str!("dictation.rs");
@@ -4797,9 +5013,20 @@ mod diarised_helpers_tests {
         let test_mod_marker = "#[cfg(test)]";
         let production_src = src.split(test_mod_marker).next().unwrap_or(src);
         let lines: Vec<&str> = production_src.lines().collect();
-        let needle = format!("{}{}", "clear_recording_", "flag(state.inner())");
+        // Obfuscation: assemble at runtime so this test's own source
+        // doesn't contain the literal needle and self-trip.
+        let needle = format!("{}{}", "clear_recording_", "flag(");
+        // Skip the function's own definition (`fn clear_recording_flag(...)`)
+        // and any reference inside a doc-comment line. Only real call
+        // sites should be scanned.
+        let fn_def_prefix = "fn ";
         for (i, line) in lines.iter().enumerate() {
-            if line.contains(&needle) {
+            let trimmed = line.trim_start();
+            if line.contains(&needle)
+                && !trimmed.starts_with("///")
+                && !trimmed.starts_with("//")
+                && !trimmed.starts_with(fn_def_prefix)
+            {
                 // Look 12 lines either side for the paired
                 // clear_active_recording_context OR the magic
                 // CONTEXT-INTENTIONAL comment.
@@ -4820,5 +5047,88 @@ mod diarised_helpers_tests {
                 );
             }
         }
+    }
+
+    /// Single-shot auto-stop constants pin.
+    ///
+    /// `SINGLE_SHOT_AUTO_STOP_MS` must remain at 295_000 (4 minutes
+    /// 55 seconds) so that the auto-stop fires at least 5 seconds
+    /// before the ASR transcribe-layer cap (`MAX_TRANSCRIBE_SECONDS
+    /// = 5 * 60 = 300` in `services/inference/mod.rs`). The 5-second
+    /// margin is what guarantees the post-stop AudioBuffer.pcm
+    /// length stays under the cap even after the resampler tail and
+    /// the last cpal callback land. Bumping one constant without
+    /// the other (or shrinking the margin) re-introduces the
+    /// "lost the recording at 5:30" bug that this timer fixes.
+    #[test]
+    fn auto_stop_pin_constants_match_asr_cap() {
+        assert_eq!(
+            super::SINGLE_SHOT_AUTO_STOP_MS,
+            295_000,
+            "SINGLE_SHOT_AUTO_STOP_MS must be 295_000 ms (4:55)"
+        );
+        // Mirror of the cap in services/inference/mod.rs. Hard-coded
+        // here because the ASR cap is module-private; if a future
+        // refactor exposes it, replace this literal with the import.
+        const ASR_MAX_TRANSCRIBE_SECONDS: i64 = 5 * 60;
+        let asr_cap_ms: i64 = ASR_MAX_TRANSCRIBE_SECONDS * 1000;
+        let margin_ms: i64 = asr_cap_ms - super::SINGLE_SHOT_AUTO_STOP_MS;
+        assert!(
+            margin_ms >= 5_000,
+            "auto-stop must fire at least 5 s before the ASR cap (margin={} ms)",
+            margin_ms
+        );
+        assert_eq!(
+            margin_ms, 5_000,
+            "design value: 5 s margin exactly. Drift from this means \
+             the design rationale needs updating."
+        );
+    }
+
+    /// `auto_stop_should_proceed` returns `true` for the same
+    /// non-meeting session, `false` for every other case the timer
+    /// could see at wake time.
+    #[test]
+    fn auto_stop_proceeds_only_for_same_non_meeting_session() {
+        // Same session, non-meeting → proceed.
+        let same_non_meeting = crate::app_state::ActiveRecordingContext {
+            mode_id: "voice-to-text".into(),
+            is_meeting: false,
+            meeting_model_id: None,
+            started_at_ms: 1_000,
+        };
+        assert!(super::auto_stop_should_proceed(
+            1_000,
+            Some(&same_non_meeting)
+        ));
+
+        // Same started_at_ms but is_meeting → defensive false.
+        // (Should be unreachable since the timer isn't spawned for
+        // meeting starts, but the helper is the last line of
+        // defence.)
+        let same_meeting = crate::app_state::ActiveRecordingContext {
+            mode_id: "meeting".into(),
+            is_meeting: true,
+            meeting_model_id: Some("sherpa-whisper-small".into()),
+            started_at_ms: 1_000,
+        };
+        assert!(!super::auto_stop_should_proceed(1_000, Some(&same_meeting)));
+
+        // Different started_at_ms → stale session, false. (User
+        // pressed stop and started a new recording while the timer
+        // was sleeping.)
+        let different_session = crate::app_state::ActiveRecordingContext {
+            mode_id: "voice-to-text".into(),
+            is_meeting: false,
+            meeting_model_id: None,
+            started_at_ms: 2_000,
+        };
+        assert!(!super::auto_stop_should_proceed(
+            1_000,
+            Some(&different_session)
+        ));
+
+        // No context at all → user already stopped/cancelled, false.
+        assert!(!super::auto_stop_should_proceed(1_000, None));
     }
 }

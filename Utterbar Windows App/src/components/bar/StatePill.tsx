@@ -92,6 +92,15 @@ function describe(phase: DictationPhase) {
         const label = `Saved · ${time}${modelSegment} · ${chunks} chunk${chunks === 1 ? '' : 's'} · ${chars.toLocaleString()} chars`;
         return { label, tone: 'success' as const };
       }
+      // When the Rust auto-stop timer drove this stop (single-shot
+      // dictation hit the 5-minute cap), surface a clear non-error
+      // label instead of the generic "Inserted" so the user
+      // understands why their recording ended without their hotkey
+      // press. Audio up to the cap was transcribed and inserted
+      // normally.
+      if (phase.notice) {
+        return { label: 'Auto-stopped at 5 min', tone: 'success' as const };
+      }
       return { label: 'Inserted', tone: 'success' as const };
     case 'error':
       return { label: 'Error', tone: 'error' as const };

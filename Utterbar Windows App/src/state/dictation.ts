@@ -23,7 +23,16 @@ export type DictationPhase =
   // `summary` is populated for meeting-mode recordings so the floating
   // bar can render "5:01 · 11 chunks · 799 chars" instead of the generic
   // "Inserted" pill. Optional — ordinary dictations omit it.
-  | { kind: 'success'; summary?: DictationSuccessSummary }
+  //
+  // `notice` is populated when the stop path produced a successful
+  // transcript but wants to flag a non-error condition the user
+  // should see. The single-shot auto-stop at the 5-minute cap
+  // sets it to "Auto-stopped at 5 min. Use Meeting Mode for
+  // longer recordings." Distinct from `summary` because the
+  // notice fires for non-meeting recordings (which never have a
+  // summary), and distinct from `error` because the recording did
+  // produce a transcript and the user got their text inserted.
+  | { kind: 'success'; summary?: DictationSuccessSummary; notice?: string }
   | { kind: 'error'; message: string }
   | { kind: 'cancelled' }
   // v0.6.6 — the clip had no usable speech; bar shows "No audio detected"

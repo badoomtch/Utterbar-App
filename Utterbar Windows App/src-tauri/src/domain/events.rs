@@ -53,9 +53,19 @@ pub enum DictationPhase {
     /// identical in the bar (both transition Listening → Processing →
     /// Success). Default None for ordinary dictations so the existing
     /// "Inserted" treatment is unchanged.
+    ///
+    /// Optional `notice` is populated for stop paths that produced a
+    /// successful transcript but want to flag a non-error condition
+    /// the user should see, e.g. the single-shot auto-stop at the
+    /// 5-minute dictation cap. Distinct from `summary` because the
+    /// notice fires for non-meeting recordings (which never have a
+    /// summary) and distinct from `Error` because the recording did
+    /// produce a transcript and the user got their text inserted.
     Success {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         summary: Option<DictationSuccessSummary>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notice: Option<String>,
     },
     Error {
         message: String,
