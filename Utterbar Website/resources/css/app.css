@@ -769,9 +769,13 @@
     position: relative;
     display: flex;
     align-items: center;
-    height: 72px;
+    /* Geometry tightened toward the real desktop bar (52 px / 44 px
+       compact) without breaking hero balance. The hero pill stays
+       slightly larger than the OS bar so the mock reads at hero
+       distance, but the gap between the two has closed. */
+    height: 64px;
     width: 280px;
-    padding: 0 1.25rem;
+    padding: 0 1.1rem;
     border-radius: 999px;
     border: 2px solid #FFFFFF;
     background: linear-gradient(180deg, var(--pill-top) 0%, var(--pill-bot) 100%);
@@ -800,21 +804,27 @@
 }
 
 .ub-pill.is-expanded {
-    width: 560px;
+    /* Bumped from 560 to 600 px so the new mode-chip cluster has
+       breathing room between the version chip and the wave. */
+    width: 600px;
     box-shadow:
         inset 0 0 40px rgba(0, 246, 255, 0.12),
         0 30px 80px -20px rgba(0, 0, 0, 0.75);
 }
 
 @media (max-width: 760px) {
-    .ub-pill.is-expanded { width: min(92vw, 560px); }
+    .ub-pill.is-expanded { width: min(92vw, 600px); }
 }
 
 @media (max-width: 640px) {
-    .ub-pill { height: 64px; width: 240px; padding: 0 0.9rem; }
+    .ub-pill { height: 56px; width: 240px; padding: 0 0.85rem; }
     .ub-pill.is-expanded { width: min(94vw, 440px); }
-    /* On narrow phones, strip the pill down to logo + Download so the CTA stays visible */
+    /* On narrow phones, strip the pill down to logo + state chip + CTA
+       so the call-to-action stays visible. The mode chips are part of
+       the hidden cluster because the chip cluster only reads cleanly
+       at the wider widths. */
     .ub-pill.is-expanded .ub-pill-version,
+    .ub-pill.is-expanded .ub-pill-modes,
     .ub-pill.is-expanded .ub-pill-wave { display: none; }
     .ub-pill .ub-pill-right { justify-content: flex-end; margin-left: 0.5rem; }
     .ub-pill-wordmark { font-size: 1.25rem; }
@@ -879,18 +889,85 @@
     background: color-mix(in oklab, var(--accent) 14%, transparent);
     border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
     white-space: nowrap;
+    transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+/* Recording state: red dot + "Recording" copy. Mirrors the real
+   desktop bar's Recording phase chip language. */
+.ub-pill-version.is-rec {
+    color: #ff4d6d;
+    background: color-mix(in oklab, #ff4d6d 12%, transparent);
+    border-color: color-mix(in oklab, #ff4d6d 40%, transparent);
+}
+
+/* Brief success window after the demo ends but before demoText
+   clears — version chip flashes "Inserted" the way the real
+   desktop bar's StatePill does. */
+.ub-pill-version.is-success {
+    color: #34d399;
+    background: color-mix(in oklab, #34d399 14%, transparent);
+    border-color: color-mix(in oklab, #34d399 40%, transparent);
+}
+
+/* Mode chips. Mirrors the desktop app's BarModeSwitch: a tight row
+   of icon-only chips, one active with an accent gradient fill, the
+   rest muted. Compact-only here (24 px) since the hero pill is
+   smaller than the real bar. */
+.ub-pill-modes {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ub-pill-mode {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.6);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: background 180ms ease, color 180ms ease, transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ub-pill-mode:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    transform: scale(1.06);
+}
+
+.ub-pill-mode.is-active {
+    background: linear-gradient(180deg, #00f6ff, #00a3ff);
+    color: #06121a;
+    box-shadow: 0 2px 10px color-mix(in oklab, #00ccf5 40%, transparent);
+}
+
+.ub-pill-mode-icon {
+    display: inline-flex;
+    width: 15px;
+    height: 15px;
+}
+
+.ub-pill-mode-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 
 .ub-pill-wave {
     display: flex;
     align-items: center;
-    gap: 3px;
-    height: 20px;
+    gap: 4px;
+    height: 22px;
 }
 
 .ub-pill-wave span {
-    width: 3px;
-    border-radius: 1.5px;
+    width: 4px;
+    border-radius: 2px;
     background: linear-gradient(180deg, #00f6ff, #00a3ff);
     animation: ub-pill-wave 0.7s ease-in-out infinite alternate;
 }
@@ -903,8 +980,16 @@
 .ub-pill-wave span:nth-child(7) { animation-duration: 0.45s; animation-delay: 0.1s; }
 
 @keyframes ub-pill-wave {
-    0%   { height: 3px; }
-    100% { height: 18px; }
+    0%   { height: 4px; }
+    100% { height: 20px; }
+}
+
+/* Reduced motion: freeze the wave bars at mid-height, kill mode chip
+   hover scale. Mirrors the desktop bar's reduced-motion behaviour. */
+@media (prefers-reduced-motion: reduce) {
+    .ub-pill-wave span { animation: none !important; height: 12px !important; }
+    .ub-pill-mode { transition: none; }
+    .ub-pill-mode:hover { transform: none; }
 }
 
 .ub-pill-cta {

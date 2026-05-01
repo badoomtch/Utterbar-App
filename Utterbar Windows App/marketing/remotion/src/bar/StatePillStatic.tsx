@@ -19,25 +19,54 @@
  * mid-transition states.
  */
 import { cn } from '@/lib/cn';
-import type { DictationPhase } from '@/state/dictation';
+import { useDictation, type DictationPhase, type MeetingProgress } from '@/state/dictation';
 
 export function StatePill({ phase }: { phase: DictationPhase }) {
-  const { label, tone } = describe(phase);
+  // Read meeting progress from the store the same way the shipping
+  // StatePill does. BarDriver writes the slot for the
+  // transcribing_background state; everything else gets null.
+  const meetingProgress = useDictation((s) => s.meetingProgress);
+  const { label, tone } = describe(phase, meetingProgress);
+  // Show a thin progress track under the chip when the meeting is
+  // mid-transcribe with known total chunks, mirroring the shipping
+  // StatePill. Single-chunk meetings (no progress payload) and
+  // every non-meeting phase fall through to the bare chip.
+  const showProgress =
+    phase.kind === 'transcribing_background' &&
+    meetingProgress !== null &&
+    meetingProgress.totalChunks > 0;
+  const fraction = showProgress
+    ? Math.min(
+        1,
+        Math.max(0, (meetingProgress.chunkIndex + 1) / meetingProgress.totalChunks),
+      )
+    : 0;
   return (
     <span
       className={cn(
-        'inline-flex cursor-default select-none items-center gap-1.5 rounded-full px-2 py-0.5',
+        'relative inline-flex cursor-default select-none items-center gap-1.5 rounded-full px-2 py-0.5',
         'font-mono text-[11px] font-medium uppercase tracking-[0.08em]',
         toneClass(tone),
       )}
     >
       <span className={cn('h-1.5 w-1.5 rounded-full', dotClass(tone))} />
       {label}
+      {showProgress && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-2 bottom-0.5 h-[1.5px] overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--accent)_18%,transparent)]"
+        >
+          <span
+            className="block h-full origin-left bg-accent"
+            style={{ width: `${(fraction * 100).toFixed(1)}%` }}
+          />
+        </span>
+      )}
     </span>
   );
 }
 
-function describe(phase: DictationPhase) {
+function describe(phase: DictationPhase, meetingProgress: MeetingProgress | null) {
   switch (phase.kind) {
     case 'idle':
       return { label: 'Ready', tone: 'muted' as const };
@@ -47,6 +76,20 @@ function describe(phase: DictationPhase) {
       return { label: 'Recording', tone: 'accent' as const };
     case 'processing':
       return { label: 'Processing', tone: 'accent' as const };
+    case 'transcribing_background':
+      // Mirror the shipping StatePill: render "Transcribing
+      // meeting · N/M" when chunk progress is known, fall back
+      // to the bare ellipsis copy otherwise (single-chunk
+      // meetings and the brief moment between phase change and
+      // first progress event arrival).
+      if (meetingProgress && meetingProgress.totalChunks > 0) {
+        const current = meetingProgress.chunkIndex + 1;
+        return {
+          label: `Transcribing meeting · ${current}/${meetingProgress.totalChunks}`,
+          tone: 'accent' as const,
+        };
+      }
+      return { label: 'Transcribing meeting…', tone: 'accent' as const };
     case 'success':
       return { label: 'Inserted', tone: 'success' as const };
     case 'error':

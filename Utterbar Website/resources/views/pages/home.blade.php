@@ -207,12 +207,32 @@
                                 <span class="ub-pill-wordmark">Utter<span class="ub-wm-bar">bar</span></span>
                             </div>
 
-                            {{-- Right: version chip + waveform + Try-me button.
-                                 Recording state swaps the version for a red REC
-                                 chip and the wave runs tighter. --}}
+                            {{-- Right: state chip + mode chips + waveform + Try-me button.
+                                 Mirrors the real desktop floating bar's
+                                 cluster: a state chip (idle / Recording /
+                                 Inserted), a tight row of mode chips (Voice
+                                 / Message / Meeting) matching the real
+                                 BarModeSwitch, and the seven-bar waveform.
+                                 Recording flips state to "Recording" + red
+                                 dot; the demo end flashes "Inserted" for a
+                                 beat before settling back to the version
+                                 chip. --}}
                             <div class="ub-pill-right">
-                                <span class="ub-pill-version" :class="{ 'is-rec': recording }"
-                                      x-text="recording ? '● REC' : 'v{{ ($latestRelease ?? null)?->version ?? config('site.version') }}'"></span>
+                                <span class="ub-pill-version"
+                                      :class="{ 'is-rec': recording, 'is-success': !recording && demoText }"
+                                      x-text="stateLabel()"></span>
+                                <div class="ub-pill-modes" aria-hidden="true">
+                                    <template x-for="m in modes" :key="m.id">
+                                        <button type="button"
+                                                class="ub-pill-mode"
+                                                :class="{ 'is-active': m.id === activeMode }"
+                                                :aria-pressed="(m.id === activeMode).toString()"
+                                                :aria-label="m.label"
+                                                @click.stop="cycleMode(m.id)">
+                                            <span class="ub-pill-mode-icon" x-html="m.icon"></span>
+                                        </button>
+                                    </template>
+                                </div>
                                 <div class="ub-pill-wave" :class="{ 'is-rec': recording }" aria-hidden="true">
                                     <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
                                 </div>
@@ -276,6 +296,37 @@
                 _demoFadeTimer: null,
                 _autoExpandTimer1: null,
                 _autoExpandTimer2: null,
+
+                // Mode chips. Matches the desktop app's BarModeSwitch:
+                // three built-in mode icons sitting in the recording
+                // cluster, one active (cyan-gradient fill), the rest
+                // muted. Tapping a chip cycles the active one in this
+                // demo. The chips are decorative on the hero — they
+                // demonstrate the surface, they don't drive different
+                // demo text. Icons are inline SVGs to avoid an icon-
+                // pack dependency on the home page.
+                activeMode: 'message',
+                modes: [
+                    { id: 'voice',   label: 'Voice mode',   icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 7v1a4.5 4.5 0 0 0 9 0V7"/><path d="M8 12.5v1.5"/></svg>' },
+                    { id: 'message', label: 'Message mode', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6L3 14v-2.5h-.5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Z"/></svg>' },
+                    { id: 'meeting', label: 'Meeting mode', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"/><circle cx="11" cy="6" r="2"/><path d="M2 13c.5-2 1.8-3 3-3s2.5 1 3 3"/><path d="M8 13c.5-2 1.8-3 3-3s2.5 1 3 3"/></svg>' },
+                ],
+                cycleMode(id) {
+                    this.activeMode = id;
+                    this.hasInteracted = true;
+                },
+                // Single source of truth for the state-chip label so
+                // the markup stays simple. Mirrors the real desktop
+                // app's StatePill: "Recording" while the demo runs,
+                // "Inserted" briefly after it ends (the success
+                // window where demoText is still on screen but
+                // recording has flipped off), otherwise the version
+                // chip.
+                stateLabel() {
+                    if (this.recording) return '● Recording';
+                    if (this.demoText) return 'Inserted';
+                    return 'v{{ ($latestRelease ?? null)?->version ?? config('site.version') }}';
+                },
 
                 autoExpandOnce() {
                     // Auto-expand 900ms after page load so the "Try me"
