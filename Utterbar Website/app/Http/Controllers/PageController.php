@@ -47,6 +47,7 @@ class PageController extends Controller
     public function compareIndex() { return view('pages.compare.index'); }
     public function compareWisprFlow() { return view('pages.compare.wispr-flow'); }
     public function compareDragon() { return view('pages.compare.dragon'); }
+    public function compareVoiceAccess() { return view('pages.compare.voice-access'); }
 
     // Educational deep-dive — "what is local dictation" — link-bait quality
     // page that explains on-device speech recognition without selling.

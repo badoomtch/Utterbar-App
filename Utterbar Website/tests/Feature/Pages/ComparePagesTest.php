@@ -76,4 +76,31 @@ class ComparePagesTest extends TestCase
         $count = substr_count($response->getContent(), 'Dragon');
         $this->assertGreaterThan(2, $count, 'Dragon must appear in headline + table column labels.');
     }
+
+    public function test_compare_voice_access_renders(): void
+    {
+        $response = $this->get(route('compare.voice-access'));
+        $response->assertStatus(200);
+        $response->assertSee('Voice Access', false);
+    }
+
+    public function test_compare_voice_access_shows_utterbar_pricing_anchor(): void
+    {
+        $response = $this->get(route('compare.voice-access'));
+        $response->assertStatus(200);
+        $response->assertSee('£39.99', false);
+    }
+
+    public function test_compare_voice_access_does_not_overclaim_voice_access_lacks_vocabulary(): void
+    {
+        // Microsoft does not document a Dragon-style persistent
+        // personal dictionary in Voice Access; we said so in the
+        // comparison row but soft-phrased it ("not documented in
+        // the Microsoft docs we reviewed"). Pin the soft phrasing
+        // so a future content edit can't quietly harden the claim
+        // into "Voice Access has no custom vocabulary" without
+        // re-checking Microsoft's docs.
+        $response = $this->get(route('compare.voice-access'));
+        $response->assertSee('not documented', false);
+    }
 }
