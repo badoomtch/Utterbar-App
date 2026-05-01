@@ -9,8 +9,8 @@ Active working list. Keep short. When something ships, move it out of Next actio
 ## Current status
 
 - **Stable channel:** v0.15.6 (admin row 56). DirectML execution provider live, Whisper Small stays on CPU on Auto.
-- **Beta channel:** v0.15.9 (admin row 59). Output validation now runs on the file-transcription path too: bad ASR output is filtered before any `.utterbar.txt` / `.srt` / `.vtt` sidecar is written, and the job lands as Error with a clear "Output filtered" message. Regular-dictation validation from v0.15.8 is unchanged. Meeting Mode is still deliberately bypassed.
-- **In-tree app version:** v0.15.9 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
+- **Beta channel:** v0.15.10 (admin row 60). All three ASR surfaces now run the shared output validator: regular dictation (since 0.15.8), file transcription (since 0.15.9), and Meeting Mode per-chunk (new in 0.15.10). Meeting chunks drop on empty / whitespace / single-punct / 10+-repeated-punct, observe-only on repeated-token loops, and skip foreign-script + known-hallucination rules. Whole meetings still rely on the existing empty-transcript guard.
+- **In-tree app version:** v0.15.10 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
 - **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
 - **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
 - **Cloudflare Always Use HTTPS** enabled. Plain HTTP redirects to HTTPS for apex, www, and dl. subdomains.
@@ -25,9 +25,10 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 In rough order. Adjust as evidence comes in.
 
-1. **Decide whether to extend output validation to Meeting Mode.** Both the regular-dictation and file-transcription paths now run the shared validator; Meeting Mode is the only ASR surface still bypassing it. Soak the v0.15.8 + v0.15.9 telemetry first to see which rules fire in real use; the meeting case is harder because legitimate meeting transcripts can carry repetition and mixed-language content the noticed-drop rules would flag. Decision then implementation, not the other way round.
-2. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
-3. **Pick the next product work item** from the backlog below.
+1. **B2B sprint: fleet licence delivery + IT policy controls.** Make Utterbar credible for managed deployment. Two chunks: (a) admin-downloadable signed `licence.bin` that the desktop app reads from `%APPDATA%\Utterbar\licence.bin` and treats as the active Pro licence, with managed wins over user-entered; (b) three new group policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`) under the existing `HKLM\SOFTWARE\Policies\Utterbar` registry path. Plus IT-deployment docs. Out of scope for this sprint: volume self-serve checkout, air-gapped activation, code-signed customer builds, Stripe invoice automation.
+2. **Promote the validation work to stable.** Once 0.15.8 / 0.15.9 / 0.15.10 soak shows the noticed-drop rules don't false-positive on real users (target: 1-2 weeks of beta with `output_validation: dropped` log lines reviewed), bundle as 0.16.0 stable. Single-version cut bringing all three ASR-surface validators to the stable channel.
+3. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
+4. **Pick the next product work item** from the backlog below.
 
 ---
 
