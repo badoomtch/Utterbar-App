@@ -83,7 +83,15 @@ class VolumePricing
      */
     public static function sku(): string
     {
-        return (string) config('services.licence.sku_string_volume', 'utterbar-pro-volume');
+        // `config(..., default)` only returns the default when the key
+        // is missing, not when the key is present-but-null. We coerce
+        // explicitly so a null/empty value (e.g. an env var set to a
+        // blank string) still falls back to the documented default.
+        $value = config('services.licence.sku_string_volume');
+        if (!is_string($value) || $value === '') {
+            return 'utterbar-pro-volume';
+        }
+        return $value;
     }
 
     /**
