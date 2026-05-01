@@ -21,6 +21,7 @@ pub mod api;
 pub mod cache;
 pub mod keyfmt;
 pub mod managed;
+pub mod request;
 pub mod verify;
 
 use std::sync::Arc;

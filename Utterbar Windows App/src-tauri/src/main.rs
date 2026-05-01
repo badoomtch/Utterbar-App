@@ -166,6 +166,7 @@ fn main() {
             commands::licence::licence_activate,
             commands::licence::licence_deactivate,
             commands::licence::licence_is_managed,
+            commands::licence::licence_export_request_file,
             // analytics
             commands::analytics::get_stats_summary,
             commands::analytics::get_stats_series,

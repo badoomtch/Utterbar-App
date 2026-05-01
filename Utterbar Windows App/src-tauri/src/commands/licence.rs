@@ -44,3 +44,60 @@ pub async fn licence_deactivate(
 pub fn licence_is_managed(state: State<'_, Arc<AppState>>) -> CmdResult<bool> {
     Ok(state.licence.is_managed())
 }
+
+/// Air-gapped activation: write a JSON activation-request file to the
+/// path the user picked in the save dialog. The file is what the
+/// admin uploads at /admin/licences/{id} to register an offline
+/// activation. See `services::licence::request` for the format and
+/// `docs/it-deployment` (Air-gapped activation) for the customer-
+/// facing playbook.
+///
+/// Returns the suggested filename so the UI can render a "saved as
+/// X" confirmation. The file at `dest_path` is written atomically:
+/// we serialise to a string first, then a single write call. Partial
+/// writes on disk-full leave a truncated file, which the admin
+/// upload validator rejects on format magic.
+///
+/// Cross-platform: the underlying fingerprint is Windows-only so this
+/// command is gated `#[cfg(windows)]`. On non-Windows builds (CI
+/// editor / dev tooling) the command falls back to a clear error
+/// rather than refusing to compile.
+#[tauri::command]
+pub async fn licence_export_request_file(dest_path: String) -> CmdResult<String> {
+    use crate::services::licence::request::ActivationRequest;
+    use crate::util::result::OrliqError;
+
+    #[cfg(not(windows))]
+    {
+        let _ = dest_path;
+        return Err(OrliqError::Licence {
+            code: "internal".to_string(),
+            message: "activation-request export requires Windows".to_string(),
+        });
+    }
+
+    #[cfg(windows)]
+    {
+        let req = ActivationRequest::for_current_machine()?;
+        let json = req.to_json_pretty()?;
+
+        // The path comes from the user's dialog pick. We don't try to
+        // sandbox it — the user explicitly chose it. We do refuse to
+        // write to an empty path, which can happen if the JS wrapper
+        // didn't honour the cancel-on-dismiss contract.
+        if dest_path.trim().is_empty() {
+            return Err(OrliqError::Licence {
+                code: "internal".to_string(),
+                message: "destination path is empty".to_string(),
+            });
+        }
+
+        std::fs::write(&dest_path, json.as_bytes()).map_err(|e| OrliqError::Licence {
+            code: "internal".to_string(),
+            message: format!("write request file to {dest_path}: {e}"),
+        })?;
+
+        tracing::info!(path = %dest_path, "activation request file written");
+        Ok(req.suggested_filename())
+    }
+}
