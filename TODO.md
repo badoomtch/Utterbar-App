@@ -2,7 +2,7 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-05-04**
+**Last updated: 2026-05-05**
 
 ---
 
@@ -28,7 +28,9 @@ In rough order. Adjust as evidence comes in.
 
 1. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
 2. **Watch v0.16.0 stable soak.** First stable from a wide bundle (six betas worth of work in one promote). Particular attention on: per-chunk Meeting Mode validation false-positives, the 4:55 auto-stop interaction with mid-sentence speech, managed-licence + air-gapped flows on real customer hardware. Hotfix to 0.16.1 if anything load-bearing surfaces.
-3. **Pick the next product work item** from the backlog below.
+3. **Fix launch-at-startup reliability.** User reports the app does not launch after restarting Windows even though the setting is enabled. Treat as a bug: inspect startup registration, installer behaviour, and whether the setting writes the expected Windows startup entry.
+4. **Updater relaunch should open the app, not hide to tray.** After an update and relaunch, bring the app/floating bar/settings surface visibly back instead of starting minimised/closed-to-tray.
+5. **Pick the next product work item** from the backlog below.
 
 ---
 
@@ -37,6 +39,17 @@ In rough order. Adjust as evidence comes in.
 One or two lines each. Expand only if the item moves to Next actions.
 
 - **Whisper Small DML policy re-test.** Auto-Small currently routes to CPU per real-meeting evidence on Jay's machine (CPU RTF 0.190 vs DML 0.222). Re-test only if future evidence on different hardware reverses it; the policy is a one-line change in `services/inference/mod.rs::resolve_provider`.
+
+### Product / UX ideas from Jay
+
+- **Per-app meeting mute controls.** Let users choose target apps (Teams, Discord, Zoom, etc.) and automatically mute/unmute themselves there while Utterbar is recording. High-value but integration-heavy: needs per-app detection, hotkey/API strategy per app, visible fail-safe state, and careful testing so we never leave someone muted.
+- **Smart rewrite toggle.** Optional slower post-processing pass that lightly fixes obvious sentence issues before paste. Must be opt-in, visibly slower, and conservative enough not to rewrite meaning. Likely local deterministic first; LLM-style rewrite only if privacy/cost/product stance is explicit.
+- **Meeting transcription progress bar.** Show progress while "Transcribing Meeting" so long recordings feel alive. Should report chunk progress from Rust rather than fake a timer.
+- **Settings search.** Add search/filter to Settings so users can find controls by keyword. Straightforward frontend work if settings sections already have stable labels.
+- **Opt-in product analytics.** Add onboarding + Settings toggle for sending usage analytics to help development, default off or explicit opt-in. Must show exactly what is collected, link to the privacy docs, and respect IT policy controls. Current `BlockTelemetry` only gates local analytics; remote analytics would need separate consent, endpoint, retention policy, and legal copy.
+- **Comparison pages expansion.** `/compare` currently has one real comparison and placeholder content. Add more competitor pages and tighten the index so it is not thin/placeholder-looking.
+- **Audio-reactive waveform.** Floating bar waveform should move only when audio is detected instead of playing a constant decorative animation. Use existing input level/meter data where possible.
+- **Website/remotion Utterbar visual refresh.** The interactive Utterbar hero and Remotion compositions should match the current real floating bar, including the mode controls.
 
 ### B2B follow-throughs (post first-pass)
 
