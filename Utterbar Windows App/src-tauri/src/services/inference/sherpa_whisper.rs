@@ -19,6 +19,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -100,8 +101,22 @@ impl SherpaWhisper {
             }
         }
 
-        tracing::info!(model = %self.model_id, dir = %self.model_dir.display(), language = %self.language, "whisper::ensure_loaded begin");
+        // Same cold-warm timing shape as the Parakeet engine — see
+        // sherpa_parakeet::ensure_loaded for what each segment measures.
+        // Whisper's native_construct_ms is typically the dominant cost
+        // for Medium/Large where ORT mmaps several hundred MB.
+        let warm_start = Instant::now();
+        tracing::info!(
+            model = %self.model_id,
+            dir = %self.model_dir.display(),
+            family = "whisper",
+            provider = %self.provider,
+            language = %self.language,
+            "asr_warm: begin"
+        );
+        let resolve_start = Instant::now();
         let (encoder, decoder, tokens) = self.resolve_files()?;
+        let file_resolve_ms = resolve_start.elapsed().as_millis() as u64;
         let encoder = encoder.to_string_lossy().into_owned();
         let decoder = decoder.to_string_lossy().into_owned();
         let tokens = tokens.to_string_lossy().into_owned();
@@ -142,13 +157,8 @@ impl SherpaWhisper {
         // an information loss in the telemetry layer.
         let provider = self.provider.clone();
         let language = self.language.clone();
-        tracing::info!(
-            model = %self.model_id,
-            provider = %provider,
-            "whisper: building WhisperConfig with resolved provider"
-        );
 
-        tokio::task::spawn_blocking(move || -> Result<()> {
+        let native_construct_ms = tokio::task::spawn_blocking(move || -> Result<u64> {
             // Sherpa-onnx's WhisperConfig.language wants either an empty
             // string (auto-detect via language-id tokens at decode time)
             // or a concrete ISO-639-1 code such as "en" / "fr". The
@@ -171,11 +181,6 @@ impl SherpaWhisper {
             } else {
                 language.clone()
             };
-            tracing::info!(
-                %model_id, %provider, ui_language = %language,
-                sherpa_language = %sherpa_language,
-                "whisper: building WhisperConfig"
-            );
             let config = sherpa_rs::whisper::WhisperConfig {
                 decoder,
                 encoder,
@@ -186,20 +191,32 @@ impl SherpaWhisper {
                 debug: false,
                 ..Default::default()
             };
-            tracing::info!(%model_id, "whisper: WhisperRecognizer::new calling into native");
+            let native_start = Instant::now();
             let recognizer = sherpa_rs::whisper::WhisperRecognizer::new(config).map_err(|e| {
                 tracing::error!(%model_id, error = ?e, "whisper init failed");
                 anyhow!("whisper init: {e:?}")
             })?;
-            tracing::info!(%model_id, "whisper: recognizer constructed");
+            let native_ms = native_start.elapsed().as_millis() as u64;
             let mut guard = inner
                 .lock()
                 .map_err(|_| anyhow!("recognizer mutex poisoned"))?;
             *guard = Some(recognizer);
-            Ok(())
+            Ok(native_ms)
         })
         .await
         .context("whisper warm spawn_blocking failed")??;
+
+        let total_warm_ms = warm_start.elapsed().as_millis() as u64;
+        tracing::info!(
+            model = %self.model_id,
+            family = "whisper",
+            provider = %self.provider,
+            language = %self.language,
+            file_resolve_ms,
+            native_construct_ms,
+            total_warm_ms,
+            "asr_warm: done"
+        );
         Ok(())
     }
 }
