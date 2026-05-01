@@ -50,6 +50,7 @@ class SitemapController extends Controller
             ['path' => '/press',                  'priority' => '0.5', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/compare',                'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/compare/wispr-flow',     'priority' => '0.8', 'changefreq' => 'monthly', 'lastmod' => $now],
+            ['path' => '/compare/dragon',         'priority' => '0.8', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/what-is-local-dictation','priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/docs',                   'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/docs/getting-started',   'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],

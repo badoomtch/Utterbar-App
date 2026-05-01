@@ -55,4 +55,25 @@ class ComparePagesTest extends TestCase
         $count = substr_count($response->getContent(), 'Wispr Flow');
         $this->assertGreaterThan(2, $count, 'Wispr Flow must appear in headline + table column labels.');
     }
+
+    public function test_compare_dragon_renders(): void
+    {
+        $response = $this->get(route('compare.dragon'));
+        $response->assertStatus(200);
+        $response->assertSee('Dragon', false);
+    }
+
+    public function test_compare_dragon_shows_utterbar_pricing_anchor(): void
+    {
+        $response = $this->get(route('compare.dragon'));
+        $response->assertStatus(200);
+        $response->assertSee('£39.99', false);
+    }
+
+    public function test_compare_dragon_uses_extracted_compare_table(): void
+    {
+        $response = $this->get(route('compare.dragon'));
+        $count = substr_count($response->getContent(), 'Dragon');
+        $this->assertGreaterThan(2, $count, 'Dragon must appear in headline + table column labels.');
+    }
 }

@@ -64,6 +64,7 @@ Route::post('/api/business/enquiry', [BusinessEnquiryController::class, 'store']
 Route::prefix('compare')->name('compare.')->group(function () {
     Route::get('/', [PageController::class, 'compareIndex'])->name('index');
     Route::get('/wispr-flow', [PageController::class, 'compareWisprFlow'])->name('wispr-flow');
+    Route::get('/dragon', [PageController::class, 'compareDragon'])->name('dragon');
 });
 
 Route::prefix('docs')->name('docs.')->group(function () {
