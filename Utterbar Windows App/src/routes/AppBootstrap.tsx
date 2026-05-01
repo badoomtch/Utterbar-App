@@ -31,6 +31,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   const loadSettings = useSettings((s) => s.load);
   const setPhase = useDictation((s) => s.setPhase);
   const setMeter = useDictation((s) => s.setMeter);
+  const setMeetingProgress = useDictation((s) => s.setMeetingProgress);
   const setLastText = useDictation((s) => s.setLastText);
   const loadLicence = useLicence((s) => s.load);
   const loadPolicy = usePolicy((s) => s.load);
@@ -106,6 +107,19 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
         setPhase(e.payload);
       }),
       listen<MeterFrame>(EVT.dictationMeter, (e) => setMeter(e.payload)),
+      // Meeting Mode chunk progress. Payload shape matches the Rust
+      // `MeetingChunkProgress` struct in domain/events.rs. Coarse —
+      // one event per chunk boundary, so a 5-minute meeting at the
+      // 27 s stride emits ~11 events total.
+      listen<{ chunk_index: number; total_chunks: number }>(
+        EVT.dictationChunkProgress,
+        (e) => {
+          setMeetingProgress({
+            chunkIndex: e.payload.chunk_index,
+            totalChunks: e.payload.total_chunks,
+          });
+        },
+      ),
       // Keep `lastText` in sync with the most recent successful dictation.
       // Powers the floating bar's "Copy last message" button — the button
       // only needs a store read, no SQLite round-trip.
@@ -222,7 +236,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
     return () => {
       for (const p of unlisteners) void p.then((u) => u()).catch(() => undefined);
     };
-  }, [setPhase, setMeter, setLastText, isMain]);
+  }, [setPhase, setMeter, setMeetingProgress, setLastText, isMain]);
 
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'never'}>{children}</MotionConfig>

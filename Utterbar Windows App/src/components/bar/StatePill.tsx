@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/cn';
 import { springs } from '@/design/motion';
-import type { DictationPhase } from '@/state/dictation';
+import { useDictation, type DictationPhase, type MeetingProgress } from '@/state/dictation';
 
 /**
  * StatePill — the dictation-phase read inside the floating bar.
@@ -20,7 +20,33 @@ import type { DictationPhase } from '@/state/dictation';
  * and state reads — exactly this).
  */
 export function StatePill({ phase }: { phase: DictationPhase }) {
-  const { label, tone } = describe(phase);
+  // Read meeting progress directly from the store rather than threading
+  // it through props from FloatingBar. The store slot is null for every
+  // phase except `transcribing_background`, and `setPhase` clears it on
+  // every transition out of that phase, so reading it unconditionally
+  // here is safe (and a re-render is only triggered when the value
+  // changes, by zustand's default reference equality).
+  const meetingProgress = useDictation((s) => s.meetingProgress);
+  const { label, tone } = describe(phase, meetingProgress);
+  // The progress track is a thin accent line under the pill that fills
+  // proportionally as chunks complete. Only shown for the meeting-
+  // transcribe phase WITH a non-null progress payload (single-chunk
+  // fast path doesn't emit, so this never appears for short meetings).
+  const showProgress =
+    phase.kind === 'transcribing_background' &&
+    meetingProgress !== null &&
+    meetingProgress.totalChunks > 0;
+  // Each chunk emits its progress at the START of its work, so showing
+  // (chunkIndex + 1) / totalChunks reads as "we are now on chunk N of
+  // M" rather than "N chunks have completed". Clamp to [0, 1] so a
+  // late event with chunk_index >= total_chunks (shouldn't happen but
+  // be defensive) still renders sanely.
+  const fraction = showProgress
+    ? Math.min(
+        1,
+        Math.max(0, (meetingProgress.chunkIndex + 1) / meetingProgress.totalChunks),
+      )
+    : 0;
   return (
     <AnimatePresence mode="popLayout" initial={false}>
       <motion.span
@@ -36,19 +62,30 @@ export function StatePill({ phase }: { phase: DictationPhase }) {
           // bar's gradient, which defeated the whole point of surfacing the
           // idle state. 11px + 0.08em tracking keeps the chip compact while
           // actually being readable at a glance.
-          'inline-flex cursor-default select-none items-center gap-1.5 rounded-full px-2 py-0.5',
+          'relative inline-flex cursor-default select-none items-center gap-1.5 rounded-full px-2 py-0.5',
           'font-mono text-[11px] font-medium uppercase tracking-[0.08em]',
           toneClass(tone),
         )}
       >
         <span className={cn('h-1.5 w-1.5 rounded-full', dotClass(tone))} />
         {label}
+        {showProgress && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-2 bottom-0.5 h-[1.5px] overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--accent)_18%,transparent)]"
+          >
+            <span
+              className="block h-full origin-left bg-accent transition-[width] duration-300 ease-out"
+              style={{ width: `${(fraction * 100).toFixed(1)}%` }}
+            />
+          </span>
+        )}
       </motion.span>
     </AnimatePresence>
   );
 }
 
-function describe(phase: DictationPhase) {
+function describe(phase: DictationPhase, meetingProgress: MeetingProgress | null) {
   switch (phase.kind) {
     case 'idle':
       return { label: 'Ready', tone: 'muted' as const };
@@ -64,13 +101,28 @@ function describe(phase: DictationPhase) {
       return { label: 'Recording', tone: 'accent' as const };
     case 'processing':
       return { label: 'Processing', tone: 'accent' as const };
-    case 'transcribing_background':
+    case 'transcribing_background': {
       // Meeting mode's chunked transcribe pass. Same visual treatment as
       // Processing (accent tone, same dot) but the copy tells the user
       // what's actually happening — "Transcribing meeting…" — instead
       // of the generic "Processing" that for a 5-min meeting can sit on
       // screen for ~17 s with no context.
+      //
+      // Append a "N/M" counter when chunk progress is known so the user
+      // can read concrete progress at a glance instead of a static
+      // ellipsis. Falls back to the bare "Transcribing meeting…" copy
+      // for the single-chunk fast path (which does not emit progress)
+      // and for the brief moment between phase change and first
+      // progress event arrival.
+      if (meetingProgress && meetingProgress.totalChunks > 0) {
+        const current = meetingProgress.chunkIndex + 1;
+        return {
+          label: `Transcribing meeting · ${current}/${meetingProgress.totalChunks}`,
+          tone: 'accent' as const,
+        };
+      }
       return { label: 'Transcribing meeting…', tone: 'accent' as const };
+    }
     case 'success':
       // Meeting-mode success carries a summary so the user gets concrete
       // feedback ("5:01 · 11 chunks · 799 chars") instead of the generic

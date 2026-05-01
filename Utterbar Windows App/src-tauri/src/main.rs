@@ -313,7 +313,21 @@ fn main() {
                 // preference wins.
                 let no_default_model = snap.models.default_asr_model_id.is_none();
 
-                if !start_minimised || no_default_model {
+                // Post-update relaunch. When the previous run installed
+                // an update and exited, NSIS re-launches utterbar.exe.
+                // The updater drops a `pending_relaunch.json` marker
+                // before exiting; if we see the marker on this launch
+                // and it matches our running version, the user expects
+                // to see the app come back visibly — not silently into
+                // the tray. We peek (don't consume) so the frontend's
+                // `consume_post_update_marker` still owns the toast
+                // contract. Override `start_minimised` for this single
+                // launch only; ordinary launch-at-login behaviour is
+                // unchanged.
+                let post_update_force_show =
+                    crate::commands::updater::peek_pending_relaunch_for_force_show();
+
+                if !start_minimised || no_default_model || post_update_force_show {
                     if let Some(w) = handle.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();
@@ -327,6 +341,8 @@ fn main() {
                                 "/settings/models",
                             );
                             info!("main window shown -> /settings/models (no default model after v2 retirement)");
+                        } else if post_update_force_show {
+                            info!("main window shown (post-update relaunch overrode start_minimised)");
                         } else {
                             info!("main window shown (start_minimised=false)");
                         }

@@ -23,6 +23,17 @@ pub const EVT_MAIN_NAVIGATE: &str = "main:navigate";
 /// this and plays a one-second border flash so the user gets a visible
 /// "busy, wait" cue instead of pressing the hotkey into a silent void.
 pub const EVT_DICTATION_BUSY: &str = "dictation:busy";
+/// Fired during chunked Meeting Mode transcription. The payload reports
+/// progress as `chunk_index` (0-based, of the chunk about to be
+/// transcribed) and `total_chunks` (precomputed at the top of
+/// `transcribe_chunked`). Emitted at the START of each chunk iteration
+/// so a long-running model can paint partial progress instead of leaving
+/// the bar stuck on "Transcribing meeting…" for minutes. Single-chunk
+/// fast path (`total <= chunk_samples`) deliberately does NOT emit:
+/// nothing meaningful to plot, and the existing phase pill already
+/// covers the case. Regular dictation never enters this code path so
+/// non-meeting recordings never see chunk-progress events.
+pub const EVT_DICTATION_CHUNK_PROGRESS: &str = "dictation:chunk-progress";
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
@@ -119,6 +130,19 @@ pub struct DictationSuccessSummary {
     /// between the time and the chunk count so the user can correlate
     /// quality vs speed across meetings without opening logs.
     pub model_label: String,
+}
+
+/// Progress payload for chunked Meeting Mode transcription. See the
+/// `EVT_DICTATION_CHUNK_PROGRESS` constant for emission semantics.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct MeetingChunkProgress {
+    /// 0-based index of the chunk about to be transcribed.
+    pub chunk_index: u32,
+    /// Total number of chunks the recording was split into. Precomputed
+    /// up front in `transcribe_chunked` via `projected_chunk_count`,
+    /// matches the eventual `DictationSuccessSummary::chunks` count.
+    pub total_chunks: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

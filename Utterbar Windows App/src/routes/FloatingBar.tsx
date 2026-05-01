@@ -12,6 +12,7 @@ import {
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { BarModeSwitch } from '@/components/bar/BarModeSwitch';
+import { MeterBars } from '@/components/bar/MeterBars';
 import { StatePill } from '@/components/bar/StatePill';
 import { UtterbarMiniMark } from '@/components/bar/UtterbarMiniMark';
 import { EVT } from '@/lib/events';
@@ -27,12 +28,13 @@ export function FloatingBar() {
   // `dictation:result` event in AppBootstrap. Null until the user dictates
   // once in the current session; we disable the Copy tile in that case.
   const lastText = useDictation((s) => s.lastText);
-  // Meter readings are no longer consumed at this layer — the prototype v2
-  // wave bars are CSS-keyframe driven (see `.ub-bar-wave__bar` in globals),
-  // which gives a steadier "I'm listening" cue than amplitude-bound bars
-  // (RMS goes near-zero between syllables and the wave would judder). If we
-  // want meter-reactive bars back later, hook `useDictation(s => s.meter)`
-  // here and drive the bar heights via CSS var on the container.
+  // Meter readings are consumed inside `<MeterBars />` rather than at
+  // this layer. The component reads `useDictation.getState().meter`
+  // inside its rAF loop so the rest of the floating bar isn't pulled
+  // into a 30 Hz re-render cadence. The earlier worry about RMS
+  // judder (going near-zero between syllables) is handled by the
+  // component's asymmetric attack/release smoother + per-bar phase
+  // offsets — see MeterBars.tsx for the full rationale.
   const elapsed = useDictation((s) => s.elapsedMs);
   const tick = useDictation((s) => s.tickElapsed);
 
@@ -868,15 +870,7 @@ export function FloatingBar() {
                   >
                     {formatDuration(elapsed)}
                   </span>
-                  <div className="ub-bar-wave ml-1 mr-1 shrink-0" aria-hidden>
-                    <span className="ub-bar-wave__bar" />
-                    <span className="ub-bar-wave__bar" />
-                    <span className="ub-bar-wave__bar" />
-                    <span className="ub-bar-wave__bar" />
-                    <span className="ub-bar-wave__bar" />
-                    <span className="ub-bar-wave__bar" />
-                    <span className="ub-bar-wave__bar" />
-                  </div>
+                  <MeterBars />
                   <div className="flex items-center gap-1">
                     <BarButton
                       onClick={onToggle}

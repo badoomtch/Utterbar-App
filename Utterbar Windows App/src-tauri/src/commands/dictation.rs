@@ -1488,6 +1488,7 @@ fn resolve_target_model_id(
 /// `projected_chunk_count`, `max_meeting_audio_minutes`) live just
 /// below this function so they sit next to the loop they describe.
 async fn transcribe_chunked(
+    handle: &AppHandle,
     state: &Arc<AppState>,
     model_id: &str,
     pcm: Vec<i16>,
@@ -1557,12 +1558,34 @@ async fn transcribe_chunked(
     let mut first_lang: Option<String> = None;
     let mut model_version = String::new();
 
+    // Total chunks is known up front via the same pure helper that
+    // gates the over-cap refusal above. The loop iterates chunk_index
+    // 0..total_chunks - 1, so the user sees a thin progress bar fill
+    // smoothly during long meetings instead of staring at a static
+    // "Transcribing meeting…" pill for minutes.
+    let total_chunks = projected_chunks as u32;
+
     while start < total {
         let end = (start + chunk_samples).min(total);
         let slice = pcm[start..end].to_vec();
         let slice_secs = (end - start) as f32 / sample_rate as f32;
+        // Emit progress at the START of the iteration so the bar
+        // updates the moment we begin work on this chunk, not after
+        // it lands. Best-effort: a failed emit is logged at debug
+        // level by Tauri itself; the transcribe must continue
+        // regardless. Frontend listener stores `{ chunk_index,
+        // total_chunks }` in zustand; StatePill reads it during
+        // `TranscribingBackground` and renders a thin progress bar.
+        let _ = handle.emit(
+            crate::domain::EVT_DICTATION_CHUNK_PROGRESS,
+            crate::domain::MeetingChunkProgress {
+                chunk_index,
+                total_chunks,
+            },
+        );
         tracing::info!(
             chunk_index,
+            total_chunks,
             start_sample = start,
             end_sample = end,
             duration_secs = slice_secs,
@@ -2591,6 +2614,7 @@ pub(crate) async fn stop_recording_inner(
         );
 
         transcribe_chunked(
+            &handle,
             state,
             &model_id,
             final_.pcm,
