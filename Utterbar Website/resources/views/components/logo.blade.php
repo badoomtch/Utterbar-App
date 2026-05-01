@@ -50,7 +50,7 @@
 
     @if ($withWordmark)
         <span class="ub-wm leading-none select-none" style="font-size: {{ $s['font'] }}px; font-weight: 600; letter-spacing: -0.04em;">
-            <span style="color: var(--fg-hi);">Utter</span><span class="ub-wm-bar">bar</span>
+            <span class="ub-wm-utter">Utter</span><span class="ub-wm-bar">bar</span>
         </span>
     @endif
 </span>

@@ -10,7 +10,7 @@
 
 @if ($wave)
     <span {{ $attributes->merge(['class' => 'ub-wm ub-wm-hoverwrap']) }} tabindex="0">
-        <span>Utter</span><span class="ub-wm-bar">bar</span><svg class="ub-wm-wave" viewBox="0 0 60 24" aria-hidden="true">
+        <span class="ub-wm-utter">Utter</span><span class="ub-wm-bar">bar</span><svg class="ub-wm-wave" viewBox="0 0 60 24" aria-hidden="true">
             <defs>
                 <linearGradient id="ub-wm-wave-grad" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stop-color="#00e5ff"/>
@@ -29,5 +29,5 @@
         </svg>
     </span>
 @else
-    <span {{ $attributes->merge(['class' => 'ub-wm']) }}><span>Utter</span><span class="ub-wm-bar">bar</span></span>
+    <span {{ $attributes->merge(['class' => 'ub-wm']) }}><span class="ub-wm-utter">Utter</span><span class="ub-wm-bar">bar</span></span>
 @endif
