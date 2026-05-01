@@ -236,7 +236,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
     return () => {
       for (const p of unlisteners) void p.then((u) => u()).catch(() => undefined);
     };
-  }, [setPhase, setMeter, setLastText, isMain]);
+  }, [setPhase, setMeter, setMeetingProgress, setLastText, isMain]);
 
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'never'}>{children}</MotionConfig>

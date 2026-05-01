@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openShell } from '@tauri-apps/plugin-shell';
@@ -18,6 +18,7 @@ import {
   Mic,
   Radio,
   RefreshCw,
+  Search,
   Settings2,
   Shapes,
   ShieldCheck,
@@ -25,12 +26,14 @@ import {
   SlidersHorizontal,
   Info,
   Minimize2,
+  X,
 } from 'lucide-react';
 
 import { UtterbarLogoMark } from '@/components/bar/UtterbarLogoMark';
 import { UtterbarWordmark } from '@/components/bar/UtterbarWordmark';
 import { PostUpdateToast, UpdateToast } from '@/components/common/UpdateToast';
 import { cn } from '@/lib/cn';
+import { filterSettingsByQuery } from '@/routes/settings_search';
 import { Dashboard } from '@/routes/Dashboard';
 import { HistoryRoute } from '@/routes/HistoryRoute';
 import { MeetingsRoute } from '@/routes/MeetingsRoute';
@@ -59,20 +62,93 @@ const NAV_PRIMARY = [
   { to: '/files', label: 'Files', icon: FileAudio },
 ];
 
-const NAV_SETTINGS = [
-  { to: '/settings/general', label: 'General', icon: Settings2 },
-  { to: '/settings/bar', label: 'Utterbar', icon: Minimize2 },
-  { to: '/settings/audio', label: 'Audio', icon: Mic },
-  { to: '/settings/models', label: 'Models', icon: Radio },
-  { to: '/settings/shortcuts', label: 'Shortcuts', icon: Keyboard },
-  { to: '/settings/text-output', label: 'Text Output', icon: SlidersHorizontal },
-  { to: '/settings/accessibility', label: 'Accessibility', icon: Accessibility },
-  { to: '/settings/privacy', label: 'Privacy', icon: ShieldCheck },
-  { to: '/settings/advanced', label: 'Advanced', icon: SlidersHorizontal },
-  { to: '/settings/licence', label: 'Licence', icon: KeyRound },
-  { to: '/settings/updates', label: 'Updates', icon: RefreshCw },
-  { to: '/settings/about', label: 'About', icon: Info },
+// Per-section keyword aliases for the settings search box. Searching
+// the visible label alone misses common synonyms users actually type:
+// "GPU" should find Advanced, "hotkey" should find Shortcuts, "ASR"
+// should find Models. Kept short on purpose — a curated list is
+// easier to maintain than a content-crawl across every settings page,
+// and the match still feels natural because users type the noun
+// they associate with the setting, not the section name.
+const NAV_SETTINGS: Array<{
+  to: string;
+  label: string;
+  icon: typeof Settings2;
+  keywords: readonly string[];
+}> = [
+  {
+    to: '/settings/general',
+    label: 'General',
+    icon: Settings2,
+    keywords: ['theme', 'accent', 'colour', 'color', 'launch', 'startup', 'minimised', 'minimized', 'tray', 'sound', 'notification', 'language', 'reduce motion'],
+  },
+  {
+    to: '/settings/bar',
+    label: 'Utterbar',
+    icon: Minimize2,
+    keywords: ['floating bar', 'pill', 'position', 'visibility', 'auto-hide', 'background'],
+  },
+  {
+    to: '/settings/audio',
+    label: 'Audio',
+    icon: Mic,
+    keywords: ['microphone', 'mic', 'input device', 'capture', 'noise', 'gate', 'gain', 'sample rate', 'silence', 'normalisation', 'normalization', 'loopback', 'system audio'],
+  },
+  {
+    to: '/settings/models',
+    label: 'Models',
+    icon: Radio,
+    keywords: ['ASR', 'whisper', 'parakeet', 'meeting model', 'default model', 'warm', 'unload', 'language', 'install model', 'download'],
+  },
+  {
+    to: '/settings/shortcuts',
+    label: 'Shortcuts',
+    icon: Keyboard,
+    keywords: ['hotkey', 'keybind', 'global shortcut', 'toggle recording', 'cancel recording'],
+  },
+  {
+    to: '/settings/text-output',
+    label: 'Text Output',
+    icon: SlidersHorizontal,
+    keywords: ['paste', 'clipboard', 'capitalise', 'capitalize', 'auto space', 'numbers', 'digits', 'punctuation', 'keystroke fallback', 'shift to send'],
+  },
+  {
+    to: '/settings/accessibility',
+    label: 'Accessibility',
+    icon: Accessibility,
+    keywords: ['reduce motion', 'high contrast', 'text size', 'tooltips', 'screen reader', 'a11y'],
+  },
+  {
+    to: '/settings/privacy',
+    label: 'Privacy',
+    icon: ShieldCheck,
+    keywords: ['retain audio', 'recordings', 'history', 'context', 'active app', 'clipboard context', 'voice profile', 'delete'],
+  },
+  {
+    to: '/settings/advanced',
+    label: 'Advanced',
+    icon: SlidersHorizontal,
+    keywords: ['GPU', 'DirectML', 'CUDA', 'CPU', 'acceleration', 'diagnostics', 'export settings', 'import settings', 'experimental'],
+  },
+  {
+    to: '/settings/licence',
+    label: 'Licence',
+    icon: KeyRound,
+    keywords: ['license', 'activation', 'pro', 'free', 'tier', 'devices', 'air-gapped', 'managed'],
+  },
+  {
+    to: '/settings/updates',
+    label: 'Updates',
+    icon: RefreshCw,
+    keywords: ['update', 'channel', 'beta', 'stable', 'release notes', 'auto-check'],
+  },
+  {
+    to: '/settings/about',
+    label: 'About',
+    icon: Info,
+    keywords: ['version', 'credits', 'links'],
+  },
 ];
+
 
 /**
  * MainShell — the app's root chrome.
@@ -88,6 +164,12 @@ const NAV_SETTINGS = [
  */
 export function MainShell() {
   const [appVersion, setAppVersion] = useState<string>('');
+  // Settings search query. Empty string = no filter, full list shown.
+  // Lives in shell state because the input sits in the sidebar (above
+  // the Settings group label) and the filter result must drive the
+  // NavGroup render in the same render pass.
+  const [settingsQuery, setSettingsQuery] = useState('');
+  const settingsSearchRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
@@ -139,18 +221,31 @@ export function MainShell() {
 
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 pb-4">
           <NavGroup label="Workspace" items={NAV_PRIMARY} />
+          <SettingsSearchInput
+            ref={settingsSearchRef}
+            value={settingsQuery}
+            onChange={setSettingsQuery}
+          />
           <NavGroup
             label="Settings"
-            items={NAV_SETTINGS.map((item) =>
+            items={filterSettingsByQuery(NAV_SETTINGS, settingsQuery).map((item) =>
               // Attach the live app version directly beneath the `About` row.
               // This is in addition to — not instead of — the footer strap and
               // the version shown inside the About page itself. Users reported
               // wanting the version glanceable from the nav without having to
               // open the About page or scan to the bottom of the sidebar.
-              item.to === '/settings/about'
+              // The version line is suppressed when the query is non-empty
+              // because it would render under filtered-out About results
+              // — distracting and stale.
+              item.to === '/settings/about' && settingsQuery.trim().length === 0
                 ? { ...item, subLabel: appVersion ? `v${appVersion}` : undefined }
                 : item,
             )}
+            emptyMessage={
+              settingsQuery.trim().length > 0
+                ? `No settings match "${settingsQuery.trim()}"`
+                : undefined
+            }
           />
         </nav>
 
@@ -280,6 +375,7 @@ function TierLine() {
 function NavGroup({
   label,
   items,
+  emptyMessage,
 }: {
   label: string;
   items: {
@@ -290,10 +386,17 @@ function NavGroup({
      *  Currently used only for the live app version under the `About` row. */
     subLabel?: string;
   }[];
+  /** Shown in place of the items list when `items` is empty. Used by
+   *  the Settings group during a settings-search miss so the user
+   *  sees "No settings match …" instead of a silently empty section. */
+  emptyMessage?: string;
 }) {
   return (
     <div className="mb-5">
       <div className="ub-eyebrow px-3 pb-2 pt-3">{label}</div>
+      {items.length === 0 && emptyMessage ? (
+        <div className="px-3 py-1 text-[12px] text-muted">{emptyMessage}</div>
+      ) : null}
       <div className="flex flex-col gap-0.5">
         {items.map(({ to, label: l, icon: Icon, subLabel }) => (
           <NavLink
@@ -358,3 +461,65 @@ function NavGroup({
     </div>
   );
 }
+
+/**
+ * Settings search input. Sits in the sidebar between the Workspace
+ * group and the Settings group so the input is co-located with the
+ * nav it filters. Empty value renders the same as no-search; users
+ * who never engage the input never see the filter logic at all.
+ *
+ * Keyboard:
+ *   • Esc clears the input. Focus stays in the input so the user can
+ *     keep typing without re-clicking.
+ *   • The input is plain — no global Ctrl+K shortcut. Adding a global
+ *     hotkey would conflict with the floating bar's hotkey scheme and
+ *     is out of scope for the search feature itself.
+ */
+const SettingsSearchInput = forwardRef<
+  HTMLInputElement,
+  { value: string; onChange: (next: string) => void }
+>(function SettingsSearchInput({ value, onChange }, ref) {
+  const hasValue = value.length > 0;
+  return (
+    <div className="px-3 pb-2 pt-1">
+      <label className="relative block">
+        <span className="sr-only">Search settings</span>
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute left-2 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted"
+        />
+        <input
+          ref={ref}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && hasValue) {
+              e.preventDefault();
+              onChange('');
+            }
+          }}
+          placeholder="Search settings"
+          spellCheck={false}
+          autoComplete="off"
+          className={cn(
+            'w-full rounded-[8px] bg-bg-0 py-1.5 pl-7 pr-7 text-[13px]',
+            'text-fg placeholder:text-muted',
+            'border border-transparent transition-colors',
+            'hover:border-border-soft/70 focus:border-accent/60 focus:outline-none',
+          )}
+        />
+        {hasValue ? (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            aria-label="Clear search"
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-muted transition-colors hover:text-fg-hi"
+          >
+            <X className="h-[12px] w-[12px]" />
+          </button>
+        ) : null}
+      </label>
+    </div>
+  );
+});
