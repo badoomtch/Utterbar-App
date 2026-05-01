@@ -14,6 +14,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -65,15 +66,26 @@ impl SherpaParakeet {
             }
         }
 
-        tracing::info!(model = %self.model_id, dir = %self.model_dir.display(), "sherpa::ensure_loaded begin");
-        let (encoder, decoder, joiner, tokens) = self.resolve_files()?;
+        // Cold-warm timing. Three wall-clock segments are useful when chasing
+        // user reports of "model takes ages to load":
+        //   • file_resolve_ms — directory scan + extension match (should be <1 ms)
+        //   • native_construct_ms — the sherpa-onnx C++ call that mmaps the
+        //     ONNX session, allocates ORT arenas, and sets up provider
+        //     bindings. This is the load-bearing slow segment (~300 ms — 4 s
+        //     depending on disk cache + DML init).
+        //   • total_warm_ms — outer-call envelope, including the
+        //     spawn_blocking handoff.
+        let warm_start = Instant::now();
         tracing::info!(
-            encoder = %encoder.display(),
-            decoder = %decoder.display(),
-            joiner = %joiner.display(),
-            tokens = %tokens.display(),
-            "sherpa model files resolved"
+            model = %self.model_id,
+            dir = %self.model_dir.display(),
+            family = "parakeet",
+            provider = %self.provider,
+            "asr_warm: begin"
         );
+        let resolve_start = Instant::now();
+        let (encoder, decoder, joiner, tokens) = self.resolve_files()?;
+        let file_resolve_ms = resolve_start.elapsed().as_millis() as u64;
 
         // fp16 encoders only decode sanely on a GPU provider (DirectML / CUDA). On CPU
         // the ONNX runtime either refuses half-precision kernels or grinds to 0.1x
@@ -96,8 +108,7 @@ impl SherpaParakeet {
         let inner = self.inner.clone();
         let model_id = self.model_id.clone();
         let provider = self.provider.clone();
-        tokio::task::spawn_blocking(move || -> Result<()> {
-            tracing::info!(%model_id, %provider, "sherpa: building TransducerConfig");
+        let native_construct_ms = tokio::task::spawn_blocking(move || -> Result<u64> {
             let config = sherpa_rs::transducer::TransducerConfig {
                 decoder,
                 encoder,
@@ -119,23 +130,32 @@ impl SherpaParakeet {
                 debug: false,
                 ..Default::default()
             };
-            tracing::info!(%model_id, "sherpa: TransducerRecognizer::new calling into native");
+            let native_start = Instant::now();
             let recognizer =
                 sherpa_rs::transducer::TransducerRecognizer::new(config).map_err(|e| {
                     tracing::error!(%model_id, error = ?e, "sherpa init failed");
                     anyhow!("sherpa init: {e:?}")
                 })?;
-            tracing::info!(%model_id, "sherpa: recognizer constructed");
+            let native_ms = native_start.elapsed().as_millis() as u64;
             let mut guard = inner
                 .lock()
                 .map_err(|_| anyhow!("recognizer mutex poisoned"))?;
             *guard = Some(recognizer);
-            tracing::info!(%model_id, "sherpa: recognizer cached");
-            Ok(())
+            Ok(native_ms)
         })
         .await
         .context("sherpa warm spawn_blocking failed")??;
 
+        let total_warm_ms = warm_start.elapsed().as_millis() as u64;
+        tracing::info!(
+            model = %self.model_id,
+            family = "parakeet",
+            provider = %self.provider,
+            file_resolve_ms,
+            native_construct_ms,
+            total_warm_ms,
+            "asr_warm: done"
+        );
         Ok(())
     }
 }

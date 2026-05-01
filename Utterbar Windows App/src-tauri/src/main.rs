@@ -374,6 +374,28 @@ fn main() {
                 // the model warm for N seconds and this task evicts it.
                 state_bg.inference.clone().spawn_idle_sweeper();
 
+                // Background prewarm of the default ASR model when the user
+                // has set `warm_duration_secs == u32::MAX` ("keep loaded
+                // forever"). Without this, the first dictation after launch
+                // pays the full native sherpa-onnx cold-load cost (~0.3–4 s
+                // depending on model + provider + disk cache). The prewarm
+                // task is fire-and-forget; failures are logged and do not
+                // affect startup. See `services::inference::prewarm` for the
+                // full rationale, locking-safety contract, and pure decision
+                // helper.
+                let prewarm_snap = state_bg.settings.snapshot().await;
+                if let Some(model_id) =
+                    services::inference::prewarm::should_prewarm_default(&prewarm_snap)
+                {
+                    services::inference::prewarm::spawn(state_bg.inference.clone(), model_id);
+                } else {
+                    tracing::info!(
+                        warm_duration_secs = prewarm_snap.models.warm_duration_secs,
+                        default_asr_model_id = ?prewarm_snap.models.default_asr_model_id,
+                        "asr_prewarm: skipped"
+                    );
+                }
+
                 // Licence launch check: reads the cached blob, verifies
                 // offline, emits `licence_changed`. The heartbeat (if the
                 // window has elapsed) runs on its own spawn inside the

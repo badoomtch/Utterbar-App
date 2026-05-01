@@ -2,6 +2,7 @@
 
 pub mod diarize;
 pub mod diarize_assets;
+pub mod prewarm;
 pub mod provider;
 pub mod py_sidecar;
 pub mod sherpa_parakeet;
