@@ -115,7 +115,23 @@ fn merge(mut a: serde_json::Value, b: serde_json::Value) -> serde_json::Value {
 fn apply_side_effects(s: &Settings) {
     #[cfg(windows)]
     {
-        let _ = crate::platform::windows::startup::set_launch_on_login(s.general.launch_on_login);
+        // The platform helper logs failures via tracing::warn —
+        // see startup.rs. We deliberately do NOT propagate the
+        // error out of update_settings: the toggle landing in
+        // settings.json is the load-bearing user contract; the
+        // OS-level registration is best-effort and surfaces in
+        // the log + the support diagnostics route. A future
+        // sprint adding a UI "registration failed" indicator
+        // would read `is_launch_on_login_enabled()` against
+        // `s.general.launch_on_login` and surface the
+        // discrepancy.
+        if let Err(e) =
+            crate::platform::windows::startup::set_launch_on_login(s.general.launch_on_login)
+        {
+            tracing::warn!(error = ?e, enabled = s.general.launch_on_login,
+                "settings: launch-at-login toggle wrote settings.json but \
+                 registry update failed");
+        }
     }
     let _ = s; // no-op on non-Windows
 }
