@@ -51,14 +51,31 @@ export type BarState =
   | 'warming'
   | 'listening'
   | 'processing'
+  // Meeting Mode chunked transcription. Renders "Transcribing
+  // meeting…" or "Transcribing meeting · N/M" depending on whether
+  // a `meetingProgress` prop is supplied. Added 2026-05-01 to
+  // match the desktop bar's new chunk-progress treatment.
+  | 'transcribing_background'
   | 'success'
   | 'error'
   | 'cancelled';
+
+/** Chunk-progress payload for `transcribing_background`. Setting this
+ * makes StatePill render the "Transcribing meeting · N/M" copy with a
+ * thin progress track. Omit (or supply with totalChunks=0) to fall
+ * back to the bare ellipsis copy. */
+export type MeetingProgressInput = {
+  chunkIndex: number;
+  totalChunks: number;
+};
 
 export type BarDriverProps = {
   state: BarState;
   /** Elapsed recording time in ms; only meaningful while listening. */
   elapsedMs?: number;
+  /** Meeting Mode chunk progress; only meaningful while
+   *  transcribing_background. */
+  meetingProgress?: MeetingProgressInput | null;
   lastText?: string | null;
   errorMessage?: string;
   theme?: Theme;
@@ -86,6 +103,8 @@ function buildPhase(state: BarState, errorMessage: string): DictationPhase {
       return { kind: 'listening', started_at_ms: 0 };
     case 'processing':
       return { kind: 'processing' };
+    case 'transcribing_background':
+      return { kind: 'transcribing_background' };
     case 'success':
       return { kind: 'success' };
     case 'error':
@@ -252,6 +271,7 @@ function neutraliseTick() {
 export function BarDriver({
   state,
   elapsedMs = 0,
+  meetingProgress = null,
   lastText = null,
   errorMessage = 'Something went wrong',
   theme = 'obsidian' as Theme,
@@ -267,7 +287,15 @@ export function BarDriver({
     pinDateNow(frameMs);
     neutraliseTick();
   }
-  const waveActive = state === 'listening' || state === 'processing' || state === 'warming';
+  // Wave is animated for any phase where the desktop bar shows it
+  // alive: warming, listening, processing, and the new
+  // transcribing_background (Meeting Mode chunk transcribe — the user
+  // is actively waiting on output).
+  const waveActive =
+    state === 'listening' ||
+    state === 'processing' ||
+    state === 'warming' ||
+    state === 'transcribing_background';
   const waveVars = computeWaveHeights(frame, fps, waveActive);
   const rippleVars = computeRippleVars(frame, fps, state === 'listening');
 
@@ -275,6 +303,15 @@ export function BarDriver({
   // beats useEffect — Remotion captures the screenshot after the first
   // paint, and we want the pill in the right phase for that paint.
   useLayoutEffect(() => {
+    // Map our prop to the shipping `MeetingProgress` slot in the
+    // dictation store. Cleared (set to null) for any non-meeting
+    // state so a previous frame's progress can't bleed into the
+    // current one. Cast through Partial because zustand's bag
+    // typing treats actions as readonly.
+    const meetingProgressForStore =
+      state === 'transcribing_background' && meetingProgress
+        ? { chunkIndex: meetingProgress.chunkIndex, totalChunks: meetingProgress.totalChunks }
+        : null;
     useDictation.setState({
       phase: buildPhase(state, errorMessage),
       // elapsedMs is the timer value the pill displays. tickElapsed has
@@ -282,7 +319,8 @@ export function BarDriver({
       // sticks for the full frame, no wall-clock interference.
       elapsedMs,
       lastText,
-    });
+      meetingProgress: meetingProgressForStore,
+    } as unknown as Partial<ReturnType<typeof useDictation.getState>>);
     useSettings.setState({
       data: buildSettings(theme, accent, barSize, barOutline, barVisibility),
     });
@@ -305,7 +343,19 @@ export function BarDriver({
     else root.classList.add('dark');
     // app.css keys its render-only freeze rules off this class.
     root.classList.add('remotion-render');
-  }, [state, elapsedMs, lastText, errorMessage, theme, accent, barSize, barOutline, barVisibility]);
+  }, [
+    state,
+    elapsedMs,
+    meetingProgress?.chunkIndex,
+    meetingProgress?.totalChunks,
+    lastText,
+    errorMessage,
+    theme,
+    accent,
+    barSize,
+    barOutline,
+    barVisibility,
+  ]);
 
   // Pin per-frame CSS custom properties on <html>. <html> persists across
   // Remotion's per-frame re-mounts, so without an explicit set/unset every
