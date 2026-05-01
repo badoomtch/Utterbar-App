@@ -28,6 +28,32 @@ class ComparePagesTest extends TestCase
         $this->get(route('compare.index'))->assertStatus(200);
     }
 
+    public function test_compare_index_links_to_every_shipped_comparison(): void
+    {
+        // After the index rebuild (replaces the "Coming soon"
+        // placeholder card), every shipped /compare/<competitor>
+        // page must be reachable from the index. Pin all four
+        // links so a future edit can't quietly drop one without
+        // also dropping the page itself.
+        $response = $this->get(route('compare.index'));
+        $response->assertStatus(200);
+        $response->assertSee(route('compare.wispr-flow'), false);
+        $response->assertSee(route('compare.voice-access'), false);
+        $response->assertSee(route('compare.dragon'), false);
+        $response->assertSee(route('compare.superwhisper'), false);
+    }
+
+    public function test_compare_index_does_not_show_coming_soon_placeholder(): void
+    {
+        // The pre-rebuild index had a greyed-out "Coming soon"
+        // card listing Dragon, Voice Access, Superwhisper, Talon
+        // as drafts. After the rebuild, every previously-promised
+        // page is shipped, and the placeholder framing should not
+        // return. Pin its absence so a future regression is loud.
+        $response = $this->get(route('compare.index'));
+        $response->assertDontSee('Coming soon', false);
+    }
+
     public function test_compare_wispr_flow_renders(): void
     {
         $response = $this->get(route('compare.wispr-flow'));
