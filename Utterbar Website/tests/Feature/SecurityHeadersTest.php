@@ -23,9 +23,8 @@ use Tests\TestCase;
  * advertise.
  *
  * CSP is asserted to arrive in Report-Only form. Strict-Transport-
- * Security is asserted at a deliberately short 1-day max-age and
- * without `preload`; raising those is a separate decision after the
- * soak window proves clean.
+ * Security is asserted at one year and without `preload`; adding
+ * `preload` is a separate, effectively-irrevocable decision.
  */
 class SecurityHeadersTest extends TestCase
 {
@@ -101,7 +100,7 @@ class SecurityHeadersTest extends TestCase
     }
 
     #[DataProvider('sampledRoutes')]
-    public function test_hsts_short_max_age_present(string $path): void
+    public function test_hsts_one_year_max_age_present(string $path): void
     {
         config([
             'services.stripe.pro_amount'   => 3999,
@@ -111,15 +110,14 @@ class SecurityHeadersTest extends TestCase
         $response = $this->get($path);
         $response->assertStatus(200);
 
-        // Cloudflare's "Always Use HTTPS" toggle is on and verified
-        // redirecting plain HTTP to HTTPS, so HSTS is meaningful. The
-        // 1-day max-age is a deliberate soak value: if a subdomain HTTPS
-        // regression slips through, the worst case is 24 hours of clients
-        // unable to fall back to HTTP. Raise to 1 year (31536000) only
-        // after a clean week. No `preload` here.
+        // Cloudflare's "Always Use HTTPS" toggle is on and the HTTP -> HTTPS
+        // redirect is verified across the apex, www, and dl. subdomains, so
+        // HSTS is meaningful. max-age is one year (31536000). `preload`
+        // remains deliberately omitted: submission to the HSTS preload
+        // list is effectively irrevocable for ~6 months.
         $response->assertHeader(
             'Strict-Transport-Security',
-            'max-age=86400; includeSubDomains'
+            'max-age=31536000; includeSubDomains'
         );
 
         $hsts = (string) $response->headers->get('Strict-Transport-Security');

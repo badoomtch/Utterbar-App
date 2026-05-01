@@ -28,15 +28,13 @@ use Symfony\Component\HttpFoundation\Response;
  *      Content-Security-Policy after a clean soak in browser dev
  *      consoles.
  *
- * Strict-Transport-Security is now emitted with a deliberately short
- * max-age. Cloudflare's "Always Use HTTPS" toggle has been enabled and
- * `http://utterbar.com/` (plus the www and dl. subdomains) verified
- * redirecting to HTTPS, so HSTS is meaningful. The 1-day max-age is a
- * soak value: if a subdomain HTTPS regression slips through, the worst
- * case is 24 hours of clients unable to fall back to HTTP. After a
- * clean week, raise to `max-age=31536000`. Do NOT add `preload` here
- * unless every subdomain is committed to HTTPS-only forever; preload
- * submission is effectively irrevocable for ~6 months.
+ * Strict-Transport-Security is emitted at one year. Cloudflare's
+ * "Always Use HTTPS" toggle is enabled and `http://utterbar.com/`
+ * (plus the www and dl. subdomains) is verified redirecting to HTTPS,
+ * so HSTS is meaningful. `preload` is deliberately omitted: submission
+ * to the HSTS preload list is effectively irrevocable for ~6 months
+ * and would commit every current and future subdomain to HTTPS-only
+ * forever.
  *
  * upgrade-insecure-requests is intentionally NOT used in the CSP. The
  * Cloudflare 301 already upgrades navigations; adding the directive
@@ -59,7 +57,7 @@ class SecurityHeaders
         'X-Content-Type-Options'    => 'nosniff',
         'Referrer-Policy'           => 'strict-origin-when-cross-origin',
         'Permissions-Policy'        => 'camera=(), microphone=(), geolocation=(), payment=()',
-        'Strict-Transport-Security' => 'max-age=86400; includeSubDomains',
+        'Strict-Transport-Security' => 'max-age=31536000; includeSubDomains',
     ];
 
     public function handle(Request $request, Closure $next): Response
