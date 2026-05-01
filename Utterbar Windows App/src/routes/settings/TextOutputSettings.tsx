@@ -70,6 +70,15 @@ export function TextOutputSettings() {
             />
           </Row>
           <Row
+            label="Smart rewrite"
+            description="Clean up fillers (&lsquo;um&rsquo;, &lsquo;uh&rsquo;, &lsquo;like&rsquo;), spacing, capitalisation, and terminal punctuation locally before insertion. Deterministic only &mdash; no AI model, no cloud service, no model download. Adds a small amount of processing time. Off by default. Best for chat and email-style dictation; turn off if you dictate code (the rule that capitalises sentence starts will also capitalise keywords like &lsquo;let&rsquo; or &lsquo;fn&rsquo;). Meeting Mode is unaffected (transcripts stay verbatim)."
+          >
+            <Toggle
+              checked={t.smart_rewrite ?? false}
+              onChange={(v) => void update('smart_rewrite', v)}
+            />
+          </Row>
+          <Row
             label="Hold Shift to auto-send"
             description="If you're holding Shift when you stop recording, Utterbar presses Enter for you right after pasting, so the message goes out in Teams, Slack, Discord, etc. without a second hand-off."
           >

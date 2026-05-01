@@ -2823,8 +2823,31 @@ pub(crate) async fn stop_recording_inner(
         crate::services::dialect::normalise(&raw, mode.english_variant)
     } else {
         let llm = crate::services::llm::best_available().await;
+        // Global "Smart rewrite" toggle (Settings → Text Output).
+        // When enabled, the deterministic rewrite (filler removal,
+        // sentence-case, terminal punctuation, whitespace
+        // normalisation) runs on every non-meeting dictation
+        // regardless of the mode's own `post_processing` setting.
+        // The toggle deliberately does NOT extend to Meeting Mode:
+        // the outer `if mode.is_meeting_mode` branch above already
+        // bypasses this whole block, and meeting transcripts want
+        // verbatim fidelity, not polish — see the long comment
+        // above the `if`. The setting is off by default and adds
+        // one O(n) pass when on; no LLM, no remote call, no model
+        // download. The Meeting Mode gate is pinned by the
+        // `smart_rewrite_is_gated_to_non_meeting_mode` source-grep
+        // test below; the rewrite's no-IO sync contract is pinned
+        // by `smart_rewrite_is_sync_and_deterministic` in the
+        // deterministic provider's test module.
+        let global_smart_rewrite = settings.text_output.smart_rewrite;
         let post = match &mode.post_processing {
-            crate::domain::PostProcessing::None => raw.clone(),
+            crate::domain::PostProcessing::None => {
+                if global_smart_rewrite {
+                    crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
+                } else {
+                    raw.clone()
+                }
+            }
             crate::domain::PostProcessing::Deterministic { .. } => {
                 crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
             }
@@ -5447,5 +5470,58 @@ mod diarised_helpers_tests {
 
         // No context at all → user already stopped/cancelled, false.
         assert!(!super::auto_stop_should_proceed(1_000, None));
+    }
+
+    /// Smart rewrite (Settings → Text Output) must NOT apply to
+    /// Meeting Mode in v1.
+    ///
+    /// Meeting transcripts are reference material — fidelity over
+    /// polish. The setting is a "global" override of the per-mode
+    /// `PostProcessing::None` default for regular dictation, but
+    /// the meeting path takes a separate branch that bypasses
+    /// post_processing entirely.
+    ///
+    /// This test is a source-grep guard: it proves the only
+    /// reference to `text_output.smart_rewrite` in production code
+    /// lives inside an `else` branch whose enclosing `if` tests
+    /// `mode.is_meeting_mode`. Future refactors that hoist the
+    /// smart-rewrite check above the meeting gate, or that wire
+    /// it into the meeting branch, will fail this test.
+    ///
+    /// Obfuscation: the needle is assembled at runtime so this
+    /// doc-comment doesn't itself contain the literal field name.
+    #[test]
+    fn smart_rewrite_is_gated_to_non_meeting_mode() {
+        let src = include_str!("dictation.rs");
+        let test_mod_marker = "#[cfg(test)]";
+        let production_src = src.split(test_mod_marker).next().unwrap_or(src);
+        let lines: Vec<&str> = production_src.lines().collect();
+        let needle = format!("{}{}", "text_output.smart_", "rewrite");
+        let mut found = 0usize;
+        for (i, line) in lines.iter().enumerate() {
+            if !line.contains(&needle) {
+                continue;
+            }
+            found += 1;
+            let from = i.saturating_sub(80);
+            let window = &lines[from..i];
+            let saw_else = window.iter().any(|l| l.trim() == "} else {");
+            let saw_meeting_if = window.iter().any(|l| l.contains("if mode.is_meeting_mode"));
+            assert!(
+                saw_meeting_if && saw_else,
+                "smart_rewrite reference at line {} must sit inside the else branch of \
+                 `if mode.is_meeting_mode {{ ... }} else {{ ... }}`, but the 80-line window \
+                 above lacks the pairing. Hoisting smart_rewrite above the meeting gate \
+                 would silently apply filler removal to meeting transcripts, which is out \
+                 of scope for v1 (transcripts are reference material — verbatim fidelity \
+                 matters more than polish).",
+                i + 1
+            );
+        }
+        assert!(
+            found >= 1,
+            "expected at least one production reference to text_output.smart_rewrite in \
+             dictation.rs; found 0. The setting was added but never wired."
+        );
     }
 }
