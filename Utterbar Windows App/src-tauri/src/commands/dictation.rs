@@ -1601,34 +1601,73 @@ async fn transcribe_chunked(
             words[drop_count..].join(" ")
         };
 
-        if !chunk_text.trim().is_empty() {
-            // Timestamp prefix derived from the chunk's wall-clock start.
-            // Non-first chunks contribute starting at `start + overlap`
-            // because their first ~overlap seconds were dropped from the
-            // text by the dedup pass above; the listener's mental model
-            // is "where in the recording does this text begin?" — that's
-            // start+overlap for chunk N, start (=0) for chunk 0.
-            let chunk_text_start_samples = if chunk_index == 0 {
-                start
-            } else {
-                start + overlap_samples
-            };
-            let chunk_text_start_secs = chunk_text_start_samples / sample_rate as usize;
-            let mm = chunk_text_start_secs / 60;
-            let ss = chunk_text_start_secs % 60;
-
-            // One chunk per paragraph for legibility. Empty line between
-            // chunks so a long meeting reads as a stack of timestamped
-            // entries rather than a wall of text. Speaker labels are
-            // intentionally absent in this fallback path — the proper
-            // diarised path emits `**Speaker N:**` prefixes; this
-            // function is only reached when diarisation is unavailable.
-            if !stitched.is_empty() {
-                stitched.push_str("\n\n");
+        // Per-chunk output validation. Conservative rule set
+        // (services/output_validation::validate_meeting_chunk) drops
+        // empty / whitespace / single-punctuation / repeated-
+        // punctuation chunks; logs but DOES NOT DROP repeated-token
+        // chunks (decoder loops are observed-only in Meeting Mode
+        // because real meeting speech can carry legitimate
+        // repetition). Foreign-script and known-hallucination rules
+        // are deliberately not applied here - the engine-internal
+        // Whisper hallucination filter already runs per chunk
+        // upstream, and multilingual meetings make the foreign-
+        // script rule unsafe.
+        //
+        // The previous "skip if chunk_text.trim().is_empty()" guard
+        // is subsumed by Drop(Empty) / Drop(WhitespaceOnly).
+        use crate::services::output_validation::{validate_meeting_chunk, MeetingChunkVerdict};
+        let chunk_chars = chunk_text.chars().count();
+        match validate_meeting_chunk(&chunk_text) {
+            MeetingChunkVerdict::Drop { reason } => {
+                tracing::info!(
+                    reason = %reason.as_str(),
+                    chunk_index,
+                    chunk_chars,
+                    chunk_duration_ms = (slice_secs * 1000.0) as u32,
+                    chunk_start_sample = start,
+                    model = %model_id,
+                    dropped = true,
+                    "meeting_chunk_validation: dropped chunk",
+                );
+                // Skip appending. Continue to the bookkeeping below
+                // (language capture, model_version, duration sum)
+                // so the dropped chunk doesn't break the per-chunk
+                // metadata threading.
             }
-            stitched.push_str(&format!("[{:02}:{:02}]", mm, ss));
-            stitched.push(' ');
-            stitched.push_str(&chunk_text);
+            MeetingChunkVerdict::Observe { reason } => {
+                tracing::info!(
+                    reason = %reason.as_str(),
+                    chunk_index,
+                    chunk_chars,
+                    chunk_duration_ms = (slice_secs * 1000.0) as u32,
+                    chunk_start_sample = start,
+                    model = %model_id,
+                    dropped = false,
+                    "meeting_chunk_validation: observed (kept)",
+                );
+                // Fall through and append the chunk normally. The
+                // observe rule is telemetry only at this stage; we
+                // need soak data on real meeting speech before
+                // promoting it to a drop.
+                append_meeting_chunk(
+                    &mut stitched,
+                    &chunk_text,
+                    chunk_index,
+                    start,
+                    overlap_samples,
+                    sample_rate,
+                );
+            }
+            MeetingChunkVerdict::Accept => {
+                append_meeting_chunk(
+                    &mut stitched,
+                    &chunk_text,
+                    chunk_index,
+                    start,
+                    overlap_samples,
+                    sample_rate,
+                );
+            }
         }
 
         if first_lang.is_none() {
@@ -1673,6 +1712,43 @@ async fn transcribe_chunked(
         model_version,
         duration_ms: total_duration_ms,
     })
+}
+
+/// Append a kept meeting chunk to the stitched transcript with the
+/// `[MM:SS]` timestamp prefix, the inter-chunk paragraph break, and
+/// the wall-clock-start computation that accounts for the boundary-
+/// dedup overlap (non-first chunks contribute starting at
+/// `start + overlap_samples` because their first ~overlap seconds
+/// were dropped from the text by the dedup pass upstream).
+///
+/// Extracted only because two branches of the per-chunk validation
+/// match arm (`Observe` and `Accept`) need it. The original code
+/// inlined this in a single `if !is_empty()` branch; once that
+/// branch became three (`Drop` / `Observe` / `Accept`), repeating
+/// the timestamp logic three times was the wrong move.
+fn append_meeting_chunk(
+    stitched: &mut String,
+    chunk_text: &str,
+    chunk_index: u32,
+    start: usize,
+    overlap_samples: usize,
+    sample_rate: u32,
+) {
+    let chunk_text_start_samples = if chunk_index == 0 {
+        start
+    } else {
+        start + overlap_samples
+    };
+    let chunk_text_start_secs = chunk_text_start_samples / sample_rate as usize;
+    let mm = chunk_text_start_secs / 60;
+    let ss = chunk_text_start_secs % 60;
+
+    if !stitched.is_empty() {
+        stitched.push_str("\n\n");
+    }
+    stitched.push_str(&format!("[{:02}:{:02}]", mm, ss));
+    stitched.push(' ');
+    stitched.push_str(chunk_text);
 }
 
 /// Meeting-mode chunk size. Carried forward from v0.13.x — v0.14.x;
@@ -5171,6 +5247,83 @@ mod diarised_helpers_tests {
         assert!(
             found >= 1,
             "expected at least one production call to the output validator on `processed`; found 0"
+        );
+    }
+
+    /// Meeting Mode chunk validator must only be called inside
+    /// `transcribe_chunked`.
+    ///
+    /// `validate_meeting_chunk` has a different rule set from the
+    /// regular `validate`: it observes (does not drop) repeated-token
+    /// chunks, skips the foreign-script gate, and returns a per-chunk
+    /// verdict rather than a whole-transcript verdict. Calling it
+    /// from the regular dictation/file path would silently weaken
+    /// those callsites' rules. This guard pins the call to the
+    /// chunked-transcribe function.
+    ///
+    /// Same source-grep technique as `validate_call_is_gated_to_non_meeting_mode`:
+    /// scan the production region (split on `#[cfg(test)]`), find
+    /// every call site of the meeting-chunk helper, and assert each
+    /// one sits below an `async fn transcribe_chunked(` line within
+    /// a reasonable lookback window. Fewer than one call site means
+    /// the wiring went missing; any call site outside the chunked
+    /// function fails the assertion.
+    ///
+    /// Obfuscation: the needle is assembled at runtime so this
+    /// doc-comment does not itself contain `validate_meeting_chunk(`.
+    #[test]
+    fn validate_meeting_chunk_call_is_only_inside_transcribe_chunked() {
+        let src = include_str!("dictation.rs");
+        let test_mod_marker = "#[cfg(test)]";
+        let production_src = src.split(test_mod_marker).next().unwrap_or(src);
+        let lines: Vec<&str> = production_src.lines().collect();
+        let needle = format!("{}{}", "validate_meeting_", "chunk(");
+        let chunked_fn_marker = "async fn transcribe_chunked(";
+        let next_top_level_marker = "async fn ";
+
+        let mut found = 0usize;
+        for (i, line) in lines.iter().enumerate() {
+            // Skip definition / use-import / doc lines so only real
+            // call sites count.
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("//")
+                || trimmed.starts_with("///")
+                || trimmed.starts_with("use ")
+                || trimmed.starts_with("pub fn ")
+                || trimmed.starts_with("fn ")
+            {
+                continue;
+            }
+            if !line.contains(&needle) {
+                continue;
+            }
+            found += 1;
+            // Walk backwards to find the most recent `async fn ...`
+            // declaration. It must be `transcribe_chunked`.
+            let mut enclosing: Option<&str> = None;
+            for back in (0..i).rev() {
+                let l = lines[back].trim_start();
+                if l.starts_with(next_top_level_marker) {
+                    enclosing = Some(l);
+                    break;
+                }
+            }
+            let enclosing_line =
+                enclosing.expect("validate_meeting_chunk call has no async fn ancestor");
+            assert!(
+                enclosing_line.starts_with(chunked_fn_marker),
+                "validate_meeting_chunk call at line {} is inside `{}` but must only be \
+                 inside `async fn transcribe_chunked(...)`. Meeting Mode chunk validation \
+                 has a different rule set from regular dictation/file validation; calling \
+                 it from any other function would silently weaken those callsites.",
+                i + 1,
+                enclosing_line.split('(').next().unwrap_or(enclosing_line)
+            );
+        }
+        assert!(
+            found >= 1,
+            "expected at least one production call to validate_meeting_chunk inside \
+             transcribe_chunked; found 0"
         );
     }
 
