@@ -443,6 +443,43 @@ pub async fn consume_post_update_marker() -> CmdResult<Option<String>> {
     Ok(consume_pending_relaunch())
 }
 
+/// Non-consuming peek used by the startup hook to decide whether the
+/// freshly-relaunched process should force-show the main window
+/// (overriding `start_minimised`). Returns true only when the marker
+/// exists AND its target_version matches the running binary, i.e.
+/// the install genuinely upgraded us. Any mismatch returns false and
+/// leaves the marker for `consume_pending_relaunch` to clean up.
+///
+/// Why a peek rather than reusing `consume_pending_relaunch`: the
+/// existing consumer is owned by the frontend toast, which fires the
+/// "Updated to vX.Y.Z" notification. If the startup hook consumed the
+/// marker first, the toast would silently disappear on the very
+/// launch where the user expects it. Peek-then-consume keeps both
+/// contracts intact.
+pub fn peek_pending_relaunch_for_force_show() -> bool {
+    let Some(path) = pending_relaunch_path() else {
+        return false;
+    };
+    if !path.exists() {
+        return false;
+    }
+    let Ok(json) = std::fs::read_to_string(&path) else {
+        return false;
+    };
+    let Ok(rec) = serde_json::from_str::<PendingRelaunch>(&json) else {
+        return false;
+    };
+    let current = env!("CARGO_PKG_VERSION");
+    let matched = rec.target_version == current;
+    if matched {
+        tracing::info!(
+            version = %current,
+            "peek_pending_relaunch: post-update launch detected, forcing main window visible"
+        );
+    }
+    matched
+}
+
 /// Read + delete the pending_relaunch.json marker. Returns Some(version)
 /// only when the marker exists AND the running binary's version matches
 /// the marker's target_version — i.e. the install actually upgraded us
