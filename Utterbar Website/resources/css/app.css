@@ -66,9 +66,12 @@
         --muted: #8A8A94;
         --fg: #E8E8EB;
         --fg-hi: #FFFFFF;
+        --fg-dim: #4A4F5C; /* one step quieter than --muted; used for inactive icons / silent-state lanes */
         --accent: #22D3EE;
         --accent-2: #67E8F9;
         --accent-3: #0891B2;
+        --radius-block: 24px;
+        --gradient-wordmark: linear-gradient(90deg, #00e5ff 0%, #00a3ff 100%);
         /* Logo pill gradient — single source of truth; buttons + logo share this. */
         --pill-top: #223042;
         --pill-bot: #111827;
@@ -1441,4 +1444,534 @@
     .ub-compare-row .their,
     .ub-compare-row .ours { border-left: none; border-top: 1px solid var(--border); }
     .ub-compare-row.head .label { display: none; }
+}
+
+/* =================================================================
+   TALK TO AI (interactive)
+   ================================================================= */
+.ub-ai-stage {
+    background: var(--bg-1);
+    border-radius: var(--radius-block);
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    --ai-tint: var(--accent);
+}
+.ub-ai-stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 80% at 100% 0%,
+        color-mix(in oklab, var(--ai-tint) 14%, transparent), transparent 62%);
+    pointer-events: none;
+    transition: background 320ms ease;
+}
+.ub-ai-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    position: relative;
+    flex-wrap: wrap;
+}
+.ub-ai-tab {
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--font-sans);
+    padding: 9px 14px 9px 9px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+}
+.ub-ai-tab:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.ub-ai-tab.is-active {
+    background: var(--bg-2);
+    border-color: var(--tab-tint);
+    box-shadow:
+        0 0 0 1px color-mix(in oklab, var(--tab-tint) 50%, transparent),
+        0 8px 24px -8px color-mix(in oklab, var(--tab-tint) 50%, transparent);
+}
+.ub-ai-tab-glyph {
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    border: 1px solid var(--border-strong);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: background 200ms, color 200ms, border-color 200ms;
+}
+.ub-ai-tab-meta { display: inline-flex; flex-direction: column; line-height: 1.15; }
+.ub-ai-tab-name {
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+}
+.ub-ai-tab.is-active .ub-ai-tab-name { color: var(--fg-hi); }
+.ub-ai-tab-org {
+    color: var(--fg-dim);
+    font-size: 10.5px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.ub-ai-conversation {
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    position: relative;
+    min-height: 380px;
+    overflow: hidden;
+    transition: border-color 280ms ease;
+    border-color: color-mix(in oklab, var(--ai-tint) 30%, var(--border));
+}
+
+.ub-ai-urlbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--fg-dim);
+}
+.ub-ai-urlbar .dots { display: inline-flex; gap: 5px; }
+.ub-ai-urlbar .dots i {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--fg-dim) 50%, transparent);
+}
+.ub-ai-urlbar .url {
+    flex: 1;
+    background: var(--bg-0);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.01em;
+}
+.ub-ai-urlbar .lock { color: color-mix(in oklab, var(--ai-tint) 70%, var(--fg-dim)); }
+.ub-ai-urlbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    font-family: var(--font-sans);
+    font-size: 12px;
+}
+.ub-ai-urlbar-glyph {
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 10px;
+}
+
+.ub-ai-thread { padding: 20px 22px 16px; }
+
+.ub-ai-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 28px 12px 8px;
+    gap: 10px;
+}
+.ub-ai-empty-glyph {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px -8px color-mix(in oklab, var(--ai-tint) 60%, transparent);
+}
+.ub-ai-empty-title { font-size: 17px; color: var(--fg-hi); font-weight: 600; margin: 6px 0 0; letter-spacing: -0.01em; }
+.ub-ai-empty-sub { color: var(--muted); font-size: 13.5px; margin: 0; max-width: 32ch; }
+
+.ub-ai-msg { display: flex; gap: 12px; margin-bottom: 18px; }
+.ub-ai-msg .avatar {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-hi);
+    font-weight: 600;
+}
+.ub-ai-msg.user .avatar { background: var(--accent); color: var(--bg-0); }
+.ub-ai-msg .bubble {
+    flex: 1;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--fg);
+    white-space: pre-wrap;
+}
+.ub-ai-msg .bubble .name {
+    display: block;
+    font-size: 10.5px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+.ub-ai-msg.assistant[data-font="serif"] .bubble {
+    font-family: Georgia, "Iowan Old Style", serif;
+    font-size: 15.5px;
+}
+
+.ub-ai-send-btn {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 160ms ease, box-shadow 220ms ease;
+    box-shadow: 0 8px 22px -8px color-mix(in oklab, var(--ai-tint) 70%, transparent);
+}
+.ub-ai-send-btn:hover { transform: translateY(-1px); }
+
+.ub-ai-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 22px 22px;
+    padding: 12px 14px;
+    background: var(--bg-1);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    transition: border-color 220ms;
+}
+.ub-ai-input-wrap.is-listening {
+    border-color: var(--accent);
+    box-shadow:
+        0 0 0 1px color-mix(in oklab, var(--accent) 60%, transparent),
+        0 0 32px -4px color-mix(in oklab, var(--accent) 40%, transparent);
+}
+.ub-ai-input-text {
+    flex: 1;
+    color: var(--fg-hi);
+    font-size: 15px;
+    line-height: 1.55;
+    min-height: 1.55em;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.ub-ai-input-text:has(span:empty)::before {
+    content: attr(data-placeholder);
+    color: var(--fg-dim);
+}
+.ub-ai-cursor {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.05em;
+    background: var(--accent);
+    vertical-align: -0.15em;
+    margin-left: 2px;
+    animation: ub-ai-caret 1.05s steps(1) infinite;
+}
+@keyframes ub-ai-caret {
+    0%, 49%   { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ub-ai-cursor { animation: none; opacity: 1; }
+}
+
+.ub-ai-mic-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-1);
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 180ms, border-color 180ms, color 180ms;
+    white-space: nowrap;
+}
+.ub-ai-mic-btn:hover { background: var(--bg-2); border-color: var(--accent); }
+.ub-ai-mic-btn.is-listening {
+    background: color-mix(in oklab, var(--accent) 16%, var(--bg-2));
+    color: var(--fg-hi);
+    border-color: var(--accent);
+}
+.ub-ai-mic-btn .led {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--fg-dim);
+}
+.ub-ai-mic-btn.is-listening .led {
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+}
+.ub-ai-mic-btn .kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--bg-0);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-strong);
+    letter-spacing: 0.04em;
+}
+
+/* =================================================================
+   APP MOCK (interactive Windows shell)
+   ================================================================= */
+.ub-appmock {
+    background: var(--bg-1);
+    border-radius: var(--radius-block);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    position: relative;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 480px;
+}
+@media (max-width: 720px) {
+    .ub-appmock { grid-template-columns: 1fr; }
+}
+.ub-appmock-titlebar {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    background: color-mix(in oklab, var(--bg-0) 50%, var(--bg-1));
+    border-bottom: 1px solid var(--border);
+    z-index: 2;
+}
+.ub-appmock-titlebar .lights { display: flex; gap: 6px; }
+.ub-appmock-titlebar .lights span {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--bg-2);
+}
+.ub-appmock-titlebar .title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-dim);
+    letter-spacing: 0.05em;
+}
+.ub-appmock-sidebar {
+    background: var(--bg-1);
+    padding: 50px 12px 16px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+@media (max-width: 720px) {
+    .ub-appmock-sidebar {
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 50px 12px 12px;
+    }
+}
+.ub-appmock-sidebar .section-label {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 12px 12px 6px;
+}
+.ub-appmock-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--fg);
+    cursor: pointer;
+    transition: background 180ms;
+    position: relative;
+    white-space: nowrap;
+}
+.ub-appmock-nav:hover { background: var(--bg-2); }
+.ub-appmock-nav.is-active {
+    background: var(--bg-2);
+    color: var(--fg-hi);
+    font-weight: 500;
+}
+.ub-appmock-nav.is-active::before {
+    content: "";
+    position: absolute;
+    left: -12px; top: 8px; bottom: 8px;
+    width: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 50%, transparent);
+}
+.ub-appmock-nav .icon {
+    width: 14px; height: 14px;
+    flex-shrink: 0;
+    color: var(--muted);
+}
+.ub-appmock-nav.is-active .icon { color: var(--accent); }
+.ub-appmock-content {
+    padding: 50px 28px 28px;
+    background: var(--bg-0);
+    position: relative;
+    overflow: hidden;
+}
+.ub-appmock-pane h4 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--fg-hi);
+}
+.ub-appmock-pane .muted {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 6px;
+}
+.ub-appmock-section-label {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+    margin-bottom: 10px;
+}
+.ub-appmock-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 22px;
+}
+@media (max-width: 720px) {
+    .ub-appmock-stats { grid-template-columns: 1fr; }
+}
+.ub-appmock-stats .stat {
+    background: var(--bg-1);
+    border-radius: 12px;
+    padding: 16px;
+}
+.ub-appmock-stats .stat .label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.ub-appmock-stats .stat .value {
+    margin-top: 8px;
+    color: var(--fg-hi);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+.ub-appmock-stats .stat .value.cyan { color: var(--accent); }
+.ub-appmock-stats .stat .delta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+}
+.ub-appmock-list {
+    margin-top: 22px;
+    display: grid;
+    gap: 4px;
+}
+.ub-appmock-list-item {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--fg);
+}
+.ub-appmock-list-item.is-2col  { grid-template-columns: 1fr auto; }
+.ub-appmock-list-item.is-kv    { grid-template-columns: 180px 1fr; }
+.ub-appmock-list-item:hover { background: var(--bg-1); }
+.ub-appmock-list-item .time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-dim);
+    letter-spacing: 0.04em;
+}
+.ub-appmock-list-item .body {
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ub-appmock-list-item .meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+}
+.ub-appmock-list-item.is-active {
+    background: var(--bg-2);
+    position: relative;
+    border-left: 2px solid var(--accent);
+    padding-left: 12px;
+}
+.ub-appmock-list-item .mode-name { color: var(--fg-hi); font-weight: 500; }
+.ub-appmock-list-item .mode-sub  { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+.ub-appmock-vocab-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 14px;
+    background: var(--bg-1);
+    border-radius: 10px;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+.ub-appmock-vocab-row .from {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+.ub-appmock-vocab-row .arrow { color: var(--accent); }
+.ub-appmock-vocab-row .to {
+    color: var(--fg-hi);
+    font-weight: 500;
 }
