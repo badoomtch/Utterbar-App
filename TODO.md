@@ -9,8 +9,8 @@ Active working list. Keep short. When something ships, move it out of Next actio
 ## Current status
 
 - **Stable channel:** v0.15.6 (admin row 56). DirectML execution provider live, Whisper Small stays on CPU on Auto.
-- **Beta channel:** v0.15.10 (admin row 60). All three ASR surfaces now run the shared output validator: regular dictation (since 0.15.8), file transcription (since 0.15.9), and Meeting Mode per-chunk (new in 0.15.10). Meeting chunks drop on empty / whitespace / single-punct / 10+-repeated-punct, observe-only on repeated-token loops, and skip foreign-script + known-hallucination rules. Whole meetings still rely on the existing empty-transcript guard.
-- **In-tree app version:** v0.15.10 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
+- **Beta channel:** v0.15.11 (admin row 61). First B2B drop: managed fleet licence delivery via `%APPDATA%\Utterbar\licence.bin`, three new group policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`), admin "Download licence.bin" button, three-arm `ManagedLicenceState` so a corrupt managed file fails closed AND blocks paste-flow override, source-grep guard on production `state.history.insert(...)` callsites.
+- **In-tree app version:** v0.15.11 across `package.json`, `Cargo.toml`, `tauri.conf.json`.
 - **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
 - **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
 - **Cloudflare Always Use HTTPS** enabled. Plain HTTP redirects to HTTPS for apex, www, and dl. subdomains.
@@ -25,8 +25,8 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 In rough order. Adjust as evidence comes in.
 
-1. **B2B sprint: fleet licence delivery + IT policy controls.** Make Utterbar credible for managed deployment. Two chunks: (a) admin-downloadable signed `licence.bin` that the desktop app reads from `%APPDATA%\Utterbar\licence.bin` and treats as the active Pro licence, with managed wins over user-entered; (b) three new group policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`) under the existing `HKLM\SOFTWARE\Policies\Utterbar` registry path. Plus IT-deployment docs. Out of scope for this sprint: volume self-serve checkout, air-gapped activation, code-signed customer builds, Stripe invoice automation.
-2. **Promote the validation work to stable.** Once 0.15.8 / 0.15.9 / 0.15.10 soak shows the noticed-drop rules don't false-positive on real users (target: 1-2 weeks of beta with `output_validation: dropped` log lines reviewed), bundle as 0.16.0 stable. Single-version cut bringing all three ASR-surface validators to the stable channel.
+1. **B2B sprint: volume self-serve checkout.** Let a business buyer purchase multiple seats through Stripe Checkout without emailing first. Quantity selector (5-100), per-seat price, mint a licence row with `max_devices = quantity`, SKU `utterbar-pro-volume`. Website-only sprint; no desktop app changes. Branch `feature/b2b-volume-checkout`.
+2. **Promote v0.15.x beta line to stable as v0.16.0.** Bundles three things once soak signals are clean: (a) the validation work from 0.15.8/0.15.9/0.15.10 (regular dictation + file transcription + Meeting Mode per-chunk validators), (b) the v0.15.11 B2B sprint (managed fleet licence + three new policy keys), and (c) whatever lands in 0.15.12 from the volume-checkout sprint above if a desktop change ends up being required. Single-version cut.
 3. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
 4. **Pick the next product work item** from the backlog below.
 
@@ -40,13 +40,10 @@ One or two lines each. Expand only if the item moves to Next actions.
 
 ### B2B follow-throughs (post first-pass)
 
-The 2026-04-27 B2B pass shipped the front door (`/business`, enquiry form, `/docs/it-deployment`, volume pricing, three group-policy registry keys). What's still open before the first real volume sale closes:
+The 2026-04-27 B2B pass shipped the front door (`/business`, enquiry form, `/docs/it-deployment`, volume pricing, the original five group-policy registry keys). The 2026-05-01 v0.15.11 beta added managed fleet licence delivery via `licence.bin` and three more policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`). Volume self-serve checkout is now in Next actions above. Still open:
 
 - **Code-signed installer at order time.** EV cert procurement, sign during `publish-release.sh`, ship to one customer without leaking into the public R2 bucket. Not a blocker for the first enquiry; only when the first one says yes.
-- **Bulk licence delivery for fleets.** Single signed `licence.bin` artefact + documented drop path under `%APPDATA%\Utterbar\` for IT teams. Spec'd, not built.
 - **Manual-mint invoice / VAT receipt.** First volume customer needs an invoice with VAT broken out. One-off Stripe Invoice for the first 1-3 deals.
-- **Volume self-serve checkout.** Extend Stripe checkout with a quantity selector mapping to `max_devices`. Build only when there's a queue.
-- **More group-policy keys** (`BlockTelemetry`, `BlockHistory`, `BlockHistoryExport`) after `Settings > Privacy` exists in the desktop app.
 - **Air-gapped activation.** Build only when a real buyer asks. `licence_request.bin` writer + paired admin endpoint + one-button ingest.
 
 ### Pre-existing open issues
