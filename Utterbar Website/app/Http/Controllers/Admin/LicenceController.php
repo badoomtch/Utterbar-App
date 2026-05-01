@@ -267,4 +267,50 @@ class LicenceController extends Controller
                 : 'Device not found (probably already deactivated).',
         ]);
     }
+
+    /**
+     * Download the signed licence as a binary file for managed fleet
+     * deployment. The file content is the same 96-byte Ed25519-signed
+     * blob the desktop app already verifies offline; the IT admin
+     * drops it at `%APPDATA%\Utterbar\licence.bin` on managed machines
+     * and Utterbar treats it as the active Pro licence at startup.
+     *
+     * No new format, no new trust model: this is the existing
+     * `signed_blob` column served as `application/octet-stream` with
+     * a predictable filename. Admin auth is enforced by the route
+     * middleware (`auth` + `admin.email`) configured in routes/web.php.
+     *
+     * If the licence has no signed blob yet (a row created before the
+     * signer ran, or a remint mid-flight), 404 the download rather
+     * than serving zero bytes; the admin can hit the "Re-sign" action
+     * on the detail page to populate it.
+     */
+    public function download(Request $request, int $id)
+    {
+        $licence = Licence::findOrFail($id);
+
+        if (empty($licence->signed_blob)) {
+            abort(404, 'Licence has no signed blob yet. Re-sign on the detail page first.');
+        }
+
+        Log::info('admin downloaded licence.bin', [
+            'licence_id' => $licence->id,
+            'actor'      => optional($request->user())->email,
+            'bytes'      => strlen($licence->signed_blob),
+        ]);
+
+        $filename = "utterbar-licence-{$licence->id}.bin";
+
+        return response($licence->signed_blob, 200, [
+            'Content-Type'              => 'application/octet-stream',
+            'Content-Disposition'       => 'attachment; filename="' . $filename . '"',
+            'Content-Length'            => (string) strlen($licence->signed_blob),
+            'X-Content-Type-Options'    => 'nosniff',
+            // Don't let intermediaries cache a binary that the admin
+            // expects to download fresh each time. Same posture as
+            // the licence-resend mail flow, just enforced at the HTTP
+            // layer rather than the mail headers.
+            'Cache-Control'             => 'private, no-store, no-cache, must-revalidate',
+        ]);
+    }
 }

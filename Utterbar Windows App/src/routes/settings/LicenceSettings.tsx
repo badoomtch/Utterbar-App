@@ -79,6 +79,32 @@ export function LicenceSettings() {
   const status = useLicence((s) => s.status);
   const loaded = useLicence((s) => s.loaded);
 
+  // Managed (fleet) licence detection. When the IT admin has dropped a
+  // verified licence.bin at the data dir, the desktop service flags
+  // is_managed=true at startup and the activation/device-list flow is
+  // bypassed entirely. We swap the entire panel for a short notice so
+  // the user (or, more realistically, the IT admin troubleshooting an
+  // install) can see at a glance that the machine is under managed
+  // licensing. Read once on mount; matches the desktop side, where the
+  // managed file is consulted only at startup.
+  const [isManaged, setIsManaged] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    invoke<boolean>('licence_is_managed')
+      .then((v) => {
+        if (!cancelled) setIsManaged(!!v);
+      })
+      .catch(() => {
+        // Defensive: if the command is missing for any reason (older
+        // build, IPC boot race), default to non-managed and let the
+        // existing panels render.
+        if (!cancelled) setIsManaged(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
@@ -91,12 +117,46 @@ export function LicenceSettings() {
           mount before the store hydrates. */}
       {!loaded ? (
         <div className="mt-8 text-[13px] text-muted">Loading…</div>
+      ) : isManaged ? (
+        <ManagedPanel />
       ) : status?.tier === 'pro' ? (
         <ProPanel status={status} />
       ) : (
         <FreePanel />
       )}
     </div>
+  );
+}
+
+/* --------------------------------------------------------- Managed (fleet) state */
+
+/**
+ * Settings → Licence panel shown when the desktop is licensed via a
+ * managed (fleet) licence file at `<data_dir>/licence.bin`. Replaces
+ * the device-list / activation / deactivation surfaces because none
+ * of those user actions apply: removal is "delete the file", and
+ * activation already happened before the user opened settings.
+ *
+ * Per the B2B spec the copy is short. The IT admin gets the
+ * actionable detail from the app log (`output_validation` and
+ * `licence: managed mode active at launch` lines). The end user
+ * just needs to know "you're licensed, your admin set this up".
+ */
+function ManagedPanel() {
+  return (
+    <Card className="mt-8 p-6">
+      <div className="flex items-start gap-3">
+        <Led size={6} />
+        <div className="flex-1">
+          <h2 className="text-[15px] font-medium text-fg-hi">Managed by your administrator</h2>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">
+            This device is licensed for Utterbar Pro through a managed deployment.
+            Your IT administrator manages the licence; activation and device removal
+            are not available here.
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 }
 

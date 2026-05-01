@@ -33,6 +33,20 @@
 //!   Used in managed deployments where the free tier is not approved
 //!   software — the IT admin pushes a licence to the machine and the
 //!   user can't fall back to the free tier on their own.
+//! - `BlockHistory` (REG_DWORD): 0 or 1. When 1, no new history rows
+//!   are persisted. Existing rows are NOT deleted — the IT admin's
+//!   intent is "stop collecting more", not "destroy the past". Set
+//!   together with `BlockHistoryExport` if the goal is total lock-down.
+//! - `BlockHistoryExport` (REG_DWORD): 0 or 1. When 1, the export-as-
+//!   JSON command refuses. History remains visible in the UI; this is
+//!   the narrower control for environments where the user is allowed
+//!   to consult their own transcripts but not move them off-device.
+//! - `BlockTelemetry` (REG_DWORD): 0 or 1. When 1, the local analytics
+//!   rollup (words / dictations / saved-seconds in
+//!   `analytics_daily`) does not bump on a successful dictation. There
+//!   is no remote telemetry endpoint — this gates the on-device SQLite
+//!   rollup that powers the Dashboard, for environments where even
+//!   local usage counters are out of scope.
 //!
 //! ## Adding a new pinnable value
 //!
@@ -74,6 +88,28 @@ pub struct Policy {
     /// floating bar UI so the user knows their IT admin is the
     /// person to ask.
     pub require_licence: Option<bool>,
+    /// When true, new history rows are not persisted. Existing
+    /// rows are left untouched — the policy is forward-looking
+    /// ("stop collecting more"), not retrospective. The Settings
+    /// → Privacy panel shows a "Disabled by your administrator"
+    /// hint next to the History controls so the user knows why
+    /// nothing new is appearing.
+    pub block_history: Option<bool>,
+    /// When true, the export-as-JSON command refuses. History
+    /// stays visible in the UI; only the "move it off-device"
+    /// surface is disabled. If `block_history` is also set the
+    /// export refuses too (no rows worth exporting), but
+    /// `block_history_export` alone is the right pick when the
+    /// IT admin wants the user to be able to read their own
+    /// transcripts but not redistribute them.
+    pub block_history_export: Option<bool>,
+    /// When true, the local analytics rollup
+    /// (`AnalyticsService::record_dictation`) is skipped on a
+    /// successful dictation. The Dashboard surfaces stop
+    /// accumulating new data; existing rollup rows are not
+    /// deleted. There is no remote telemetry — this gates the
+    /// on-device SQLite rollup only.
+    pub block_telemetry: Option<bool>,
 }
 
 impl Policy {
@@ -102,6 +138,25 @@ impl Policy {
     /// short-circuit the free tier on managed deployments.
     pub fn licence_required(&self) -> bool {
         self.require_licence.unwrap_or(false)
+    }
+
+    /// True if this machine should not persist new history rows.
+    pub fn history_blocked(&self) -> bool {
+        self.block_history.unwrap_or(false)
+    }
+
+    /// True if the export surface is disabled. Returns true when
+    /// either `BlockHistoryExport` is explicitly set OR
+    /// `BlockHistory` is set (no point exporting a frozen set, and
+    /// "block history" is the strict superset of "block export").
+    pub fn history_export_blocked(&self) -> bool {
+        self.block_history_export.unwrap_or(false) || self.history_blocked()
+    }
+
+    /// True if the local analytics rollup is disabled. Used by the
+    /// dictation success path to skip the `record_dictation` call.
+    pub fn telemetry_blocked(&self) -> bool {
+        self.block_telemetry.unwrap_or(false)
     }
 
     /// Apply the policy to a freshly-loaded Settings. Mutates only the
@@ -147,6 +202,9 @@ impl Policy {
             || self.block_model_downloads.is_some()
             || self.block_system_audio.is_some()
             || self.require_licence.is_some()
+            || self.block_history.is_some()
+            || self.block_history_export.is_some()
+            || self.block_telemetry.is_some()
     }
 }
 
@@ -178,6 +236,9 @@ fn read_from_registry() -> Policy {
             block_model_downloads = ?policy.block_model_downloads,
             block_system_audio = ?policy.block_system_audio,
             require_licence = ?policy.require_licence,
+            block_history = ?policy.block_history,
+            block_history_export = ?policy.block_history_export,
+            block_telemetry = ?policy.block_telemetry,
             "policy: managed values active"
         );
     }
@@ -213,6 +274,21 @@ fn merge_keys(key: &winreg::RegKey, policy: &mut Policy) {
     if policy.require_licence.is_none() {
         if let Ok(v) = key.get_value::<u32, _>("RequireLicence") {
             policy.require_licence = Some(v != 0);
+        }
+    }
+    if policy.block_history.is_none() {
+        if let Ok(v) = key.get_value::<u32, _>("BlockHistory") {
+            policy.block_history = Some(v != 0);
+        }
+    }
+    if policy.block_history_export.is_none() {
+        if let Ok(v) = key.get_value::<u32, _>("BlockHistoryExport") {
+            policy.block_history_export = Some(v != 0);
+        }
+    }
+    if policy.block_telemetry.is_none() {
+        if let Ok(v) = key.get_value::<u32, _>("BlockTelemetry") {
+            policy.block_telemetry = Some(v != 0);
         }
     }
 }
@@ -356,5 +432,91 @@ mod tests {
             ..Default::default()
         }
         .licence_required());
+    }
+
+    #[test]
+    fn history_blocked_helper() {
+        assert!(!Policy::default().history_blocked());
+        assert!(Policy {
+            block_history: Some(true),
+            ..Default::default()
+        }
+        .history_blocked());
+        assert!(!Policy {
+            block_history: Some(false),
+            ..Default::default()
+        }
+        .history_blocked());
+    }
+
+    /// `history_export_blocked()` is true when either flag is set.
+    /// `BlockHistory` implies `BlockHistoryExport` because there is
+    /// nothing fresh to export — the strict-superset relationship is
+    /// part of the documented semantics, not just incidental.
+    #[test]
+    fn history_export_blocked_respects_both_flags() {
+        assert!(!Policy::default().history_export_blocked());
+        assert!(Policy {
+            block_history_export: Some(true),
+            ..Default::default()
+        }
+        .history_export_blocked());
+        // BlockHistory alone is enough — superset semantics.
+        assert!(Policy {
+            block_history: Some(true),
+            ..Default::default()
+        }
+        .history_export_blocked());
+        // Both set is still blocked.
+        assert!(Policy {
+            block_history: Some(true),
+            block_history_export: Some(true),
+            ..Default::default()
+        }
+        .history_export_blocked());
+        // Both explicitly false → not blocked.
+        assert!(!Policy {
+            block_history: Some(false),
+            block_history_export: Some(false),
+            ..Default::default()
+        }
+        .history_export_blocked());
+    }
+
+    #[test]
+    fn telemetry_blocked_helper() {
+        assert!(!Policy::default().telemetry_blocked());
+        assert!(Policy {
+            block_telemetry: Some(true),
+            ..Default::default()
+        }
+        .telemetry_blocked());
+        assert!(!Policy {
+            block_telemetry: Some(false),
+            ..Default::default()
+        }
+        .telemetry_blocked());
+    }
+
+    /// New keys flip `is_active()` independently of the existing set.
+    /// Catches regressions where a new pinnable value was added to
+    /// the struct but not to the active-set predicate.
+    #[test]
+    fn is_active_includes_new_keys() {
+        assert!(Policy {
+            block_history: Some(true),
+            ..Default::default()
+        }
+        .is_active());
+        assert!(Policy {
+            block_history_export: Some(true),
+            ..Default::default()
+        }
+        .is_active());
+        assert!(Policy {
+            block_telemetry: Some(true),
+            ..Default::default()
+        }
+        .is_active());
     }
 }

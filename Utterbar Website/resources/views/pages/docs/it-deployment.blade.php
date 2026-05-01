@@ -182,13 +182,34 @@ HKEY_CURRENT_USER\SOFTWARE\Policies\Utterbar     (HKLM wins on conflict)</pre>
                 <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
                 <td class="py-3" style="color: var(--muted);">0 or 1. When 1, forces the capture source back to <code class="text-xs">Microphone</code> on every settings read. Use to disable system / loopback audio capture (call recording, meeting transcription) for compliance.</td>
             </tr>
-            <tr>
+            <tr style="border-bottom: 1px solid var(--border);">
                 <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">RequireLicence</td>
                 <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
                 <td class="py-3" style="color: var(--muted);">0 or 1. When 1, the app refuses to dictate unless a Pro licence is active on the machine. The free tier becomes unavailable. Use when only the paid SKU is approved on managed devices.</td>
             </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">BlockHistory</td>
+                <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
+                <td class="py-3" style="color: var(--muted);">0 or 1. When 1, no new history rows are persisted. Existing rows are not deleted &mdash; the policy is forward-only. Use for environments where transcript retention is out of scope.</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">BlockHistoryExport</td>
+                <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
+                <td class="py-3" style="color: var(--muted);">0 or 1. When 1, the &ldquo;export history as JSON&rdquo; command refuses. History stays visible in the UI; only the off-device copy is disabled. <code class="text-xs">BlockHistory</code> implies this.</td>
+            </tr>
+            <tr>
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">BlockTelemetry</td>
+                <td class="py-3 pr-4" style="color: var(--muted);">REG_DWORD</td>
+                <td class="py-3" style="color: var(--muted);">0 or 1. When 1, the local on-device analytics rollup (Dashboard counters: words, dictations, time saved) does not bump on a successful dictation. There is no remote telemetry; this gates the local SQLite rollup only.</td>
+            </tr>
         </tbody>
     </table>
+    <div class="mt-5 ub-card" style="padding: 1rem 1.25rem;">
+        <p class="text-sm" style="color: var(--muted); line-height: 1.55;">
+            <strong style="color: var(--fg-hi);">Restart to apply.</strong>
+            The policy is read once at app start. After pushing a change to the registry, the user must close and reopen Utterbar before the new value takes effect. This is the same contract Windows itself has for most managed policies, and matches what an MDM-pushed change typically expects.
+        </p>
+    </div>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
         More keys land per customer request. The pattern is small (one new field, one registry read, one apply rule), so adding one more is a same-day change for us. Tell us what you need pinned in the enquiry.
     </p>
@@ -202,6 +223,35 @@ HKEY_CURRENT_USER\SOFTWARE\Policies\Utterbar     (HKLM wins on conflict)</pre>
     </p>
     <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
         Today, the licence is administered through your <a href="{{ route('account') }}" style="color: var(--accent);">account</a> on utterbar.com (sign in with the email the licence was issued to). The account view shows every active device, when it was last seen, and lets you deactivate any seat. For team rollouts at 25+ seats we work with you directly to mint and rotate licences as your headcount changes.
+    </p>
+
+    <h3 id="licence-delivery-for-managed-fleets" class="mt-10 ub-docs-h3" style="font-size: 1.25rem; font-weight: 600; color: var(--fg-hi); letter-spacing: -0.015em;">Licence delivery for managed fleets</h3>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        For fleet rollouts where the end user shouldn&rsquo;t need to paste a licence key into the app, the licence can be delivered as a signed file on disk. Drop a single binary at:
+    </p>
+    <pre class="mt-4 p-4 rounded-input text-sm overflow-x-auto" style="background: var(--bg-2); color: var(--fg); font-family: var(--font-mono); line-height: 1.55;">%APPDATA%\Utterbar\licence.bin</pre>
+    <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
+        Utterbar reads the file at startup, verifies the Ed25519 signature against the public keys baked into the desktop app, and treats the result as the active Pro licence on that machine. The user never sees an activation dialog. Removal is &ldquo;delete the file&rdquo;.
+    </p>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        How to obtain the file:
+    </p>
+    <ul class="mt-3 space-y-2 text-base leading-relaxed" style="color: var(--fg);">
+        <li>Sign in to the admin panel on utterbar.com and open the licence detail page for the seat you want to deploy.</li>
+        <li>Click <strong style="color: var(--fg-hi);">Download licence.bin</strong>. The file served is the same Ed25519-signed blob the desktop app already verifies offline; no separate trust model.</li>
+        <li>Rename the download to <code class="font-mono text-sm" style="color: var(--accent);">licence.bin</code> and ship it to the target machine via your MDM, GPO, or whatever fleet pipeline you already run for app config files.</li>
+    </ul>
+    <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
+        Behaviour notes worth knowing before you deploy:
+    </p>
+    <ul class="mt-3 space-y-2 text-base leading-relaxed" style="color: var(--fg);">
+        <li><strong style="color: var(--fg-hi);">Managed wins.</strong> If a verified <code class="font-mono text-sm" style="color: var(--accent);">licence.bin</code> is present, it overrides any user-pasted licence cache on the same machine. The user can&rsquo;t accidentally downgrade a managed deployment by pasting a personal key.</li>
+        <li><strong style="color: var(--fg-hi);">Managed-but-invalid fails closed.</strong> If the file is present but corrupt, the wrong length, or signed with a key the app doesn&rsquo;t recognise, the machine reports as Free, a warning lands in the app log, and paste-flow activation is also blocked. We deliberately do <em>not</em> silently fall back to whatever the user happened to paste, AND we don&rsquo;t let the user paste a personal key as an override &mdash; an admin who deployed a broken file gets a clear &ldquo;no Pro&rdquo; signal until they fix or remove the file. Fix is &ldquo;push a valid file&rdquo; or &ldquo;delete the file&rdquo;, never &ldquo;ask the user to enter a key&rdquo;.</li>
+        <li><strong style="color: var(--fg-hi);">Activation / deactivation are disabled in-app.</strong> The Settings &rarr; Licence panel renders a short &ldquo;Managed by your administrator&rdquo; notice instead of the activation form. Removal is &ldquo;delete the file&rdquo;; you don&rsquo;t need the user to click anything.</li>
+        <li><strong style="color: var(--fg-hi);">No DPAPI wrapper.</strong> The file is the raw 96-byte signed blob. The bytes aren&rsquo;t secret in the cryptographic sense (the signature, not encryption, is what makes them trustworthy), so we don&rsquo;t machine-bind the licence. That&rsquo;s also what lets you stamp it into a golden image.</li>
+    </ul>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        Combined with <code class="font-mono text-sm" style="color: var(--accent);">RequireLicence</code> in the policy table above, this gives you a managed fleet where Utterbar runs as Pro on every machine, the free tier is unreachable, and no one ever sees an activation prompt.
     </p>
 
     <h2 class="mt-14 ub-docs-h2">Diagnostic info on the user&rsquo;s machine</h2>

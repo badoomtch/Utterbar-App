@@ -6,6 +6,7 @@ import { EVT } from '@/lib/events';
 import { useDictation, type DictationPhase, type MeterFrame } from '@/state/dictation';
 import { useSettings } from '@/state/settings';
 import { attachLicenceListener, useLicence } from '@/state/licence';
+import { usePolicy } from '@/state/policy';
 import { useSoundCues } from '@/design/sounds';
 import { useSystemNotifications } from '@/design/notifications';
 
@@ -32,6 +33,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   const setMeter = useDictation((s) => s.setMeter);
   const setLastText = useDictation((s) => s.setLastText);
   const loadLicence = useLicence((s) => s.load);
+  const loadPolicy = usePolicy((s) => s.load);
   const reduceMotion = useSettings((s) => s.data?.general.reduce_motion ?? false);
   const isMain = isMainWindow();
 
@@ -45,6 +47,15 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  // Group-policy snapshot is a one-shot read at boot: the registry is
+  // resolved once on the Rust side at app start, so refetching across
+  // a session never returns new data. Loading it here means every
+  // settings page can read `usePolicy().snapshot` synchronously
+  // without each one re-invoking.
+  useEffect(() => {
+    void loadPolicy();
+  }, [loadPolicy]);
 
   // Licence: pull the current tier once on mount and subscribe to the
   // `licence_changed` event so the store stays in sync with Rust through

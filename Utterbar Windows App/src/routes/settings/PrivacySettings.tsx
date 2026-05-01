@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
+import { ManagedHint } from '@/components/common/ManagedHint';
 import { ProNudge } from '@/components/common/ProNudge';
 import { Toggle } from '@/components/common/Toggle';
 import { invoke } from '@/lib/ipc';
 import { useLicence, isPro } from '@/state/licence';
+import { usePolicy } from '@/state/policy';
 import { useSettings } from '@/state/settings';
 
 type DataPaths = {
@@ -20,6 +22,7 @@ export function PrivacySettings() {
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const licenceStatus = useLicence((x) => x.status);
+  const policy = usePolicy((x) => x.snapshot);
   const [paths, setPaths] = useState<DataPaths | null>(null);
 
   useEffect(() => {
@@ -45,6 +48,23 @@ export function PrivacySettings() {
         title="Privacy"
         subtitle="Utterbar processes everything on-device. You are always in control of what is retained and what is used as context."
       />
+
+      {/* Managed-deployment hint. Renders only when at least one of
+          the privacy-adjacent group policies is set (history /
+          export / telemetry). The cards below stay editable for
+          user-controlled fields; this banner is the page-level
+          explanation for anything the user finds disabled. */}
+      {policy &&
+        (policy.history_blocked ||
+          policy.history_export_blocked ||
+          policy.telemetry_blocked) && (
+          <div className="mt-6">
+            <ManagedHint variant="block">
+              Some privacy controls on this device are managed by your administrator.
+              Restart Utterbar to pick up policy changes.
+            </ManagedHint>
+          </div>
+        )}
 
       <div className="mt-6 space-y-4">
         <Card title="Context capture" description="Which signals may a mode use to tailor its output?">

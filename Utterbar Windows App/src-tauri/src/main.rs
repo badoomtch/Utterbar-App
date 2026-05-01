@@ -165,6 +165,7 @@ fn main() {
             commands::licence::licence_status,
             commands::licence::licence_activate,
             commands::licence::licence_deactivate,
+            commands::licence::licence_is_managed,
             // analytics
             commands::analytics::get_stats_summary,
             commands::analytics::get_stats_series,
@@ -180,6 +181,8 @@ fn main() {
             commands::release_notes::current_release_notes,
             // pricing lookup (for the in-app upgrade modal)
             commands::pricing::get_pro_price,
+            // group-policy snapshot for the settings UI hints
+            commands::policy::policy_snapshot,
             // diagnostics
             commands::diagnostics::get_diagnostics,
             commands::diagnostics::probe_gpu,

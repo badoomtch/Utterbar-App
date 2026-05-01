@@ -3046,15 +3046,30 @@ pub(crate) async fn stop_recording_inner(
         // the user can rename later from the Meetings page.
         speaker_names: None,
     };
-    state.history.insert(&entry).map_err(OrliqError::from)?;
+    // Group-policy gates. Both are forward-only — existing rows /
+    // analytics rollups are untouched; we just stop adding to them.
+    // Skipping history persistence does NOT abort the dictation: the
+    // text was already injected into the focused app, the user's work
+    // is done. A managed deployment that asked us not to keep the
+    // record gets exactly that, with the rest of the flow unchanged.
+    let policy = state.settings.policy();
+    if policy.history_blocked() {
+        tracing::debug!("history persistence skipped: BlockHistory policy is set");
+    } else {
+        state.history.insert(&entry).map_err(OrliqError::from)?;
+    }
 
-    let words = processed.split_whitespace().count() as u32;
-    let _ = state.analytics.record_dictation(
-        words,
-        (final_.duration_ms / 1000) as u32,
-        settings.typing_baseline_wpm,
-        Some(&mode.id),
-    );
+    if policy.telemetry_blocked() {
+        tracing::debug!("local analytics rollup skipped: BlockTelemetry policy is set");
+    } else {
+        let words = processed.split_whitespace().count() as u32;
+        let _ = state.analytics.record_dictation(
+            words,
+            (final_.duration_ms / 1000) as u32,
+            settings.typing_baseline_wpm,
+            Some(&mode.id),
+        );
+    }
 
     // Resume any media we paused when the recording started.
     // (see: privacy.retain_audio — if on, the WAV we wrote above is kept; otherwise
