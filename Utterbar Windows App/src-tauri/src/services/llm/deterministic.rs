@@ -357,4 +357,70 @@ mod tests {
         assert_eq!(DeterministicProvider.rewrite_sync(""), "");
         assert_eq!(DeterministicProvider.rewrite_sync("   "), "");
     }
+
+    /// Edge-input contract for Smart rewrite v1.
+    ///
+    /// The deterministic rewrite is rule-based: it adds a terminal
+    /// full stop, capitalises sentence starts, removes a small list
+    /// of fillers, and normalises whitespace. It does NOT detect
+    /// code, abbreviations, or context. Users who opt the toggle
+    /// in are accepting these limitations explicitly via the copy:
+    /// "Deterministic only — no AI model or cloud service. Adds a
+    /// small amount of processing time. Off by default."
+    ///
+    /// This test captures the observed v1 behaviour on every edge
+    /// input the review brief called out, so a future tweak to any
+    /// of the building-block helpers (strip_fillers, capitalise_
+    /// sentences, ensure_terminal_punctuation) can't silently
+    /// change what the toggle produces. Each row is what shipped;
+    /// every row is also "acceptable for an opt-in beta toggle".
+    /// If a row needs to change, the toggle's copy needs to change
+    /// in lockstep.
+    #[test]
+    fn smart_rewrite_edge_input_contract() {
+        // (input, expected_output) pairs.
+        let cases = [
+            // Short commands: capitalised + terminal full stop.
+            // Fine for a chat-style "yes/no/send/stop" dictation —
+            // most apps accept the trailing dot, and the
+            // capitalisation matches sentence-style output the
+            // user opted into.
+            ("send", "Send."),
+            ("stop", "Stop."),
+            ("yes", "Yes."),
+            ("no", "No."),
+            ("Cancel", "Cancel."),
+            // Code snippets are explicitly out of scope. The
+            // rewrite WILL capitalise the first word ("let" ->
+            // "Let") and may capitalise after `;` (next-sentence
+            // marker). Users dictating code should leave the
+            // toggle off; the copy says "Clean up fillers,
+            // spacing, capitalisation, and obvious punctuation"
+            // — not "smart enough for code".
+            ("let foo = bar()", "Let foo = bar()."),
+            // Acronyms in caps are preserved (no rule lowercases
+            // alpha runs).
+            ("API", "API."),
+            ("GDPR", "GDPR."),
+            // Abbreviations with internal dots: each `.` flips the
+            // capitalise-next flag, so "i.e." becomes "I.E.".
+            // Conventionally these are lowercase. v1 limitation;
+            // acceptable for opt-in.
+            ("i.e.", "I.E."),
+            ("e.g.", "E.G."),
+            // Common "X." patterns where the input was already
+            // sentence-shaped fare better.
+            ("Mr. Smith", "Mr. Smith."),
+            ("Dr.", "Dr."),
+        ];
+        for (input, expected) in cases {
+            let out = DeterministicProvider.rewrite_sync(input);
+            assert_eq!(
+                out, expected,
+                "v1 contract broke on input {input:?}: got {out:?}, expected {expected:?}. \
+                 If this is a deliberate change, also update the toggle's description \
+                 copy in TextOutputSettings.tsx to match the new behaviour."
+            );
+        }
+    }
 }

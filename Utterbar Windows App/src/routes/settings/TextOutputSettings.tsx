@@ -71,7 +71,7 @@ export function TextOutputSettings() {
           </Row>
           <Row
             label="Smart rewrite"
-            description="Clean up fillers (&lsquo;um&rsquo;, &lsquo;uh&rsquo;, &lsquo;like&rsquo;), spacing, capitalisation, and obvious punctuation locally before insertion. Deterministic only &mdash; no AI model, no cloud service, no model download. Adds a small amount of processing time. Off by default. Meeting Mode is unaffected (transcripts stay verbatim)."
+            description="Clean up fillers (&lsquo;um&rsquo;, &lsquo;uh&rsquo;, &lsquo;like&rsquo;), spacing, capitalisation, and terminal punctuation locally before insertion. Deterministic only &mdash; no AI model, no cloud service, no model download. Adds a small amount of processing time. Off by default. Best for chat and email-style dictation; turn off if you dictate code (the rule that capitalises sentence starts will also capitalise keywords like &lsquo;let&rsquo; or &lsquo;fn&rsquo;). Meeting Mode is unaffected (transcripts stay verbatim)."
           >
             <Toggle
               checked={t.smart_rewrite ?? false}

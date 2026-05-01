@@ -2834,7 +2834,11 @@ pub(crate) async fn stop_recording_inner(
         // verbatim fidelity, not polish — see the long comment
         // above the `if`. The setting is off by default and adds
         // one O(n) pass when on; no LLM, no remote call, no model
-        // download. Verified by `smart_rewrite_does_not_load_llm_or_make_network_calls`.
+        // download. The Meeting Mode gate is pinned by the
+        // `smart_rewrite_is_gated_to_non_meeting_mode` source-grep
+        // test below; the rewrite's no-IO sync contract is pinned
+        // by `smart_rewrite_is_sync_and_deterministic` in the
+        // deterministic provider's test module.
         let global_smart_rewrite = settings.text_output.smart_rewrite;
         let post = match &mode.post_processing {
             crate::domain::PostProcessing::None => {
