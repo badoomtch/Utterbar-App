@@ -118,6 +118,14 @@ class StripeWebhookMintTest extends TestCase
         $this->assertSame('active', $row->status);
         $this->assertNotEmpty($row->signed_blob, 'signed_blob must be populated by the signer');
 
+        // amount_pence + currency are captured at mint time so the
+        // dashboard SUM stays honest even if pro_amount changes
+        // later (added 2026-05-02). Single-user reads from
+        // services.stripe.pro_amount; the test setUp pins that to
+        // 3999 (£39.99).
+        $this->assertSame(3999, $row->amount_pence);
+        $this->assertSame('gbp', $row->currency);
+
         Mail::assertSent(LicenceDelivery::class, function ($mail) use ($row) {
             return $mail->licence->id === $row->id;
         });
@@ -148,6 +156,13 @@ class StripeWebhookMintTest extends TestCase
         $this->assertSame('active', $row->status);
         $this->assertNotEmpty($row->signed_blob);
 
+        // Volume mint at business tier: 50 seats × £19/seat =
+        // £950.00 = 95000 pence. The webhook reads the rate fresh
+        // from VolumePricing (NOT the Stripe metadata), so a
+        // future rate change doesn't retroactively rewrite history.
+        $this->assertSame(50 * 1900, $row->amount_pence);
+        $this->assertSame('gbp', $row->currency);
+
         Mail::assertSent(LicenceDelivery::class, function ($mail) use ($row) {
             return $mail->licence->id === $row->id;
         });
@@ -170,6 +185,14 @@ class StripeWebhookMintTest extends TestCase
         $row = Licence::where('stripe_checkout_session_id', $session->id)->first();
         $this->assertNotNull($row);
         $this->assertSame(5, $row->max_devices);
+
+        // Team tier amount: 5 seats × £29/seat = £145.00 = 14500
+        // pence. Pinned alongside max_devices so a future change to
+        // VolumePricing's tier boundary (e.g. moving from 25 to 20
+        // seats) is caught by this test rather than silently
+        // shifting the per-row stored figure.
+        $this->assertSame(5 * 2900, $row->amount_pence);
+        $this->assertSame('gbp', $row->currency);
     }
 
     public function test_volume_mint_refuses_out_of_range_quantity(): void
