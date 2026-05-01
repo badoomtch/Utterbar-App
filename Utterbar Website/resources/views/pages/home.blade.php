@@ -374,6 +374,41 @@
         </div>
     </x-section>
 
+    {{-- Speed race: looping typing-vs-Utterbar comparison. Sits after
+         how-it-works because the user has just learned the loop and is
+         primed for "and here is why it is faster". --}}
+    <section class="py-20 md:py-28">
+        <div class="ub-container">
+            <div class="max-w-5xl mx-auto">
+                <x-speed-race />
+            </div>
+        </div>
+    </section>
+
+    {{-- Network proof: live activity-monitor mock that proves the
+         local-only claim. Sits after the speed race because the user
+         has just been sold on speed; the next objection is "but is it
+         really private?", and this section answers it visually. --}}
+    <section id="proof" class="py-20 md:py-28">
+        <div class="ub-container">
+            <div class="max-w-3xl mb-10 md:mb-12">
+                <p class="ub-eyebrow">The proof</p>
+                <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
+                    Watch it <x-hl>not</x-hl> phone home.
+                </h2>
+                <p class="ub-lead mt-6 max-w-2xl">
+                    Open your network monitor. Start dictating. Dictate for hours. The only network calls Utterbar ever makes are model downloads on first run, and those are logged so you can read them.
+                </p>
+                <p class="mt-4 max-w-2xl text-sm" style="color: var(--muted);">
+                    Pull your ethernet cable mid-sentence. Nothing changes. The app does not authenticate against anything.
+                </p>
+            </div>
+            <div class="max-w-5xl mx-auto">
+                <x-network-proof />
+            </div>
+        </div>
+    </section>
+
     {{-- Talk-to-AI showcase. Sits high on the page because for a large
          slice of buyers this is the single concrete reason to install
          the app — type-replacement-into-LLM-chat is a daily friction
@@ -396,6 +431,24 @@
             </div>
             <div class="max-w-5xl mx-auto">
                 <x-video-embed id="feature-talk-to-ai" />
+            </div>
+        </div>
+    </section>
+
+    {{-- Comparison grid: cloud dictation vs Utterbar. Sits after the
+         Talk-to-AI section because the buyer has now been shown what
+         it does and is starting to weigh it against the cloud tools
+         they already know. The grid answers "why this and not those". --}}
+    <section class="py-20 md:py-28">
+        <div class="ub-container">
+            <div class="max-w-3xl mb-10 md:mb-12">
+                <p class="ub-eyebrow">vs the cloud incumbents</p>
+                <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
+                    Different <x-hl>camp.</x-hl> Same conviction.
+                </h2>
+            </div>
+            <div class="max-w-5xl mx-auto">
+                <x-compare-grid />
             </div>
         </div>
     </section>
