@@ -22,10 +22,10 @@ use Tests\TestCase;
  * the click-jacking / sniffing / referrer / permission protections we
  * advertise.
  *
- * CSP is asserted to arrive in Report-Only form. The middleware does
- * not yet emit Strict-Transport-Security (HTTP -> HTTPS redirect at
- * the edge isn't enabled yet), so we also pin its absence so a
- * future code path doesn't sneak HSTS in before the redirect lands.
+ * CSP is asserted to arrive in Report-Only form. Strict-Transport-
+ * Security is asserted at a deliberately short 1-day max-age and
+ * without `preload`; raising those is a separate decision after the
+ * soak window proves clean.
  */
 class SecurityHeadersTest extends TestCase
 {
@@ -91,14 +91,17 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringContainsString("font-src 'self' data:", $csp);
         $this->assertStringContainsString('connect-src \'self\' https://www.google-analytics.com https://*.google-analytics.com', $csp);
 
-        // Pin the absence of upgrade-insecure-requests for now: HTTP -> HTTPS
-        // redirect is not enabled at Cloudflare yet, so forcing upgrades
-        // would produce broken links until that edge change lands.
+        // Pin the absence of upgrade-insecure-requests. Cloudflare's
+        // 301 already upgrades HTTP navigations to HTTPS, so the
+        // directive is not needed for that. Adding it would also force
+        // embedded HTTP sub-resources to upgrade in-place, which can
+        // break third-party assets that don't serve HTTPS. Revisit
+        // separately once mixed-content behaviour has been reviewed.
         $this->assertStringNotContainsString('upgrade-insecure-requests', $csp);
     }
 
     #[DataProvider('sampledRoutes')]
-    public function test_hsts_is_not_emitted_yet(string $path): void
+    public function test_hsts_short_max_age_present(string $path): void
     {
         config([
             'services.stripe.pro_amount'   => 3999,
@@ -108,12 +111,22 @@ class SecurityHeadersTest extends TestCase
         $response = $this->get($path);
         $response->assertStatus(200);
 
-        // HSTS is only meaningful once HTTP returns a redirect to HTTPS at
-        // the edge. Until that's done in Cloudflare, we deliberately do not
-        // emit Strict-Transport-Security from the app.
-        $this->assertFalse(
-            $response->headers->has('Strict-Transport-Security'),
-            "Strict-Transport-Security must not be emitted until Cloudflare 'Always Use HTTPS' is enabled."
+        // Cloudflare's "Always Use HTTPS" toggle is on and verified
+        // redirecting plain HTTP to HTTPS, so HSTS is meaningful. The
+        // 1-day max-age is a deliberate soak value: if a subdomain HTTPS
+        // regression slips through, the worst case is 24 hours of clients
+        // unable to fall back to HTTP. Raise to 1 year (31536000) only
+        // after a clean week. No `preload` here.
+        $response->assertHeader(
+            'Strict-Transport-Security',
+            'max-age=86400; includeSubDomains'
+        );
+
+        $hsts = (string) $response->headers->get('Strict-Transport-Security');
+        $this->assertStringNotContainsString(
+            'preload',
+            $hsts,
+            'preload must not be set until every subdomain is committed to HTTPS-only forever; submission is irrevocable for ~6 months.'
         );
     }
 }

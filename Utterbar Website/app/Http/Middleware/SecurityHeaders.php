@@ -28,12 +28,21 @@ use Symfony\Component\HttpFoundation\Response;
  *      Content-Security-Policy after a clean soak in browser dev
  *      consoles.
  *
- * Strict-Transport-Security is intentionally NOT emitted yet. HTTP
- * currently returns 200 because Cloudflare's "Always Use HTTPS" toggle
- * is off; HSTS is only meaningful once the redirect is in place.
+ * Strict-Transport-Security is now emitted with a deliberately short
+ * max-age. Cloudflare's "Always Use HTTPS" toggle has been enabled and
+ * `http://utterbar.com/` (plus the www and dl. subdomains) verified
+ * redirecting to HTTPS, so HSTS is meaningful. The 1-day max-age is a
+ * soak value: if a subdomain HTTPS regression slips through, the worst
+ * case is 24 hours of clients unable to fall back to HTTP. After a
+ * clean week, raise to `max-age=31536000`. Do NOT add `preload` here
+ * unless every subdomain is committed to HTTPS-only forever; preload
+ * submission is effectively irrevocable for ~6 months.
  *
- * upgrade-insecure-requests is intentionally NOT used in the CSP for
- * the same reason: HTTP isn't redirected to HTTPS at the edge yet.
+ * upgrade-insecure-requests is intentionally NOT used in the CSP. The
+ * Cloudflare 301 already upgrades navigations; adding the directive
+ * would force any embedded HTTP sub-resource to also upgrade, which
+ * can break third-party assets that don't serve HTTPS. Revisit only
+ * if an audit shows mixed-content warnings in production.
  *
  * Existing headers (e.g. set by a controller for a specific response)
  * are not overwritten. Each header is gated by a `$response->headers->has(...)`
@@ -46,10 +55,11 @@ class SecurityHeaders
      * @var array<string, string>
      */
     private const STATIC_HEADERS = [
-        'X-Frame-Options'        => 'DENY',
-        'X-Content-Type-Options' => 'nosniff',
-        'Referrer-Policy'        => 'strict-origin-when-cross-origin',
-        'Permissions-Policy'     => 'camera=(), microphone=(), geolocation=(), payment=()',
+        'X-Frame-Options'           => 'DENY',
+        'X-Content-Type-Options'    => 'nosniff',
+        'Referrer-Policy'           => 'strict-origin-when-cross-origin',
+        'Permissions-Policy'        => 'camera=(), microphone=(), geolocation=(), payment=()',
+        'Strict-Transport-Security' => 'max-age=86400; includeSubDomains',
     ];
 
     public function handle(Request $request, Closure $next): Response
