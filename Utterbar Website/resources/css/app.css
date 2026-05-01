@@ -2277,3 +2277,254 @@
     .ub-pill-version.is-rec,
     .ub-pill-caret { animation: none; }
 }
+
+/* =================================================================
+   CONVICTION STRIP (design sizing: lead-frag + display body)
+   ================================================================= */
+.ub-conviction {
+    padding: 96px 0 80px;
+    border-bottom: 1px solid var(--border);
+}
+.ub-conviction p {
+    max-width: 760px;
+    font-size: clamp(1.25rem, 2.2vw, 1.75rem);
+    line-height: 1.45;
+    font-weight: 300;
+    letter-spacing: -0.015em;
+    color: var(--muted);
+}
+.ub-conviction-lead {
+    color: var(--fg-hi);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 8px;
+}
+
+/* =================================================================
+   PRICING (design two-tier wrap)
+   ================================================================= */
+.ub-pricing-section {
+    padding: 96px 0;
+    text-align: center;
+}
+@media (max-width: 720px) { .ub-pricing-section { padding: 72px 0; } }
+
+.ub-pricing-head { margin-bottom: 56px; }
+.ub-pricing-title {
+    margin-top: 14px;
+    font-size: clamp(2rem, 4.5vw, 3.25rem);
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    font-weight: 800;
+    color: var(--fg-hi);
+}
+.ub-pricing-lead {
+    margin: 20px auto 0;
+    max-width: 36em;
+    color: var(--muted);
+    font-size: 19px;
+    line-height: 1.55;
+    font-weight: 300;
+}
+
+.ub-pricing-wrap {
+    background: var(--bg-1);
+    border-radius: var(--radius-block);
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    max-width: 960px;
+    margin: 0 auto;
+    text-align: left;
+}
+@media (max-width: 720px) { .ub-pricing-wrap { grid-template-columns: 1fr; } }
+
+.ub-tier { padding: 44px 40px; }
+.ub-tier-pro {
+    position: relative;
+    background:
+        radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 60%),
+        color-mix(in oklab, var(--bg-2) 80%, var(--bg-1));
+}
+.ub-tier-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+.ub-tier-head h3 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg-hi);
+}
+.ub-tier-h3-gradient {
+    background: var(--gradient-wordmark);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+.ub-tier-badge {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.ub-tier-badge-cyan { color: var(--accent); }
+
+.ub-tier-price {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+}
+.ub-tier-price .amount {
+    color: var(--fg-hi);
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1;
+}
+.ub-tier-amount-gradient {
+    background: var(--gradient-wordmark);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+.ub-tier-price .when {
+    color: var(--muted);
+    font-size: 14px;
+}
+.ub-tier-sub {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 10px;
+}
+.ub-tier-sub-mono {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+}
+.ub-tier ul {
+    margin: 28px 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 12px;
+}
+.ub-tier li {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    color: var(--fg);
+    font-size: 15px;
+    line-height: 1.5;
+}
+.ub-tier-check {
+    color: var(--muted);
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+.ub-tier-pro .ub-tier-check { color: var(--accent); }
+.ub-tier-cta { margin-top: 8px; }
+
+.ub-pricing-foot {
+    margin-top: 32px;
+}
+
+/* =================================================================
+   FAQ (centred header + centred accordion column)
+   ================================================================= */
+.ub-faq-section {
+    padding: 96px 0;
+}
+@media (max-width: 720px) { .ub-faq-section { padding: 72px 0; } }
+
+.ub-faq-head {
+    max-width: 720px;
+    margin: 0 auto 56px;
+    text-align: center;
+}
+.ub-faq-title {
+    margin-top: 16px;
+    font-size: clamp(2rem, 4.5vw, 3.25rem);
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    font-weight: 800;
+    color: var(--fg-hi);
+}
+.ub-faq-wrap {
+    max-width: 880px;
+    margin: 0 auto;
+}
+
+/* =================================================================
+   FINAL CTA (design panel shell + tip-jar below)
+   ================================================================= */
+.ub-final-cta-section {
+    padding: 96px 0 120px;
+}
+@media (max-width: 720px) { .ub-final-cta-section { padding: 72px 0 96px; } }
+
+.ub-final-cta {
+    background: var(--bg-1);
+    border-radius: var(--radius-block);
+    padding: 80px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+@media (max-width: 720px) {
+    .ub-final-cta { padding: 56px 24px; }
+}
+.ub-final-cta::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(60% 80% at 50% 100%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 70%);
+    pointer-events: none;
+}
+.ub-final-cta-inner {
+    position: relative;
+    z-index: 1;
+}
+.ub-final-cta-title {
+    margin-top: 16px;
+    font-size: clamp(2.2rem, 5vw, 3.75rem);
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+    font-weight: 800;
+    color: var(--fg-hi);
+}
+.ub-final-cta-sub {
+    margin: 18px auto 0;
+    max-width: 32em;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1.55;
+    font-weight: 300;
+}
+.ub-final-cta-ctas {
+    margin-top: 36px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.ub-final-cta-meta {
+    margin-top: 22px;
+    color: var(--fg-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+}
+.ub-final-cta-tip {
+    max-width: 640px;
+    margin: 48px auto 0;
+}

@@ -419,12 +419,15 @@
     </script>
     @endpush
 
-    {{-- Position strip: one quiet sentence of conviction, no box --}}
-    <section class="py-20 md:py-24">
+    {{-- Conviction strip: design's exact sizing. Lead fragment sits on
+         its own line in fg-hi 500-weight; the rest reads in muted at a
+         clamp(1.25rem, 2.2vw, 1.75rem) display size with -0.015em
+         tracking. Not the bigger glow underline ours used to have. --}}
+    <section class="ub-conviction">
         <div class="ub-container">
-            <p class="max-w-3xl text-xl md:text-2xl leading-relaxed" style="font-weight: 300;">
-                <span class="ub-fg-hi ub-neon-underline" style="font-weight: 500;">Most dictation apps charge rent on your voice.</span>
-                <span style="color: var(--muted);"> Utterbar runs entirely on your machine, never opens a socket after install, and the core is free forever. You pay once for the power-user features, or not at all.</span>
+            <p>
+                <span class="ub-conviction-lead">Most dictation apps charge rent on your voice.</span>
+                Utterbar runs entirely on your machine, never opens a socket after install, and the core is free forever. You pay once for the power-user features, or not at all.
             </p>
         </div>
     </section>
@@ -606,70 +609,93 @@
         </div>
     </section>
 
-    {{-- Pricing teaser --}}
-    <x-section eyebrow="Pricing" title="Free forever. Pro once, for life." align="center">
-        <p class="max-w-2xl mx-auto text-lg mb-10 text-center" style="color: var(--muted);">
-            The act of speaking isn&rsquo;t a premium feature, and I won&rsquo;t charge for it. Free covers daily dictation in full. Pro adds file transcription, full audio history, unlimited custom modes, and the higher-accuracy multilingual engine.
-        </p>
+    {{-- Pricing: design's two-tier pricing-wrap shell. Free on the
+         left, Pro on the right with a soft cyan radial corner-wash
+         and gradient h3/amount. Mono caption "GBP, LIFETIME, 3
+         DEVICES" under the Pro price. The CTA stays a link to
+         /pricing so volume tiers + Stripe checkout still drive from
+         there. --}}
+    <section id="pricing" class="ub-pricing-section">
+        <div class="ub-container">
+            <div class="ub-pricing-head">
+                <p class="ub-eyebrow">Pricing</p>
+                <h2 class="ub-pricing-title">
+                    Free forever. <x-hl>Pro</x-hl> once, for life.
+                </h2>
+                <p class="ub-pricing-lead">
+                    The act of speaking isn&rsquo;t a premium feature.
+                </p>
+            </div>
 
-        <div class="max-w-4xl mx-auto rounded-2xl overflow-hidden" style="background: var(--bg-1);">
-            <div class="grid grid-cols-1 md:grid-cols-2">
-
+            <div class="ub-pricing-wrap">
                 {{-- FREE --}}
-                <div class="p-8 md:p-10">
-                    <div class="flex items-baseline justify-between">
-                        <h3 class="text-2xl">Free</h3>
-                        <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--muted);">forever</span>
+                <div class="ub-tier ub-tier-free">
+                    <div class="ub-tier-head">
+                        <h3>Free</h3>
+                        <span class="ub-tier-badge">forever</span>
                     </div>
-                    <div class="mt-5 flex items-baseline gap-2">
-                        <span class="text-4xl md:text-5xl font-extrabold tracking-tight" style="color: var(--fg-hi);">£0</span>
+                    <div class="ub-tier-price">
+                        <span class="amount">&pound;0</span>
                     </div>
-                    <p class="mt-2 text-sm" style="color: var(--muted);">No account. No trial clock.</p>
-                    <ul class="mt-6 space-y-2.5">
-                        @foreach (['Unlimited dictations, no daily quota', '30+ languages, all on-device', 'Every built-in mode, deterministic post-processing', 'Mic, system-audio, and mixed capture', 'Vocabulary, history, privacy controls'] as $f)
-                            <li class="flex items-start gap-2.5 text-sm">
-                                <span class="mt-0.5 shrink-0" style="color: var(--muted);"><x-icon name="check" size="16" stroke="2" /></span>
-                                <span style="color: var(--fg);">{{ $f }}</span>
+                    <p class="ub-tier-sub">No account. No trial clock. No limits.</p>
+                    <ul>
+                        @foreach (['Unlimited dictations', '30+ languages, all on-device', 'Every built-in mode', 'Vocabulary, history, privacy controls'] as $f)
+                            <li>
+                                <x-icon name="check" class="ub-tier-check" size="16" stroke="2" />
+                                <span>{{ $f }}</span>
                             </li>
                         @endforeach
                     </ul>
+                    <a href="{{ route('download') }}" class="ub-btn ub-btn-ghost ub-tier-cta">Download free</a>
                 </div>
 
                 {{-- PRO --}}
-                <div class="p-8 md:p-10 relative"
-                     style="background:
-                        radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%),
-                        color-mix(in oklab, var(--bg-2) 80%, var(--bg-1));">
-                    <div class="flex items-baseline justify-between">
-                        <h3 class="text-2xl ub-gradient-text">Pro</h3>
-                        <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">lifetime licence</span>
+                <div class="ub-tier ub-tier-pro">
+                    <div class="ub-tier-head">
+                        <h3 class="ub-tier-h3-gradient">Pro</h3>
+                        <span class="ub-tier-badge ub-tier-badge-cyan">lifetime licence</span>
                     </div>
-                    <div class="mt-5 flex items-baseline gap-2 flex-wrap">
-                        <span class="text-4xl md:text-5xl font-extrabold tracking-tight ub-gradient-text">&pound;39.99</span>
-                        <span class="text-sm" style="color: var(--muted);">once, for life</span>
+                    <div class="ub-tier-price">
+                        <span class="amount ub-tier-amount-gradient">&pound;39.99</span>
+                        <span class="when">once, for life</span>
                     </div>
-                    <p class="mt-2 font-mono text-xs" style="color: var(--muted);">GBP &middot; lifetime licence &middot; three devices</p>
-                    <ul class="mt-6 space-y-2.5">
-                        @foreach (['Everything in Free', 'Unlimited custom modes + vocabulary', 'Whisper small (multilingual, high accuracy)', 'File transcription, full audio history, re-transcribe'] as $f)
-                            <li class="flex items-start gap-2.5 text-sm">
-                                <span class="mt-0.5 shrink-0" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span>
-                                <span style="color: var(--fg);">{{ $f }}</span>
+                    <p class="ub-tier-sub ub-tier-sub-mono">GBP &middot; LIFETIME &middot; 3 DEVICES</p>
+                    <ul>
+                        @foreach (['Everything in Free', 'Unlimited custom modes + vocabulary', 'Whisper Medium / Large engine', 'File transcription, full audio history'] as $f)
+                            <li>
+                                <x-icon name="check" class="ub-tier-check" size="16" stroke="2" />
+                                <span>{{ $f }}</span>
                             </li>
                         @endforeach
                     </ul>
+                    <a href="{{ route('pricing') }}" class="ub-btn ub-btn-cta ub-tier-cta">Buy Pro</a>
                 </div>
             </div>
-        </div>
 
-        <div class="mt-8 text-center">
-            <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">See the full pricing</a>
+            <div class="ub-pricing-foot">
+                <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">See the full pricing</a>
+            </div>
         </div>
-    </x-section>
+    </section>
 
-    {{-- FAQ --}}
-    <x-section eyebrow="FAQ" title="The questions I always get.">
-        <x-faq-accordion :items="$faqs" />
-    </x-section>
+    {{-- FAQ: centred header + centred accordion column. The
+         accordion component itself is unchanged; we just centre the
+         section head and constrain the wrapper so the items sit
+         centred under the headline. Question copy stays BRIEF
+         verbatim (defined at the top of this file in $faqs). --}}
+    <section id="faq" class="ub-faq-section">
+        <div class="ub-container">
+            <div class="ub-faq-head">
+                <p class="ub-eyebrow">FAQ</p>
+                <h2 class="ub-faq-title">
+                    The questions <x-hl>I always</x-hl> get.
+                </h2>
+            </div>
+            <div class="ub-faq-wrap">
+                <x-faq-accordion :items="$faqs" />
+            </div>
+        </div>
+    </section>
 
     {{-- Founder note: editorial pull-quote, rail with bloom, no panel --}}
     <section class="py-24 md:py-32">
@@ -696,34 +722,45 @@
         </div>
     </section>
 
-    {{-- Final CTA — with onboarding walkthrough --}}
-    <section class="py-24 md:py-32">
+    {{-- Final CTA: design's .final-cta shell. Centred bg-1 panel
+         with a soft cyan radial bloom from the bottom edge, the
+         "Set up in under two minutes" headline, two CTAs, and the
+         release meta line. Tip-jar sits below the panel inside the
+         same outer section so the support surface stays in the same
+         visual neighbourhood. --}}
+    <section id="download" class="ub-final-cta-section">
         <div class="ub-container">
-            <div class="max-w-5xl mx-auto">
-                <div class="max-w-2xl mb-12 md:mb-16 text-center mx-auto">
-                    <p class="ub-eyebrow">Getting started</p>
-                    <h2 class="mt-4" style="font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.035em; line-height: 1.05;">
+            <div class="ub-final-cta">
+                <div class="ub-final-cta-inner">
+                    <p class="ub-eyebrow">Get Utterbar</p>
+                    <h2 class="ub-final-cta-title">
                         Set up in under <x-hl>two minutes</x-hl>.
                     </h2>
-                    <p class="ub-lead mt-6">
-                        Install, pick a mic, press the hotkey. That&rsquo;s it.
+                    <p class="ub-final-cta-sub">
+                        Install. Pick a mic. Press the hotkey. That&rsquo;s it.
                     </p>
+                    <div class="ub-final-cta-ctas">
+                        <a href="{{ route('download') }}" class="ub-btn ub-btn-cta">
+                            Download for Windows
+                            <x-icon name="arrow-right" size="16" stroke="2" />
+                        </a>
+                        <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">
+                            See pricing
+                        </a>
+                    </div>
+                    @if ($latestRelease ?? null)
+                        <p class="ub-final-cta-meta">
+                            v{{ $latestRelease->version }} &middot; {{ $latestRelease->sizeLabel() }} &middot; WIN10/11 &middot; SHA-256 verified
+                        </p>
+                    @endif
                 </div>
-                <div class="mt-6 flex flex-wrap gap-3 justify-center">
-                    <a href="{{ route('download') }}" class="ub-btn ub-btn-cta">
-                        Download for Windows
-                        <x-icon name="arrow-right" size="16" stroke="2" />
-                    </a>
-                    <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">
-                        See pricing
-                    </a>
-                </div>
+            </div>
 
-                {{-- Tip jar — quiet support surface. Auto-hides if Stripe
-                     tipping isn't configured (see config/services.php). --}}
-                <div class="mt-12 max-w-2xl mx-auto">
-                    <x-tip-jar />
-                </div>
+            {{-- Tip jar (kept). Quiet support surface. Auto-hides if
+                 Stripe tipping is not configured (see
+                 config/services.php). --}}
+            <div class="ub-final-cta-tip">
+                <x-tip-jar />
             </div>
         </div>
     </section>
