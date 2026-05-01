@@ -44,6 +44,20 @@
                     <x-admin-stat label="Volume licences"  :value="$counts['volume_licences_total']" />
                     <x-admin-stat label="Active volume"    :value="$counts['volume_licences_active']" />
                     <x-admin-stat label="Seats sold (volume)" :value="$counts['volume_seats_sold']" />
+
+                    {{-- Honesty marker for Gross / Net. From 2026-05-02
+                         the Stripe webhook mints write amount_pence
+                         into each licence row; older rows and any
+                         admin-manual mint carry null and are NOT
+                         counted in Gross / Net. This tile says how
+                         many such rows exist so the operator can read
+                         the headline figures with context. Highlighted
+                         "danger" only when there are tracked AND
+                         untracked rows in the same cohort, since
+                         that's the only state where Gross is partial. --}}
+                    <x-admin-stat label="Untracked rows"
+                                   :value="$counts['licences_without_amount']"
+                                   :class="($counts['licences_without_amount'] > 0 && $counts['licences_with_amount'] > 0) ? 'danger' : null" />
                 </div>
 
                 {{-- Licences --}}

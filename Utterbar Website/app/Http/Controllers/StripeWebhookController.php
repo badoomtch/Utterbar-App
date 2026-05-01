@@ -164,7 +164,22 @@ class StripeWebhookController extends Controller
             throw new \RuntimeException('checkout.session.completed has no email to deliver the licence to.');
         }
 
-        $licence = DB::transaction(function () use ($session, $email, $singleUserSku) {
+        // Per-row purchase amount (added 2026-05-02; revised
+        // 2026-05-03 to read from the Stripe session itself).
+        // amount_pence / currency come from $session->amount_total
+        // and $session->currency — i.e. what the buyer was actually
+        // charged, not what the current config would charge today.
+        // Fallback to config only fires if the session doesn't
+        // carry the value (synthetic test sessions; future code
+        // paths). See AdminController for the SUM that turns these
+        // into the Gross / Net of refunds tiles.
+        [$amountPence, $currency] = $this->revenueFromSession(
+            $session,
+            (int) config('services.stripe.pro_amount', 4900),
+            (string) config('services.stripe.pro_currency', 'gbp'),
+        );
+
+        $licence = DB::transaction(function () use ($session, $email, $singleUserSku, $amountPence, $currency) {
             $licence = Licence::create([
                 'key_lookup'                  => LicenceKeys::generateLookup(),
                 'email'                       => $email,
@@ -175,6 +190,8 @@ class StripeWebhookController extends Controller
                 'max_devices'                 => (int) config('services.licence.max_devices', 3),
                 'status'                      => 'active',
                 'issued_at'                   => Carbon::now(),
+                'amount_pence'                => $amountPence,
+                'currency'                    => $currency,
             ]);
 
             // Sign and persist. We sign after insert so key_id = licences.id.
@@ -259,7 +276,25 @@ class StripeWebhookController extends Controller
             );
         }
 
-        $licence = DB::transaction(function () use ($session, $email, $sku, $quantity) {
+        // Per-row purchase amount (added 2026-05-02; revised
+        // 2026-05-03 to read from the Stripe session itself).
+        // amount_pence / currency come from $session->amount_total
+        // and $session->currency — i.e. what the buyer was actually
+        // charged. If a tier rate change lands between Checkout
+        // Session creation and webhook delivery, the historic row
+        // still records the price the buyer paid at checkout, not
+        // the price the helper would compute now. The metadata
+        // carries `unit_pence` for diagnostic / replay purposes but
+        // is informational only and never controls persistence.
+        // Fallback uses VolumePricing::totalPence(quantity) for
+        // synthetic test sessions that don't carry amount_total.
+        [$amountPence, $currency] = $this->revenueFromSession(
+            $session,
+            VolumePricing::totalPence($quantity),
+            VolumePricing::currency(),
+        );
+
+        $licence = DB::transaction(function () use ($session, $email, $sku, $quantity, $amountPence, $currency) {
             $licence = Licence::create([
                 'key_lookup'                  => LicenceKeys::generateLookup(),
                 'email'                       => $email,
@@ -270,6 +305,8 @@ class StripeWebhookController extends Controller
                 'max_devices'                 => $quantity,
                 'status'                      => 'active',
                 'issued_at'                   => Carbon::now(),
+                'amount_pence'                => $amountPence,
+                'currency'                    => $currency,
             ]);
 
             // Sign and persist after insert so key_id = licences.id.
@@ -375,5 +412,61 @@ class StripeWebhookController extends Controller
             'amount'  => $amountTotal,
             'currency' => $currency,
         ]);
+    }
+
+    /**
+     * Resolve the persisted (amount_pence, currency) pair for a
+     * licence-minting checkout session.
+     *
+     * Source of truth is the Stripe session itself:
+     *   * `amount_total` is the integer pence the buyer was actually
+     *     charged. Stripe sets it on every paid `checkout.session.
+     *     completed` event.
+     *   * `currency` is the lowercase ISO code Stripe used.
+     *
+     * Reading from the session means historic rows record what the
+     * customer paid, not what the price would be if recomputed
+     * today. A price change between Checkout-Session creation and
+     * webhook delivery (or any later config edit) cannot rewrite
+     * what's already in the licences table.
+     *
+     * Fallbacks are caller-provided and only fire when the session
+     * doesn't carry a usable `amount_total` / `currency`. Two
+     * legitimate cases for the fallback:
+     *   1. Synthetic session objects in tests (tests/Feature/
+     *      Checkout/StripeWebhookMintTest exercises the mint logic
+     *      via reflection without going through Stripe).
+     *   2. Any future code path that constructs a session-shaped
+     *      object without populating amount_total.
+     *
+     * Request metadata `unit_pence` is intentionally NOT consulted.
+     * Metadata is informational, not authoritative — Stripe's
+     * `amount_total` is what the card was charged.
+     *
+     * @param  object   $session         Stripe Checkout Session-shaped object.
+     * @param  int      $fallbackAmount  Pence to persist if amount_total is missing.
+     * @param  string   $fallbackCurrency Lowercase ISO code if currency is missing.
+     * @return array{0:int,1:string}     [amount_pence, currency]
+     */
+    private function revenueFromSession(
+        object $session,
+        int $fallbackAmount,
+        string $fallbackCurrency,
+    ): array {
+        // amount_total is an integer in Stripe's API. Treat any
+        // non-numeric or zero/negative value as "missing" and fall
+        // back; we never persist a zero amount on a paid mint
+        // because zero would silently distort dashboard SUMs.
+        $rawAmount = $session->amount_total ?? null;
+        $amountPence = (is_numeric($rawAmount) && (int) $rawAmount > 0)
+            ? (int) $rawAmount
+            : $fallbackAmount;
+
+        $rawCurrency = $session->currency ?? null;
+        $currency = (is_string($rawCurrency) && $rawCurrency !== '')
+            ? strtolower($rawCurrency)
+            : strtolower($fallbackCurrency);
+
+        return [$amountPence, $currency];
     }
 }
