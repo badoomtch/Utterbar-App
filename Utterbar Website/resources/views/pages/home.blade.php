@@ -87,11 +87,29 @@
         <script type="application/ld+json">{!! json_encode($homeSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
     @endpush
 
-    {{-- Hero: brand plate, headline, punchy subhead --}}
-    <section class="relative overflow-hidden">
-        <div class="ub-hero-glow" aria-hidden="true"></div>
-        <div class="relative ub-container pt-20 md:pt-28 pb-24 md:pb-32">
-            <div class="max-w-5xl">
+    {{-- Hero: brand plate, headline, punchy subhead, interactive pill.
+         Carries the design's full hero ambient layer: aurora blobs (three
+         drifting cyan radial gradients), floating particles (10 cyan dots
+         rising from below), a soft fade at the bottom edge so the hero
+         bleeds into the next section without a hard line. All ambient
+         layers respect prefers-reduced-motion. --}}
+    <section class="ub-hero">
+        {{-- Animated cyan aurora: three drifting radial blobs --}}
+        <div class="ub-hero-aurora" aria-hidden="true">
+            <div class="ub-aurora-blob ub-aurora-b1"></div>
+            <div class="ub-aurora-blob ub-aurora-b2"></div>
+            <div class="ub-aurora-blob ub-aurora-b3"></div>
+        </div>
+        {{-- Floating "voice" particles drifting up. Each <span> picks up
+             its own left position + delay + drift via :nth-child rules in
+             the stylesheet. --}}
+        <div class="ub-hero-particles" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
+        </div>
+
+        <div class="ub-container ub-hero-inner">
+            <div class="ub-hero-copy">
 
                 {{-- Brand plate: the wordmark, scaled as a display element.
                      `:wave="true"` enables the hover-only animated waveform
@@ -115,10 +133,6 @@
                     No cloud<span style="color: var(--accent);">.</span> No nonsense<span style="color: var(--accent);">.</span>
                 </p>
 
-                {{-- Quiet third line: positions the product as for-anyone-who-speaks
-                     without competing with the headline. Sits in muted weight + a
-                     half-step smaller than the cyan-stop line, so the eye reads
-                     hero → tagline → reassurance, not three things shouting at once. --}}
                 <p class="mt-4 max-w-xl" style="font-size: clamp(1rem, 1.5vw, 1.125rem); line-height: 1.5; color: var(--muted);">
                     Speaks 30+ languages. None of them ever leaves your PC.
                 </p>
@@ -139,15 +153,17 @@
                 @endif
             </div>
 
-            {{-- Interactive pill widget: hover/tap to expand, drag to move --}}
-            <div class="mt-20 md:mt-24 flex justify-center">
-                <div x-data="heroPill"
-                     class="ub-pill-widget"
+            {{-- Interactive pill widget: hover/tap to expand, drag to move,
+                 and click "Try me" to play a short dictation demo that
+                 streams text into a faux field below the pill. --}}
+            <div class="ub-hero-pill-slot">
+            <div x-data="heroPill" x-init="autoExpandOnce()" class="ub-pill-anchor">
+                <div class="ub-pill-widget"
                      :class="{ 'is-dragging': dragging }"
                      :style="`transform: translate(${x}px, ${y}px) rotate(${tilt}deg);`"
                      @pointerdown="onDown($event)">
 
-                    {{-- "drag me" hint — bobs, fades on first interaction --}}
+                    {{-- "drag me" hint, fades on first interaction --}}
                     <div class="ub-pill-hint" :class="{ 'is-gone': hasInteracted }" aria-hidden="true">
                         <div class="ub-pill-hint-inner">
                             <span class="ub-pill-hint-label">Drag me</span>
@@ -158,54 +174,77 @@
                         </div>
                     </div>
 
-                    {{-- Idle-sway wrapper — gently rocks the pill so it reads as "loose / movable" --}}
+                    {{-- Idle-sway wrapper: gentle rock so it reads as "loose / movable" --}}
                     <div class="ub-pill-sway" :class="{ 'is-settled': hasInteracted }">
 
-                    <div class="ub-pill"
-                         :class="{ 'is-expanded': expanded, 'is-dragging': dragging }"
-                         @mouseenter="onEnter()"
-                         @mouseleave="onLeave()"
-                         @click="onTap($event)">
+                        <div class="ub-pill"
+                             :class="{ 'is-expanded': expanded || recording, 'is-dragging': dragging }"
+                             @mouseenter="onEnter()"
+                             @mouseleave="onLeave()"
+                             @click="onTap($event)">
 
-                        {{-- Left: glyph contents (hole-punch + waveform) + wordmark --}}
-                        <div class="ub-pill-left">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" width="88" height="44" aria-hidden="true">
-                                <defs>
-                                    <linearGradient id="pill-widget-wave" x1="0%" y1="0%" x2="0%" y2="100%" color-interpolation="linearRGB">
-                                        <stop offset="0%"   stop-color="#00f6ff"/>
-                                        <stop offset="50%"  stop-color="#00ccf5"/>
-                                        <stop offset="100%" stop-color="#00a3ff"/>
-                                    </linearGradient>
-                                </defs>
-                                <circle cx="20" cy="30" r="8" fill="#ffffff"/>
-                                <g fill="url(#pill-widget-wave)">
-                                    <rect x="44"  y="25" width="4" height="10" rx="2"/>
-                                    <rect x="54"  y="21" width="4" height="18" rx="2"/>
-                                    <rect x="64"  y="16" width="4" height="28" rx="2"/>
-                                    <path d="M 74 10 A 2 2 0 0 1 78 10 V 50 L 74 44 Z"/>
-                                    <rect x="84"  y="16" width="4" height="28" rx="2"/>
-                                    <rect x="94"  y="21" width="4" height="18" rx="2"/>
-                                    <rect x="104" y="25" width="4" height="10" rx="2"/>
-                                </g>
-                            </svg>
-                            <span class="ub-pill-wordmark">Utter<span class="ub-wm-bar">bar</span></span>
-                        </div>
-
-                        {{-- Right: revealed on hover/tap --}}
-                        <div class="ub-pill-right">
-                            <span class="ub-pill-version">v{{ ($latestRelease ?? null)?->version ?? config('site.version') }}</span>
-                            <div class="ub-pill-wave" aria-hidden="true">
-                                <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                            {{-- Left: glyph + wordmark --}}
+                            <div class="ub-pill-left">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" width="88" height="44" aria-hidden="true">
+                                    <defs>
+                                        <linearGradient id="pill-widget-wave" x1="0%" y1="0%" x2="0%" y2="100%" color-interpolation="linearRGB">
+                                            <stop offset="0%"   stop-color="#00f6ff"/>
+                                            <stop offset="50%"  stop-color="#00ccf5"/>
+                                            <stop offset="100%" stop-color="#00a3ff"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <circle cx="20" cy="30" r="8" fill="#ffffff"/>
+                                    <g fill="url(#pill-widget-wave)">
+                                        <rect x="44"  y="25" width="4" height="10" rx="2"/>
+                                        <rect x="54"  y="21" width="4" height="18" rx="2"/>
+                                        <rect x="64"  y="16" width="4" height="28" rx="2"/>
+                                        <path d="M 74 10 A 2 2 0 0 1 78 10 V 50 L 74 44 Z"/>
+                                        <rect x="84"  y="16" width="4" height="28" rx="2"/>
+                                        <rect x="94"  y="21" width="4" height="18" rx="2"/>
+                                        <rect x="104" y="25" width="4" height="10" rx="2"/>
+                                    </g>
+                                </svg>
+                                <span class="ub-pill-wordmark">Utter<span class="ub-wm-bar">bar</span></span>
                             </div>
-                            <a href="{{ route('download') }}" class="ub-pill-cta" @click.stop>
-                                Download
-                                <x-icon name="arrow-right" size="14" stroke="2.2" />
-                            </a>
+
+                            {{-- Right: version chip + waveform + Try-me button.
+                                 Recording state swaps the version for a red REC
+                                 chip and the wave runs tighter. --}}
+                            <div class="ub-pill-right">
+                                <span class="ub-pill-version" :class="{ 'is-rec': recording }"
+                                      x-text="recording ? '● REC' : 'v{{ ($latestRelease ?? null)?->version ?? config('site.version') }}'"></span>
+                                <div class="ub-pill-wave" :class="{ 'is-rec': recording }" aria-hidden="true">
+                                    <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                                </div>
+                                <button type="button"
+                                        class="ub-pill-cta"
+                                        :class="{ 'is-rec': recording }"
+                                        :disabled="recording"
+                                        @click.stop="startDemo()">
+                                    <span x-show="!recording">Try me <span aria-hidden="true">&rsaquo;</span></span>
+                                    <span x-show="recording" x-cloak>Listening...</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>{{-- /.ub-pill-sway --}}
+
+                    {{-- Faux text field that streams the demo result. Sits
+                         below the pill, fades in once recording starts and
+                         decays after a beat. aria-hidden when empty so
+                         screen readers do not announce a phantom field. --}}
+                    <div class="ub-pill-field" :class="{ 'is-on': demoText }" :aria-hidden="(! demoText).toString()">
+                        <div class="ub-pill-field-chrome">
+                            <span class="ub-pill-field-dot"></span>
+                            <span class="ub-pill-field-label">Reply to Marcus.docx</span>
+                        </div>
+                        <div class="ub-pill-field-body">
+                            <span x-text="demoText"></span><template x-if="recording"><span class="ub-pill-caret"></span></template>
                         </div>
                     </div>
-                    </div>{{-- /.ub-pill-sway --}}
-                </div>
-            </div>
+
+                </div>{{-- /.ub-pill-widget --}}
+            </div>{{-- /.ub-pill-anchor --}}
+            </div>{{-- /.ub-hero-pill-slot --}}
 
         </div>
     </section>
@@ -225,16 +264,76 @@
                 moved: false,
                 hasInteracted: false,
 
+                // Demo state. Click "Try me" -> recording=true, the SCRIPT
+                // streams into demoText character-by-character, recording
+                // flips off when the script ends, and the field decays a
+                // beat later by clearing demoText.
+                recording: false,
+                demoText: '',
+                _demoScript: "Hey Marcus, quick reply on the Q3 forecast: I am fine pushing the revision to Friday, but let's keep the headline figure exactly as we agreed on the call.",
+                _demoTimer: null,
+                _demoEndTimer: null,
+                _demoFadeTimer: null,
+                _autoExpandTimer1: null,
+                _autoExpandTimer2: null,
+
+                autoExpandOnce() {
+                    // Auto-expand 900ms after page load so the "Try me"
+                    // button is discoverable without hovering. Then collapse
+                    // again 2.6s later unless the user is hovering.
+                    this._autoExpandTimer1 = setTimeout(() => {
+                        if (!this.recording) this.expanded = true;
+                    }, 900);
+                    this._autoExpandTimer2 = setTimeout(() => {
+                        if (!this._isHovering && !this.recording) this.expanded = false;
+                    }, 3500);
+                },
+
+                _isHovering: false,
+
                 onEnter() {
+                    this._isHovering = true;
                     if (!this.touchMode) this.expanded = true;
                     this.hasInteracted = true;
                 },
-                onLeave() { if (!this.touchMode && !this.dragging) this.expanded = false; },
+                onLeave() {
+                    this._isHovering = false;
+                    if (!this.touchMode && !this.dragging && !this.recording) this.expanded = false;
+                },
                 onTap(e) {
                     // Only toggle on tap if we didn't move (i.e. not a drag)
                     if (this.moved) { e.preventDefault(); return; }
                     if (this.touchMode) this.expanded = !this.expanded;
                     this.hasInteracted = true;
+                },
+
+                startDemo() {
+                    if (this.recording) return;
+                    this.recording = true;
+                    this.expanded = true;
+                    this.hasInteracted = true;
+                    this.demoText = '';
+                    if (this._demoTimer) clearInterval(this._demoTimer);
+                    if (this._demoEndTimer) clearTimeout(this._demoEndTimer);
+                    if (this._demoFadeTimer) clearTimeout(this._demoFadeTimer);
+                    let i = 0;
+                    this._demoTimer = setInterval(() => {
+                        i += Math.random() > 0.6 ? 2 : 1;
+                        if (i >= this._demoScript.length) {
+                            i = this._demoScript.length;
+                            clearInterval(this._demoTimer);
+                            this._demoTimer = null;
+                            // Brief beat at the end before recording flips off.
+                            this._demoEndTimer = setTimeout(() => {
+                                this.recording = false;
+                                // Hold the result on screen for 4s then fade.
+                                this._demoFadeTimer = setTimeout(() => {
+                                    this.demoText = '';
+                                }, 4000);
+                            }, 350);
+                        }
+                        this.demoText = this._demoScript.slice(0, i);
+                    }, 28);
                 },
 
                 onDown(e) {
