@@ -21,7 +21,17 @@ use crate::db::Db;
 use crate::domain::{FileJobProgress, EVT_FILE_JOB_PROGRESS};
 use crate::services::audio::decode;
 use crate::services::inference::{AsrOptions, AudioBuffer};
+use crate::services::output_validation::{
+    validate, EngineFamily, LanguagePin, ValidationContext, ValidationVerdict,
+};
 use crate::util::time::now_ms;
+
+/// User-facing message attached to a file job whose transcript was
+/// dropped by the shared output validator. Kept in one place so the
+/// callsite, the test, and any future surface that renders this
+/// status all share a single string.
+const FILTERED_MSG: &str =
+    "Output filtered. The transcript looked like ASR junk, so no sidecar files were written.";
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
@@ -363,6 +373,37 @@ impl FileJobService {
             return Ok(());
         }
 
+        // Output validation. Same shared validator regular dictation
+        // uses, applied here before any sidecar file is written. On
+        // Drop we mark the job Error (the same path used for decode /
+        // ASR / write failures throughout this function), use a
+        // dedicated user-facing message, and emit one structured log
+        // line for soak telemetry. Critically, no `.txt`, `.srt`, or
+        // `.vtt` is written -- the user gets a failed job, not a
+        // sidecar full of "the the the the the the".
+        let lang_setting = settings.models.whisper_language.clone();
+        let verdict = decide_file_validation(&processed, &model_id, &lang_setting, asr.duration_ms);
+        if let ValidationVerdict::Drop {
+            reason,
+            user_notice,
+        } = verdict
+        {
+            tracing::info!(
+                reason = %reason.as_str(),
+                model = %model_id,
+                language = %lang_setting,
+                duration_ms = asr.duration_ms,
+                chars = processed.chars().count(),
+                user_notice = user_notice,
+                job_id = %job.id,
+                source = %source.display(),
+                "output_validation: dropped file transcript",
+            );
+            self.fail(&job.id, FILTERED_MSG)?;
+            emit(handle, &job.id, 0.95, FileJobStatus::Error);
+            return Ok(());
+        }
+
         let out_path = sidecar_path(&source, "txt");
         if let Err(e) = tokio::fs::write(&out_path, &processed).await {
             self.fail(&job.id, &format!("write result: {e}"))?;
@@ -448,9 +489,58 @@ impl FileJobService {
     }
 }
 
+/// Run the shared output validator against a file-transcription
+/// transcript and return the verdict.
+///
+/// This is the file-transcription analogue of the dictation callsite
+/// in `commands/dictation.rs`. Same validator, same rules. The
+/// engine family is derived from the model id prefix (Utterbar's
+/// catalogue is prefix-coded `sherpa-whisper-*` / `sherpa-parakeet-*`)
+/// and the language pin from the user's `whisper_language` setting:
+///
+/// - Parakeet -> `EnglishOnly` regardless of the language field
+///   (the engine is hard-pinned to English; foreign-script output
+///   is always a hallucination).
+/// - Whisper + `"en"` -> `EnglishOnly`.
+/// - Whisper + `""` / `"auto"` -> `Auto` (multilingual; the
+///   foreign-script gate must not fire).
+/// - Whisper + anything else -> `OtherExplicit` (user explicitly
+///   chose a non-English language; foreign script is expected).
+///
+/// Extracted as a private helper so the tests can exercise the
+/// engine/language derivation + the verdict path without spinning up
+/// an `AppState`, a tokio runtime, or real audio fixtures.
+fn decide_file_validation(
+    text: &str,
+    model_id: &str,
+    whisper_language: &str,
+    duration_ms: u32,
+) -> ValidationVerdict {
+    let engine = if model_id.starts_with("sherpa-whisper") {
+        EngineFamily::Whisper
+    } else {
+        EngineFamily::Parakeet
+    };
+    let lang = whisper_language.trim().to_lowercase();
+    let language_pin = match (engine, lang.as_str()) {
+        (EngineFamily::Parakeet, _) => LanguagePin::EnglishOnly,
+        (EngineFamily::Whisper, "en") => LanguagePin::EnglishOnly,
+        (EngineFamily::Whisper, "" | "auto") => LanguagePin::Auto,
+        (EngineFamily::Whisper, _) => LanguagePin::OtherExplicit,
+    };
+    validate(
+        text,
+        &ValidationContext {
+            engine,
+            language_pin,
+            audio_duration_ms: duration_ms,
+        },
+    )
+}
+
 /// Build `<source-stem>.utterbar.<ext>` next to the source file. The `.utterbar`
-/// infix is deliberate — it matches the runtime product name and is what the
-/// Files route copy promises the user — and it stays the same even though the
+/// infix is deliberate - it matches the runtime product name and is what the
+/// Files route copy promises the user - and it stays the same even though the
 /// crate / data dir still uses the historic `orliq` identifier. Never rename
 /// this without coordinating with `src/routes/FilesRoute.tsx`.
 fn sidecar_path(source: &Path, ext: &str) -> PathBuf {
@@ -480,4 +570,168 @@ fn emit(handle: &AppHandle, id: &str, progress: f32, status: FileJobStatus) {
             .into(),
         },
     );
+}
+
+#[cfg(test)]
+mod validation_tests {
+    //! File-transcription output validation. These tests exercise
+    //! the small private `decide_file_validation` helper, which is
+    //! the only surface specific to the file path; the deep
+    //! rule-by-rule coverage of the validator itself lives in
+    //! `services/output_validation.rs::tests`. The cases here are
+    //! the ones the spec requires to be wired up correctly through
+    //! the engine/language derivation:
+    //!
+    //!  - valid transcript -> Accept (would proceed to sidecar write)
+    //!  - repeated-token output -> noticed Drop
+    //!  - repeated-punctuation output -> noticed Drop
+    //!  - foreign script + English-only context -> noticed Drop
+    //!  - foreign script + Whisper auto / OtherExplicit -> Accept
+    //!
+    //! Spinning up an `AppState`, a `tokio` runtime, a real audio
+    //! decoder, and an ASR provider just to land a sidecar on disk
+    //! and then assert it was/wasn't written would multiply test
+    //! infrastructure for no extra signal: the only file-path
+    //! specific decision is the helper, and the helper's verdict is
+    //! what the run_job_inner branch consumes. Full end-to-end
+    //! integration is deferred until we have a fixture-driven
+    //! files-service smoke harness for unrelated reasons.
+
+    use super::*;
+    use crate::services::output_validation::{DropReason, ValidationVerdict};
+
+    fn assert_drop(v: ValidationVerdict, expected: DropReason, expected_notice: bool) {
+        match v {
+            ValidationVerdict::Drop {
+                reason,
+                user_notice,
+            } => {
+                assert_eq!(reason, expected, "wrong drop reason");
+                assert_eq!(
+                    user_notice, expected_notice,
+                    "wrong notice flag for {expected:?}"
+                );
+            }
+            ValidationVerdict::Accept => panic!("expected Drop({expected:?}), got Accept"),
+        }
+    }
+
+    #[test]
+    fn valid_transcript_accepts() {
+        let v = decide_file_validation(
+            "Tell me about the proposal Marcus sent yesterday and pull in the latest figures.",
+            "sherpa-whisper-medium",
+            "en",
+            12_000,
+        );
+        assert_eq!(v, ValidationVerdict::Accept);
+    }
+
+    #[test]
+    fn empty_transcript_drops_quietly() {
+        // Empty after post-processing -> Drop(Empty, user_notice=false).
+        // The file callsite still treats this as a job failure (no
+        // sidecar should land), but the verdict carries the quiet
+        // flag so future surfaces can render silence-style copy.
+        assert_drop(
+            decide_file_validation("", "sherpa-whisper-small", "en", 5_000),
+            DropReason::Empty,
+            false,
+        );
+    }
+
+    #[test]
+    fn single_punctuation_drops_quietly() {
+        assert_drop(
+            decide_file_validation(".", "sherpa-whisper-small", "en", 1_500),
+            DropReason::SinglePunctuation,
+            false,
+        );
+    }
+
+    #[test]
+    fn repeated_token_drops_with_notice() {
+        assert_drop(
+            decide_file_validation(
+                "the the the the the the and then we",
+                "sherpa-whisper-large-v3",
+                "en",
+                30_000,
+            ),
+            DropReason::RepeatedToken,
+            true,
+        );
+    }
+
+    #[test]
+    fn repeated_punctuation_drops_with_notice() {
+        assert_drop(
+            decide_file_validation("hello..........", "sherpa-whisper-medium", "en", 4_000),
+            DropReason::RepeatedPunctuation,
+            true,
+        );
+    }
+
+    #[test]
+    fn foreign_script_dropped_on_english_only_whisper() {
+        // Whisper pinned to English. CJK output is a hallucination.
+        assert_drop(
+            decide_file_validation("你好世界", "sherpa-whisper-medium", "en", 8_000),
+            DropReason::UnexpectedForeignScript,
+            true,
+        );
+    }
+
+    #[test]
+    fn foreign_script_dropped_on_parakeet_regardless_of_language_field() {
+        // Parakeet is hard-pinned English. Even if the
+        // whisper_language field is set to "zh" (which Parakeet
+        // ignores), the validator should still treat the path as
+        // English-only and drop foreign-script output.
+        assert_drop(
+            decide_file_validation("你好世界", "sherpa-parakeet-tdt-0.6b-v3-int8", "zh", 8_000),
+            DropReason::UnexpectedForeignScript,
+            true,
+        );
+    }
+
+    #[test]
+    fn foreign_script_accepted_on_whisper_auto() {
+        // Multilingual Whisper auto-detect. CJK output is legitimate.
+        let v = decide_file_validation("你好世界", "sherpa-whisper-medium", "auto", 8_000);
+        assert_eq!(v, ValidationVerdict::Accept);
+    }
+
+    #[test]
+    fn foreign_script_accepted_on_explicit_non_english() {
+        // User explicitly chose Chinese. CJK output is exactly
+        // what they want.
+        let v = decide_file_validation("你好世界", "sherpa-whisper-medium", "zh", 8_000);
+        assert_eq!(v, ValidationVerdict::Accept);
+    }
+
+    #[test]
+    fn empty_language_field_treats_whisper_as_auto() {
+        // Some older settings rows store the language as an empty
+        // string rather than "auto". Both must behave identically:
+        // multilingual, foreign-script gate skipped.
+        let v = decide_file_validation("你好世界", "sherpa-whisper-medium", "", 8_000);
+        assert_eq!(v, ValidationVerdict::Accept);
+    }
+
+    #[test]
+    fn currency_symbols_accepted() {
+        // The kind of file-transcription output where a podcast or
+        // meeting mentions a price must never trip the
+        // foreign-script gate. (The validator's `unexpected_foreign_script`
+        // already excludes currency symbols, but we belt-and-brace
+        // it by routing through this function.)
+        let v = decide_file_validation(
+            "We agreed on £39.99, plus €100 in shipping.",
+            "sherpa-parakeet-tdt-0.6b-v3-int8",
+            "en",
+            5_000,
+        );
+        assert_eq!(v, ValidationVerdict::Accept);
+    }
 }
