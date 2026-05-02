@@ -551,8 +551,7 @@ mod validate_app_name_tests {
         assert!(defaults.iter().any(|s| s == "slack.exe"));
         assert!(defaults.iter().any(|s| s == "webex.exe"));
         // Sanity: no duplicates in the static list.
-        let mut sorted: Vec<String> =
-            defaults.iter().map(|s| s.to_ascii_lowercase()).collect();
+        let mut sorted: Vec<String> = defaults.iter().map(|s| s.to_ascii_lowercase()).collect();
         sorted.sort();
         let count = sorted.len();
         sorted.dedup();
