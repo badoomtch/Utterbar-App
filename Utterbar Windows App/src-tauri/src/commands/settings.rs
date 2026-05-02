@@ -135,3 +135,50 @@ fn apply_side_effects(s: &Settings) {
     }
     let _ = s; // no-op on non-Windows
 }
+
+/// Return the built-in default list of conferencing-app EXE basenames
+/// (Teams / Slack / Discord / Zoom / Webex variants). The settings UI
+/// uses this to render an "effective list" preview when the user has
+/// no custom override set, and to power the "Reset to defaults" button.
+///
+/// This is a thin command so the UI can stay in sync with whatever the
+/// service module decides the defaults should be — adding a new vendor
+/// to `DEFAULT_CONFERENCING_APPS` automatically appears in the picker.
+#[tauri::command]
+pub async fn get_default_conferencing_apps() -> CmdResult<Vec<String>> {
+    Ok(crate::services::audio_ducking::default_conferencing_apps())
+}
+
+/// Validate a user-typed EXE basename against the existing override
+/// list. Returns the canonical (sanitised) form, or a structured
+/// reason string the UI can map to a localised message.
+///
+/// Reason strings (stable, used as match arms in the React layer):
+///   * `"empty"` — input was whitespace-only.
+///   * `"invalid_characters"` — input contained a path separator,
+///     drive letter, quote, wildcard, or any character outside the
+///     conservative `[A-Za-z0-9._-]` set Windows EXE basenames can
+///     carry.
+///   * `"too_long"` — canonicalised name exceeds 64 characters.
+///   * `"duplicate"` — the canonicalised form is already in the
+///     existing list (case-insensitive).
+///
+/// The canonicalisation auto-appends `.exe` so users who type
+/// `Teams` instead of `Teams.exe` get the right basename. Whitespace
+/// is trimmed.
+#[tauri::command]
+pub async fn validate_conferencing_app_name(
+    name: String,
+    existing: Vec<String>,
+) -> Result<String, String> {
+    use crate::services::audio_ducking::{
+        validate_conferencing_app_name as validate, ValidateAppNameError as E,
+    };
+    match validate(&name, &existing) {
+        Ok(canonical) => Ok(canonical),
+        Err(E::Empty) => Err("empty".to_string()),
+        Err(E::InvalidCharacters) => Err("invalid_characters".to_string()),
+        Err(E::TooLong) => Err("too_long".to_string()),
+        Err(E::Duplicate) => Err("duplicate".to_string()),
+    }
+}
