@@ -221,6 +221,14 @@ function ConferencingAppsEditor({
 
   const add = async () => {
     setError(null);
+    // Guard: if the defaults fetch hasn't landed yet and we'd otherwise
+    // fork the list with an empty base, fail soft — pressing Add a moment
+    // later will work. Without this, a fast first-add on a slow machine
+    // would silently drop the entire default set into a one-entry override.
+    if (usingDefaults && defaults.length === 0) {
+      setError('Defaults are still loading — try again in a moment.');
+      return;
+    }
     try {
       const canonical = await invoke<string>('validate_conferencing_app_name', {
         name: draft,
@@ -257,6 +265,7 @@ function ConferencingAppsEditor({
       className={
         'border-t border-border-soft/70 pt-4 ' + (disabled ? 'opacity-60' : '')
       }
+      aria-disabled={disabled}
     >
       <div className="flex items-baseline justify-between gap-3">
         <div>
@@ -266,6 +275,7 @@ function ConferencingAppsEditor({
             {usingDefaults
               ? ' Using the built-in defaults.'
               : ' Using your custom list.'}
+            {disabled && ' Turn the toggle on above to edit this list.'}
           </div>
         </div>
         {!usingDefaults && (
