@@ -182,3 +182,40 @@ pub async fn validate_conferencing_app_name(
         Err(E::Duplicate) => Err("duplicate".to_string()),
     }
 }
+
+/// Validate a single mic-mute hotkey combo against the v1 spec rules.
+/// See `domain::settings::validate_mic_mute_hotkey` for the rules.
+///
+/// Reason strings (stable, the React layer matches on these):
+///   * `"bare_character_key"`: letter / digit / punctuation with no
+///     modifier, would trigger inside the user's dictations.
+///   * `"no_main_key"`: modifiers only, no actual key.
+///   * `"conflicts_with_utterbar_shortcut"`: combo collides with one
+///     of Utterbar's own registered global shortcuts.
+///
+/// The "Teams and Discord cannot share a combo" pair-check is the
+/// React layer's responsibility: it has both combos in its store and
+/// can rerun the check whenever either side changes without a round
+/// trip. Surfacing it as a Tauri command would force a round trip on
+/// every keystroke during hotkey capture.
+#[tauri::command]
+pub async fn validate_mic_mute_hotkey(
+    combo: crate::domain::settings::HotkeyCombo,
+    utterbar_shortcut_conflicts: Vec<u16>,
+) -> Result<(), String> {
+    use crate::domain::settings::{
+        validate_mic_mute_hotkey as validate, HotkeyValidationError as E,
+    };
+    match validate(&combo, &utterbar_shortcut_conflicts) {
+        Ok(()) => Ok(()),
+        Err(E::BareCharacterKey) => Err("bare_character_key".to_string()),
+        Err(E::NoMainKey) => Err("no_main_key".to_string()),
+        Err(E::ConflictsWithUtterbarShortcut) => {
+            Err("conflicts_with_utterbar_shortcut".to_string())
+        }
+        // Pair-equality is checked client-side, not here. If callers
+        // ever pass an equal pair to this single-combo endpoint we
+        // treat it as a bug rather than try to handle it.
+        Err(E::SameComboOnBothApps) => Err("bare_character_key".to_string()),
+    }
+}

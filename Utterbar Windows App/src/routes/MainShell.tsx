@@ -202,6 +202,8 @@ const NAV_SETTINGS: Array<{
       { label: 'GPU acceleration', aliases: ['gpu', 'acceleration', 'directml', 'cuda', 'graphics card'] },
       { label: 'DirectML', aliases: ['directml', 'dml'] },
       { label: 'CPU only', aliases: ['cpu', 'cpu only', 'no gpu'] },
+      { label: 'Mute mic in Teams (experimental)', aliases: ['teams mute', 'teams mic', 'mute teams microphone', 'experimental teams', 'mic mute teams'] },
+      { label: 'Mute mic in Discord (experimental)', aliases: ['discord mute', 'discord mic', 'mute discord microphone', 'experimental discord', 'mic mute discord'] },
       { label: 'Diagnostics', aliases: ['diagnostics', 'logs', 'debug'] },
       { label: 'Export data', aliases: ['export', 'export data', 'export settings', 'backup'] },
       { label: 'Import backup', aliases: ['import', 'import backup', 'import settings', 'restore'] },

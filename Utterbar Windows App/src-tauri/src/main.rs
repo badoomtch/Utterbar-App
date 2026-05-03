@@ -104,6 +104,7 @@ fn main() {
             commands::settings::get_data_paths,
             commands::settings::get_default_conferencing_apps,
             commands::settings::validate_conferencing_app_name,
+            commands::settings::validate_mic_mute_hotkey,
             // audio
             commands::audio::list_input_devices,
             commands::audio::start_meter,
