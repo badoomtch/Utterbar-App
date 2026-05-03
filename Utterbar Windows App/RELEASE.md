@@ -324,6 +324,10 @@ If a future refactor ever moves any of these into the install dir or a temp fold
 
 - **Never commit any of the three tokens** (R2 access key, R2 secret, admin API token). `.env.local` files and `~/.utterbar-deploy/.env` are untracked.
 - **Rotate tokens annually** at minimum, or immediately on suspected compromise. R2 tokens rotate via Cloudflare dashboard; admin API token rotates via Jay editing the server `.env`.
+- **R2 keys live in three places, keep them in lockstep on every rotation.** When you rotate the R2 access key + secret in the Cloudflare dashboard, the new pair has to land in **all three** of the locations below before things work end-to-end. Updating only one or two leaves the publish flow half-broken:
+  1. **`~/.aws/credentials`** under the `[utterbar-r2]` profile (used by `aws s3 cp` inside `publish-release.sh` to upload the installer).
+  2. **`~/.utterbar-deploy/.env`** (`R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`) on the operator's machine: read by the publish script's local logic.
+  3. **Production Cloudways `.env`** (`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`): used by the website's admin/releases endpoint to HEAD-verify the upload landed in R2 before recording the release row, and by the marketing media sync script. After updating the production `.env`, run `php artisan config:clear` on the server so Laravel re-reads it. The first publish after a partial rotation will fail with a 401/Unauthorized at whichever layer is still on the old keys (the AWS CLI for #1, the website's S3Client for #3).
 - **One token per machine.** If you work across a laptop and desktop, each gets its own R2 dev token. Makes revocation scoped.
 - **Delete compromised releases.** If you ever publish a build that ships something sensitive (debug logs, leaked credential, etc.), call `DELETE /api/admin/releases/{id}?delete_file=1` immediately. Users who already installed aren't recovered, but new downloads get blocked.
 
