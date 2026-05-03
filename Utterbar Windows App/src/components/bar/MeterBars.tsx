@@ -90,11 +90,17 @@ export function MeterBars() {
       const meter = useDictation.getState().meter;
       // Combine RMS + peak the same way `Waveform.tsx` did originally
       // — peak gives the sharp transients (consonants, plosives), RMS
-      // gives the steady-state energy (vowels, sustained speech). The
-      // 2.8 multiplier matches the prototype: speech RMS rarely clears
-      // 0.3 normalised, so we need to lift it before the bars look
-      // alive. Clamped to [0, 1].
-      const target = Math.min(1, Math.max(0, Math.max(meter.rms, meter.peak * 0.6) * 2.8));
+      // gives the steady-state energy (vowels, sustained speech).
+      // Sensitivity tuning (post-v0.17.0): the bars need to swing more
+      // visibly on normal speech. Speech RMS rarely clears 0.3
+      // normalised, so a 2.8× multiplier left the bars sitting in the
+      // bottom half of their range for a typical user voice. Bumping
+      // to 3.6× lifts steady-state vowels into the upper half; bumping
+      // peak weighting from 0.6 to 0.75 makes consonants drive the
+      // bars harder, which reads as "alive" more than steady-state
+      // RMS does. `Math.min(1, ...)` still pins the upper rail, so
+      // loud speech can't overflow the height ceiling.
+      const target = Math.min(1, Math.max(0, Math.max(meter.rms, meter.peak * 0.75) * 3.6));
 
       const current = smoothedRef.current;
       // Asymmetric one-pole smoother. Attack (target > current) catches
