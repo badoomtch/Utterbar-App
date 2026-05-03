@@ -12,6 +12,7 @@ pub mod inference;
 pub mod licence;
 pub mod llm;
 pub mod media;
+pub mod mic_mute;
 pub mod models;
 pub mod modes;
 pub mod numbers;
