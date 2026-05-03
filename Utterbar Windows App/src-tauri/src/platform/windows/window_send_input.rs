@@ -155,11 +155,7 @@ unsafe fn process_module_base_name(pid: u32) -> Option<String> {
     let full = OsString::from_wide(&buf[..len as usize])
         .into_string()
         .ok()?;
-    let basename = full
-        .rsplit(['\\', '/'])
-        .next()
-        .unwrap_or(&full)
-        .to_string();
+    let basename = full.rsplit(['\\', '/']).next().unwrap_or(&full).to_string();
     Some(basename)
 }
 
@@ -199,9 +195,7 @@ pub fn send_hotkey_to_window(hwnd: HWND, combo: &Hotkey) -> Result<()> {
     // target's input queue puts us in the same focus group.
     let attached = unsafe { AttachThreadInput(our_thread, target_thread, true) };
     if !attached.as_bool() {
-        return Err(anyhow!(
-            "send_hotkey_to_window: AttachThreadInput failed"
-        ));
+        return Err(anyhow!("send_hotkey_to_window: AttachThreadInput failed"));
     }
 
     let result = (|| -> Result<()> {
@@ -325,10 +319,7 @@ mod manual_tests {
         eprintln!("send elapsed:       {:?}", elapsed);
         eprintln!("foreground prior:   {:?}", prior);
         eprintln!("foreground after:   {:?}", after);
-        eprintln!(
-            "foreground restored: {}",
-            prior.0 == after.0
-        );
+        eprintln!("foreground restored: {}", prior.0 == after.0);
         assert!(result.is_ok(), "Teams hotkey send failed: {:?}", result);
     }
 
@@ -353,11 +344,7 @@ mod manual_tests {
         eprintln!("send elapsed:       {:?}", elapsed);
         eprintln!("foreground prior:   {:?}", prior);
         eprintln!("foreground after:   {:?}", after);
-        eprintln!(
-            "foreground restored: {}",
-            prior.0 == after.0
-        );
+        eprintln!("foreground restored: {}", prior.0 == after.0);
         assert!(result.is_ok(), "Discord hotkey send failed: {:?}", result);
     }
-
 }

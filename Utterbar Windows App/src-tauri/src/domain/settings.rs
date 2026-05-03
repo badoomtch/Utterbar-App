@@ -15,6 +15,15 @@ pub struct Settings {
     pub shortcuts: ShortcutSettings,
     pub typing_baseline_wpm: u32,
     pub active_mode_id: Option<String>,
+    /// Experimental features. Always present in the settings struct so
+    /// settings.json schema is identical across release builds and
+    /// experimental_mic_mute-feature builds (a user who tries a beta and
+    /// returns to stable should not see "unknown field" errors). Default
+    /// build code never reads this; only the experimental_mic_mute Cargo
+    /// feature wires the lifecycle hooks that act on it. See
+    /// docs/decisions/true-per-app-microphone-mute-v1-spec.md.
+    #[serde(default)]
+    pub experimental: ExperimentalSettings,
 }
 
 impl Default for Settings {
@@ -31,6 +40,7 @@ impl Default for Settings {
             shortcuts: ShortcutSettings::default(),
             typing_baseline_wpm: 55,
             active_mode_id: Some("voice-to-text".into()),
+            experimental: ExperimentalSettings::default(),
         }
     }
 }
@@ -545,6 +555,351 @@ pub enum GpuAcceleration {
     Cuda,
     /// Force CPU — useful when the user wants to keep the GPU free for other apps.
     Cpu,
+}
+
+/// Experimental feature settings. Today this only carries the
+/// experimental Teams + Discord mic-mute toggle; future experimental
+/// features get added here behind their own per-feature struct so
+/// adding or removing one doesn't disturb the rest of the file.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct ExperimentalSettings {
+    #[serde(default)]
+    pub mic_mute: MicMuteSettings,
+}
+
+/// Per-app mic-mute v1 (Teams + Discord). Every field defaults to "off"
+/// so a user upgrading from a prior release sees the feature disabled
+/// even after their settings.json picks up the new schema.
+///
+/// The `hotkey` on each per-app entry is the keystroke Utterbar will
+/// synthesise into that app's window when a dictation starts (and
+/// again on stop, to toggle back). Defaults: Teams ships with
+/// Ctrl+Shift+M out of the box; Discord does NOT ship with a default
+/// global mute hotkey (the user must set one in Discord first), so
+/// the Discord default below is "no hotkey set" and the Settings UI
+/// surfaces a calibration step.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct MicMuteSettings {
+    #[serde(default)]
+    pub teams: MicMutePerApp,
+    #[serde(default)]
+    pub discord: MicMutePerApp,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct MicMutePerApp {
+    #[serde(default)]
+    pub enabled: bool,
+    /// `None` means "no hotkey configured for this app yet". Required
+    /// before `enabled` can take effect at dictation start; the
+    /// lifecycle hook skips any app whose hotkey is `None`.
+    #[serde(default)]
+    pub hotkey: Option<HotkeyCombo>,
+}
+
+/// A single hotkey combo, stored as up-to-four modifiers plus one main
+/// key. Modifiers are an unordered set; the keystroke synthesiser
+/// presses them in order and releases in reverse. The main key is the
+/// non-modifier key (a letter, digit, F-key, or other named key).
+///
+/// Why this shape rather than a single `String`: the existing
+/// `domain::Shortcut` type is what drives Utterbar's own global
+/// hotkeys (recording start/stop etc.), and they go through a
+/// completely different registration path (the OS hotkey table via
+/// `tauri-plugin-global-shortcut`). The mic-mute hotkey is a
+/// per-keystroke `SendInput` payload, not a registered hotkey, and
+/// the shape it needs is the literal Win32 virtual-key codes the
+/// experimental_mic_mute Cargo feature feeds into `KEYBDINPUT`. We
+/// deliberately keep it separate so a future change to the global
+/// shortcut shape doesn't ripple here.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct HotkeyCombo {
+    #[serde(default)]
+    pub ctrl: bool,
+    #[serde(default)]
+    pub shift: bool,
+    #[serde(default)]
+    pub alt: bool,
+    #[serde(default)]
+    pub win: bool,
+    /// The main key as a Win32 virtual-key code (`u16`). e.g. `0x4D`
+    /// for `M`, `0x7F` for `F16`, `0x70` for `F1`. Stored as the
+    /// numeric VK rather than a string so the keystroke synthesiser
+    /// has nothing to parse at hot-path time.
+    pub vk: u16,
+    /// Display string for UI / logs only. Reconstructed from the
+    /// captured combo in the hotkey-capture input. Examples:
+    /// `"Ctrl+Shift+M"`, `"F16"`, `"Ctrl+Alt+F12"`. Never used for
+    /// dispatch; the `vk` plus the four modifier flags are the
+    /// canonical shape.
+    pub label: String,
+}
+
+/// Reason a `HotkeyCombo` was rejected by `validate_mic_mute_hotkey`.
+/// Each variant carries a stable string id the Settings UI can map
+/// to its localised inline-error copy. Adding a variant requires a
+/// matching UI string change.
+///
+/// `dead_code` allowed because Branch 3a defines the validation
+/// surface; Branch 3b wires it via Tauri commands.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotkeyValidationError {
+    /// Bare letter, digit, or punctuation key with no modifier. Rejected
+    /// because the user would trigger the mic-mute toggle every time
+    /// they typed that character, including inside their dictations.
+    BareCharacterKey,
+    /// Modifier keys only with no main key (e.g. just Shift). Not a
+    /// usable hotkey; some platforms won't even deliver it.
+    NoMainKey,
+    /// Conflicts with one of Utterbar's own registered global
+    /// shortcuts. Caller supplies the conflict-detection list.
+    ConflictsWithUtterbarShortcut,
+    /// Both Teams and Discord were assigned the same combo. They
+    /// can't share, because both apps would mute on the same keystroke.
+    SameComboOnBothApps,
+}
+
+/// Validate a hotkey combo against the v1 spec rules:
+///
+/// - The main key must be present (`vk != 0`).
+/// - At least one of: a modifier is set, OR the main key is in the
+///   "non-printable" set (function keys F1-F24 and similar). This
+///   allows `Ctrl+Shift+M` (modifier-required) AND `F16` (bare
+///   F-key, which Discord power users routinely use). It rejects
+///   bare letters / digits / punctuation that would trigger inside
+///   dictations.
+/// - The combo must not be in `utterbar_shortcut_conflicts`.
+///
+/// The "same combo on both apps" check is NOT done here because it
+/// requires both apps' settings; callers do it as a second pass via
+/// [`validate_mic_mute_pair`].
+#[allow(dead_code)]
+pub fn validate_mic_mute_hotkey(
+    combo: &HotkeyCombo,
+    utterbar_shortcut_conflicts: &[u16],
+) -> Result<(), HotkeyValidationError> {
+    if combo.vk == 0 {
+        return Err(HotkeyValidationError::NoMainKey);
+    }
+    let any_modifier = combo.ctrl || combo.shift || combo.alt || combo.win;
+    if !any_modifier && !is_non_printable_vk(combo.vk) {
+        return Err(HotkeyValidationError::BareCharacterKey);
+    }
+    if utterbar_shortcut_conflicts.contains(&combo.vk) {
+        return Err(HotkeyValidationError::ConflictsWithUtterbarShortcut);
+    }
+    Ok(())
+}
+
+/// Pair-level validation: each combo is individually valid AND they
+/// are not equal. Returns `Err(SameComboOnBothApps)` if both have the
+/// same `vk` + modifier mask.
+#[allow(dead_code)]
+pub fn validate_mic_mute_pair(
+    teams: Option<&HotkeyCombo>,
+    discord: Option<&HotkeyCombo>,
+) -> Result<(), HotkeyValidationError> {
+    let (Some(t), Some(d)) = (teams, discord) else {
+        return Ok(());
+    };
+    if t.vk == d.vk && t.ctrl == d.ctrl && t.shift == d.shift && t.alt == d.alt && t.win == d.win {
+        return Err(HotkeyValidationError::SameComboOnBothApps);
+    }
+    Ok(())
+}
+
+/// Returns true for VK codes that can safely be used as bare-key
+/// mic-mute hotkeys (no modifier required). Function keys F1-F24 are
+/// the typical case (Discord power users often bind F16 etc.); also
+/// allows Pause / Print Screen / Scroll Lock and other media /
+/// browser keys that aren't generated by normal typing.
+#[allow(dead_code)]
+fn is_non_printable_vk(vk: u16) -> bool {
+    // F1..=F24: VK_F1=0x70 through VK_F24=0x87.
+    if (0x70..=0x87).contains(&vk) {
+        return true;
+    }
+    // Pause, Print Screen, Scroll Lock, browser/media keys.
+    matches!(
+        vk,
+        0x13   // VK_PAUSE
+        | 0x2C // VK_SNAPSHOT (Print Screen)
+        | 0x91 // VK_SCROLL
+        // Browser keys
+        | 0xA6..=0xAC
+        // Media keys
+        | 0xAD..=0xB7
+    )
+}
+
+#[cfg(test)]
+mod mic_mute_validation_tests {
+    use super::*;
+
+    fn vk(code: u16, label: &str) -> HotkeyCombo {
+        HotkeyCombo {
+            ctrl: false,
+            shift: false,
+            alt: false,
+            win: false,
+            vk: code,
+            label: label.into(),
+        }
+    }
+
+    #[test]
+    fn ctrl_shift_m_is_valid() {
+        let combo = HotkeyCombo {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            win: false,
+            vk: 0x4D, // M
+            label: "Ctrl+Shift+M".into(),
+        };
+        assert_eq!(validate_mic_mute_hotkey(&combo, &[]), Ok(()));
+    }
+
+    #[test]
+    fn bare_f16_is_valid() {
+        // Jay's actual Discord binding. Bare F-key, no modifiers.
+        let combo = vk(0x7F, "F16");
+        assert_eq!(validate_mic_mute_hotkey(&combo, &[]), Ok(()));
+    }
+
+    #[test]
+    fn bare_f1_through_f24_are_valid() {
+        for code in 0x70..=0x87 {
+            let combo = vk(code, "F?");
+            assert_eq!(
+                validate_mic_mute_hotkey(&combo, &[]),
+                Ok(()),
+                "VK 0x{:02X} should be valid bare",
+                code
+            );
+        }
+    }
+
+    #[test]
+    fn bare_letter_is_rejected() {
+        let combo = vk(0x4D, "M");
+        assert_eq!(
+            validate_mic_mute_hotkey(&combo, &[]),
+            Err(HotkeyValidationError::BareCharacterKey)
+        );
+    }
+
+    #[test]
+    fn bare_digit_is_rejected() {
+        let combo = vk(0x31, "1");
+        assert_eq!(
+            validate_mic_mute_hotkey(&combo, &[]),
+            Err(HotkeyValidationError::BareCharacterKey)
+        );
+    }
+
+    #[test]
+    fn no_main_key_is_rejected() {
+        let combo = HotkeyCombo {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            win: false,
+            vk: 0,
+            label: "Ctrl+Shift".into(),
+        };
+        assert_eq!(
+            validate_mic_mute_hotkey(&combo, &[]),
+            Err(HotkeyValidationError::NoMainKey)
+        );
+    }
+
+    #[test]
+    fn pause_and_print_screen_are_valid_bare() {
+        assert_eq!(validate_mic_mute_hotkey(&vk(0x13, "Pause"), &[]), Ok(()));
+        assert_eq!(validate_mic_mute_hotkey(&vk(0x2C, "PrtSc"), &[]), Ok(()));
+    }
+
+    #[test]
+    fn ctrl_letter_is_valid() {
+        // Ctrl+M is fine, no need for an additional modifier.
+        let combo = HotkeyCombo {
+            ctrl: true,
+            shift: false,
+            alt: false,
+            win: false,
+            vk: 0x4D,
+            label: "Ctrl+M".into(),
+        };
+        assert_eq!(validate_mic_mute_hotkey(&combo, &[]), Ok(()));
+    }
+
+    #[test]
+    fn conflict_list_rejects_matching_vk() {
+        // Imagine the recording-toggle is bound to F16 here.
+        let combo = vk(0x7F, "F16");
+        assert_eq!(
+            validate_mic_mute_hotkey(&combo, &[0x7F]),
+            Err(HotkeyValidationError::ConflictsWithUtterbarShortcut)
+        );
+    }
+
+    #[test]
+    fn pair_with_same_combo_is_rejected() {
+        let combo = HotkeyCombo {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            win: false,
+            vk: 0x4D,
+            label: "Ctrl+Shift+M".into(),
+        };
+        assert_eq!(
+            validate_mic_mute_pair(Some(&combo), Some(&combo)),
+            Err(HotkeyValidationError::SameComboOnBothApps)
+        );
+    }
+
+    #[test]
+    fn pair_with_different_combos_is_ok() {
+        let teams = HotkeyCombo {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            win: false,
+            vk: 0x4D,
+            label: "Ctrl+Shift+M".into(),
+        };
+        let discord = HotkeyCombo {
+            ctrl: false,
+            shift: false,
+            alt: false,
+            win: false,
+            vk: 0x7F,
+            label: "F16".into(),
+        };
+        assert_eq!(validate_mic_mute_pair(Some(&teams), Some(&discord)), Ok(()));
+    }
+
+    #[test]
+    fn pair_with_one_unset_is_ok() {
+        let combo = HotkeyCombo {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            win: false,
+            vk: 0x4D,
+            label: "Ctrl+Shift+M".into(),
+        };
+        assert_eq!(validate_mic_mute_pair(Some(&combo), None), Ok(()));
+        assert_eq!(validate_mic_mute_pair(None, Some(&combo)), Ok(()));
+        assert_eq!(validate_mic_mute_pair(None, None), Ok(()));
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
