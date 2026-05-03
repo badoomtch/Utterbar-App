@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
+import { Button } from '@/components/common/Button';
 import { Card, Row } from '@/components/common/Card';
+import { Input } from '@/components/common/Input';
 import { ManagedHint } from '@/components/common/ManagedHint';
 import { ProNudge } from '@/components/common/ProNudge';
 import { Toggle } from '@/components/common/Toggle';
@@ -140,14 +142,19 @@ export function PrivacySettings() {
             />
           </Row>
           <Row
-            label="Mute conferencing apps while recording"
-            description="Silences Teams, Slack, Discord, Zoom, and Webex output audio while you're dictating, so call audio doesn't bleed into the room. Restored the moment dictation ends. Doesn't mute your mic to those apps, use the app's own mute button for that."
+            label="Mute conferencing app output while recording"
+            description="Silences what you HEAR from Teams, Slack, Discord, Zoom, and Webex while you're dictating, so call audio and notification dings don't bleed into the room. Restored the moment dictation ends. This does NOT mute your microphone inside those apps, use each app's own mute button for that."
           >
             <Toggle
               checked={Boolean(p.mute_conferencing_while_recording)}
               onChange={(v) => void update('mute_conferencing_while_recording', v)}
             />
           </Row>
+          <ConferencingAppsEditor
+            override={s.privacy.conferencing_apps_override}
+            disabled={!p.mute_conferencing_while_recording}
+            onChange={(next) => void update('conferencing_apps_override', next)}
+          />
         </Card>
 
         <Card title="Data locations">
@@ -168,6 +175,176 @@ export function PrivacySettings() {
         </Card>
 
       </div>
+    </div>
+  );
+}
+
+// Maps the stable reason strings returned by the `validate_conferencing_app_name`
+// Tauri command to the user-facing message rendered next to the input. Keeping
+// this keyed off the same constants the Rust validator returns means the copy
+// stays in lock-step with the rule set without re-implementing validation in TS.
+const VALIDATION_MESSAGES: Record<string, string> = {
+  empty: 'Enter an executable name.',
+  invalid_characters:
+    'Only letters, numbers, dot, underscore, and dash. No paths, drive letters, quotes, or wildcards.',
+  too_long: 'Name is too long (max 64 characters).',
+  duplicate: 'That app is already in the list.',
+};
+
+function ConferencingAppsEditor({
+  override,
+  disabled,
+  onChange,
+}: {
+  override: string[];
+  disabled: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  const [defaults, setDefaults] = useState<string[]>([]);
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void invoke<string[]>('get_default_conferencing_apps')
+      .then(setDefaults)
+      .catch(() => setDefaults([]));
+  }, []);
+
+  // Empty override means "use the built-in defaults" (matches the runtime
+  // contract in services/audio_ducking.rs). The editor renders the effective
+  // list either way so users can see what will actually be muted.
+  const usingDefaults = override.length === 0;
+  const effective = useMemo(
+    () => (usingDefaults ? defaults : override),
+    [usingDefaults, defaults, override],
+  );
+
+  const add = async () => {
+    setError(null);
+    // Guard: if the defaults fetch hasn't landed yet and we'd otherwise
+    // fork the list with an empty base, fail soft — pressing Add a moment
+    // later will work. Without this, a fast first-add on a slow machine
+    // would silently drop the entire default set into a one-entry override.
+    if (usingDefaults && defaults.length === 0) {
+      setError('Defaults are still loading — try again in a moment.');
+      return;
+    }
+    try {
+      const canonical = await invoke<string>('validate_conferencing_app_name', {
+        name: draft,
+        existing: effective,
+      });
+      // First user edit forks the list off the defaults — seed the override
+      // with the current effective list so the user sees the same set they
+      // were just looking at, plus the new entry.
+      const base = usingDefaults ? defaults : override;
+      onChange([...base, canonical]);
+      setDraft('');
+    } catch (e) {
+      const reason = typeof e === 'string' ? e : 'invalid_characters';
+      setError(VALIDATION_MESSAGES[reason] ?? 'That name isn’t valid.');
+    }
+  };
+
+  const remove = (name: string) => {
+    setError(null);
+    // If we’re still on defaults, removing an item forks the list (seed
+    // with the remaining defaults). Otherwise drop it from the override.
+    const base = usingDefaults ? defaults : override;
+    const next = base.filter((n) => n.toLowerCase() !== name.toLowerCase());
+    onChange(next);
+  };
+
+  const reset = () => {
+    setError(null);
+    onChange([]);
+  };
+
+  return (
+    <div
+      className={
+        'border-t border-border-soft/70 pt-4 ' + (disabled ? 'opacity-60' : '')
+      }
+      aria-disabled={disabled}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <div>
+          <div className="text-[13px] font-medium text-fg-hi">Apps to silence</div>
+          <div className="mt-1 text-[12px] leading-relaxed text-muted">
+            Executable names matched case-insensitively against running processes.
+            {usingDefaults
+              ? ' Using the built-in defaults.'
+              : ' Using your custom list.'}
+            {disabled && ' Turn the toggle on above to edit this list.'}
+          </div>
+        </div>
+        {!usingDefaults && (
+          <Button
+            variant="plain"
+            size="sm"
+            onClick={reset}
+            disabled={disabled}
+          >
+            Reset to defaults
+          </Button>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {effective.length === 0 ? (
+          <span className="text-[12px] text-muted">No apps configured.</span>
+        ) : (
+          effective.map((name) => (
+            <span
+              key={name}
+              className="inline-flex items-center gap-1 rounded-full bg-bg-0 px-2.5 py-1 font-mono text-[11px] text-fg-hi"
+            >
+              {name}
+              <button
+                type="button"
+                onClick={() => remove(name)}
+                disabled={disabled}
+                aria-label={`Remove ${name}`}
+                className="ml-0.5 text-muted hover:text-fg-hi disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                &times;
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+
+      <form
+        className="mt-3 flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!disabled && draft.trim()) void add();
+        }}
+      >
+        <Input
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            if (error) setError(null);
+          }}
+          placeholder="e.g. Teams.exe"
+          disabled={disabled}
+          className="flex-1"
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          type="submit"
+          disabled={disabled || !draft.trim()}
+        >
+          Add
+        </Button>
+      </form>
+      {error && (
+        <div className="mt-2 text-[12px] text-rose-400" role="alert">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

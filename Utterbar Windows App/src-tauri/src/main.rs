@@ -102,6 +102,8 @@ fn main() {
             commands::settings::update_settings,
             commands::settings::reset_settings,
             commands::settings::get_data_paths,
+            commands::settings::get_default_conferencing_apps,
+            commands::settings::validate_conferencing_app_name,
             // audio
             commands::audio::list_input_devices,
             commands::audio::start_meter,
