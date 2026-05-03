@@ -1,12 +1,16 @@
 # Opt-in Product Analytics Decision
 
-**Status:** Decision-gated. **Not approved for implementation.** Investigation only.
+**Status: REJECTED. Will not be built. Decided 2026-05-03 by Jay.**
 
-**Recorded:** 2026-05-03 against `bfa71c2` on `main`.
+**Rationale:** "No telemetry, not even opt-in" is brand equity worth keeping. The 15+ surfaces of public copy that say "no telemetry / no phone-home" are a clearer product position than "no telemetry by default, optional opt-in counters". Trading that clarity for product-usage insight is a net loss. If we ever genuinely need to know how features are used, the path is a quarterly user-survey email through the existing update-subscriber consent, not an in-app analytics channel.
+
+**This decision is durable.** Future sessions: do NOT propose this feature again, do NOT investigate it, do NOT walk back the "no telemetry" framing in any public copy. The rule is also pinned in [CLAUDE.md §5.1](../../CLAUDE.md). If a future need to measure usage surfaces, propose a survey or in-product feedback form, not telemetry.
+
+**Recorded:** 2026-05-03 against `bfa71c2` on `main`. Rejected: 2026-05-03 by Jay.
 
 **Owner of the decision:** Jay.
 
-This document persists the conclusion of the 2026-05-03 investigation so future Claude sessions do not re-investigate or accidentally start coding it. If you are reading this and considering implementing analytics, **stop and re-read the "Approval decisions required before code" section at the bottom**. None of those approvals exist yet.
+The body of this document below is preserved for historical context (what was investigated and why). It is not a roadmap. Do not act on the "Recommended branches" or "Approval decisions" sections.
 
 ---
 

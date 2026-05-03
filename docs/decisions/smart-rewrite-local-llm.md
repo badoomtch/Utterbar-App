@@ -1,12 +1,16 @@
 # Smart Rewrite Local LLM Decision
 
-**Status:** Decision-gated. **Not approved for implementation.** Investigation only.
+**Status: REJECTED. Will not be built. Decided 2026-05-03 by Jay.**
 
-**Recorded:** 2026-05-03 against `0153398` on `main`.
+**Rationale:** Deterministic Smart rewrite v1 (shipped v0.16.4 stable in v0.17.0) is the right ceiling for the rewrite feature. A local LLM rewrite weakens the "honest transcription, no AI ghost-writing" position without beating Wispr Flow / Superwhisper at LLM rewriting (they're better-funded and ahead on prompt tuning). The latency cost (P50 ~500 ms vs sub-millisecond for v1) is a real UX regression on short dictations. The hallucination / wrong-meaning edit risk is an asymmetric trust loss: users notice when rewrites change their words, and v1 has no such failure mode. Bundle vs first-run-download adds operational complexity (model catalogue, R2 hosting for GGUFs, integrity checks) for a feature whose user value is marginal over v1.
+
+**This decision is durable.** Future sessions: do NOT propose shipping a local LLM rewrite, do NOT propose flipping the `llama` Cargo feature on for release builds, do NOT propose model selection / GGUF download / prompt-template work. The `LlamaCppProvider` stub at `services/llm/llama_cpp.rs` and the `PostProcessing::Llm` variant in `domain::PostProcessing` stay in tree as plumbing that's never instantiated; deleting them is out of scope (low cost, near-zero size). The rule is also pinned in [CLAUDE.md §5.1](../../CLAUDE.md). The marketing position remains "no LLM rewrites of your speech" everywhere it currently appears.
+
+**Recorded:** 2026-05-03 against `0153398` on `main`. Rejected: 2026-05-03 by Jay.
 
 **Owner of the decision:** Jay.
 
-This document persists the conclusion of the 2026-05-03 investigation so future Claude sessions do not re-investigate or accidentally start coding `llama.cpp` integration, model download paths, or prompt templates without Jay's explicit decisions in writing. If you are reading this and considering implementing local LLM rewrite, **stop and re-read the "Approval decisions required before code" section at the bottom**. None of those approvals exist yet.
+The body of this document below is preserved for historical context (what was investigated and why). It is not a roadmap. Do not act on the "Recommended branches", "Recommended model criteria", or "Approval decisions" sections.
 
 ---
 

@@ -1,12 +1,25 @@
 # True Per-App Microphone Mute Decision
 
-**Status:** Decision-gated. **Not approved for implementation.** Investigation only.
+**Status: APPROVED for experimental beta. Decided 2026-05-03 by Jay.**
 
-**Recorded:** 2026-05-03 against `0b1986d` on `main`.
+**Approved scope (locked at this commit):**
+
+1. **Q1, doing it at all:** Yes, as **experimental** behind an explicit warning UX. The v0.16.5 honesty-pass framing stands: this is a known-fragile feature with a real silent-failure mode, and it ships only as opt-in beta in Settings → Advanced → Experimental, never bundled into stable without a full beta soak.
+2. **Q2, which app first: Teams.** Single app for v1. Teams has a stable, fixed-by-default mute hotkey (`Ctrl+Shift+M`) which is the ingredient the keystroke-synthesis approach needs. Discord's per-user-rebindable hotkey is a calibration-step we don't take on day one. Adding any second app is a separate decision after Teams soaks.
+3. **Q3, experimental risk acceptable:** Yes, IF the warning UX is exhaustive (Q4) and verification-failure path is loud (Q5/Q6).
+4. **Q4, warning copy:** TBD in Branch 1 (copy/spec). Toggle eyebrow `EXPERIMENTAL`. Toggle description begins **"Experimental. This may fail silently. We recommend leaving it off unless you're actively testing it."** Banner copy and release-notes paragraph drafted in Branch 1, approved by Jay before Branch 2 starts.
+5. **Q5, verification UX:** Start with **NONE; always-on banner**. After every mic-mute dictation, a banner across the floating bar reads "Tried to unmute you in Teams, please confirm in Teams." Auto-dismisses after 5 seconds for the success path; sticks until clicked if restore failed (process gone, focus lost, keystroke delivery returned an error). Honest-can't-verify beats UIA-confidence-we-shouldn't-have. UIA-based verification is a separate v2 decision after the always-on banner soaks; do NOT add UIA mute-state scraping in v1.
+6. **Q6, restore-failure UX:** Persistent banner that does NOT auto-dismiss until clicked, on the floating bar AND a system-tray balloon notification, both saying "Utterbar may have left you muted in Teams. Click to confirm." Plus: persist mute-was-applied state to disk between toggle-on and stop, so a crashed-and-relaunched Utterbar attempts restore on next launch and surfaces the banner if it can't.
+7. **Q7, mechanism:** **Hotkey synthesis only**, no UI Automation. Send `Ctrl+Shift+M` via `SendInput` targeted at the Teams window (resolved by process name + window class, NOT focused-window assumption; we deliberately background-target so the user keeps focus in their dictation target). UIA verification is explicitly excluded from v1 per Q5. The `SendInput` keystroke needs a window-targeting wrapper; today's `text_inject.rs` is focused-window only. Build that as part of v1 inside `platform/windows/`, not a new module.
+8. **Q8, Settings placement:** **Settings → Advanced → Experimental** subsection. Distinct toggle from the v0.17.0 output-mute (which stays in Privacy). The Advanced placement is load-bearing: it sets the "this is experimental" framing before the user sees the toggle.
+
+**Required safety constraints (unchanged from below, restated for clarity):** off by default; never claim guaranteed mute (always say "tried to mute"); restore from every dictation-end path including SEH crash handler; persisted mute-state to disk; release notes that explicitly say "may fail with app updates"; Teams-only support matrix in UI; hard timeout on every keystroke-send call; failure logging without secrets (no transcripts, no window titles beyond app name); no global OS mic mute (`IAudioEndpointVolume::SetMute` forbidden, unit-tested).
+
+**Recorded:** 2026-05-03 against `0b1986d` on `main`. Approved (experimental scope): 2026-05-03 by Jay.
 
 **Owner of the decision:** Jay.
 
-This document persists the conclusion of the 2026-05-03 investigation so future Claude sessions do not re-investigate or accidentally start coding hotkey synthesis, UI Automation mute-button clicking, or capture-endpoint muting without Jay's explicit decisions in writing. If you are reading this and considering implementing per-app mic mute, **stop and re-read the "Approval decisions required before code" section at the bottom**. None of those approvals exist yet. The default is do not build.
+The body of this document below is the original investigation. The "Approval decisions required before code" section is now answered (above). The "Recommended branches" section IS the implementation roadmap. Branch 1 (copy/spec pin) is the next step.
 
 ---
 
