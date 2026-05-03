@@ -155,6 +155,12 @@ winreg = "0.52"
 default = []
 # Optional llama.cpp LLM backend.
 llama = ["dep:llama-cpp-2"]
+# Experimental Teams + Discord mic-mute. Off by default in release
+# builds. Enabling this feature compiles the
+# `platform::windows::window_send_input` prototype + its manual-run
+# unit tests; it does NOT wire any UI, Settings field, or release
+# behaviour. See docs/decisions/true-per-app-microphone-mute-v1-spec.md.
+experimental_mic_mute = []
 
 [dependencies.llama-cpp-2]
 version = "0.1"
