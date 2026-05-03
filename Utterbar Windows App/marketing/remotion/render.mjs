@@ -55,8 +55,18 @@ const PARITY = !!args.get('parity'); // parity-sheet batch mode
 // f(4.2)=126, f(5.6)=168; each panel's body typewriter ends ~f(panel)+27.
 // Frame 200 lands just after the third panel's body finishes typing — all
 // three modes are fully populated and the poster reads as the real feature.
+//
+// feature-local-privacy at frame 0 lands before the "Your PC" panel has
+// faded in (panelOpacity tween 0 → 0.8s) and the cyan local loop hasn't
+// started drawing yet (loopProgress 1.5s → 4.5s). The result was a
+// mostly empty dark poster (~22 KB vs ~70 KB for every other composition).
+// Frame 180 = 6.0s, after the loop has fully drawn (4.5s) and before
+// the caption tween starts (6.95s): both panels visible, local loop
+// fully traced, no outbound activity yet — a clean steady-state poster
+// that actually reads as the privacy diagram.
 const POSTER_FRAMES = {
   'feature-modes': 200,
+  'feature-local-privacy': 180,
 };
 
 // ---------- manifest ------------------------------------------------------
