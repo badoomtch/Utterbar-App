@@ -31,14 +31,23 @@ In rough order. Adjust as evidence comes in.
 1. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
 2. **Watch v0.16.0 stable soak.** First stable from a wide bundle (six betas worth of work in one promote). Particular attention on: per-chunk Meeting Mode validation false-positives, the 4:55 auto-stop interaction with mid-sentence speech, managed-licence + air-gapped flows on real customer hardware. Hotfix to 0.16.1 if anything load-bearing surfaces.
 3. **Watch v0.16.5 beta soak for the conferencing output-mute polish.** The clarifying copy and editable app list are the user-visible surface; the failure modes worth watching are: (a) restore correctness — confirm output mute restores cleanly the moment dictation ends, including when a user removes a chip mid-call or changes the override list while the toggle is off; the runtime resolver only un-mutes sessions Utterbar itself muted, but soak tells us whether that contract holds across real Teams / Discord builds; (b) custom list persistence — confirm the override survives app restart and reset-to-defaults flips back to the built-in 11 entries cleanly; (c) validation clarity — confirm the inline error messages (paths, command lines, quotes, wildcards, duplicates, too-long) are clear enough that users self-serve without filing a support request; (d) the honesty test — watch reviews / Discord for any user who reads "Mute conferencing apps" and assumes their **microphone** into the call is muted; the new label leads with "output" and the description spells out "does NOT mute your microphone inside those apps" but real-world misreads are the test. Carry forward Smart rewrite v1 watch (code-dictation false positives, Meeting Mode regressions, history raw vs processed, AI / cloud confusion); the v0.16.5 changes do not touch the rewrite path so a regression there would be a separate story. Watch the v0.16.3 desktop UX items (post-update relaunch, Meeting Mode progress, audio-reactive waveform, Settings search) and v0.16.2 cold-warm / prewarm behaviour as part of the same soak window.
-4. **Fix launch-at-startup reliability.** User reports the app does not launch after restarting Windows even though the setting is enabled. Treat as a bug: inspect startup registration, installer behaviour, and whether the setting writes the expected Windows startup entry.
-5. **Pick the next product work item** from the backlog below.
+4. **Pick the next product work item** from the backlog below — but note that the highest-value items (opt-in analytics, Smart rewrite local LLM, true per-app mic mute) are decision-gated, not ready-to-code. See "Decision-gated product work" below.
 
 ---
 
 ## Product backlog
 
 One or two lines each. Expand only if the item moves to Next actions.
+
+### Decision-gated product work
+
+Three high-value items are blocked on a Jay decision before any code lands. None of them is a ready-to-code backlog task — investigation 2026-05-03 surfaced these as the next sensible product work, but each needs a paper-first decision so the implementation prompt is coherent.
+
+- **Opt-in product analytics.** Needs privacy / copy / endpoint / retention decision before code. Decide what is collected (events vs counters, raw vs hashed identifiers), where it lives (utterbar.com endpoint, third-party, self-hosted), retention period, exact consent UI copy, and IT-policy interaction with the existing `BlockTelemetry` key. Today's `analytics_daily` is local-only SQLite rollups; remote analytics is a fresh channel with legal/brand surface, not just code.
+- **Smart rewrite local LLM (future).** Needs model + bundle-vs-download + latency budget + Pro-gating + privacy-copy decision before code. The `LlamaCppProvider` stub at `services/llm/llama_cpp.rs` is a one-line selector flip away from being instantiated, but the v1 needs a chosen GGUF (1-3B class), a bundle-vs-first-run-download decision, prompt template + system prompt work, latency cancellation behaviour, and a marketing copy pivot from "no LLM rewrites of your speech" to "no cloud LLM; optional opt-in local LLM".
+- **True per-app microphone mute.** Do not build yet unless explicitly experimental with a verification / failure-warning UX. The v0.16.5 output-audio mute is shipped and honest about scope; true mic mute would require either per-app hotkey synthesis (Teams Ctrl+Shift+M, Zoom Alt+A, etc.) or UI Automation per call client. Both fail silently — the user could be left muted in a real call after a crash, which is the exact failure mode the v0.16.5 honesty pass warned against. If we ever build it, the v1 must lead with an unmissable "Utterbar may have left you muted in &lt;app&gt;" banner and ship behind an experimental flag in Settings → Advanced.
+
+### Other backlog
 
 - **Whisper Small DML policy re-test.** Auto-Small currently routes to CPU per real-meeting evidence on Jay's machine (CPU RTF 0.190 vs DML 0.222). Re-test only if future evidence on different hardware reverses it; the policy is a one-line change in `services/inference/mod.rs::resolve_provider`.
 
@@ -65,6 +74,7 @@ The 2026-04-27 B2B pass shipped the front door (`/business`, enquiry form, `/doc
 
 ### Pre-existing open issues
 
+- ~~**Launch-at-startup reliability.**~~ Resolved by the v0.16.1 repair-on-launch path; Jay confirmed 2026-05-03 the app now opens on Windows restart/startup. The repair-on-launch hook in `main.rs` re-asserts the HKCU Run entry against the current exe path on every launch, healing stale entries from prior installs without the user having to toggle the setting.
 - **Ed25519 sandbox key sunset.** Live key is v2; v1 sandbox key still accepted transitionally. Sunset planned ~6 weeks after v0.9.0 saturates.
 - **Legal pages refresh.** `legal/privacy.blade.php` and `legal/terms.blade.php` still need a final review against the live Stripe / licence / device-fingerprint reality.
 - **Admin dashboard cohesion.** Staged `Admin/*` controllers + views need a navigation pass once they ship.
