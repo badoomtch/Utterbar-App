@@ -43,9 +43,9 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use windows::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM, TRUE};
-use windows::Win32::System::ProcessStatus::K32GetModuleBaseNameW;
 use windows::Win32::System::Threading::{
-    AttachThreadInput, GetCurrentThreadId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    AttachThreadInput, GetCurrentThreadId, OpenProcess, QueryFullProcessImageNameW,
+    PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
@@ -130,17 +130,37 @@ unsafe fn pid_for_window(hwnd: HWND) -> u32 {
 }
 
 unsafe fn process_module_base_name(pid: u32) -> Option<String> {
+    // Use QueryFullProcessImageNameW rather than K32GetModuleBaseNameW.
+    // The latter looks like a drop-in but actually requires
+    // PROCESS_QUERY_INFORMATION + PROCESS_VM_READ; under the more
+    // permissive PROCESS_QUERY_LIMITED_INFORMATION it always returns
+    // ERROR_ACCESS_DENIED. Discovered during the Branch 2 smoke test:
+    // every process returned None until this swap.
     let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-    let mut buf = [0u16; 260];
-    let len = K32GetModuleBaseNameW(handle, None, &mut buf);
-    let _ = CloseHandle(handle);
-    if len == 0 {
+    if handle.is_invalid() {
         return None;
     }
-    let s = OsString::from_wide(&buf[..len as usize])
+    let mut buf = [0u16; 1024];
+    let mut len: u32 = buf.len() as u32;
+    let result = QueryFullProcessImageNameW(
+        handle,
+        PROCESS_NAME_FORMAT(0),
+        windows::core::PWSTR(buf.as_mut_ptr()),
+        &mut len,
+    );
+    let _ = CloseHandle(handle);
+    if result.is_err() || len == 0 {
+        return None;
+    }
+    let full = OsString::from_wide(&buf[..len as usize])
         .into_string()
         .ok()?;
-    Some(s)
+    let basename = full
+        .rsplit(['\\', '/'])
+        .next()
+        .unwrap_or(&full)
+        .to_string();
+    Some(basename)
 }
 
 /// Send the given hotkey combo to the target window. Performs the focus
@@ -339,4 +359,5 @@ mod manual_tests {
         );
         assert!(result.is_ok(), "Discord hotkey send failed: {:?}", result);
     }
+
 }

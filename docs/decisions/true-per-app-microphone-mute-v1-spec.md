@@ -257,6 +257,34 @@ Branch 3 then wires the Settings UI (per-app toggle rows, hotkey-capture inputs 
 
 ---
 
+## Branch 2 findings (recorded 2026-05-04 against Discord on Jay's machine)
+
+The prototype was exercised manually against a real Discord instance. Teams was not running on the test machine so its keystroke path stayed unverified end-to-end; the window-detection code was confirmed against Discord and is mechanism-identical for Teams (same process-name lookup, same focus dance), so the same path is expected to land. Teams should still be smoke-tested in Branch 3 once a real Teams install is available.
+
+**Window detection.** `find_window_for_processes` correctly identifies the Discord main window. The first attempt used `K32GetModuleBaseNameW` for the process-name lookup and silently returned `None` for every process (every window came back unnamed); root cause was that `K32GetModuleBaseNameW` requires `PROCESS_QUERY_INFORMATION + PROCESS_VM_READ`, while the wrapper opens processes with the more permissive `PROCESS_QUERY_LIMITED_INFORMATION`. Under that access mask the call always fails with `ERROR_ACCESS_DENIED` (5). Switched to `QueryFullProcessImageNameW`, which works with `PROCESS_QUERY_LIMITED_INFORMATION`, returns the full path, and the wrapper takes the basename. After the swap, every visible top-level window resolved its `.exe` name correctly.
+
+**Keystroke delivery.** The focus dance lands as designed against Discord. Two runs: 99 ms total round-trip and 117 ms total round-trip, of which roughly 60 ms is the two intentional `sleep(30 ms)` settle pauses; the actual API work is ~30-60 ms. Foreground was restored to the prior window cleanly on both runs (`prior == after` checked via `GetForegroundWindow`).
+
+**Application-layer effect.** Initial test sent `Ctrl+Shift+M` (the manufacturer default), which Discord on Jay's machine ignored because Jay's Discord has the mute hotkey rebound to F16. The prototype was patched temporarily to send F16 (no modifiers), and Discord muted as expected. The keystroke pipeline is confirmed working; the failure mode of the first run was purely a wrong-default issue, not a transport issue. **Implication for Branch 3:** the per-app hotkey-capture input is load-bearing for Discord, not a nice-to-have. Discord has no out-of-the-box global mute hotkey at all (this turned out to be a misconception in the original spec which assumed `Ctrl+Shift+M`); users must set one themselves in Discord's User Settings, Keybinds, then mirror it in Utterbar. The Settings copy in section 3 above should make this explicit for the Discord row: the helper-line text must point at Discord's keybinds panel and warn that without a Discord mute hotkey set, the Utterbar toggle has nothing to send.
+
+**Validation rule revision.** The spec's "must include at least one modifier" validation rule is too strict for Discord; Jay's real-world binding is bare F16. Branch 3 should relax this to: "must include at least one modifier OR be a function key (F13-F24) or other non-printable key" so that bare F-key binds (which power users routinely use because they don't conflict with anything else) are allowed, but bare-letter binds (`M`, `A`) are still rejected to prevent accidental triggering during typing. Bare modifier-only binds (e.g. just `Shift`) and bare letter / digit / punctuation keys remain rejected.
+
+**Bare-key hotkey behaviour.** F16 sent as a single key event with no modifiers worked correctly through the focus dance. The `Hotkey` struct's `modifiers: Vec<VIRTUAL_KEY>` allows an empty vector and the `send_combo` function handles it (skips the modifier press / release entirely). No code change needed beyond the validation rule above.
+
+**Latency budget for the spec.** P50 ≈ 100-120 ms total, of which ~60 ms is the deliberate settle pauses. This is well inside any reasonable user-perception threshold for "Utterbar started a dictation"; the user is mid-keypress when Utterbar's recording hotkey fires, the mute keystroke goes out at the same moment, and by the time the user is talking the call app has already muted. No changes to the 30 ms settle pauses recommended; tightening them risks Discord's message loop missing the keystroke (the brief is "noticeable, not problematic", and 100 ms beats every alternative we'd considered).
+
+**Foreground flicker.** Not observed by the user during testing (the test ran while Jay was looking at the Discord window itself; from that vantage no flicker was visible). The dance still does briefly steal foreground; this is unavoidable for the keystroke to land in Electron / WebView2 hosts via `SendInput`. Branch 3 should record the still-known caveat in the toggle description text so users who switch context mid-dictation aren't surprised.
+
+**Outstanding for Branch 3:**
+
+- Real-world test against Microsoft Teams (classic and new Teams) using the default `Ctrl+Shift+M` plus a rebound combo. Teams' default IS bound out-of-the-box, unlike Discord's, but the same hotkey-capture input must work for both.
+- Confirm the hotkey-capture input UI accepts bare F-keys (per the validation rule revision above).
+- Confirm the Discord-row helper line copy points users at Discord's User Settings, Keybinds, Toggle Mute panel and explicitly says they must set a Discord mute hotkey there before Utterbar can do anything.
+
+These findings supersede the corresponding "do not pick in this task" placeholders. Spec section 3 (Settings copy) and section 9 (release-notes draft) need a small revision pass at the start of Branch 3 to incorporate the Discord-hotkey-required messaging; Branch 3 starts with that copy revision before any UI code.
+
+---
+
 ## What this document is NOT
 
 - Not Rust or TypeScript code. No structs, no React components, no commands.
