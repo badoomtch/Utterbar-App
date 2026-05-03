@@ -70,7 +70,7 @@ Three branches in strict order. Branch N must merge before Branch N+1 starts.
    - Settings toggle + onboarding step + sender service + preview/disclosure modal.
    - Must include a denylist snapshot test that asserts none of the §"Banned fields" strings ever appear in a serialised payload.
 
-4. **Beta only after v0.17.0 stable.** v0.17.0 is the bundle promotion of the soaked v0.16.1–v0.16.5 line; mixing the privacy-rewrite into that cut blurs an otherwise-coherent stable. Ship the desktop sender in v0.17.1 beta, soak ≥7 days, then bundle into v0.18.0 stable.
+4. **Beta only after v0.17.0 stable.** v0.17.0 is the bundle promotion of the soaked v0.16.1–v0.16.5 line; mixing the privacy-rewrite into that cut blurs an otherwise-coherent stable. Ship the desktop sender in v0.17.1 beta, soak on the beta channel, then bundle into v0.18.0 stable when readiness is met (gates green, no regression reports, Jay's explicit approval). No fixed soak duration — beta-time-on-clock is a signal, not a blocker.
 
 ---
 

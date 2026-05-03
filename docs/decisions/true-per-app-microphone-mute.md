@@ -177,11 +177,11 @@ Strict ordering. Branches 1-2 are decision/research and ship no runtime mute cod
 
 3. **App-specific implementation branch for ONE app only** (`feature/mic-mute-teams` or `feature/mic-mute-discord`)
    - First app gets the full UX wiring: toggle, banner, restore-on-crash persistence, status pill.
-   - **Beta only first**, ≥7 day soak.
+   - **Beta only first.** Soak on the beta channel before any stable promotion — judgement-based, not a fixed duration. Given the silent-failure risk class, lean towards the cautious end of the soak spectrum.
 
 4. **Beta release branch** (`chore(release): prepare 0.x.y beta` for the patch that introduces it)
    - Beta-only. No `--announce`. Release notes carry the "may fail with app updates" warning paragraph in full.
-   - Soak ≥7 days before a minor cut considers bundling it into stable.
+   - Promote to a mainline minor only after a clean beta soak and explicit Jay approval. No fixed minimum duration; given the failure class, this feature warrants extra caution before a stable cut bundles it.
 
 Adding a second app (e.g. Zoom after Teams) is a separate iteration of branches 3 + 4, with its own beta soak.
 

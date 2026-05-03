@@ -111,7 +111,7 @@ Strict ordering. Branches 1-2 are decision/research only and ship no runtime cod
    - "Preview" affordance: paste / type a sample, click "rewrite", see before/after side-by-side. Lets the user audit the model's behaviour before turning it on for real dictation.
 
 5. **Beta release** (`chore(release): prepare 0.x.y beta` with v2 disabled by default)
-   - Beta-only first. No `--announce` (per the v0.16.x cadence). Soak ≥7 days before any minor cut considers it.
+   - Beta-only first. No `--announce` (per the v0.16.x cadence). Promote to a mainline minor only after a clean beta soak and explicit Jay approval — judgement-based readiness, not a fixed soak duration.
 
 ---
 
