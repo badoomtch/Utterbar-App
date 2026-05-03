@@ -1,7 +1,7 @@
 <x-layouts.app title="Terms of service" description="The terms covering your use of utterbar.com and your purchase of an Utterbar Pro licence.">
     <x-section eyebrow="Legal" title="Terms of service">
         <article class="max-w-3xl space-y-5 leading-relaxed" style="color: var(--fg);">
-            <p class="font-mono text-sm" style="color: var(--muted);">Last updated: 26 April 2026</p>
+            <p class="font-mono text-sm" style="color: var(--muted);">Last updated: 3 May 2026</p>
 
             <p style="color: var(--muted);">
                 These terms apply to your use of <strong>utterbar.com</strong> and to any purchase of an Utterbar Pro licence. The desktop app is additionally covered by the <a href="{{ route('legal.eula') }}" style="color: var(--accent);">End-User Licence Agreement</a> bundled with the installer.
@@ -16,6 +16,7 @@
             <h3>3. Buying Utterbar Pro</h3>
             <p>Pro is a one-time purchase of <strong>&pound;39.99 GBP</strong>, inclusive of any UK VAT we&rsquo;re required to charge. There is no subscription. Payment is processed by <a href="https://stripe.com/gb/legal/consumer" style="color: var(--accent);">Stripe</a>; the contract for the licence is between you and Utterbar.</p>
             <p>Once we&rsquo;ve received your payment, we email you a licence key. The key activates Utterbar Pro on up to three devices simultaneously; you can transfer it between machines from your <a href="{{ route('account') }}" style="color: var(--accent);">account page</a>.</p>
+            <p><strong>Volume / multi-seat purchases.</strong> The volume self-serve checkout supports between 5 and 100 seats in a single order. Pricing is flat per seat at two tiers: <strong>&pound;29 per seat</strong> for 5 to 24 seats, and <strong>&pound;19 per seat</strong> from 25 seats onward, both inclusive of any UK VAT we&rsquo;re required to charge. A volume order produces one licence record with <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">max_devices</code> equal to the seat count purchased; it is not split into separately transferable per-seat licences. Orders above 100 seats, or buyers who need an invoice, signed installer, air-gapped activation, or other deployment plumbing, go through the <a href="{{ route('business.contact') }}" style="color: var(--accent);">Business enquiry path</a> instead.</p>
 
             <h3>4. Refunds (UK Consumer Contracts Regulations 2013)</h3>
             <p>Because Utterbar Pro is digital content delivered immediately on purchase, you have <strong>14 calendar days</strong> from the date of purchase to request a refund, provided you have not started a meaningful amount of use. Email <a href="mailto:{{ config('site.email.contact') }}" style="color: var(--accent);">{{ config('site.email.contact') }}</a> with your licence key or order email and we&rsquo;ll process the refund. We honour refund requests inside the 14-day window without question; outside the window we&rsquo;ll consider individual cases on the merits.</p>
@@ -23,6 +24,7 @@
 
             <h3>5. Licence grant</h3>
             <p>Subject to payment in full and your continued compliance with these terms and the EULA, we grant you a non-exclusive, non-transferable (except by you between your own devices via the account page), non-sub-licensable, perpetual licence to install and run Utterbar on up to three devices for personal or commercial use.</p>
+            <p>For volume / multi-seat orders, the buyer organisation receives a single non-transferable licence covering up to <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">max_devices</code> machines, where <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">max_devices</code> equals the seat count purchased at checkout. The individual seats are not separately transferable to other organisations or to the personal use of individuals outside the buyer organisation. The buyer organisation is responsible for managing activations across its fleet within the seat cap.</p>
             <p>You may not redistribute the installer, share your licence key, or attempt to remove or bypass licence verification. Doing so will result in revocation of the licence without refund.</p>
 
             <h3>6. Updates</h3>
