@@ -52,15 +52,20 @@ const ATTACK_COEF = 0.55;
 const RELEASE_COEF = 0.18;
 
 // Per-bar phase offsets and gains. Picked by eye to give the seven bars
-// a natural-looking mid-range silhouette: outer bars softer, middle
-// bars taller, with a small phase shift so a steady note doesn't
-// produce a flat-top wall. These are time offsets in milliseconds; the
+// a silhouette that echoes the Utterbar logo glyph: outer bars short,
+// middle bars tall, with a clear inside-out ramp.
+// `UtterbarLogoMark.tsx` pins the canonical logo geometry as
+// 10 -> 18 -> 28 -> 40 -> 28 -> 18 -> 10 px (centre tail tallest,
+// outer bars 25% of centre). These per-bar gains echo that ratio
+// compressed for our 22 px live range, so a typical voice produces
+// the logo's "mountain peak in the middle" shape instead of a flat
+// block. Phase offsets are time offsets in milliseconds; the
 // component samples a small sine on top of the smoothed amplitude
-// using `(now + offset) / 200` to give each bar its own pseudo-position
-// in the wave. The amplitude is the same across all bars (we don't
-// have a real spectrum), but the visual offset reads as one.
+// using `(now + offset) / 200` to give each bar its own pseudo-
+// position in the wave. The amplitude is the same across all bars
+// (we don't have a real spectrum), but the visual offset reads as one.
 const PHASE_OFFSETS = [0, 60, 120, 180, 240, 300, 360];
-const PER_BAR_GAIN = [0.78, 0.92, 0.98, 1.0, 0.96, 0.86, 0.72];
+const PER_BAR_GAIN = [0.40, 0.65, 0.88, 1.0, 0.90, 0.68, 0.42];
 
 export function MeterBars() {
   // Smoothed amplitude in [0, 1]. Stored in a ref so the rAF loop
@@ -91,16 +96,18 @@ export function MeterBars() {
       // Combine RMS + peak the same way `Waveform.tsx` did originally
       // — peak gives the sharp transients (consonants, plosives), RMS
       // gives the steady-state energy (vowels, sustained speech).
-      // Sensitivity tuning (post-v0.17.0): the bars need to swing more
-      // visibly on normal speech. Speech RMS rarely clears 0.3
-      // normalised, so a 2.8× multiplier left the bars sitting in the
-      // bottom half of their range for a typical user voice. Bumping
-      // to 3.6× lifts steady-state vowels into the upper half; bumping
-      // peak weighting from 0.6 to 0.75 makes consonants drive the
-      // bars harder, which reads as "alive" more than steady-state
-      // RMS does. `Math.min(1, ...)` still pins the upper rail, so
-      // loud speech can't overflow the height ceiling.
-      const target = Math.min(1, Math.max(0, Math.max(meter.rms, meter.peak * 0.75) * 3.6));
+      // Sensitivity tuning evolution:
+      //   v0.17.0  baseline: 2.8× gain, 0.6 peak weight — bars sat in
+      //            the bottom half of the range on a typical voice.
+      //   v0.17.1  3.6× gain, 0.75 peak weight — meaningful upward
+      //            shift but still on the soft side for normal speech.
+      //   v0.17.2  4.2× gain, 0.75 peak weight — final amplitude
+      //            bump paired with a steeper PER_BAR_GAIN ramp so
+      //            the silhouette reads as the logo "mountain peak"
+      //            shape instead of a flat block.
+      // `Math.min(1, ...)` still pins the upper rail, so loud speech
+      // can't overflow the height ceiling.
+      const target = Math.min(1, Math.max(0, Math.max(meter.rms, meter.peak * 0.75) * 4.2));
 
       const current = smoothedRef.current;
       // Asymmetric one-pole smoother. Attack (target > current) catches
