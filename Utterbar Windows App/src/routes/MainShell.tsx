@@ -33,7 +33,7 @@ import { UtterbarLogoMark } from '@/components/bar/UtterbarLogoMark';
 import { UtterbarWordmark } from '@/components/bar/UtterbarWordmark';
 import { PostUpdateToast, UpdateToast } from '@/components/common/UpdateToast';
 import { cn } from '@/lib/cn';
-import { filterSettingsByQuery } from '@/routes/settings_search';
+import { filterSettingsByQuery, settingsSearchMatchSummary } from '@/routes/settings_search';
 import { Dashboard } from '@/routes/Dashboard';
 import { HistoryRoute } from '@/routes/HistoryRoute';
 import { MeetingsRoute } from '@/routes/MeetingsRoute';
@@ -62,90 +62,188 @@ const NAV_PRIMARY = [
   { to: '/files', label: 'Files', icon: FileAudio },
 ];
 
-// Per-section keyword aliases for the settings search box. Searching
+// Per-section search metadata for the settings search box. Searching
 // the visible label alone misses common synonyms users actually type:
 // "GPU" should find Advanced, "hotkey" should find Shortcuts, "ASR"
-// should find Models. Kept short on purpose — a curated list is
-// easier to maintain than a content-crawl across every settings page,
-// and the match still feels natural because users type the noun
-// they associate with the setting, not the section name.
+// should find Models — those live in `keywords`. The `matches` list
+// carries the user-facing control names so the search can both find
+// the right section AND surface a short hint of the actual control
+// the user is being directed to ("Smart rewrite", "Apps to silence",
+// "Air-gapped activation"). Per-control aliases let users type
+// alternate phrasings ("filler words", "code dictation", "teams mute")
+// and still be pointed at the right specific control. Keep `matches`
+// to real, currently-shipped controls; non-shipped features stay out
+// so we never imply they exist.
+import type { SettingsSearchMatch } from '@/routes/settings_search';
+
 const NAV_SETTINGS: Array<{
   to: string;
   label: string;
   icon: typeof Settings2;
   keywords: readonly string[];
+  matches?: readonly SettingsSearchMatch[];
 }> = [
   {
     to: '/settings/general',
     label: 'General',
     icon: Settings2,
-    keywords: ['theme', 'accent', 'colour', 'color', 'launch', 'startup', 'minimised', 'minimized', 'tray', 'sound', 'notification', 'language', 'reduce motion'],
+    keywords: ['theme', 'accent', 'colour', 'color', 'minimised', 'minimized', 'tray', 'sound', 'notification', 'reduce motion'],
+    matches: [
+      'Theme',
+      { label: 'Accent colour', aliases: ['accent', 'colour', 'color'] },
+      { label: 'Launch at startup', aliases: ['launch', 'startup', 'autostart', 'auto start', 'boot'] },
+      { label: 'Start minimised', aliases: ['minimised', 'minimized'] },
+      { label: 'Show in system tray', aliases: ['tray'] },
+      { label: 'Notification sound', aliases: ['sound', 'notification', 'beep'] },
+      { label: 'App language', aliases: ['language', 'locale'] },
+    ],
   },
   {
     to: '/settings/bar',
     label: 'Utterbar',
     icon: Minimize2,
-    keywords: ['floating bar', 'pill', 'position', 'visibility', 'auto-hide', 'background'],
+    keywords: ['floating bar', 'pill'],
+    matches: [
+      { label: 'Floating bar position', aliases: ['position', 'placement', 'bar location'] },
+      { label: 'Auto-hide when idle', aliases: ['auto-hide', 'auto hide', 'hide', 'visibility'] },
+      { label: 'Background behaviour', aliases: ['background'] },
+    ],
   },
   {
     to: '/settings/audio',
     label: 'Audio',
     icon: Mic,
-    keywords: ['microphone', 'mic', 'input device', 'capture', 'noise', 'gate', 'gain', 'sample rate', 'silence', 'normalisation', 'normalization', 'loopback', 'system audio'],
+    keywords: ['noise', 'silence', 'normalisation', 'normalization', 'loopback'],
+    matches: [
+      { label: 'Microphone', aliases: ['mic', 'microphone', 'input device', 'capture'] },
+      { label: 'Input device', aliases: ['device', 'input'] },
+      { label: 'Noise gate', aliases: ['gate', 'noise'] },
+      { label: 'Gain', aliases: ['gain', 'volume', 'level'] },
+      { label: 'Sample rate', aliases: ['sample rate', 'rate', 'hz'] },
+      { label: 'System audio', aliases: ['system audio', 'system', 'desktop audio', 'pc audio', 'loopback'] },
+    ],
   },
   {
     to: '/settings/models',
     label: 'Models',
     icon: Radio,
-    keywords: ['ASR', 'whisper', 'parakeet', 'meeting model', 'default model', 'warm', 'unload', 'language', 'install model', 'download'],
+    keywords: ['ASR', 'language'],
+    matches: [
+      { label: 'Default dictation model', aliases: ['default model', 'dictation model', 'whisper', 'parakeet'] },
+      { label: 'Meeting Mode model', aliases: ['meeting model', 'meeting mode', 'meeting'] },
+      { label: 'Model downloads', aliases: ['download', 'install model', 'install'] },
+      { label: 'Keep model warm', aliases: ['warm', 'unload', 'keep loaded', 'preload'] },
+      { label: 'Whisper', aliases: ['whisper'] },
+      { label: 'Parakeet', aliases: ['parakeet'] },
+    ],
   },
   {
     to: '/settings/shortcuts',
     label: 'Shortcuts',
     icon: Keyboard,
-    keywords: ['hotkey', 'keybind', 'global shortcut', 'toggle recording', 'cancel recording'],
+    keywords: ['keybind', 'global shortcut'],
+    matches: [
+      { label: 'Toggle recording hotkey', aliases: ['hotkey', 'shortcut', 'toggle', 'toggle recording', 'record', 'start record', 'stop record'] },
+      { label: 'Cancel recording hotkey', aliases: ['cancel', 'cancel recording', 'abort', 'cancel hotkey'] },
+    ],
   },
   {
     to: '/settings/text-output',
     label: 'Text Output',
     icon: SlidersHorizontal,
-    keywords: ['paste', 'clipboard', 'capitalise', 'capitalize', 'auto space', 'numbers', 'digits', 'punctuation', 'keystroke fallback', 'shift to send'],
+    keywords: ['punctuation', 'keystroke fallback'],
+    matches: [
+      { label: 'Paste automatically', aliases: ['paste', 'auto paste', 'clipboard'] },
+      { label: 'Restore clipboard', aliases: ['restore clipboard', 'clipboard'] },
+      { label: 'Type it out if paste is blocked', aliases: ['paste blocked', 'fallback', 'keystroke', 'type out', 'character by character'] },
+      { label: 'Auto-capitalise', aliases: ['capitalise', 'capitalize', 'auto capital', 'sentence case'] },
+      { label: 'Trim trailing whitespace', aliases: ['trim', 'whitespace', 'trailing space'] },
+      { label: 'Auto-space', aliases: ['auto space', 'spacing'] },
+      { label: 'Numbers as digits', aliases: ['numbers', 'digits', 'numerals'] },
+      { label: 'Smart rewrite', aliases: ['smart rewrite', 'rewrite', 'filler', 'filler words', 'fillers', 'um', 'uh', 'tidy', 'cleanup', 'code dictation', 'code', 'polish'] },
+      { label: 'Hold Shift to auto-send', aliases: ['shift', 'auto-send', 'auto send', 'send', 'enter'] },
+    ],
   },
   {
     to: '/settings/accessibility',
     label: 'Accessibility',
     icon: Accessibility,
-    keywords: ['reduce motion', 'high contrast', 'text size', 'tooltips', 'screen reader', 'a11y'],
+    keywords: ['screen reader', 'a11y'],
+    matches: [
+      { label: 'Reduce motion', aliases: ['reduce motion', 'motion', 'animation'] },
+      { label: 'High contrast', aliases: ['high contrast', 'contrast'] },
+      { label: 'Text size', aliases: ['text size', 'font size', 'size', 'large text'] },
+      { label: 'Tooltips', aliases: ['tooltips', 'hints', 'tips'] },
+    ],
   },
   {
     to: '/settings/privacy',
     label: 'Privacy',
     icon: ShieldCheck,
-    keywords: ['retain audio', 'recordings', 'history', 'context', 'active app', 'clipboard context', 'voice profile', 'delete'],
+    keywords: ['retain audio', 'recordings', 'history'],
+    matches: [
+      { label: 'Save recordings', aliases: ['save recording', 'save audio', 'keep audio', 'retain audio', 'recording'] },
+      { label: 'Delete recordings after', aliases: ['delete', 'auto delete', 'retention'] },
+      { label: 'Active-app context', aliases: ['active app', 'active-app', 'app context', 'focused app', 'foreground app'] },
+      { label: 'Selection context', aliases: ['selection', 'selected text'] },
+      { label: 'Clipboard context', aliases: ['clipboard', 'clipboard context'] },
+      { label: 'Pause music while recording', aliases: ['pause music', 'spotify', 'media', 'pause media'] },
+      { label: 'Mute conferencing app output', aliases: ['mute', 'mute output', 'conferencing', 'teams', 'discord', 'zoom', 'slack', 'webex', 'call', 'teams mute', 'discord mute', 'zoom mute'] },
+      { label: 'Apps to silence', aliases: ['apps to silence', 'silence apps', 'silence list', 'app list'] },
+      { label: 'Data locations', aliases: ['data location', 'where', 'storage', 'appdata', 'paths'] },
+    ],
   },
   {
     to: '/settings/advanced',
     label: 'Advanced',
     icon: SlidersHorizontal,
-    keywords: ['GPU', 'DirectML', 'CUDA', 'CPU', 'acceleration', 'diagnostics', 'export settings', 'import settings', 'experimental'],
+    keywords: ['experimental'],
+    matches: [
+      { label: 'GPU acceleration', aliases: ['gpu', 'acceleration', 'directml', 'cuda', 'graphics card'] },
+      { label: 'DirectML', aliases: ['directml', 'dml'] },
+      { label: 'CPU only', aliases: ['cpu', 'cpu only', 'no gpu'] },
+      { label: 'Diagnostics', aliases: ['diagnostics', 'logs', 'debug'] },
+      { label: 'Export data', aliases: ['export', 'export data', 'export settings', 'backup'] },
+      { label: 'Import backup', aliases: ['import', 'import backup', 'import settings', 'restore'] },
+      { label: 'Reset settings', aliases: ['reset', 'reset settings', 'factory reset', 'defaults'] },
+    ],
   },
   {
     to: '/settings/licence',
     label: 'Licence',
     icon: KeyRound,
-    keywords: ['license', 'activation', 'pro', 'free', 'tier', 'devices', 'air-gapped', 'managed'],
+    keywords: ['license', 'tier', 'free'],
+    matches: [
+      { label: 'Activate Pro', aliases: ['activate', 'activation', 'pro', 'upgrade', 'enter key'] },
+      { label: 'Licence key', aliases: ['licence key', 'license key', 'key'] },
+      { label: 'Devices', aliases: ['devices', 'machines', 'seats', 'device cap'] },
+      { label: 'Managed licence.bin', aliases: ['managed', 'licence.bin', 'license.bin', 'fleet', 'b2b', 'enterprise'] },
+      { label: 'Air-gapped activation', aliases: ['air-gapped', 'air gapped', 'airgapped', 'offline activation', 'no internet'] },
+    ],
   },
   {
     to: '/settings/updates',
     label: 'Updates',
     icon: RefreshCw,
-    keywords: ['update', 'channel', 'beta', 'stable', 'release notes', 'auto-check'],
+    keywords: ['auto-check'],
+    matches: [
+      { label: 'Update channel', aliases: ['channel', 'update channel'] },
+      { label: 'Check for updates', aliases: ['check for updates', 'check updates', 'check', 'update'] },
+      { label: 'Beta channel', aliases: ['beta', 'beta channel'] },
+      { label: 'Stable channel', aliases: ['stable', 'stable channel'] },
+      { label: 'Release notes', aliases: ['release notes', 'changelog', 'whats new', "what's new"] },
+    ],
   },
   {
     to: '/settings/about',
     label: 'About',
     icon: Info,
-    keywords: ['version', 'credits', 'links'],
+    keywords: [],
+    matches: [
+      { label: 'Version', aliases: ['version', 'build'] },
+      { label: 'Credits', aliases: ['credits', 'authors', 'attribution'] },
+      { label: 'Website links', aliases: ['website', 'links', 'docs', 'support'] },
+    ],
   },
 ];
 
@@ -228,19 +326,28 @@ export function MainShell() {
           />
           <NavGroup
             label="Settings"
-            items={filterSettingsByQuery(NAV_SETTINGS, settingsQuery).map((item) =>
-              // Attach the live app version directly beneath the `About` row.
-              // This is in addition to — not instead of — the footer strap and
-              // the version shown inside the About page itself. Users reported
-              // wanting the version glanceable from the nav without having to
-              // open the About page or scan to the bottom of the sidebar.
-              // The version line is suppressed when the query is non-empty
-              // because it would render under filtered-out About results
-              // — distracting and stale.
-              item.to === '/settings/about' && settingsQuery.trim().length === 0
+            items={filterSettingsByQuery(NAV_SETTINGS, settingsQuery).map((item) => {
+              // While searching: every filtered item gets a short hint
+              // showing the matched control / feature. ("filler words"
+              // → Text Output, hint "Smart rewrite".) The hint replaces
+              // the version line on the About row during search, which
+              // is the right tradeoff: a stale "v0.18.0" under About
+              // when the user is looking for a specific control is
+              // distracting; the matched-feature hint is what actually
+              // helps them navigate.
+              if (settingsQuery.trim().length > 0) {
+                const summary = settingsSearchMatchSummary(item, settingsQuery);
+                return summary ? { ...item, subLabel: summary } : item;
+              }
+              // Otherwise: attach the live app version directly beneath
+              // the `About` row. This is in addition to the footer strap
+              // and the version shown inside the About page itself.
+              // Users reported wanting the version glanceable from the
+              // nav without opening About or scanning to the bottom.
+              return item.to === '/settings/about'
                 ? { ...item, subLabel: appVersion ? `v${appVersion}` : undefined }
-                : item,
-            )}
+                : item;
+            })}
             emptyMessage={
               settingsQuery.trim().length > 0
                 ? `No settings match "${settingsQuery.trim()}"`
