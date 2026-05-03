@@ -6,6 +6,7 @@ import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
 import { invoke } from '@/lib/ipc';
 import { useSettings } from '@/state/settings';
+import { MicMuteCard } from '@/routes/settings/MicMuteCard';
 
 type Diagnostics = {
   version: string;
@@ -371,6 +372,8 @@ export function AdvancedSettings() {
             </div>
           )}
         </Card>
+
+        <MicMuteCard />
 
         <Card title="Reset">
           <Row
