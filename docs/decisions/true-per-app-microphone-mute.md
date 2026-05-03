@@ -21,6 +21,8 @@
 
 The body of this document below is the original investigation. The "Approval decisions required before code" section is now answered (above). The "Recommended branches" section IS the implementation roadmap. Branch 1 (copy/spec pin) is the next step.
 
+**v1 spec drafted at [true-per-app-microphone-mute-v1-spec.md](true-per-app-microphone-mute-v1-spec.md), Jay approves the literal copy in that file before Branch 2 starts.**
+
 ---
 
 ## What this is about
