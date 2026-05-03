@@ -105,6 +105,15 @@ We want them fixed before marketing announces.</pre>
         Whether a mode can read your clipboard, current text selection, or the active app name is governed by the global Privacy settings, one switch per source, applied to every mode. See <a href="{{ route('docs.privacy-controls') }}" style="color: var(--accent);">Privacy controls</a> for the details.
     </p>
 
+    {{-- ───────────── Per-mode vs global Smart rewrite ───────────── --}}
+    <h2 class="mt-14 ub-docs-h2">Per-mode post-processing vs the Smart rewrite toggle</h2>
+    <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
+        Per-mode post-processing is the recipe baked into a mode: <em>Voice-to-text</em> passes through, <em>Message</em> tightens for chat, <em>Meeting</em> preserves verbatim with line breaks. It runs whenever that mode is active and you can&rsquo;t turn it off without switching modes.
+    </p>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        Smart rewrite, on the other hand, is a single global toggle in Settings &gt; Text Output &gt; Formatting that applies <em>across all modes except Meeting</em>. When on, it strips common filler words (&ldquo;um&rdquo;, &ldquo;uh&rdquo;, &ldquo;like&rdquo;, &ldquo;you know&rdquo;), normalises spacing, capitalises sentence starts, and ensures a terminal full stop. It&rsquo;s off by default, deterministic, rule-based, and never loads an AI model. Think of per-mode rules as <em>shape</em> and Smart rewrite as <em>polish</em>. Turn polish off for code dictation; Meeting Mode ignores it either way.
+    </p>
+
     <div class="mt-12 ub-card ub-card-rail">
         <p class="text-sm" style="color: var(--muted);">
             <strong style="color: var(--fg-hi);">Why no LLM-driven modes?</strong> A local LLM big enough to do meaningful free-form rewrites takes seconds per dictation, not milliseconds. The deterministic post-processing approach keeps Utterbar instant. If you want LLM-style rewriting, the <a href="{{ route('compare.wispr-flow') }}" style="color: var(--accent);">comparison page</a> covers when that&rsquo;s the right trade-off.

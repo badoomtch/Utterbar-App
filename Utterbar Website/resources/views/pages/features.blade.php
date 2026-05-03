@@ -69,10 +69,20 @@
             'wins'  => ['Three themes', 'Six accent colours', 'Compact or standard'],
             'video' => 'feature-customise-bar',
         ],
+        [
+            'title' => 'Tidies up filler words, optionally.',
+            'body'  => 'Turn on Smart rewrite in Settings &gt; Text Output &gt; Formatting and Utterbar strips common fillers (&ldquo;um&rdquo;, &ldquo;uh&rdquo;, &ldquo;like&rdquo;, &ldquo;you know&rdquo;), tightens spacing, capitalises the first letter of each sentence, and adds a final full stop if you forgot one. Off by default. Fully local, rule-based, no model loaded, nothing sent anywhere. Leave it off for code dictation; the same rule that capitalises sentence starts will also capitalise keywords like <code class="font-mono" style="color: var(--accent);">let</code> or <code class="font-mono" style="color: var(--accent);">fn</code>. Meeting Mode stays verbatim regardless of the toggle.',
+            'wins'  => ['Off by default', 'Deterministic, no LLM', 'Meeting Mode unaffected'],
+        ],
+        [
+            'title' => 'Mutes call-app audio while you dictate.',
+            'body'  => 'When you are on a call and need to dictate something into another window, Utterbar can silence what you HEAR from Teams, Slack, Discord, Zoom, and Webex for the duration of the recording, then restore it the moment you let go of the hotkey. Call audio and notification dings stop bleeding into your dictation. Toggle and editable app list live in Settings &gt; Privacy &gt; Media. The toggle is output-only: it does NOT mute your microphone inside the call app, so use that app&rsquo;s own mute button if that&rsquo;s what you need.',
+            'wins'  => ['Output audio only, not the mic', 'Editable app list', 'Auto-restored after dictation'],
+        ],
     ];
 @endphp
 
-<x-layouts.app title="Features" description="Eleven things that make Utterbar different: press-to-talk hotkeys, AI-assistant dictation, local-only transcription, 30+ languages, auto-paste into any Windows app, modes, vocabulary, system audio, file transcription, and more.">
+<x-layouts.app title="Features" description="Thirteen things that make Utterbar different: press-to-talk hotkeys, AI-assistant dictation, local-only transcription, 30+ languages, auto-paste into any Windows app, modes, vocabulary, system audio, file transcription, optional Smart rewrite, conferencing-mute, and more.">
 
     {{-- Hero --}}
     <section class="pt-20 md:pt-28 pb-12">
@@ -82,7 +92,7 @@
                     What <x-wordmark /> actually does.
                 </h1>
                 <p class="ub-lead mt-8 max-w-xl">
-                    Eleven things worth paying attention to. Everything else gets out of the way.
+                    Thirteen things worth paying attention to. Everything else gets out of the way.
                 </p>
             </div>
         </div>
