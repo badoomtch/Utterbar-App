@@ -20,5 +20,13 @@
         @endforeach
     </div>
 
-    <div class="mt-10 ub-card"><p class="text-sm" style="color: var(--muted);">None of these toggles changes whether audio leaves your machine. It never does. They only affect what local context the post-processor can see. The app does make a handful of network calls (licence checks, update checks, model downloads, pricing lookup) but never sends audio, transcripts, vocabulary, or history. Full breakdown on the <a href="{{ route('legal.privacy') }}" style="color: var(--accent);">privacy policy</a>.</p></div>
+    <h2 class="mt-14 ub-docs-h2">Conferencing output mute (Settings &gt; Privacy &gt; Media)</h2>
+    <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
+        A separate switch sits under the same Privacy section, alongside an editable app list. When &ldquo;Mute conferencing app output while recording&rdquo; is on, Utterbar silences what you HEAR from Teams, Slack, Discord, Zoom, and Webex for the duration of a dictation, then restores it the moment you let go of the hotkey. Call audio and notification dings stop bleeding into the room while you&rsquo;re speaking into another window.
+    </p>
+    <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
+        It&rsquo;s output-only: the toggle does <strong>not</strong> mute your microphone inside the call app. True per-app mic mute would require simulating each app&rsquo;s in-call mute shortcut, which is brittle. If you need to mute your mic to a call, use the call app&rsquo;s own mute button. The list below the toggle (&ldquo;Apps to silence&rdquo;) defaults to the five apps above and is editable; add or remove <code class="font-mono" style="color: var(--accent);">.exe</code> names with the input field.
+    </p>
+
+    <div class="mt-10 ub-card"><p class="text-sm" style="color: var(--muted);">None of these toggles changes whether audio leaves your machine. It never does. They only affect what local context the post-processor can see, or which call apps get hushed while you dictate. The app does make a handful of network calls (licence checks, update checks, model downloads, pricing lookup) but never sends audio, transcripts, vocabulary, or history. Full breakdown on the <a href="{{ route('legal.privacy') }}" style="color: var(--accent);">privacy policy</a>.</p></div>
 </x-layouts.docs>
