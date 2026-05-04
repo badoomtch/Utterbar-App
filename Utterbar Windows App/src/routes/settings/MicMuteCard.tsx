@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
 import { invoke } from '@/lib/ipc';
+import { acceleratorToVk } from '@/lib/hotkey';
 import { useSettings } from '@/state/settings';
 import type { HotkeyCombo } from '@/generated/HotkeyCombo';
 import type { MicMutePerApp } from '@/generated/MicMutePerApp';
@@ -37,6 +38,25 @@ export function MicMuteCard() {
   const exp = s.experimental;
   const teams = exp.mic_mute.teams;
   const discord = exp.mic_mute.discord;
+
+  // Derive the VK codes of the user's currently-bound Utterbar global
+  // shortcuts so the hotkey-capture input can reject combos that would
+  // collide with Toggle Recording, Cancel Recording, or Cycle Mode.
+  // The conflict check is "main-key VK matches" (the simplest correct
+  // rule: a Ctrl+Shift+M Toggle Recording matches a Ctrl+Shift+M
+  // mic-mute). Overlap on the main key with different modifiers is
+  // also flagged, which is intentionally over-strict for an
+  // experimental feature: it nudges users to a totally unique key.
+  const utterbarConflictVks: number[] = [
+    s.shortcuts.toggle_recording?.accelerator,
+    s.shortcuts.cancel_recording?.accelerator,
+    s.shortcuts.cycle_mode?.accelerator,
+    s.shortcuts.push_to_talk?.accelerator,
+    s.shortcuts.hold_to_talk?.accelerator,
+  ]
+    .filter((a): a is string => typeof a === 'string' && a.length > 0)
+    .map(acceleratorToVk)
+    .filter((vk) => vk !== 0);
 
   // Pair-equality check is local to the component, no round-trip needed.
   const pairConflict =
@@ -84,6 +104,7 @@ export function MicMuteCard() {
         }
         per={teams}
         otherHotkey={discord.hotkey}
+        utterbarConflictVks={utterbarConflictVks}
         onChange={(next) => updatePerApp('teams', next)}
       />
       <MicMuteAppRow
@@ -97,6 +118,7 @@ export function MicMuteCard() {
         }
         per={discord}
         otherHotkey={teams.hotkey}
+        utterbarConflictVks={utterbarConflictVks}
         onChange={(next) => updatePerApp('discord', next)}
       />
 
@@ -144,6 +166,7 @@ function MicMuteAppRow(props: {
   helperText: string;
   per: MicMutePerApp;
   otherHotkey: HotkeyCombo | null;
+  utterbarConflictVks: number[];
   onChange: (next: MicMutePerApp) => void;
 }) {
   return (
@@ -156,6 +179,7 @@ function MicMuteAppRow(props: {
             <HotkeyCaptureInput
               value={props.per.hotkey}
               otherHotkey={props.otherHotkey}
+              utterbarConflictVks={props.utterbarConflictVks}
               onChange={(next) =>
                 props.onChange({ ...props.per, hotkey: next })
               }
@@ -187,10 +211,12 @@ function MicMuteAppRow(props: {
 function HotkeyCaptureInput({
   value,
   otherHotkey,
+  utterbarConflictVks,
   onChange,
 }: {
   value: HotkeyCombo | null;
   otherHotkey: HotkeyCombo | null;
+  utterbarConflictVks: number[];
   onChange: (next: HotkeyCombo | null) => void;
 }) {
   const [recording, setRecording] = useState(false);
@@ -253,11 +279,13 @@ function HotkeyCaptureInput({
       return;
     }
 
-    // Single-combo validation via the Rust command.
+    // Single-combo validation via the Rust command. Pass the live
+    // Utterbar shortcut VKs so a user cannot bind their mic-mute to
+    // Toggle Recording or any other global Utterbar hotkey.
     try {
       await invoke<void>('validate_mic_mute_hotkey', {
         combo,
-        utterbarShortcutConflicts: [], // TODO Branch 3c: pass current Utterbar global hotkeys
+        utterbarShortcutConflicts: utterbarConflictVks,
       });
     } catch (reason) {
       const msg = (reason as string) || 'invalid';

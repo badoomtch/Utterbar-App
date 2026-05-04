@@ -33,7 +33,10 @@ use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::domain::settings::HotkeyCombo;
+use tauri::{AppHandle, Emitter};
+
+use crate::domain::events::{MicMutePhase, MicMuteStatus, MicMuteStatusApp, EVT_MIC_MUTE_STATUS};
+use crate::domain::settings::{HotkeyCombo, MicMuteSettings};
 
 /// Filename of the on-disk state file under `%APPDATA%\Utterbar\`.
 /// Public so tests + diagnostics tooling can reference the same constant.
@@ -549,4 +552,412 @@ pub fn restore_on_launch(req_lookup: impl FnOnce(&[MicMuteApp]) -> MicMuteRestor
     // The banner emit is the caller's job (it has the Tauri AppHandle).
     // This function returns; the caller observes results via the
     // tracing log line and the on-disk file state.
+}
+
+// =============================================================================
+// High-level orchestrators called from the dictation lifecycle.
+// =============================================================================
+
+/// Build an apply request from the user's settings. Returns `None` if
+/// neither toggle is enabled, in which case the caller skips the
+/// whole apply path (no log lines, no event, no state-file write).
+pub fn apply_request_from_settings(settings: &MicMuteSettings) -> Option<MicMuteApplyRequest> {
+    let teams = if settings.teams.enabled {
+        settings.teams.hotkey.clone()
+    } else {
+        None
+    };
+    let discord = if settings.discord.enabled {
+        settings.discord.hotkey.clone()
+    } else {
+        None
+    };
+    if teams.is_none() && discord.is_none() {
+        return None;
+    }
+    Some(MicMuteApplyRequest { teams, discord })
+}
+
+/// Build a restore request. Distinct from apply because the `applied`
+/// list comes from the active recording context, not from "what's
+/// currently enabled in Settings": a user might have flipped a toggle
+/// off mid-recording and we still need to restore whatever was
+/// actually applied at start time.
+pub fn restore_request_from_settings(
+    settings: &MicMuteSettings,
+    applied: Vec<MicMuteApp>,
+) -> MicMuteRestoreRequest {
+    MicMuteRestoreRequest {
+        teams: settings.teams.hotkey.clone(),
+        discord: settings.discord.hotkey.clone(),
+        applied,
+    }
+}
+
+/// Display label for an app, used in user-facing banner copy. Closed
+/// match so adding an app variant requires updating this and the
+/// React banner together.
+pub fn app_label(app: MicMuteApp) -> &'static str {
+    match app {
+        MicMuteApp::Teams => "Teams",
+        MicMuteApp::Discord => "Discord",
+    }
+}
+
+/// Compose the user-facing banner copy for the "we just attempted to
+/// mute these apps at recording start" phase. Pinned by tests below.
+pub fn compose_recording_started_message(apps: &[MicMuteApp]) -> String {
+    match apps.len() {
+        0 => String::new(),
+        1 => format!(
+            "Tried to mute {} while recording. Confirm in {}.",
+            app_label(apps[0]),
+            app_label(apps[0])
+        ),
+        _ => {
+            let names: Vec<&str> = apps.iter().map(|a| app_label(*a)).collect();
+            format!(
+                "Tried to mute {} while recording. Confirm in those apps.",
+                names.join(" and ")
+            )
+        }
+    }
+}
+
+/// Compose the user-facing banner copy for the "restore succeeded"
+/// phase. Auto-dismisses after 5 seconds in the React layer.
+pub fn compose_restore_succeeded_message(apps: &[MicMuteApp]) -> String {
+    match apps.len() {
+        0 => String::new(),
+        1 => format!(
+            "Tried to unmute {}. Please confirm in {}.",
+            app_label(apps[0]),
+            app_label(apps[0])
+        ),
+        _ => {
+            let names: Vec<&str> = apps.iter().map(|a| app_label(*a)).collect();
+            format!(
+                "Tried to unmute {}. Please confirm in both.",
+                names.join(" and ")
+            )
+        }
+    }
+}
+
+/// Compose the sticky failure banner copy. Apps listed are the ones
+/// that failed restore; the success-set is implicit on the others.
+pub fn compose_restore_failed_message(apps: &[MicMuteApp]) -> String {
+    match apps.len() {
+        0 => String::new(),
+        1 => format!(
+            "Utterbar may have left you muted in {}. Open {} and check the mic icon.",
+            app_label(apps[0]),
+            app_label(apps[0])
+        ),
+        _ => {
+            let names: Vec<&str> = apps.iter().map(|a| app_label(*a)).collect();
+            format!(
+                "Utterbar may have left you muted in {}. Open both apps and check the mic icons.",
+                names.join(" and ")
+            )
+        }
+    }
+}
+
+fn outcome_to_string(o: AppOutcome) -> &'static str {
+    match o {
+        AppOutcome::Sent => "sent",
+        AppOutcome::NotRunning => "not_running",
+        AppOutcome::SendFailed => "send_failed",
+        AppOutcome::NoHotkey => "no_hotkey",
+    }
+}
+
+/// Build the per-app payload entries for a `MicMuteStatus` event,
+/// stamping each with its outcome.
+fn status_apps_from_outcomes(outcomes: &[(MicMuteApp, AppOutcome)]) -> Vec<MicMuteStatusApp> {
+    outcomes
+        .iter()
+        .map(|(app, out)| MicMuteStatusApp {
+            app: app.as_str().to_string(),
+            label: app_label(*app).to_string(),
+            outcome: Some(outcome_to_string(*out).to_string()),
+        })
+        .collect()
+}
+
+fn status_apps_no_outcome(apps: &[MicMuteApp]) -> Vec<MicMuteStatusApp> {
+    apps.iter()
+        .map(|app| MicMuteStatusApp {
+            app: app.as_str().to_string(),
+            label: app_label(*app).to_string(),
+            outcome: None,
+        })
+        .collect()
+}
+
+/// Apply at recording start, log per-app outcome, emit a banner
+/// event, return the list of apps that were successfully sent (so
+/// the lifecycle caller can store it on the recording context).
+pub fn apply_with_event(handle: &AppHandle, req: &MicMuteApplyRequest) -> Vec<MicMuteApp> {
+    let outcomes = apply(req);
+    let applied: Vec<MicMuteApp> = outcomes
+        .iter()
+        .filter(|(_, o)| matches!(o, AppOutcome::Sent))
+        .map(|(a, _)| *a)
+        .collect();
+    if applied.is_empty() {
+        // Nothing landed: don't show a banner. The user might have
+        // both toggles on but neither call app running, which is fine.
+        for (app, out) in &outcomes {
+            tracing::info!(
+                app = app.as_str(),
+                outcome = outcome_to_string(*out),
+                "mic_mute: apply skipped (app not running or no hotkey)"
+            );
+        }
+        return applied;
+    }
+    let message = compose_recording_started_message(&applied);
+    let payload = MicMuteStatus {
+        phase: MicMutePhase::RecordingStarted,
+        apps: status_apps_from_outcomes(&outcomes),
+        message,
+    };
+    let _ = handle.emit(EVT_MIC_MUTE_STATUS, &payload);
+    applied
+}
+
+/// Restore at recording stop / cancel / rollback, log per-app
+/// outcome, emit success or failure banner event. Caller passes the
+/// list of apps that were successfully sent at start time.
+pub fn restore_with_event(handle: &AppHandle, req: &MicMuteRestoreRequest) {
+    if req.applied.is_empty() {
+        return;
+    }
+    let outcomes = restore(req);
+
+    // Sent + NotRunning are both "success" from the user's POV: app
+    // gone means there's nothing to mute; sent means we asked for the
+    // unmute and `SendInput` returned ok. SendFailed and NoHotkey are
+    // failures.
+    let failures: Vec<MicMuteApp> = outcomes
+        .iter()
+        .filter(|(_, o)| matches!(o, AppOutcome::SendFailed | AppOutcome::NoHotkey))
+        .map(|(a, _)| *a)
+        .collect();
+    let successes: Vec<MicMuteApp> = outcomes
+        .iter()
+        .filter(|(_, o)| matches!(o, AppOutcome::Sent | AppOutcome::NotRunning))
+        .map(|(a, _)| *a)
+        .collect();
+
+    if failures.is_empty() {
+        let message = compose_restore_succeeded_message(&successes);
+        let payload = MicMuteStatus {
+            phase: MicMutePhase::RestoreSucceeded,
+            apps: status_apps_from_outcomes(&outcomes),
+            message,
+        };
+        let _ = handle.emit(EVT_MIC_MUTE_STATUS, &payload);
+    } else {
+        let message = compose_restore_failed_message(&failures);
+        let payload = MicMuteStatus {
+            phase: MicMutePhase::RestoreFailed,
+            apps: status_apps_from_outcomes(&outcomes),
+            message,
+        };
+        let _ = handle.emit(EVT_MIC_MUTE_STATUS, &payload);
+    }
+}
+
+/// Restore-on-launch wrapper: if state file exists and has entries,
+/// attempt restore using the user's current settings (which is the
+/// only source of truth we have for hotkeys; the state file
+/// deliberately doesn't carry them). Emits a sticky-failure banner if
+/// any restore failed OR if the state file existed at all (the user
+/// has been muted unknowingly for some interval and deserves to be
+/// told regardless). Quiet success: no event when the state file was
+/// absent.
+pub fn restore_on_launch_with_event(handle: &AppHandle, settings: &MicMuteSettings) {
+    let state = match read_state() {
+        Ok(Some(s)) => s,
+        Ok(None) => return,
+        Err(e) => {
+            tracing::warn!(error = %e, "mic_mute: state-file read failed on launch");
+            return;
+        }
+    };
+
+    if is_stale(&state) {
+        tracing::info!(
+            "mic_mute: state file older than {}h on launch, deleting and ignoring",
+            STALE_AFTER_HOURS
+        );
+        let _ = delete_state();
+        return;
+    }
+
+    let apps: Vec<MicMuteApp> = state.apps.iter().map(|e| e.app).collect();
+    if apps.is_empty() {
+        let _ = delete_state();
+        return;
+    }
+
+    let req = MicMuteRestoreRequest {
+        teams: settings.teams.hotkey.clone(),
+        discord: settings.discord.hotkey.clone(),
+        applied: apps.clone(),
+    };
+    let outcomes = restore(&req);
+
+    // Always emit the failure-grade banner on launch, even if every
+    // restore returned ok. The user has been muted unknowingly for
+    // some interval; they should look at the call apps regardless.
+    let payload = MicMuteStatus {
+        phase: MicMutePhase::RestoreOnLaunchFailed,
+        apps: if outcomes.is_empty() {
+            status_apps_no_outcome(&apps)
+        } else {
+            status_apps_from_outcomes(&outcomes)
+        },
+        message: compose_restore_failed_message(&apps),
+    };
+    let _ = handle.emit(EVT_MIC_MUTE_STATUS, &payload);
+}
+
+#[cfg(test)]
+mod compose_message_tests {
+    use super::*;
+
+    #[test]
+    fn recording_started_one_app() {
+        assert_eq!(
+            compose_recording_started_message(&[MicMuteApp::Teams]),
+            "Tried to mute Teams while recording. Confirm in Teams."
+        );
+    }
+
+    #[test]
+    fn recording_started_both_apps() {
+        assert_eq!(
+            compose_recording_started_message(&[MicMuteApp::Teams, MicMuteApp::Discord]),
+            "Tried to mute Teams and Discord while recording. Confirm in those apps."
+        );
+    }
+
+    #[test]
+    fn recording_started_empty_yields_empty_string() {
+        assert_eq!(compose_recording_started_message(&[]), "");
+    }
+
+    #[test]
+    fn restore_succeeded_one_app() {
+        assert_eq!(
+            compose_restore_succeeded_message(&[MicMuteApp::Discord]),
+            "Tried to unmute Discord. Please confirm in Discord."
+        );
+    }
+
+    #[test]
+    fn restore_succeeded_both_apps() {
+        assert_eq!(
+            compose_restore_succeeded_message(&[MicMuteApp::Teams, MicMuteApp::Discord]),
+            "Tried to unmute Teams and Discord. Please confirm in both."
+        );
+    }
+
+    #[test]
+    fn restore_failed_one_app() {
+        assert_eq!(
+            compose_restore_failed_message(&[MicMuteApp::Teams]),
+            "Utterbar may have left you muted in Teams. Open Teams and check the mic icon."
+        );
+    }
+
+    #[test]
+    fn restore_failed_both_apps() {
+        assert_eq!(
+            compose_restore_failed_message(&[MicMuteApp::Teams, MicMuteApp::Discord]),
+            "Utterbar may have left you muted in Teams and Discord. Open both apps and check the mic icons."
+        );
+    }
+}
+
+/// Source-grep guard: forbidden symbols that would imply we crossed
+/// the v1 design lines. Re-checks at compile time that nothing in this
+/// module imports the OS-level capture-endpoint mute API the parent
+/// decision doc forbids, and that no UI Automation symbol leaks in
+/// (UIA verification is explicitly excluded from v1).
+///
+/// The check parses the file source and rejects forbidden symbols
+/// only outside the test mods (where mention is fine for assertion
+/// strings), by stripping the test mods before searching.
+#[cfg(test)]
+mod source_grep_guard {
+    const SOURCE: &str = include_str!("./mic_mute.rs");
+
+    /// Strip every `#[cfg(test)]` mod from SOURCE so symbol mentions
+    /// inside test assertions don't trigger the guard against
+    /// themselves.
+    fn production_source() -> String {
+        let mut out = String::with_capacity(SOURCE.len());
+        let mut keep = true;
+        let mut depth = 0_i32;
+        for line in SOURCE.lines() {
+            let trimmed = line.trim_start();
+            if keep && trimmed.starts_with("#[cfg(test)]") {
+                keep = false;
+                depth = 0;
+                continue;
+            }
+            if !keep {
+                // Track brace balance starting from the next `{`.
+                for ch in line.chars() {
+                    match ch {
+                        '{' => depth += 1,
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                keep = true;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                continue;
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn no_capture_endpoint_mute() {
+        let src = production_source();
+        // Look for the actual import path, not the bare type name.
+        assert!(
+            !src.contains("Win32_Media_Audio::Endpoints"),
+            "mic_mute must not import IAudioEndpointVolume; v1 is hotkey-synthesis only"
+        );
+        assert!(
+            !src.contains(".SetMute("),
+            "mic_mute must not call SetMute on any audio session; v1 is hotkey-synthesis only"
+        );
+    }
+
+    #[test]
+    fn no_ui_automation_for_mute_state() {
+        let src = production_source();
+        assert!(
+            !src.contains("uia_thread"),
+            "mic_mute must not reach into uia_thread; UIA verification is excluded from v1"
+        );
+        assert!(
+            !src.contains("TogglePattern"),
+            "mic_mute must not reference UIA TogglePattern; v1 is honest can-not-verify, not UIA-confidence"
+        );
+    }
 }
