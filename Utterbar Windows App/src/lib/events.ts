@@ -27,4 +27,9 @@ export const EVT = {
   /// Emitted by `open_vocab_quick_add` (commands/vocabulary.rs) after the
   /// vocab-add window is shown. Payload is `VocabCapturePayload`.
   vocabCapture: 'vocab:capture',
+  /// Experimental Teams + Discord mic-mute status. Payload typed as
+  /// `MicMuteStatus` from `@/generated/MicMuteStatus`. The floating
+  /// bar's banner subscribes to this; outside the bar nothing else
+  /// listens.
+  micMuteStatus: 'mic-mute:status',
 } as const;

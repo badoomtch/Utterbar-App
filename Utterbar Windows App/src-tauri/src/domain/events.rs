@@ -34,6 +34,19 @@ pub const EVT_DICTATION_BUSY: &str = "dictation:busy";
 /// covers the case. Regular dictation never enters this code path so
 /// non-meeting recordings never see chunk-progress events.
 pub const EVT_DICTATION_CHUNK_PROGRESS: &str = "dictation:chunk-progress";
+/// Experimental Teams + Discord mic-mute status event. Emitted at four
+/// load-bearing moments: when the start-time mute keystroke is
+/// attempted, when the stop-time restore keystroke succeeds, when the
+/// stop-time restore fails, and when restore-on-launch fails for a
+/// session that crashed mid-dictation. Payload shape pinned in
+/// `MicMuteStatus` so the floating bar's banner has a single source
+/// of truth for which apps were targeted and the user-facing copy.
+///
+/// The payload deliberately carries NONE of: window titles, process
+/// IDs, hotkey strings, transcripts, paths, or PIDs. The banned-fields
+/// snapshot test in `services/mic_mute.rs` covers the persistence
+/// file; the same banned set applies here.
+pub const EVT_MIC_MUTE_STATUS: &str = "mic-mute:status";
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
@@ -172,6 +185,60 @@ pub enum ModelProgressPhase {
     Extracting,
     Done,
     Error,
+}
+
+/// Phase of a `MicMuteStatus` event. Closed enum so the React banner
+/// can switch on it cleanly, and so adding a phase requires a TS
+/// regeneration that surfaces the change to the UI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+#[serde(rename_all = "snake_case")]
+pub enum MicMutePhase {
+    /// We attempted to send the mute keystroke at recording start.
+    /// Banner shows the active "Tried to mute X while recording" sub-line.
+    RecordingStarted,
+    /// All restore keystrokes returned `Ok` from `SendInput`. The
+    /// banner shows the success copy and auto-dismisses after 5 s.
+    RestoreSucceeded,
+    /// One or more restore keystrokes failed (process gone, send
+    /// errored, no hotkey). Sticky banner + tray notification.
+    RestoreFailed,
+    /// Restore was attempted at app boot from a persisted state file.
+    /// Always treated as a failure-grade event because the user has
+    /// been muted unknowingly for some interval; we surface the banner
+    /// regardless of keystroke outcome so they look at the call apps.
+    RestoreOnLaunchFailed,
+}
+
+/// One per-app entry in a `MicMuteStatus` payload.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct MicMuteStatusApp {
+    /// Closed-string app id matching the persistence schema in
+    /// `services/mic_mute.rs::MicMuteApp`. Currently `"teams"` or
+    /// `"discord"`.
+    pub app: String,
+    /// Display label the banner uses verbatim. `"Teams"` or `"Discord"`.
+    pub label: String,
+    /// Outcome string: `"applied"` / `"restored"` / `"not_running"` /
+    /// `"send_failed"` / `"no_hotkey"`. Closed set; the React layer
+    /// matches on these strings to pick banner copy. Optional because
+    /// the `RecordingStarted` phase predates any outcome.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+}
+
+/// Payload for `EVT_MIC_MUTE_STATUS`. Small by design, no secrets.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct MicMuteStatus {
+    pub phase: MicMutePhase,
+    pub apps: Vec<MicMuteStatusApp>,
+    /// Short human-readable copy the banner can show as a fallback if
+    /// the React layer wants to render the message verbatim rather
+    /// than build it from per-app entries. The Rust side composes this
+    /// once at emit time so all consumers see the same copy.
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

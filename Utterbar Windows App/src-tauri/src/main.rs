@@ -469,6 +469,37 @@ fn main() {
                 });
             }
 
+            // Experimental mic-mute restore-on-launch. If Utterbar
+            // crashed during a previous dictation while the mic-mute
+            // toggle was active, a state file under
+            // %APPDATA%\Utterbar\mic_mute_state.json records which
+            // apps were muted. Read it now, attempt restore against
+            // any running call apps, and surface the sticky-failure
+            // banner regardless of keystroke result so the user
+            // looks at Teams / Discord. Quiet success on launch:
+            // when no state file exists, no event fires.
+            //
+            // Spawned async on a blocking thread so app boot is
+            // never delayed by a missing call app, slow `SendInput`,
+            // or a slow disk read. The banner emit happens on the
+            // floating bar's window event channel, which is already
+            // up by this point.
+            {
+                let handle_for_mic_restore = app.handle().clone();
+                let state_for_mic_restore = state.clone();
+                tauri::async_runtime::spawn(async move {
+                    let settings_snapshot =
+                        state_for_mic_restore.settings.snapshot().await;
+                    let mic_mute_settings = settings_snapshot.experimental.mic_mute.clone();
+                    tokio::task::spawn_blocking(move || {
+                        crate::services::mic_mute::restore_on_launch_with_event(
+                            &handle_for_mic_restore,
+                            &mic_mute_settings,
+                        );
+                    });
+                });
+            }
+
             Ok(())
         })
         .build(tauri::generate_context!())

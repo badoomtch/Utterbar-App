@@ -876,6 +876,11 @@ pub async fn start_recording(
             is_meeting,
             meeting_model_id: meeting_model_id_for_context,
             started_at_ms: context_started_at_ms,
+            // Populated below if the experimental mic-mute path actually
+            // muted any apps. Stays empty when the feature is off, the
+            // toggle is off, no hotkey is configured, or the call apps
+            // aren't running.
+            mic_mute_applied: Vec::new(),
         });
     }
 
@@ -914,6 +919,44 @@ pub async fn start_recording(
         };
         tokio::task::spawn_blocking(move || ducking.mute_matching(&targets));
         conferencing_ducked = true;
+    }
+
+    // Experimental Teams + Discord true mic-mute (off by default; only
+    // active when the user has flipped the toggle in Settings, Advanced,
+    // Experimental AND captured a hotkey for that app). Runs alongside
+    // the v0.17.0 conferencing-output-mute above; the two features are
+    // independent (output-mute silences what you HEAR from the call
+    // app, mic-mute silences what you SEND into the call app's
+    // microphone). Same Microphone-source-only guard as the existing
+    // ducking path: System / Mixed captures don't make sense for either
+    // feature.
+    //
+    // Hotkey send + state-file write happen synchronously on a blocking
+    // thread because we want the state file written BEFORE recording
+    // armed; if Utterbar crashes between this point and the stop hook,
+    // restore-on-launch reads the file and tries to recover. Spawning
+    // off-thread would race with the crash window.
+    //
+    // The whole block compiles to a no-op in default builds (see
+    // services::mic_mute apply implementation, which is feature-gated).
+    if matches!(source, CaptureSource::Microphone) {
+        if let Some(req) =
+            crate::services::mic_mute::apply_request_from_settings(&settings.experimental.mic_mute)
+        {
+            let handle_for_apply = handle.clone();
+            let applied = tokio::task::spawn_blocking(move || {
+                crate::services::mic_mute::apply_with_event(&handle_for_apply, &req)
+            })
+            .await
+            .unwrap_or_default();
+
+            if !applied.is_empty() {
+                let mut ctx_lock = state.active_recording_context.write().await;
+                if let Some(ctx) = ctx_lock.as_mut() {
+                    ctx.mic_mute_applied = applied;
+                }
+            }
+        }
     }
 
     // Start whichever source(s) the user selected. Microphone is the default; System
@@ -973,6 +1016,7 @@ pub async fn start_recording(
             Err(e) => {
                 tracing::error!(error = %e, "audio.start_capture failed");
                 rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
+                restore_mic_mute_sideeffect(&handle, &state).await;
                 clear_recording_flag(state.inner());
                 clear_active_recording_context(state.inner()).await;
                 set_phase(
@@ -1002,6 +1046,7 @@ pub async fn start_recording(
                 let _ = state.audio.stop_capture().await;
             }
             rollback_start_sideeffects(&state, media_paused, conferencing_ducked);
+            restore_mic_mute_sideeffect(&handle, &state).await;
             clear_recording_flag(state.inner());
             clear_active_recording_context(state.inner()).await;
             set_phase(
@@ -1133,6 +1178,40 @@ fn rollback_start_sideeffects(state: &AppState, media_paused: bool, conferencing
         let ducking = state.ducking.clone();
         tokio::task::spawn_blocking(move || ducking.restore());
     }
+}
+
+/// Restore the experimental mic-mute side-effect (if any was applied
+/// at start time) on a stop / cancel / rollback path. Reads the apps
+/// from the active recording context and clears the field once
+/// restore is initiated, so a subsequent (defensive) call does not
+/// double-send the unmute keystroke. Always best-effort: errors log
+/// and emit a sticky-failure banner; the caller never sees them.
+///
+/// Compiles to a no-op when no apps were applied (the common case),
+/// so calling this from every recording-end path is cheap.
+async fn restore_mic_mute_sideeffect(handle: &AppHandle, state: &AppState) {
+    // Snapshot + clear under the lock. Subsequent reads see an empty
+    // applied list, which means a defensive second call from a
+    // different stop path is a no-op.
+    let applied: Vec<crate::services::mic_mute::MicMuteApp> = {
+        let mut ctx_lock = state.active_recording_context.write().await;
+        match ctx_lock.as_mut() {
+            Some(ctx) if !ctx.mic_mute_applied.is_empty() => {
+                std::mem::take(&mut ctx.mic_mute_applied)
+            }
+            _ => return,
+        }
+    };
+
+    let settings_snapshot = state.settings.snapshot().await;
+    let req = crate::services::mic_mute::restore_request_from_settings(
+        &settings_snapshot.experimental.mic_mute,
+        applied,
+    );
+    let handle_for_restore = handle.clone();
+    tokio::task::spawn_blocking(move || {
+        crate::services::mic_mute::restore_with_event(&handle_for_restore, &req);
+    });
 }
 
 /// Schedule a return-to-idle phase transition after `delay_ms`, but only
@@ -2361,6 +2440,10 @@ pub(crate) async fn stop_recording_inner(
                 let ducking = state.ducking.clone();
                 tokio::task::spawn_blocking(move || ducking.restore());
             }
+            // Experimental mic-mute restore. The active context is
+            // about to be cleared below; do this BEFORE that so we
+            // can read the applied list.
+            restore_mic_mute_sideeffect(&handle, state).await;
             clear_active_recording_context(state).await;
             let user_message = match resolution {
                 MeetingModelResolution::RefuseUnsupportedModel(_) => {
@@ -2667,6 +2750,9 @@ pub(crate) async fn stop_recording_inner(
                 let ducking = state.ducking.clone();
                 tokio::task::spawn_blocking(move || ducking.restore());
             }
+            // Experimental mic-mute restore. Same reason: don't leave
+            // the user muted in Teams/Discord because ASR died.
+            restore_mic_mute_sideeffect(&handle, state).await;
             // Recording session is over (one way or another). Clear
             // the bound context so the next start_recording lands
             // with a clean slate. Pinned by
@@ -2990,6 +3076,11 @@ pub(crate) async fn stop_recording_inner(
             let ducking = state.ducking.clone();
             tokio::task::spawn_blocking(move || ducking.restore());
         }
+        // Mic-mute restore on the no-audio drop path: same reason as
+        // the other restore sites; don't leave the user muted in
+        // Teams/Discord just because the recording produced nothing
+        // usable.
+        restore_mic_mute_sideeffect(&handle, state).await;
         set_phase(
             &handle,
             DictationPhase::NoAudio {
@@ -3131,6 +3222,11 @@ pub(crate) async fn stop_recording_inner(
         let ducking = state.ducking.clone();
         tokio::task::spawn_blocking(move || ducking.restore());
     }
+    // Experimental mic-mute restore on the success path. No-op when
+    // the active context's mic_mute_applied is empty (the common
+    // case). Emits the success or sticky-failure banner depending on
+    // per-app outcomes.
+    restore_mic_mute_sideeffect(&handle, state).await;
 
     let _ = handle.emit(EVT_DICTATION_RESULT, &entry);
     // Meeting recordings get a substantive success pill — duration,
@@ -3225,6 +3321,14 @@ pub async fn cancel_recording(handle: AppHandle, state: State<'_, Arc<AppState>>
     // out of whatever state I'm in" command, and if we stranded the
     // flag high they'd lose the ability to start the next recording
     // without restarting the app.
+    //
+    // Mic-mute restore must run BEFORE clear_active_recording_context
+    // because it reads mic_mute_applied off the bound context. The
+    // existing media + ducking restores below don't depend on the
+    // context (they read state.media / state.ducking instead) so the
+    // ordering is mic-mute first, then media, then ducking, then
+    // clear.
+    restore_mic_mute_sideeffect(&handle, state.inner()).await;
     clear_recording_flag(state.inner());
     clear_active_recording_context(state.inner()).await;
     // Resume whatever was paused on start, even on cancel — the user expects their
@@ -5097,6 +5201,7 @@ mod diarised_helpers_tests {
             is_meeting: false,
             meeting_model_id: None,
             started_at_ms: 12345,
+            mic_mute_applied: Vec::new(),
         };
         *state.active_recording_context.write().await = Some(ctx.clone());
         let read = state
@@ -5124,6 +5229,7 @@ mod diarised_helpers_tests {
                 is_meeting: true,
                 meeting_model_id: Some("sherpa-whisper-medium".into()),
                 started_at_ms: 12345,
+                mic_mute_applied: Vec::new(),
             });
         // Simulate "settings drift": user swapped active mode to a
         // non-meeting one. The ActiveRecordingContext is what stop
@@ -5149,6 +5255,7 @@ mod diarised_helpers_tests {
                 is_meeting: false,
                 meeting_model_id: None,
                 started_at_ms: 12345,
+                mic_mute_applied: Vec::new(),
             });
         let read = state.active_recording_context.read().await.clone().unwrap();
         assert!(!read.is_meeting);
@@ -5168,6 +5275,7 @@ mod diarised_helpers_tests {
                 is_meeting: true,
                 meeting_model_id: Some("sherpa-whisper-medium".into()),
                 started_at_ms: 1000,
+                mic_mute_applied: Vec::new(),
             });
         // The "settings change" is purely external; the context
         // doesn't react to it. Read confirms the start-time value
@@ -5190,6 +5298,7 @@ mod diarised_helpers_tests {
                 is_meeting: false,
                 meeting_model_id: None,
                 started_at_ms: 0,
+                mic_mute_applied: Vec::new(),
             });
         super::clear_active_recording_context(&state).await;
         assert!(state.active_recording_context.read().await.is_none());
@@ -5436,6 +5545,7 @@ mod diarised_helpers_tests {
             is_meeting: false,
             meeting_model_id: None,
             started_at_ms: 1_000,
+            mic_mute_applied: Vec::new(),
         };
         assert!(super::auto_stop_should_proceed(
             1_000,
@@ -5451,6 +5561,7 @@ mod diarised_helpers_tests {
             is_meeting: true,
             meeting_model_id: Some("sherpa-whisper-small".into()),
             started_at_ms: 1_000,
+            mic_mute_applied: Vec::new(),
         };
         assert!(!super::auto_stop_should_proceed(1_000, Some(&same_meeting)));
 
@@ -5462,6 +5573,7 @@ mod diarised_helpers_tests {
             is_meeting: false,
             meeting_model_id: None,
             started_at_ms: 2_000,
+            mic_mute_applied: Vec::new(),
         };
         assert!(!super::auto_stop_should_proceed(
             1_000,

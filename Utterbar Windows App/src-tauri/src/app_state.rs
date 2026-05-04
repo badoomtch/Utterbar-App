@@ -210,6 +210,13 @@ pub(crate) struct ActiveRecordingContext {
     /// Diagnostic only — surfaces in logs to correlate
     /// start/stop pairs.
     pub started_at_ms: i64,
+    /// Apps that the experimental mic-mute path successfully sent a
+    /// mute keystroke to at start time. Empty in the common case
+    /// (feature off, toggle off, or no app running). Used by every
+    /// stop / cancel / rollback path to know which apps to send the
+    /// unmute keystroke to. Empty Vec when the experimental feature
+    /// is compiled out, so the read is harmless.
+    pub mic_mute_applied: Vec<crate::services::mic_mute::MicMuteApp>,
 }
 
 impl AppState {

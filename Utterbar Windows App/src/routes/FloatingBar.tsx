@@ -14,6 +14,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { BarModeSwitch } from '@/components/bar/BarModeSwitch';
 import { MeterBars } from '@/components/bar/MeterBars';
 import { StatePill } from '@/components/bar/StatePill';
+import { MicMuteBanner } from '@/components/bar/MicMuteBanner';
 import { UtterbarMiniMark } from '@/components/bar/UtterbarMiniMark';
 import { EVT } from '@/lib/events';
 import { invoke, listen } from '@/lib/ipc';
@@ -550,7 +551,7 @@ export function FloatingBar() {
 
   return (
     <div
-      className="flex h-screen w-screen items-start justify-center bg-transparent p-0"
+      className="flex h-screen w-screen flex-col items-center justify-start gap-2 bg-transparent p-0"
       // Block the webview's default right-click menu on the floating window. Without
       // this the user gets "Save image", "Copy image", "Inspect" — and Save image
       // rasterises the transparent surface as a speckled blue-dot pattern (the
@@ -558,6 +559,12 @@ export function FloatingBar() {
       // useful in the menu for a pill-shaped single-purpose widget.
       onContextMenu={(e) => e.preventDefault()}
     >
+      {/* Experimental Teams + Discord mic-mute banner. Renders above
+          the bar so it never compresses the existing chrome. Off
+          when no mic-mute event has been emitted (the common case). */}
+      <div className="pointer-events-none w-full max-w-[640px] px-2">
+        <MicMuteBanner />
+      </div>
       <motion.div
         ref={pillRef}
         layout
