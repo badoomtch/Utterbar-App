@@ -939,24 +939,59 @@ pub async fn start_recording(
     //
     // The whole block compiles to a no-op in default builds (see
     // services::mic_mute apply implementation, which is feature-gated).
+    // v0.18.3 diagnostic logging. The lifecycle hook is always called on
+    // every recording start; the log lines below tell us where the
+    // mic-mute path is dropping out when banners don't fire.
+    let mm_settings = &settings.experimental.mic_mute;
+    tracing::info!(
+        source = ?source,
+        teams_enabled = mm_settings.teams.enabled,
+        teams_hotkey_set = mm_settings.teams.hotkey.is_some(),
+        discord_enabled = mm_settings.discord.enabled,
+        discord_hotkey_set = mm_settings.discord.hotkey.is_some(),
+        "mic_mute diag: lifecycle hook entered"
+    );
     if matches!(source, CaptureSource::Microphone) {
-        if let Some(req) =
-            crate::services::mic_mute::apply_request_from_settings(&settings.experimental.mic_mute)
-        {
-            let handle_for_apply = handle.clone();
-            let applied = tokio::task::spawn_blocking(move || {
-                crate::services::mic_mute::apply_with_event(&handle_for_apply, &req)
-            })
-            .await
-            .unwrap_or_default();
+        match crate::services::mic_mute::apply_request_from_settings(mm_settings) {
+            Some(req) => {
+                tracing::info!(
+                    teams_in_req = req.teams.is_some(),
+                    discord_in_req = req.discord.is_some(),
+                    "mic_mute diag: apply_request_from_settings returned Some, dispatching apply_with_event on blocking thread"
+                );
+                let handle_for_apply = handle.clone();
+                let applied = tokio::task::spawn_blocking(move || {
+                    crate::services::mic_mute::apply_with_event(&handle_for_apply, &req)
+                })
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::error!(error = %e, "mic_mute diag: spawn_blocking task panicked");
+                    Vec::new()
+                });
 
-            if !applied.is_empty() {
-                let mut ctx_lock = state.active_recording_context.write().await;
-                if let Some(ctx) = ctx_lock.as_mut() {
-                    ctx.mic_mute_applied = applied;
+                tracing::info!(
+                    applied_count = applied.len(),
+                    "mic_mute diag: apply_with_event returned"
+                );
+
+                if !applied.is_empty() {
+                    let mut ctx_lock = state.active_recording_context.write().await;
+                    if let Some(ctx) = ctx_lock.as_mut() {
+                        ctx.mic_mute_applied = applied;
+                    }
                 }
             }
+            None => {
+                tracing::info!(
+                    "mic_mute diag: apply_request_from_settings returned None (both toggles off, or both hotkeys unset)"
+                );
+            }
         }
+    } else {
+        tracing::info!(
+            source = ?source,
+            "mic_mute diag: skipped because source is not Microphone"
+        );
     }
 
     // Start whichever source(s) the user selected. Microphone is the default; System
