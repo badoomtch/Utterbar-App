@@ -85,5 +85,144 @@
         }
       }
     }
+  },
+  "nav": {
+    "group": {
+      "workspace": "Workspace",
+      "settings": "Settings"
+    },
+    "search": {
+      "placeholder": "Search settings",
+      "clear": "Clear search",
+      "no_match": "No settings match \"{{query}}\""
+    },
+    "general": {
+      "label": "General",
+      "matches": {
+        "theme": "Theme",
+        "accent": "Accent colour",
+        "launch_at_startup": "Launch at startup",
+        "start_minimised": "Start minimised",
+        "show_in_tray": "Show in system tray",
+        "notification_sound": "Notification sound",
+        "app_language": "App language"
+      }
+    },
+    "bar": {
+      "label": "Utterbar",
+      "matches": {
+        "position": "Floating bar position",
+        "auto_hide": "Auto-hide when idle",
+        "background": "Background behaviour"
+      }
+    },
+    "audio": {
+      "label": "Audio",
+      "matches": {
+        "microphone": "Microphone",
+        "input_device": "Input device",
+        "noise_gate": "Noise gate",
+        "gain": "Gain",
+        "sample_rate": "Sample rate",
+        "system_audio": "System audio"
+      }
+    },
+    "models": {
+      "label": "Models",
+      "matches": {
+        "default_dictation_model": "Default dictation model",
+        "meeting_mode_model": "Meeting Mode model",
+        "model_downloads": "Model downloads",
+        "keep_model_warm": "Keep model warm",
+        "whisper": "Whisper",
+        "parakeet": "Parakeet"
+      }
+    },
+    "shortcuts": {
+      "label": "Shortcuts",
+      "matches": {
+        "toggle_recording_hotkey": "Toggle recording hotkey",
+        "cancel_recording_hotkey": "Cancel recording hotkey"
+      }
+    },
+    "text_output": {
+      "label": "Text Output",
+      "matches": {
+        "paste_automatically": "Paste automatically",
+        "restore_clipboard": "Restore clipboard",
+        "type_out_if_blocked": "Type it out if paste is blocked",
+        "auto_capitalise": "Auto-capitalise",
+        "trim_trailing_whitespace": "Trim trailing whitespace",
+        "auto_space": "Auto-space",
+        "numbers_as_digits": "Numbers as digits",
+        "smart_rewrite": "Smart rewrite",
+        "hold_shift_auto_send": "Hold Shift to auto-send"
+      }
+    },
+    "accessibility": {
+      "label": "Accessibility",
+      "matches": {
+        "reduce_motion": "Reduce motion",
+        "high_contrast": "High contrast",
+        "text_size": "Text size",
+        "tooltips": "Tooltips"
+      }
+    },
+    "privacy": {
+      "label": "Privacy",
+      "matches": {
+        "save_recordings": "Save recordings",
+        "delete_after": "Delete recordings after",
+        "active_app_context": "Active-app context",
+        "selection_context": "Selection context",
+        "clipboard_context": "Clipboard context",
+        "pause_music": "Pause music while recording",
+        "mute_conferencing_output": "Mute conferencing app output",
+        "apps_to_silence": "Apps to silence",
+        "data_locations": "Data locations"
+      }
+    },
+    "advanced": {
+      "label": "Advanced",
+      "matches": {
+        "gpu_acceleration": "GPU acceleration",
+        "directml": "DirectML",
+        "cpu_only": "CPU only",
+        "mute_mic_teams": "Mute mic in Teams (experimental)",
+        "mute_mic_discord": "Mute mic in Discord (experimental)",
+        "diagnostics": "Diagnostics",
+        "export_data": "Export data",
+        "import_backup": "Import backup",
+        "reset_settings": "Reset settings"
+      }
+    },
+    "licence": {
+      "label": "Licence",
+      "matches": {
+        "activate_pro": "Activate Pro",
+        "licence_key": "Licence key",
+        "devices": "Devices",
+        "managed_licence_bin": "Managed licence.bin",
+        "air_gapped_activation": "Air-gapped activation"
+      }
+    },
+    "updates": {
+      "label": "Updates",
+      "matches": {
+        "update_channel": "Update channel",
+        "check_for_updates": "Check for updates",
+        "beta_channel": "Beta channel",
+        "stable_channel": "Stable channel",
+        "release_notes": "Release notes"
+      }
+    },
+    "about": {
+      "label": "About",
+      "matches": {
+        "version": "Version",
+        "credits": "Credits",
+        "website_links": "Website links"
+      }
+    }
   }
 }

@@ -183,6 +183,52 @@ describe('i18n English foundation', () => {
     expect(desc).toContain('Models');
   });
 
+  it('resolves every Settings nav section label', () => {
+    // Pinned 12-section list. The Settings sidebar order is part of
+    // the brand IA; renaming or reordering must update both this list
+    // and `settings_nav.ts` together.
+    const sectionIds = [
+      'general',
+      'bar',
+      'audio',
+      'models',
+      'shortcuts',
+      'text_output',
+      'accessibility',
+      'privacy',
+      'advanced',
+      'licence',
+      'updates',
+      'about',
+    ];
+    for (const id of sectionIds) {
+      const value = i18n.getResource('en', 'settings', `nav.${id}.label`);
+      expect(value, `settings.json missing nav.${id}.label`).toBeTruthy();
+      expect(typeof value, `nav.${id}.label must be a string`).toBe('string');
+    }
+  });
+
+  it('resolves the Settings search input copy', () => {
+    expect(i18n.getResource('en', 'settings', 'nav.search.placeholder')).toBe('Search settings');
+    expect(i18n.getResource('en', 'settings', 'nav.search.clear')).toBe('Clear search');
+    // The no-match string is interpolated against `{{query}}`; assert
+    // the template carries the placeholder so a future copy edit
+    // can't drop the substitution silently.
+    const noMatch = String(i18n.getResource('en', 'settings', 'nav.search.no_match'));
+    expect(noMatch).toContain('{{query}}');
+  });
+
+  it('renders nav.search.no_match with the user query interpolated', () => {
+    const out = i18n.t('nav.search.no_match', { ns: 'settings', query: 'banana' });
+    expect(out).toContain('banana');
+    expect(out).not.toContain('{{');
+  });
+
+  it('resolves the Workspace and Settings group labels', () => {
+    expect(i18n.getResource('en', 'settings', 'nav.group.workspace')).toBe('Workspace');
+    expect(i18n.getResource('en', 'settings', 'nav.group.settings')).toBe('Settings');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -195,5 +241,8 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.general.appearance).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general.feedback).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general.upgrade).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.nav).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.nav.group).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.nav.search).length).toBeGreaterThan(0);
   });
 });
