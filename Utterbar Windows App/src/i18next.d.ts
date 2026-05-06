@@ -2,6 +2,7 @@ import 'i18next';
 
 import type barEn from './i18n/locales/en/bar.json';
 import type commonEn from './i18n/locales/en/common.json';
+import type onboardingEn from './i18n/locales/en/onboarding.json';
 import type settingsEn from './i18n/locales/en/settings.json';
 
 // Augments i18next so `t('bar:phase.ready')` is type-checked end-to-end:
@@ -17,6 +18,7 @@ declare module 'i18next' {
     resources: {
       bar: typeof barEn;
       common: typeof commonEn;
+      onboarding: typeof onboardingEn;
       settings: typeof settingsEn;
     };
   }

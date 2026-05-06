@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 
 import barEn from './locales/en/bar.json';
 import commonEn from './locales/en/common.json';
+import onboardingEn from './locales/en/onboarding.json';
 import settingsEn from './locales/en/settings.json';
 
 import type { AppLanguage } from '@/generated/AppLanguage';
@@ -16,6 +17,7 @@ const resources = {
   en: {
     bar: barEn,
     common: commonEn,
+    onboarding: onboardingEn,
     settings: settingsEn,
   },
 } as const;
@@ -36,7 +38,7 @@ void i18n.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
   defaultNS: 'common',
-  ns: ['bar', 'common', 'settings'],
+  ns: ['bar', 'common', 'onboarding', 'settings'],
   interpolation: {
     // React already escapes everything it renders, so the i18next-side
     // escape would just double-encode `&` and friends. Disable it here.

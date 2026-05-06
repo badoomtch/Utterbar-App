@@ -3,13 +3,14 @@ import { describe, expect, it, beforeAll } from 'vitest';
 import i18n from './index';
 import barEn from './locales/en/bar.json';
 import commonEn from './locales/en/common.json';
+import onboardingEn from './locales/en/onboarding.json';
 import settingsEn from './locales/en/settings.json';
 
 beforeAll(async () => {
   // The bootstrap module calls `init()` synchronously, but i18next resolves
   // its initial language on a microtask. Awaiting `loadNamespaces` here
   // makes the assertions deterministic regardless of import order.
-  await i18n.loadNamespaces(['bar', 'common', 'settings']);
+  await i18n.loadNamespaces(['bar', 'common', 'onboarding', 'settings']);
 });
 
 describe('i18n English foundation', () => {
@@ -229,6 +230,76 @@ describe('i18n English foundation', () => {
     expect(i18n.getResource('en', 'settings', 'nav.group.settings')).toBe('Settings');
   });
 
+  it('resolves at least one representative key for every onboarding step', () => {
+    // Pinned 12-step list. The Onboarding `STEPS` const order is part of
+    // the user journey; this test fails loudly if any step's translation
+    // key disappears or the catalogue gets reshuffled.
+    const keys = [
+      'welcome.heading',
+      'privacy.title',
+      'updates.title',
+      'theme.title',
+      'model.title',
+      'gpu.title',
+      'mic.title',
+      'baseline.title',
+      'trigger.title',
+      'shortcut.title',
+      'bar.title',
+      'ready.heading',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'onboarding', key);
+      expect(value, `onboarding.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `onboarding.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('resolves the model-download phase keys', () => {
+    // The download UI surfaces these mid-install. Pinning them prevents
+    // a silent missing-key fallback from leaking the raw catalogue path
+    // into the progress line.
+    const keys = [
+      'model.download.connecting',
+      'model.download.downloading',
+      'model.download.verifying',
+      'model.download.extracting',
+      'model.download.done',
+      'model.download.error_summary',
+      'model.download.error_generic',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'onboarding', key);
+      expect(value, `onboarding.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `onboarding.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders model.download.downloading with rate + eta interpolated', () => {
+    const out = i18n.t('model.download.downloading', {
+      ns: 'onboarding',
+      rate: '12 MB',
+      eta: '38 s',
+    });
+    expect(out).toContain('12 MB');
+    expect(out).toContain('38 s');
+    // Crucially: the raw key + Mustache placeholders must NOT leak through.
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('model.download.downloading');
+  });
+
+  it('exposes the localised typing-test sentence pool', () => {
+    // BaselineStep reads `baseline.sentences` via i18next `returnObjects`
+    // and falls back to the in-source pool only if the result isn't an
+    // array. Pin both contracts here.
+    const value = i18n.t('baseline.sentences', {
+      ns: 'onboarding',
+      returnObjects: true,
+    });
+    expect(Array.isArray(value)).toBe(true);
+    expect((value as readonly string[]).length).toBeGreaterThan(0);
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -244,5 +315,12 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.nav).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.nav.group).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.nav.search).length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.gpu).length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.baseline).length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.ready).length).toBeGreaterThan(0);
+    expect(onboardingEn.baseline.sentences.length).toBeGreaterThan(0);
   });
 });
