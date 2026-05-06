@@ -373,47 +373,40 @@ pub fn apply(_req: &MicMuteApplyRequest) -> Vec<(MicMuteApp, AppOutcome)> {
 /// (only `app=teams` / `app=discord` and the outcome).
 #[cfg(feature = "experimental_mic_mute")]
 pub fn apply(req: &MicMuteApplyRequest) -> Vec<(MicMuteApp, AppOutcome)> {
-    use crate::platform::windows::window_send_input::{
-        find_window_for_processes, send_hotkey_to_window, DISCORD_PROCESSES, TEAMS_PROCESSES,
-    };
+    use crate::platform::windows::window_send_input::send_hotkey_globally;
 
-    tracing::info!("mic_mute diag: feature-on apply() entered");
+    tracing::info!("mic_mute: apply() entered (global-hotkey path)");
 
     let mut results: Vec<(MicMuteApp, AppOutcome)> = Vec::new();
     let mut applied: Vec<MicMuteApp> = Vec::new();
 
-    for (app, hotkey, processes) in [
-        (MicMuteApp::Teams, req.teams.as_ref(), TEAMS_PROCESSES),
-        (MicMuteApp::Discord, req.discord.as_ref(), DISCORD_PROCESSES),
+    // v0.18.4 change: send the configured hotkey at system level via
+    // SendInput, do not target the call app's window. Discord and
+    // Teams both register their mute key as a Windows-level global
+    // hotkey, so the OS routes our keystroke without any window
+    // targeting. The previous per-window path raced against the
+    // dictation lifecycle's own foreground capture and broke
+    // auto-paste; it also missed Discord entirely when minimised
+    // to the tray (no visible top-level window). See the
+    // `no_foreground_focus_dance` source-grep guard test below.
+    for (app, hotkey) in [
+        (MicMuteApp::Teams, req.teams.as_ref()),
+        (MicMuteApp::Discord, req.discord.as_ref()),
     ] {
-        let Some(_combo) = hotkey else {
+        let Some(combo) = hotkey else {
             tracing::info!(
                 app = app.as_str(),
-                "mic_mute diag: NoHotkey, hotkey is None for this app"
+                "mic_mute: NoHotkey (toggle on but hotkey unset)"
             );
             results.push((app, AppOutcome::NoHotkey));
             continue;
         };
-        let Some(hwnd) = find_window_for_processes(processes) else {
-            tracing::info!(
-                app = app.as_str(),
-                processes = ?processes,
-                "mic_mute diag: NotRunning, find_window_for_processes returned None"
-            );
-            results.push((app, AppOutcome::NotRunning));
-            continue;
-        };
-        tracing::info!(
-            app = app.as_str(),
-            hwnd = ?hwnd,
-            "mic_mute diag: window found, sending hotkey"
-        );
-        let win_combo = hotkey_to_window_input(_combo);
-        match send_hotkey_to_window(hwnd, &win_combo) {
+        let win_combo = hotkey_to_window_input(combo);
+        match send_hotkey_globally(&win_combo) {
             Ok(()) => {
                 tracing::info!(
                     app = app.as_str(),
-                    "mic_mute diag: send_hotkey_to_window returned Ok"
+                    "mic_mute: send_hotkey_globally returned Ok"
                 );
                 results.push((app, AppOutcome::Sent));
                 applied.push(app);
@@ -422,7 +415,7 @@ pub fn apply(req: &MicMuteApplyRequest) -> Vec<(MicMuteApp, AppOutcome)> {
                 tracing::warn!(
                     app = app.as_str(),
                     error = %e,
-                    "mic_mute diag: send_hotkey_to_window returned Err"
+                    "mic_mute: send_hotkey_globally returned Err"
                 );
                 results.push((app, AppOutcome::SendFailed));
             }
@@ -478,17 +471,22 @@ pub fn restore(_req: &MicMuteRestoreRequest) -> Vec<(MicMuteApp, AppOutcome)> {
 /// the file when the apps array is empty.
 #[cfg(feature = "experimental_mic_mute")]
 pub fn restore(req: &MicMuteRestoreRequest) -> Vec<(MicMuteApp, AppOutcome)> {
-    use crate::platform::windows::window_send_input::{
-        find_window_for_processes, send_hotkey_to_window, DISCORD_PROCESSES, TEAMS_PROCESSES,
-    };
+    use crate::platform::windows::window_send_input::send_hotkey_globally;
+
+    tracing::info!("mic_mute: restore() entered (global-hotkey path)");
 
     let mut results: Vec<(MicMuteApp, AppOutcome)> = Vec::new();
     let mut still_applied: Vec<MicMuteApp> = Vec::new();
 
+    // v0.18.4 change: same global-hotkey path as apply(), no window
+    // targeting, no foreground side effects. The toggle-style mute
+    // shortcut means the second send unmutes; if the call app is no
+    // longer running, the OS routes the keystroke to nothing and we
+    // report success (nothing to restore).
     for app in &req.applied {
-        let (hotkey, processes) = match app {
-            MicMuteApp::Teams => (req.teams.as_ref(), TEAMS_PROCESSES),
-            MicMuteApp::Discord => (req.discord.as_ref(), DISCORD_PROCESSES),
+        let hotkey = match app {
+            MicMuteApp::Teams => req.teams.as_ref(),
+            MicMuteApp::Discord => req.discord.as_ref(),
         };
         let Some(combo) = hotkey else {
             // No hotkey now? The user must have cleared it mid-dictation.
@@ -497,14 +495,8 @@ pub fn restore(req: &MicMuteRestoreRequest) -> Vec<(MicMuteApp, AppOutcome)> {
             still_applied.push(*app);
             continue;
         };
-        let Some(hwnd) = find_window_for_processes(processes) else {
-            // App went away; the user is presumably no longer in the
-            // call. Treat as success (nothing to restore).
-            results.push((*app, AppOutcome::NotRunning));
-            continue;
-        };
         let win_combo = hotkey_to_window_input(combo);
-        match send_hotkey_to_window(hwnd, &win_combo) {
+        match send_hotkey_globally(&win_combo) {
             Ok(()) => {
                 results.push((*app, AppOutcome::Sent));
             }
@@ -982,6 +974,33 @@ mod source_grep_guard {
         assert!(
             !src.contains("TogglePattern"),
             "mic_mute must not reference UIA TogglePattern; v1 is honest can-not-verify, not UIA-confidence"
+        );
+    }
+
+    /// v0.18.4: the mic-mute lifecycle must NOT change foreground
+    /// focus or steal it from the user's chosen paste target. The
+    /// previous focus-dance path (`send_hotkey_to_window`) raced
+    /// against the dictation lifecycle's own foreground capture and
+    /// broke auto-paste. v0.18.4 switched to `send_hotkey_globally`
+    /// which has no foreground side effects.
+    #[test]
+    fn no_foreground_focus_dance() {
+        let src = production_source();
+        assert!(
+            !src.contains("SetForegroundWindow"),
+            "mic_mute must not call SetForegroundWindow; the global SendInput path is foreground-side-effect-free and the focus dance race-broke auto-paste in v0.18.3"
+        );
+        assert!(
+            !src.contains("AttachThreadInput"),
+            "mic_mute must not call AttachThreadInput; only needed for the focus-dance path which v0.18.4 removed"
+        );
+        assert!(
+            !src.contains("send_hotkey_to_window"),
+            "mic_mute must not call send_hotkey_to_window from the lifecycle; use send_hotkey_globally"
+        );
+        assert!(
+            !src.contains("find_window_for_processes"),
+            "mic_mute must not call find_window_for_processes from the lifecycle; the global hotkey path needs no window"
         );
     }
 }

@@ -221,6 +221,31 @@ pub fn send_hotkey_to_window(hwnd: HWND, combo: &Hotkey) -> Result<()> {
     result
 }
 
+/// Send the hotkey combo at system level via `SendInput`, without
+/// targeting any window or changing foreground focus.
+///
+/// This is the right path for call apps where the user has registered
+/// the mute hotkey as a Windows-level global hotkey (the default for
+/// Teams' `Ctrl+Shift+M` and the way Discord's `User Settings,
+/// Keybinds, Toggle Mute` works once the user picks a key). The OS
+/// routes the keystroke to whichever process registered it; we don't
+/// need to know where the call app's window is, and we don't need to
+/// change the user's foreground to deliver the keystroke.
+///
+/// Why this matters for v0.18.4: the previous focus-dance path
+/// (`send_hotkey_to_window`) briefly grabbed foreground for the
+/// target window and restored it afterwards. The restore raced
+/// against the dictation lifecycle's own foreground capture (used
+/// for paste targeting), leaving auto-paste pointing at the wrong
+/// window. The global path has no foreground side-effects.
+///
+/// `send_hotkey_to_window` is kept for any future tray-detection or
+/// per-app diagnostic work but is no longer called from the
+/// experimental mic-mute lifecycle.
+pub fn send_hotkey_globally(combo: &Hotkey) -> Result<()> {
+    send_combo(combo)
+}
+
 fn send_combo(combo: &Hotkey) -> Result<()> {
     // Press modifiers, press main, release main, release modifiers (reverse).
     let mut inputs: Vec<INPUT> = Vec::with_capacity(combo.modifiers.len() * 2 + 2);
