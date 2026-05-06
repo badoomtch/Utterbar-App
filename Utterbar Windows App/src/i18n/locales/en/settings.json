@@ -470,5 +470,83 @@
         "description": "Drop silent leading / trailing audio before the model sees it. Faster transcriptions, identical quality."
       }
     }
+  },
+  "privacy": {
+    "title": "Privacy",
+    "subtitle": "Utterbar processes everything on-device. You are always in control of what is retained and what is used as context.",
+    "managed_hint": "Some privacy controls on this device are managed by your administrator. Restart Utterbar to pick up policy changes.",
+    "context": {
+      "title": "Context capture",
+      "description": "Which signals may a mode use to tailor its output?",
+      "active_app": {
+        "label": "Allow active-app context",
+        "description": "App executable and window title."
+      },
+      "selection": {
+        "label": "Allow selection context",
+        "description": "Currently selected text in the foreground app."
+      },
+      "clipboard": {
+        "label": "Allow clipboard context",
+        "description": "Most recently copied text."
+      }
+    },
+    "audio_retention": {
+      "title": "Audio retention",
+      "save_recordings": {
+        "label": "Save recordings",
+        "description": "Keep the WAV of each dictation on disk so you can re-play or re-transcribe it later. Files live under your Recordings folder and are automatically pruned after the retention window below."
+      },
+      "pro_nudge": {
+        "feature": "Audio retention",
+        "description": "Keep a local WAV of every dictation so you can re-listen or re-transcribe it later. Stored on your disk only, never uploaded."
+      },
+      "delete_after": {
+        "label": "Delete recordings after",
+        "description": "Older WAVs are cleaned up automatically on each new dictation, so the recordings folder doesn't balloon.",
+        "value": "{{days}} days"
+      }
+    },
+    "media": {
+      "title": "Media",
+      "pause_music": {
+        "label": "Pause music while recording",
+        "description": "Automatically pause Spotify, YouTube, Apple Music, and any other app registered with Windows media controls while you dictate. Only the sessions Utterbar paused get resumed."
+      },
+      "mute_conferencing": {
+        "label": "Mute conferencing app output while recording",
+        "description": "Silences what you HEAR from Teams, Slack, Discord, Zoom, and Webex while you're dictating, so call audio and notification dings don't bleed into the room. Restored the moment dictation ends. This does NOT mute your microphone inside those apps, use each app's own mute button for that."
+      }
+    },
+    "conferencing_apps": {
+      "title": "Apps to silence",
+      "description_prefix": "Executable names matched case-insensitively against running processes.",
+      "using_defaults": "Using the built-in defaults.",
+      "using_custom": "Using your custom list.",
+      "edit_locked": "Turn the toggle on above to edit this list.",
+      "reset_to_defaults": "Reset to defaults",
+      "empty": "No apps configured.",
+      "input_placeholder": "e.g. Teams.exe",
+      "add": "Add",
+      "remove_aria": "Remove {{name}}",
+      "errors": {
+        "empty": "Enter an executable name.",
+        "invalid_characters": "Only letters, numbers, dot, underscore, and dash. No paths, drive letters, quotes, or wildcards.",
+        "too_long": "Name is too long (max 64 characters).",
+        "duplicate": "That app is already in the list.",
+        "defaults_loading": "Defaults are still loading — try again in a moment.",
+        "fallback": "That name isn’t valid."
+      }
+    },
+    "data_locations": {
+      "title": "Data locations",
+      "rows": {
+        "config": "Config",
+        "database": "Database",
+        "models": "Models",
+        "recordings": "Recordings",
+        "logs": "Logs"
+      }
+    }
   }
 }

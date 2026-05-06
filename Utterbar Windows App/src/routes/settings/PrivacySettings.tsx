@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/common/Button';
@@ -21,6 +22,7 @@ type DataPaths = {
 };
 
 export function PrivacySettings() {
+  const { t } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const licenceStatus = useLicence((x) => x.status);
@@ -46,10 +48,7 @@ export function PrivacySettings() {
 
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
-      <PageHeader
-        title="Privacy"
-        subtitle="Utterbar processes everything on-device. You are always in control of what is retained and what is used as context."
-      />
+      <PageHeader title={t('privacy.title')} subtitle={t('privacy.subtitle')} />
 
       {/* Managed-deployment hint. Renders only when at least one of
           the privacy-adjacent group policies is set (history /
@@ -61,28 +60,37 @@ export function PrivacySettings() {
           policy.history_export_blocked ||
           policy.telemetry_blocked) && (
           <div className="mt-6">
-            <ManagedHint variant="block">
-              Some privacy controls on this device are managed by your administrator.
-              Restart Utterbar to pick up policy changes.
-            </ManagedHint>
+            <ManagedHint variant="block">{t('privacy.managed_hint')}</ManagedHint>
           </div>
         )}
 
       <div className="mt-6 space-y-4">
-        <Card title="Context capture" description="Which signals may a mode use to tailor its output?">
-          <Row label="Allow active-app context" description="App executable and window title.">
+        <Card
+          title={t('privacy.context.title')}
+          description={t('privacy.context.description')}
+        >
+          <Row
+            label={t('privacy.context.active_app.label')}
+            description={t('privacy.context.active_app.description')}
+          >
             <Toggle
               checked={Boolean(p.allow_context_active_app)}
               onChange={(v) => void update('allow_context_active_app', v)}
             />
           </Row>
-          <Row label="Allow selection context" description="Currently selected text in the foreground app.">
+          <Row
+            label={t('privacy.context.selection.label')}
+            description={t('privacy.context.selection.description')}
+          >
             <Toggle
               checked={Boolean(p.allow_context_selection)}
               onChange={(v) => void update('allow_context_selection', v)}
             />
           </Row>
-          <Row label="Allow clipboard context" description="Most recently copied text.">
+          <Row
+            label={t('privacy.context.clipboard.label')}
+            description={t('privacy.context.clipboard.description')}
+          >
             <Toggle
               checked={Boolean(p.allow_context_clipboard)}
               onChange={(v) => void update('allow_context_clipboard', v)}
@@ -90,10 +98,10 @@ export function PrivacySettings() {
           </Row>
         </Card>
 
-        <Card title="Audio retention">
+        <Card title={t('privacy.audio_retention.title')}>
           <Row
-            label="Save recordings"
-            description="Keep the WAV of each dictation on disk so you can re-play or re-transcribe it later. Files live under your Recordings folder and are automatically pruned after the retention window below."
+            label={t('privacy.audio_retention.save_recordings.label')}
+            description={t('privacy.audio_retention.save_recordings.description')}
           >
             <Toggle
               checked={pro && Boolean(p.retain_audio)}
@@ -103,15 +111,15 @@ export function PrivacySettings() {
           </Row>
           {!pro && (
             <ProNudge
-              feature="Audio retention"
-              description="Keep a local WAV of every dictation so you can re-listen or re-transcribe it later. Stored on your disk only, never uploaded."
+              feature={t('privacy.audio_retention.pro_nudge.feature')}
+              description={t('privacy.audio_retention.pro_nudge.description')}
               dense
               className="mt-1"
             />
           )}
           <Row
-            label="Delete recordings after"
-            description="Older WAVs are cleaned up automatically on each new dictation, so the recordings folder doesn't balloon."
+            label={t('privacy.audio_retention.delete_after.label')}
+            description={t('privacy.audio_retention.delete_after.description')}
           >
             <div className="flex items-center gap-3">
               <input
@@ -125,16 +133,18 @@ export function PrivacySettings() {
                 className="w-40"
               />
               <span className="w-16 text-right font-mono text-[12px] tabular-nums text-fg-hi">
-                {Number(p.retain_audio_days ?? 14)} days
+                {t('privacy.audio_retention.delete_after.value', {
+                  days: Number(p.retain_audio_days ?? 14),
+                })}
               </span>
             </div>
           </Row>
         </Card>
 
-        <Card title="Media">
+        <Card title={t('privacy.media.title')}>
           <Row
-            label="Pause music while recording"
-            description="Automatically pause Spotify, YouTube, Apple Music, and any other app registered with Windows media controls while you dictate. Only the sessions Utterbar paused get resumed."
+            label={t('privacy.media.pause_music.label')}
+            description={t('privacy.media.pause_music.description')}
           >
             <Toggle
               checked={Boolean(p.pause_media_while_recording)}
@@ -142,8 +152,8 @@ export function PrivacySettings() {
             />
           </Row>
           <Row
-            label="Mute conferencing app output while recording"
-            description="Silences what you HEAR from Teams, Slack, Discord, Zoom, and Webex while you're dictating, so call audio and notification dings don't bleed into the room. Restored the moment dictation ends. This does NOT mute your microphone inside those apps, use each app's own mute button for that."
+            label={t('privacy.media.mute_conferencing.label')}
+            description={t('privacy.media.mute_conferencing.description')}
           >
             <Toggle
               checked={Boolean(p.mute_conferencing_while_recording)}
@@ -157,18 +167,23 @@ export function PrivacySettings() {
           />
         </Card>
 
-        <Card title="Data locations">
+        <Card title={t('privacy.data_locations.title')}>
           {paths &&
+            // Each row's value (paths.config, paths.data, paths.models,
+            // paths.recordings, paths.logs) is a backend-emitted
+            // filesystem path and stays verbatim. Only the row label is
+            // catalogued, keyed off a stable id that maps to the same
+            // DataPaths field.
             (
               [
-                ['Config', paths.config],
-                ['Database', paths.data],
-                ['Models', paths.models],
-                ['Recordings', paths.recordings],
-                ['Logs', paths.logs],
+                ['config', paths.config],
+                ['database', paths.data],
+                ['models', paths.models],
+                ['recordings', paths.recordings],
+                ['logs', paths.logs],
               ] as const
             ).map(([k, v]) => (
-              <Row key={k} label={k}>
+              <Row key={k} label={t(`privacy.data_locations.rows.${k}` as const)}>
                 <code className="font-mono text-[11px] text-muted">{v}</code>
               </Row>
             ))}
@@ -179,17 +194,14 @@ export function PrivacySettings() {
   );
 }
 
-// Maps the stable reason strings returned by the `validate_conferencing_app_name`
-// Tauri command to the user-facing message rendered next to the input. Keeping
-// this keyed off the same constants the Rust validator returns means the copy
-// stays in lock-step with the rule set without re-implementing validation in TS.
-const VALIDATION_MESSAGES: Record<string, string> = {
-  empty: 'Enter an executable name.',
-  invalid_characters:
-    'Only letters, numbers, dot, underscore, and dash. No paths, drive letters, quotes, or wildcards.',
-  too_long: 'Name is too long (max 64 characters).',
-  duplicate: 'That app is already in the list.',
-};
+// The reason ids returned by `validate_conferencing_app_name` (Rust)
+// stay as the contract — the matching user-facing message lives in the
+// catalogue under privacy.conferencing_apps.errors.<id>. Pin the exact
+// reason ids the Rust validator emits so a future regression that
+// renames a reason on either side fails loudly at translation time
+// instead of silently falling through to the fallback message.
+const VALIDATION_REASON_IDS = ['empty', 'invalid_characters', 'too_long', 'duplicate'] as const;
+type ValidationReasonId = (typeof VALIDATION_REASON_IDS)[number];
 
 function ConferencingAppsEditor({
   override,
@@ -200,6 +212,7 @@ function ConferencingAppsEditor({
   disabled: boolean;
   onChange: (next: string[]) => void;
 }) {
+  const { t } = useTranslation('settings');
   const [defaults, setDefaults] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -226,7 +239,7 @@ function ConferencingAppsEditor({
     // later will work. Without this, a fast first-add on a slow machine
     // would silently drop the entire default set into a one-entry override.
     if (usingDefaults && defaults.length === 0) {
-      setError('Defaults are still loading — try again in a moment.');
+      setError(t('privacy.conferencing_apps.errors.defaults_loading'));
       return;
     }
     try {
@@ -241,8 +254,18 @@ function ConferencingAppsEditor({
       onChange([...base, canonical]);
       setDraft('');
     } catch (e) {
-      const reason = typeof e === 'string' ? e : 'invalid_characters';
-      setError(VALIDATION_MESSAGES[reason] ?? 'That name isn’t valid.');
+      // Original semantics: if Rust returned a non-string error, treat
+      // it as `invalid_characters` (the most common cause); if Rust
+      // returned a string reason we don't have a known message for,
+      // show the generic fallback. Catalogue keys mirror the original
+      // VALIDATION_MESSAGES dictionary one-for-one plus the fallback.
+      if (typeof e !== 'string') {
+        setError(t('privacy.conferencing_apps.errors.invalid_characters'));
+      } else if ((VALIDATION_REASON_IDS as readonly string[]).includes(e)) {
+        setError(t(`privacy.conferencing_apps.errors.${e as ValidationReasonId}` as const));
+      } else {
+        setError(t('privacy.conferencing_apps.errors.fallback'));
+      }
     }
   };
 
@@ -269,13 +292,15 @@ function ConferencingAppsEditor({
     >
       <div className="flex items-baseline justify-between gap-3">
         <div>
-          <div className="text-[13px] font-medium text-fg-hi">Apps to silence</div>
+          <div className="text-[13px] font-medium text-fg-hi">
+            {t('privacy.conferencing_apps.title')}
+          </div>
           <div className="mt-1 text-[12px] leading-relaxed text-muted">
-            Executable names matched case-insensitively against running processes.
+            {t('privacy.conferencing_apps.description_prefix')}{' '}
             {usingDefaults
-              ? ' Using the built-in defaults.'
-              : ' Using your custom list.'}
-            {disabled && ' Turn the toggle on above to edit this list.'}
+              ? t('privacy.conferencing_apps.using_defaults')
+              : t('privacy.conferencing_apps.using_custom')}
+            {disabled && ' ' + t('privacy.conferencing_apps.edit_locked')}
           </div>
         </div>
         {!usingDefaults && (
@@ -285,15 +310,20 @@ function ConferencingAppsEditor({
             onClick={reset}
             disabled={disabled}
           >
-            Reset to defaults
+            {t('privacy.conferencing_apps.reset_to_defaults')}
           </Button>
         )}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {effective.length === 0 ? (
-          <span className="text-[12px] text-muted">No apps configured.</span>
+          <span className="text-[12px] text-muted">
+            {t('privacy.conferencing_apps.empty')}
+          </span>
         ) : (
+          // Each `name` is a backend-/user-supplied executable name
+          // (e.g. "Teams.exe") and is rendered verbatim. Only the
+          // surrounding chrome is catalogued.
           effective.map((name) => (
             <span
               key={name}
@@ -304,7 +334,7 @@ function ConferencingAppsEditor({
                 type="button"
                 onClick={() => remove(name)}
                 disabled={disabled}
-                aria-label={`Remove ${name}`}
+                aria-label={t('privacy.conferencing_apps.remove_aria', { name })}
                 className="ml-0.5 text-muted hover:text-fg-hi disabled:cursor-not-allowed disabled:opacity-50"
               >
                 &times;
@@ -327,7 +357,7 @@ function ConferencingAppsEditor({
             setDraft(e.target.value);
             if (error) setError(null);
           }}
-          placeholder="e.g. Teams.exe"
+          placeholder={t('privacy.conferencing_apps.input_placeholder')}
           disabled={disabled}
           className="flex-1"
         />
@@ -337,7 +367,7 @@ function ConferencingAppsEditor({
           type="submit"
           disabled={disabled || !draft.trim()}
         >
-          Add
+          {t('privacy.conferencing_apps.add')}
         </Button>
       </form>
       {error && (
