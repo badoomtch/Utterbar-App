@@ -92,10 +92,37 @@ describe('i18n English foundation', () => {
     expect(i18n.getResource('en', 'common', 'language.english')).toBe('English');
   });
 
+  it('resolves every floating-bar button key', () => {
+    // Pinned list. If a button is added, renamed, or removed from
+    // FloatingBar.tsx, this list — and bar.json — must move together.
+    const keys = [
+      'button.record',
+      'button.stop',
+      'button.cancel',
+      'button.settings',
+      'button.copy_last_message',
+      'button.copied',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'bar', key);
+      expect(value, `bar.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `bar.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('exposes the mic-mute Confirmed button label', () => {
+    // The frontend-owned button copy is localised here; the banner
+    // message itself is still Rust-emitted prose (see MicMuteBanner.tsx)
+    // and stays unlocalised in this branch.
+    expect(i18n.getResource('en', 'bar', 'mic_mute.confirmed')).toBe('Confirmed');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
     expect(Object.keys(barEn.phase).length).toBeGreaterThan(0);
+    expect(Object.keys(barEn.button).length).toBeGreaterThan(0);
+    expect(Object.keys(barEn.mic_mute).length).toBeGreaterThan(0);
     expect(Object.keys(commonEn.language).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general).length).toBeGreaterThan(0);
   });

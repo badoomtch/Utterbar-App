@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
@@ -27,6 +28,7 @@ import type { MicMutePhase } from '@/generated/MicMutePhase';
  * is skipped; the banner appears instantly.
  */
 export function MicMuteBanner() {
+  const { t } = useTranslation('bar');
   const [status, setStatus] = useState<MicMuteStatus | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -80,6 +82,14 @@ export function MicMuteBanner() {
       }`}
     >
       <div className="flex items-start gap-2">
+        {/*
+          `status.message` is the Rust-emitted prose for the current
+          mic-mute phase (e.g. "Tried to mute Discord while recording.
+          Confirm in Discord."). Backend event-message localisation is
+          deferred to the later error-codes branch — when that lands,
+          the Rust side will emit a stable code + args and this span
+          will resolve through `t(...)` like the buttons below.
+        */}
         <span className="flex-1">{status.message}</span>
         {isFailure ? (
           <button
@@ -87,7 +97,7 @@ export function MicMuteBanner() {
             onClick={() => setStatus(null)}
             className="shrink-0 rounded px-2 py-0.5 text-[11px] font-medium text-fg-hi hover:bg-bg-2"
           >
-            Confirmed
+            {t('mic_mute.confirmed')}
           </button>
         ) : null}
       </div>

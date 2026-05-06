@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useTranslation } from 'react-i18next';
 
 import { BarModeSwitch } from '@/components/bar/BarModeSwitch';
 import { MeterBars } from '@/components/bar/MeterBars';
@@ -24,6 +25,7 @@ import { useDictation } from '@/state/dictation';
 import { useSettings } from '@/state/settings';
 
 export function FloatingBar() {
+  const { t } = useTranslation('bar');
   const phase = useDictation((s) => s.phase);
   // Last dictation text kept in the zustand store — populated from the
   // `dictation:result` event in AppBootstrap. Null until the user dictates
@@ -892,22 +894,32 @@ export function FloatingBar() {
                   <div className="flex items-center gap-1">
                     <BarButton
                       onClick={onToggle}
-                      label="Stop"
+                      label={t('button.stop')}
                       icon={CircleStop}
                       tone="rose"
                       compact={isCompact}
                     />
-                    <BarButton onClick={onCancel} label="Cancel" icon={X} compact={isCompact} />
+                    <BarButton
+                      onClick={onCancel}
+                      label={t('button.cancel')}
+                      icon={X}
+                      compact={isCompact}
+                    />
                     <Divider />
                     <BarButton
                       onClick={onCopyLast}
-                      label={copied ? 'Copied' : 'Copy last message'}
+                      label={copied ? t('button.copied') : t('button.copy_last_message')}
                       icon={copied ? Check : CopyIcon}
                       compact={isCompact}
                       tone={copied ? 'accent' : 'default'}
                       disabled={!lastText}
                     />
-                    <BarButton onClick={onSettings} label="Settings" icon={SettingsIcon} compact={isCompact} />
+                    <BarButton
+                      onClick={onSettings}
+                      label={t('button.settings')}
+                      icon={SettingsIcon}
+                      compact={isCompact}
+                    />
                   </div>
                 </>
               ) : (
@@ -928,7 +940,7 @@ export function FloatingBar() {
                   <div className="flex items-center gap-1">
                     <BarButton
                       onClick={onToggle}
-                      label="Record"
+                      label={t('button.record')}
                       icon={SquarePlay}
                       tone="accent"
                       compact={isCompact}
@@ -936,13 +948,18 @@ export function FloatingBar() {
                     <Divider />
                     <BarButton
                       onClick={onCopyLast}
-                      label={copied ? 'Copied' : 'Copy last message'}
+                      label={copied ? t('button.copied') : t('button.copy_last_message')}
                       icon={copied ? Check : CopyIcon}
                       compact={isCompact}
                       tone={copied ? 'accent' : 'default'}
                       disabled={!lastText}
                     />
-                    <BarButton onClick={onSettings} label="Settings" icon={SettingsIcon} compact={isCompact} />
+                    <BarButton
+                      onClick={onSettings}
+                      label={t('button.settings')}
+                      icon={SettingsIcon}
+                      compact={isCompact}
+                    />
                   </div>
                 </>
               )}
