@@ -1,5 +1,54 @@
 {
   "language": {
     "english": "English"
+  },
+  "chrome": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "history": "History",
+      "meetings": "Meetings",
+      "modes": "Modes",
+      "vocabulary": "Vocabulary",
+      "files": "Files"
+    },
+    "footer": {
+      "strap": "local only"
+    },
+    "tier": {
+      "pro": "Pro",
+      "free_cta": "Upgrade to Pro →"
+    },
+    "update_toast": {
+      "title": "Update available",
+      "install": "Install & restart",
+      "installing": "Installing…",
+      "later": "Later",
+      "error_generic": "Update failed. Try again in a moment.",
+      "post_title": "Updated to v{{version}}",
+      "post_body": "You're on the latest version.",
+      "post_link": "See what's new →",
+      "dismiss_aria": "Dismiss"
+    },
+    "upgrade_modal": {
+      "feature_prefix": "is a",
+      "pro_word": "Pro",
+      "feature_suffix": "feature",
+      "period": {
+        "one_time": "one-time",
+        "monthly": "per month",
+        "yearly": "per year"
+      },
+      "not_now": "Not now",
+      "upgrade": "Upgrade"
+    },
+    "pro_nudge": {
+      "feature_prefix": "is a",
+      "pro_word": "Pro",
+      "feature_suffix": "feature.",
+      "learn_more": "Learn more →"
+    },
+    "managed_hint": {
+      "default": "Disabled by your administrator."
+    }
   }
 }

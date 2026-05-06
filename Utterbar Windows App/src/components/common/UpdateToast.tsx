@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Download, X } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/common/Button';
 import { invoke } from '@/lib/ipc';
@@ -39,6 +40,7 @@ import { useUpdate } from '@/state/update';
  * button in Settings → General does the same thing on demand.
  */
 export function UpdateToast() {
+  const { t } = useTranslation('common');
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoCheck = useSettings((x) => x.data?.general.check_updates_automatically ?? true);
@@ -70,7 +72,7 @@ export function UpdateToast() {
       // user isn't looking at a re-enabled button for the ~400ms before exit.
     } catch (e) {
       setInstalling(false);
-      setError(extractErrorMessage(e));
+      setError(extractErrorMessage(e, t));
     }
   };
 
@@ -94,10 +96,21 @@ export function UpdateToast() {
         >
           <Download className="mt-0.5 h-4 w-4 text-accent" />
           <div className="flex-1">
-            <div className="text-[13px] font-medium text-fg-hi">Update available</div>
+            <div className="text-[13px] font-medium text-fg-hi">
+              {t('chrome.update_toast.title')}
+            </div>
             <div className="mt-0.5 font-mono text-[11px] text-muted">
               {info!.current} → {info!.available}
             </div>
+            {/*
+              `notesPreview` is the first line of `UpdateInfo.notes`,
+              which is Rust-emitted release-note prose served by the
+              admin updater feed. Backend prose stays verbatim here;
+              localising it would require the server to emit a code +
+              args contract, which is the future error/event-codes
+              branch. Same deferral noted in StatePill.tsx,
+              MicMuteBanner.tsx, and Onboarding.tsx.
+            */}
             {notesPreview && (
               <div className="mt-1.5 line-clamp-2 text-[12px] text-fg-lo">{notesPreview}</div>
             )}
@@ -111,13 +124,15 @@ export function UpdateToast() {
                 onClick={() => void install()}
                 disabled={installing}
               >
-                {installing ? 'Installing…' : 'Install & restart'}
+                {installing
+                  ? t('chrome.update_toast.installing')
+                  : t('chrome.update_toast.install')}
               </Button>
               <button
                 onClick={() => dismiss()}
                 className="text-[12px] text-muted transition-colors hover:text-fg-hi"
               >
-                Later
+                {t('chrome.update_toast.later')}
               </button>
             </div>
           </div>
@@ -151,8 +166,16 @@ function firstNotesLine(notes: string | null | undefined): string | null {
  * strings and anything else fall back to a friendly generic. We never let a
  * raw JS Error toString() bleed into the toast — "TypeError: Failed to fetch"
  * on the user's screen reads as a bug even when it's just flaky wifi.
+ *
+ * `t` is passed in from the caller so the frontend fallback resolves
+ * through the active locale. Rust-emitted `OrliqError.message` values
+ * still pass through verbatim; localising backend prose is deferred to
+ * a future error/event-codes branch.
  */
-function extractErrorMessage(e: unknown): string {
+function extractErrorMessage(
+  e: unknown,
+  t: (key: 'chrome.update_toast.error_generic') => string,
+): string {
   if (e && typeof e === 'object') {
     const anyE = e as { code?: unknown; message?: unknown };
     if (typeof anyE.code === 'string' && typeof anyE.message === 'string') {
@@ -160,7 +183,7 @@ function extractErrorMessage(e: unknown): string {
     }
   }
   if (typeof e === 'string' && e.length < 160) return e;
-  return 'Update failed. Try again in a moment.';
+  return t('chrome.update_toast.error_generic');
 }
 
 /**
@@ -178,6 +201,7 @@ function extractErrorMessage(e: unknown): string {
  * on the marketing site.
  */
 export function PostUpdateToast() {
+  const { t } = useTranslation('common');
   const justUpdatedTo = useUpdate((s) => s.justUpdatedTo);
   const consume = useUpdate((s) => s.consumePostUpdateMarker);
   const dismiss = useUpdate((s) => s.dismissPostUpdate);
@@ -210,10 +234,10 @@ export function PostUpdateToast() {
           <CheckCircle2 className="mt-0.5 h-4 w-4 text-accent" />
           <div className="flex-1">
             <div className="text-[13px] font-medium text-fg-hi">
-              Updated to v{justUpdatedTo}
+              {t('chrome.update_toast.post_title', { version: justUpdatedTo })}
             </div>
             <div className="mt-1 text-[12px] leading-relaxed text-muted">
-              You're on the latest version.
+              {t('chrome.update_toast.post_body')}
             </div>
             <div className="mt-2 flex items-center gap-2">
               <button
@@ -224,13 +248,13 @@ export function PostUpdateToast() {
                 }
                 className="text-[12px] font-medium text-accent transition-opacity hover:opacity-80"
               >
-                See what's new →
+                {t('chrome.update_toast.post_link')}
               </button>
             </div>
           </div>
           <button
             onClick={() => dismiss()}
-            aria-label="Dismiss"
+            aria-label={t('chrome.update_toast.dismiss_aria')}
             className="ml-1 text-muted transition-colors hover:text-fg-hi"
           >
             <X className="h-3.5 w-3.5" />

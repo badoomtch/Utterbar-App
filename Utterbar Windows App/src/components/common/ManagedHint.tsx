@@ -1,4 +1,5 @@
 import { ShieldCheck } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/lib/cn';
 
@@ -28,7 +29,12 @@ export function ManagedHint({
   variant?: 'inline' | 'block';
   className?: string;
 }) {
-  const text = children ?? 'Disabled by your administrator.';
+  const { t } = useTranslation('common');
+  // Caller-provided `children` (a JSX node) wins so callers that need
+  // a fully custom message keep their existing shape. The default
+  // fallback is the only frontend-owned literal here, and that's what
+  // the localisation routes through.
+  const text = children ?? t('chrome.managed_hint.default');
   if (variant === 'block') {
     return (
       <div
