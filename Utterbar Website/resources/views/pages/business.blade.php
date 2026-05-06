@@ -1,5 +1,5 @@
 @php
-    $businessDesc = 'Utterbar for teams. Local-only dictation that stays on your PCs. Volume pricing from £29 per seat for 3 to 24 seats, £19 per seat for 25 to 249. One-time licences, no subscription, IT-deployable.';
+    $businessDesc = 'Utterbar for teams. Local-only dictation that stays on your PCs. Volume pricing from £29 per seat for 5 to 24 seats, £19 per seat for 25 to 100. One-time licences, no subscription, IT-deployable.';
 @endphp
 
 <x-layouts.app title="For business" :description="$businessDesc">
@@ -185,7 +185,7 @@
                         <span class="text-4xl font-extrabold tracking-tight" style="color: var(--fg-hi);">&pound;29</span>
                         <span class="text-sm" style="color: var(--muted);">per seat, lifetime</span>
                     </div>
-                    <p class="mt-3 text-sm" style="color: var(--muted);">3 to 24 seats.</p>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">5 to 24 seats.</p>
                     <ul class="mt-6 space-y-2.5 text-sm" style="color: var(--fg);">
                         <li>Full Pro feature set per seat</li>
                         <li>One licence, your seat count, your devices</li>
@@ -204,7 +204,7 @@
                         <span class="text-4xl font-extrabold tracking-tight ub-gradient-text">&pound;19</span>
                         <span class="text-sm" style="color: var(--muted);">per seat, lifetime</span>
                     </div>
-                    <p class="mt-3 text-sm" style="color: var(--muted);">25 to 249 seats.</p>
+                    <p class="mt-3 text-sm" style="color: var(--muted);">25 to 100 seats.</p>
                     <ul class="mt-6 space-y-2.5 text-sm" style="color: var(--fg);">
                         <li>Everything in Team</li>
                         <li>Invoice / PO billing standard</li>

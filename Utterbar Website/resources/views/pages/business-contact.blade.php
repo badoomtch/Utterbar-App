@@ -168,9 +168,9 @@
                     <div class="ub-card ub-card-rail" style="padding: 2rem;">
                         <p class="ub-eyebrow">Pricing summary</p>
                         <ul class="mt-4 space-y-3 text-sm" style="color: var(--fg);">
-                            <li><strong style="color: var(--fg-hi);">Team (3&ndash;24 seats)</strong>: &pound;29 per seat, lifetime.</li>
-                            <li><strong style="color: var(--fg-hi);">Business (25&ndash;249 seats)</strong>: &pound;19 per seat, lifetime.</li>
-                            <li><strong style="color: var(--fg-hi);">Enterprise (250+ seats)</strong>: custom quote.</li>
+                            <li><strong style="color: var(--fg-hi);">Team (5&ndash;24 seats)</strong>: &pound;29 per seat, lifetime.</li>
+                            <li><strong style="color: var(--fg-hi);">Business (25&ndash;100 seats)</strong>: &pound;19 per seat, lifetime.</li>
+                            <li><strong style="color: var(--fg-hi);">Enterprise (more than 100 seats)</strong>: custom quote.</li>
                         </ul>
                         <p class="mt-5 text-sm" style="color: var(--muted); line-height: 1.6;">
                             All tiers are one-time licences. No subscription, no annual renewal. Pay by card or invoice.
