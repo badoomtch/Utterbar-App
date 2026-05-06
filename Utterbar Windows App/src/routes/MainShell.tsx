@@ -1,31 +1,21 @@
-import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openShell } from '@tauri-apps/plugin-shell';
+import { useTranslation } from 'react-i18next';
 
 import { listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { Led } from '@/components/common/Led';
 import { useLicence } from '@/state/licence';
 import {
-  Accessibility,
   BarChart3,
   FileAudio,
   History as HistoryIcon,
-  KeyRound,
-  Keyboard,
   Layers,
-  Mic,
-  Radio,
-  RefreshCw,
   Search,
-  Settings2,
   Shapes,
-  ShieldCheck,
   Users,
-  SlidersHorizontal,
-  Info,
-  Minimize2,
   X,
 } from 'lucide-react';
 
@@ -34,6 +24,7 @@ import { UtterbarWordmark } from '@/components/bar/UtterbarWordmark';
 import { PostUpdateToast, UpdateToast } from '@/components/common/UpdateToast';
 import { cn } from '@/lib/cn';
 import { filterSettingsByQuery, settingsSearchMatchSummary } from '@/routes/settings_search';
+import { buildSettingsNav } from '@/routes/settings_nav';
 import { Dashboard } from '@/routes/Dashboard';
 import { HistoryRoute } from '@/routes/HistoryRoute';
 import { MeetingsRoute } from '@/routes/MeetingsRoute';
@@ -62,192 +53,12 @@ const NAV_PRIMARY = [
   { to: '/files', label: 'Files', icon: FileAudio },
 ];
 
-// Per-section search metadata for the settings search box. Searching
-// the visible label alone misses common synonyms users actually type:
-// "GPU" should find Advanced, "hotkey" should find Shortcuts, "ASR"
-// should find Models — those live in `keywords`. The `matches` list
-// carries the user-facing control names so the search can both find
-// the right section AND surface a short hint of the actual control
-// the user is being directed to ("Smart rewrite", "Apps to silence",
-// "Air-gapped activation"). Per-control aliases let users type
-// alternate phrasings ("filler words", "code dictation", "teams mute")
-// and still be pointed at the right specific control. Keep `matches`
-// to real, currently-shipped controls; non-shipped features stay out
-// so we never imply they exist.
-import type { SettingsSearchMatch } from '@/routes/settings_search';
-
-const NAV_SETTINGS: Array<{
-  to: string;
-  label: string;
-  icon: typeof Settings2;
-  keywords: readonly string[];
-  matches?: readonly SettingsSearchMatch[];
-}> = [
-  {
-    to: '/settings/general',
-    label: 'General',
-    icon: Settings2,
-    keywords: ['theme', 'accent', 'colour', 'color', 'minimised', 'minimized', 'tray', 'sound', 'notification', 'reduce motion'],
-    matches: [
-      'Theme',
-      { label: 'Accent colour', aliases: ['accent', 'colour', 'color'] },
-      { label: 'Launch at startup', aliases: ['launch', 'startup', 'autostart', 'auto start', 'boot'] },
-      { label: 'Start minimised', aliases: ['minimised', 'minimized'] },
-      { label: 'Show in system tray', aliases: ['tray'] },
-      { label: 'Notification sound', aliases: ['sound', 'notification', 'beep'] },
-      { label: 'App language', aliases: ['language', 'locale'] },
-    ],
-  },
-  {
-    to: '/settings/bar',
-    label: 'Utterbar',
-    icon: Minimize2,
-    keywords: ['floating bar', 'pill'],
-    matches: [
-      { label: 'Floating bar position', aliases: ['position', 'placement', 'bar location'] },
-      { label: 'Auto-hide when idle', aliases: ['auto-hide', 'auto hide', 'hide', 'visibility'] },
-      { label: 'Background behaviour', aliases: ['background'] },
-    ],
-  },
-  {
-    to: '/settings/audio',
-    label: 'Audio',
-    icon: Mic,
-    keywords: ['noise', 'silence', 'normalisation', 'normalization', 'loopback'],
-    matches: [
-      { label: 'Microphone', aliases: ['mic', 'microphone', 'input device', 'capture'] },
-      { label: 'Input device', aliases: ['device', 'input'] },
-      { label: 'Noise gate', aliases: ['gate', 'noise'] },
-      { label: 'Gain', aliases: ['gain', 'volume', 'level'] },
-      { label: 'Sample rate', aliases: ['sample rate', 'rate', 'hz'] },
-      { label: 'System audio', aliases: ['system audio', 'system', 'desktop audio', 'pc audio', 'loopback'] },
-    ],
-  },
-  {
-    to: '/settings/models',
-    label: 'Models',
-    icon: Radio,
-    keywords: ['ASR', 'language'],
-    matches: [
-      { label: 'Default dictation model', aliases: ['default model', 'dictation model', 'whisper', 'parakeet'] },
-      { label: 'Meeting Mode model', aliases: ['meeting model', 'meeting mode', 'meeting'] },
-      { label: 'Model downloads', aliases: ['download', 'install model', 'install'] },
-      { label: 'Keep model warm', aliases: ['warm', 'unload', 'keep loaded', 'preload'] },
-      { label: 'Whisper', aliases: ['whisper'] },
-      { label: 'Parakeet', aliases: ['parakeet'] },
-    ],
-  },
-  {
-    to: '/settings/shortcuts',
-    label: 'Shortcuts',
-    icon: Keyboard,
-    keywords: ['keybind', 'global shortcut'],
-    matches: [
-      { label: 'Toggle recording hotkey', aliases: ['hotkey', 'shortcut', 'toggle', 'toggle recording', 'record', 'start record', 'stop record'] },
-      { label: 'Cancel recording hotkey', aliases: ['cancel', 'cancel recording', 'abort', 'cancel hotkey'] },
-    ],
-  },
-  {
-    to: '/settings/text-output',
-    label: 'Text Output',
-    icon: SlidersHorizontal,
-    keywords: ['punctuation', 'keystroke fallback'],
-    matches: [
-      { label: 'Paste automatically', aliases: ['paste', 'auto paste', 'clipboard'] },
-      { label: 'Restore clipboard', aliases: ['restore clipboard', 'clipboard'] },
-      { label: 'Type it out if paste is blocked', aliases: ['paste blocked', 'fallback', 'keystroke', 'type out', 'character by character'] },
-      { label: 'Auto-capitalise', aliases: ['capitalise', 'capitalize', 'auto capital', 'sentence case'] },
-      { label: 'Trim trailing whitespace', aliases: ['trim', 'whitespace', 'trailing space'] },
-      { label: 'Auto-space', aliases: ['auto space', 'spacing'] },
-      { label: 'Numbers as digits', aliases: ['numbers', 'digits', 'numerals'] },
-      { label: 'Smart rewrite', aliases: ['smart rewrite', 'rewrite', 'filler', 'filler words', 'fillers', 'um', 'uh', 'tidy', 'cleanup', 'code dictation', 'code', 'polish'] },
-      { label: 'Hold Shift to auto-send', aliases: ['shift', 'auto-send', 'auto send', 'send', 'enter'] },
-    ],
-  },
-  {
-    to: '/settings/accessibility',
-    label: 'Accessibility',
-    icon: Accessibility,
-    keywords: ['screen reader', 'a11y'],
-    matches: [
-      { label: 'Reduce motion', aliases: ['reduce motion', 'motion', 'animation'] },
-      { label: 'High contrast', aliases: ['high contrast', 'contrast'] },
-      { label: 'Text size', aliases: ['text size', 'font size', 'size', 'large text'] },
-      { label: 'Tooltips', aliases: ['tooltips', 'hints', 'tips'] },
-    ],
-  },
-  {
-    to: '/settings/privacy',
-    label: 'Privacy',
-    icon: ShieldCheck,
-    keywords: ['retain audio', 'recordings', 'history'],
-    matches: [
-      { label: 'Save recordings', aliases: ['save recording', 'save audio', 'keep audio', 'retain audio', 'recording'] },
-      { label: 'Delete recordings after', aliases: ['delete', 'auto delete', 'retention'] },
-      { label: 'Active-app context', aliases: ['active app', 'active-app', 'app context', 'focused app', 'foreground app'] },
-      { label: 'Selection context', aliases: ['selection', 'selected text'] },
-      { label: 'Clipboard context', aliases: ['clipboard', 'clipboard context'] },
-      { label: 'Pause music while recording', aliases: ['pause music', 'spotify', 'media', 'pause media'] },
-      { label: 'Mute conferencing app output', aliases: ['mute', 'mute output', 'conferencing', 'teams', 'discord', 'zoom', 'slack', 'webex', 'call', 'teams mute', 'discord mute', 'zoom mute'] },
-      { label: 'Apps to silence', aliases: ['apps to silence', 'silence apps', 'silence list', 'app list'] },
-      { label: 'Data locations', aliases: ['data location', 'where', 'storage', 'appdata', 'paths'] },
-    ],
-  },
-  {
-    to: '/settings/advanced',
-    label: 'Advanced',
-    icon: SlidersHorizontal,
-    keywords: ['experimental'],
-    matches: [
-      { label: 'GPU acceleration', aliases: ['gpu', 'acceleration', 'directml', 'cuda', 'graphics card'] },
-      { label: 'DirectML', aliases: ['directml', 'dml'] },
-      { label: 'CPU only', aliases: ['cpu', 'cpu only', 'no gpu'] },
-      { label: 'Mute mic in Teams (experimental)', aliases: ['teams mute', 'teams mic', 'mute teams microphone', 'experimental teams', 'mic mute teams'] },
-      { label: 'Mute mic in Discord (experimental)', aliases: ['discord mute', 'discord mic', 'mute discord microphone', 'experimental discord', 'mic mute discord'] },
-      { label: 'Diagnostics', aliases: ['diagnostics', 'logs', 'debug'] },
-      { label: 'Export data', aliases: ['export', 'export data', 'export settings', 'backup'] },
-      { label: 'Import backup', aliases: ['import', 'import backup', 'import settings', 'restore'] },
-      { label: 'Reset settings', aliases: ['reset', 'reset settings', 'factory reset', 'defaults'] },
-    ],
-  },
-  {
-    to: '/settings/licence',
-    label: 'Licence',
-    icon: KeyRound,
-    keywords: ['license', 'tier', 'free'],
-    matches: [
-      { label: 'Activate Pro', aliases: ['activate', 'activation', 'pro', 'upgrade', 'enter key'] },
-      { label: 'Licence key', aliases: ['licence key', 'license key', 'key'] },
-      { label: 'Devices', aliases: ['devices', 'machines', 'seats', 'device cap'] },
-      { label: 'Managed licence.bin', aliases: ['managed', 'licence.bin', 'license.bin', 'fleet', 'b2b', 'enterprise'] },
-      { label: 'Air-gapped activation', aliases: ['air-gapped', 'air gapped', 'airgapped', 'offline activation', 'no internet'] },
-    ],
-  },
-  {
-    to: '/settings/updates',
-    label: 'Updates',
-    icon: RefreshCw,
-    keywords: ['auto-check'],
-    matches: [
-      { label: 'Update channel', aliases: ['channel', 'update channel'] },
-      { label: 'Check for updates', aliases: ['check for updates', 'check updates', 'check', 'update'] },
-      { label: 'Beta channel', aliases: ['beta', 'beta channel'] },
-      { label: 'Stable channel', aliases: ['stable', 'stable channel'] },
-      { label: 'Release notes', aliases: ['release notes', 'changelog', 'whats new', "what's new"] },
-    ],
-  },
-  {
-    to: '/settings/about',
-    label: 'About',
-    icon: Info,
-    keywords: [],
-    matches: [
-      { label: 'Version', aliases: ['version', 'build'] },
-      { label: 'Credits', aliases: ['credits', 'authors', 'attribution'] },
-      { label: 'Website links', aliases: ['website', 'links', 'docs', 'support'] },
-    ],
-  },
-];
+// Settings nav data lives in `@/routes/settings_nav.ts` so the
+// per-section / per-match display labels can flip with the active
+// app language. Search keywords + per-control aliases stay English on
+// purpose: they're search-haystack terms, not display strings, and
+// keeping them static preserves `settings_search.ts` behaviour
+// without architectural change.
 
 
 /**
@@ -263,6 +74,7 @@ const NAV_SETTINGS: Array<{
  * preserves the ladder bg-0 → bg-1 → bg-2 everywhere.
  */
 export function MainShell() {
+  const { t } = useTranslation('settings');
   const [appVersion, setAppVersion] = useState<string>('');
   // Settings search query. Empty string = no filter, full list shown.
   // Lives in shell state because the input sits in the sidebar (above
@@ -273,6 +85,12 @@ export function MainShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
+
+  // Build the Settings nav registry against the active language. The
+  // memo keeps the array reference stable across re-renders that don't
+  // change the language, so `filterSettingsByQuery` doesn't fire on
+  // every keystroke against a freshly-allocated array.
+  const navSettings = useMemo(() => buildSettingsNav(t), [t]);
 
   // Reset scroll to the top whenever the route changes. Without this, paging
   // through Settings ("General" → "Accessibility" → "Privacy") keeps the scroll
@@ -320,15 +138,17 @@ export function MainShell() {
         </div>
 
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 pb-4">
-          <NavGroup label="Workspace" items={NAV_PRIMARY} />
+          <NavGroup label={t('nav.group.workspace')} items={NAV_PRIMARY} />
           <SettingsSearchInput
             ref={settingsSearchRef}
             value={settingsQuery}
             onChange={setSettingsQuery}
+            placeholder={t('nav.search.placeholder')}
+            clearLabel={t('nav.search.clear')}
           />
           <NavGroup
-            label="Settings"
-            items={filterSettingsByQuery(NAV_SETTINGS, settingsQuery).map((item) => {
+            label={t('nav.group.settings')}
+            items={filterSettingsByQuery(navSettings, settingsQuery).map((item) => {
               // While searching: every filtered item gets a short hint
               // showing the matched control / feature. ("filler words"
               // → Text Output, hint "Smart rewrite".) The hint replaces
@@ -352,7 +172,7 @@ export function MainShell() {
             })}
             emptyMessage={
               settingsQuery.trim().length > 0
-                ? `No settings match "${settingsQuery.trim()}"`
+                ? t('nav.search.no_match', { query: settingsQuery.trim() })
                 : undefined
             }
           />
@@ -586,13 +406,22 @@ function NavGroup({
  */
 const SettingsSearchInput = forwardRef<
   HTMLInputElement,
-  { value: string; onChange: (next: string) => void }
->(function SettingsSearchInput({ value, onChange }, ref) {
+  {
+    value: string;
+    onChange: (next: string) => void;
+    /** Translated placeholder + sr-only label. Same string for both
+     *  surfaces so the screen-reader announcement matches the visual
+     *  hint a sighted user sees. */
+    placeholder: string;
+    /** Translated aria-label for the clear button. */
+    clearLabel: string;
+  }
+>(function SettingsSearchInput({ value, onChange, placeholder, clearLabel }, ref) {
   const hasValue = value.length > 0;
   return (
     <div className="px-3 pb-2 pt-1">
       <label className="relative block">
-        <span className="sr-only">Search settings</span>
+        <span className="sr-only">{placeholder}</span>
         <Search
           aria-hidden
           className="pointer-events-none absolute left-2 top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-muted"
@@ -608,7 +437,7 @@ const SettingsSearchInput = forwardRef<
               onChange('');
             }
           }}
-          placeholder="Search settings"
+          placeholder={placeholder}
           spellCheck={false}
           autoComplete="off"
           className={cn(
@@ -622,7 +451,7 @@ const SettingsSearchInput = forwardRef<
           <button
             type="button"
             onClick={() => onChange('')}
-            aria-label="Clear search"
+            aria-label={clearLabel}
             className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-muted transition-colors hover:text-fg-hi"
           >
             <X className="h-[12px] w-[12px]" />
