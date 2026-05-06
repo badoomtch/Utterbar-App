@@ -16,7 +16,7 @@ return [
     // table is populated for both channels and a missed-DB fallback to
     // the most recent ship is closer to reality than the most recent
     // stable.
-    'version'  => '0.14.1',
+    'version'  => '0.18.4',
 
     'email' => [
         // 2026-04-27: outbound email moved off utterbar.com to the studio

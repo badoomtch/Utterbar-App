@@ -1,7 +1,7 @@
 <x-layouts.app title="Privacy policy" description="Utterbar's formal privacy policy: what the website stores, what the desktop app does not collect, and your UK GDPR rights.">
     <x-section eyebrow="Legal" title="Privacy policy">
         <article class="max-w-3xl space-y-5 leading-relaxed" style="color: var(--fg);">
-            <p class="font-mono text-sm" style="color: var(--muted);">Last updated: 3 May 2026</p>
+            <p class="font-mono text-sm" style="color: var(--muted);">Last updated: 6 May 2026</p>
 
             <p style="color: var(--muted);">
                 For the short, plain-English summary of how the desktop app handles your voice, see <a href="{{ route('privacy') }}" style="color: var(--accent);">the privacy overview</a>. This page is the formal policy.
@@ -20,6 +20,7 @@
                 <li><strong>Licence verification.</strong> If you buy Pro, the app contacts our API to activate your licence on the device. We store the activation (see &sect;4).</li>
                 <li><strong>Update check.</strong> If the &ldquo;Check for updates automatically&rdquo; setting is on (you choose during onboarding), the app sends one HTTP request per launch containing only your current version number, asking whether a newer build is available. You can turn it off any time in Settings &gt; Updates.</li>
                 <li><strong>Update download.</strong> If you accept an update, the new installer is fetched from <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">dl.utterbar.com</code>; this download is logged on our side as described in &sect;5.</li>
+                <li><strong>Pricing lookup.</strong> The Free settings page shows the current Pro price by fetching it from <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">utterbar.com/api/pricing</code>. The request carries no identifiers; it returns the current GBP price the website is showing on the pricing page so the in-app upgrade prompt cannot drift from the published price.</li>
             </ul>
             <p>Two B2B deployment paths do not add new outbound calls. Managed <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">licence.bin</code> deployments do not phone home: the signed file is dropped on the machine by your IT administrator and read locally on startup. Air-gapped activation is designed so the offline machine never makes an activation call: the activation request file is hand-carried to your administrator, who uploads it on our side, and the resulting <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">licence.bin</code> is hand-carried back.</p>
 
