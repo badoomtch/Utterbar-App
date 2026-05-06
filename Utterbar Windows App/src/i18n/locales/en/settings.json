@@ -1,0 +1,8 @@
+{
+  "general": {
+    "app_language": {
+      "label": "App language",
+      "description": "Interface language. Dictation language is set separately in Models."
+    }
+  }
+}
