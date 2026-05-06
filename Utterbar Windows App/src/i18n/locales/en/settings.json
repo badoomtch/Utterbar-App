@@ -1,8 +1,89 @@
 {
   "general": {
+    "title": "General",
+    "startup": {
+      "title": "Startup",
+      "launch_on_login": {
+        "label": "Launch on login",
+        "description": "Start Utterbar automatically when you sign in to Windows, so the floating bar is always there without opening it manually."
+      },
+      "start_minimised": {
+        "label": "Start minimised",
+        "description": "When on, Utterbar launches straight to the tray and the floating bar, no main window until you ask for it. When off, the Dashboard opens on launch so you see your stats immediately."
+      },
+      "close_to_tray": {
+        "label": "Close to tray",
+        "description": "Pressing the X on any window hides it to the tray instead of quitting."
+      }
+    },
+    "appearance": {
+      "title": "Appearance",
+      "theme": {
+        "label": "Theme",
+        "description": "Background palette for the main window and onboarding.",
+        "options": {
+          "obsidian": "Obsidian",
+          "graphite": "Graphite",
+          "paper": "Paper"
+        }
+      },
+      "accent": {
+        "label": "Accent",
+        "description": "The colour used for the recording button, the pill glyph, highlights, and the floating bar's waveform."
+      },
+      "custom_accent": {
+        "title_pro": "Pick any colour (Pro)",
+        "title_free": "Custom accent is a Pro feature",
+        "aria": "Custom accent colour"
+      }
+    },
     "app_language": {
       "label": "App language",
       "description": "Interface language. Dictation language is set separately in Models."
+    },
+    "feedback": {
+      "title": "Feedback",
+      "sound_cues": {
+        "label": "Sound cues",
+        "description": "Play a short synthesised tone when recording starts, stops, succeeds, or errors. The tones are generated in-app via WebAudio so there are no sample files, low-volume by default."
+      },
+      "sound_profile": {
+        "label": "Sound profile",
+        "description": "Which family of cue tones to use. Click a profile to hear its success cue.",
+        "options": {
+          "default": {
+            "label": "Default",
+            "description": "Warm triangle tones on a musical fifth — the soft, satisfying default."
+          },
+          "classic": {
+            "label": "Tactile",
+            "description": "Crisp mechanical clicks on start / stop, a soft bell on success."
+          },
+          "subtle": {
+            "label": "Subtle",
+            "description": "Quiet single-tone blips — minimal, no melody."
+          },
+          "chime": {
+            "label": "Chime",
+            "description": "Warm triangle-wave thirds with longer decay."
+          }
+        }
+      },
+      "notifications": {
+        "label": "System notifications",
+        "description": "Raise a Windows toast when something actually needs your attention, dictation errors, model-install failures, successful model installs."
+      }
+    },
+    "upgrade": {
+      "custom_accent": {
+        "feature": "Custom accent colours",
+        "description": "Pick any colour for the accent family, the recording button, the floating bar's waveform, the pill glyph, and every highlight. The six presets are free; bring-your-own is part of Pro.",
+        "bullets": {
+          "any_hex": "Pick any hex colour from the native Windows colour picker",
+          "auto_tint_shade": "Auto-derived tint and shade so gradients still have depth",
+          "presets_free": "All six preset accents stay free for everyone"
+        }
+      }
     }
   }
 }

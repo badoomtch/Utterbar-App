@@ -58,12 +58,12 @@ export function GeneralSettings() {
 
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
-      <PageHeader title="General" />
+      <PageHeader title={tSettings('general.title')} />
       <div className="mt-6 space-y-4">
-        <Card title="Startup">
+        <Card title={tSettings('general.startup.title')}>
           <Row
-            label="Launch on login"
-            description="Start Utterbar automatically when you sign in to Windows, so the floating bar is always there without opening it manually."
+            label={tSettings('general.startup.launch_on_login.label')}
+            description={tSettings('general.startup.launch_on_login.description')}
           >
             <Toggle
               checked={Boolean(g.launch_on_login)}
@@ -71,8 +71,8 @@ export function GeneralSettings() {
             />
           </Row>
           <Row
-            label="Start minimised"
-            description="When on, Utterbar launches straight to the tray and the floating bar, no main window until you ask for it. When off, the Dashboard opens on launch so you see your stats immediately."
+            label={tSettings('general.startup.start_minimised.label')}
+            description={tSettings('general.startup.start_minimised.description')}
           >
             <Toggle
               checked={Boolean(g.start_minimised)}
@@ -80,8 +80,8 @@ export function GeneralSettings() {
             />
           </Row>
           <Row
-            label="Close to tray"
-            description="Pressing the X on any window hides it to the tray instead of quitting."
+            label={tSettings('general.startup.close_to_tray.label')}
+            description={tSettings('general.startup.close_to_tray.description')}
           >
             <Toggle
               checked={Boolean(g.close_to_tray)}
@@ -90,26 +90,29 @@ export function GeneralSettings() {
           </Row>
         </Card>
 
-        <Card title="Appearance">
-          <Row label="Theme" description="Background palette for the main window and onboarding.">
+        <Card title={tSettings('general.appearance.title')}>
+          <Row
+            label={tSettings('general.appearance.theme.label')}
+            description={tSettings('general.appearance.theme.description')}
+          >
             <div className="flex gap-2">
-              {THEMES.map((t) => (
+              {THEMES.map((themeId) => (
                 <button
-                  key={t}
-                  onClick={() => void update('theme', t)}
+                  key={themeId}
+                  onClick={() => void update('theme', themeId)}
                   className={cn(
-                    'ub-chip capitalize',
-                    s.general.theme === t && 'ub-chip--active',
+                    'ub-chip',
+                    s.general.theme === themeId && 'ub-chip--active',
                   )}
                 >
-                  {t}
+                  {tSettings(`general.appearance.theme.options.${themeId}` as const)}
                 </button>
               ))}
             </div>
           </Row>
           <Row
-            label="Accent"
-            description="The colour used for the recording button, the pill glyph, highlights, and the floating bar's waveform."
+            label={tSettings('general.appearance.accent.label')}
+            description={tSettings('general.appearance.accent.description')}
           >
             <div className="flex items-center gap-2">
               {ACCENTS.map((a) => (
@@ -125,6 +128,11 @@ export function GeneralSettings() {
                       ? 'ring-2 ring-fg-hi ring-offset-2 ring-offset-bg-1'
                       : 'opacity-70 hover:opacity-100',
                   )}
+                  // Accent palette identifiers (`teal`, `amber`, ...) are
+                  // design-system tokens, not user prose. Tooltip + aria
+                  // surface the token name as-is so the active swatch is
+                  // identifiable to assistive tech without each colour
+                  // needing per-locale copy.
                   title={a}
                   aria-label={a}
                 />
@@ -147,10 +155,10 @@ export function GeneralSettings() {
                 }}
                 title={
                   pro
-                    ? 'Pick any colour (Pro)'
-                    : 'Custom accent is a Pro feature'
+                    ? tSettings('general.appearance.custom_accent.title_pro')
+                    : tSettings('general.appearance.custom_accent.title_free')
                 }
-                aria-label="Custom accent colour"
+                aria-label={tSettings('general.appearance.custom_accent.aria')}
                 className={cn(
                   'relative flex h-6 w-6 items-center justify-center rounded-full transition-shadow duration-180',
                   s.general.accent === 'custom'
@@ -197,12 +205,12 @@ export function GeneralSettings() {
         <UpgradeModal
           open={showAccentUpgrade}
           onClose={() => setShowAccentUpgrade(false)}
-          feature="Custom accent colours"
-          description="Pick any colour for the accent family, the recording button, the floating bar's waveform, the pill glyph, and every highlight. The six presets are free; bring-your-own is part of Pro."
+          feature={tSettings('general.upgrade.custom_accent.feature')}
+          description={tSettings('general.upgrade.custom_accent.description')}
           bullets={[
-            'Pick any hex colour from the native Windows colour picker',
-            'Auto-derived tint and shade so gradients still have depth',
-            'All six preset accents stay free for everyone',
+            tSettings('general.upgrade.custom_accent.bullets.any_hex'),
+            tSettings('general.upgrade.custom_accent.bullets.auto_tint_shade'),
+            tSettings('general.upgrade.custom_accent.bullets.presets_free'),
           ]}
         />
 
@@ -228,10 +236,10 @@ export function GeneralSettings() {
           </Row>
         </Card>
 
-        <Card title="Feedback">
+        <Card title={tSettings('general.feedback.title')}>
           <Row
-            label="Sound cues"
-            description="Play a short synthesised tone when recording starts, stops, succeeds, or errors. The tones are generated in-app via WebAudio so there are no sample files, low-volume by default."
+            label={tSettings('general.feedback.sound_cues.label')}
+            description={tSettings('general.feedback.sound_cues.description')}
           >
             <Toggle
               checked={Boolean(g.sound_cues_enabled)}
@@ -240,13 +248,19 @@ export function GeneralSettings() {
           </Row>
           {Boolean(g.sound_cues_enabled) && (
             <Row
-              label="Sound profile"
-              description="Which family of cue tones to use. Click a profile to hear its success cue."
+              label={tSettings('general.feedback.sound_profile.label')}
+              description={tSettings('general.feedback.sound_profile.description')}
             >
               <div className="flex flex-wrap items-center gap-2">
                 {SOUND_PROFILES.map((p) => {
                   const current =
                     ((g.sound_profile as SoundProfileId | undefined) ?? 'default') === p.id;
+                  // Profile id (`default`/`classic`/`subtle`/`chime`) is the
+                  // structural identifier from sounds.ts; user-facing copy
+                  // (label + description) lives in settings.json so each
+                  // profile gets one row in `feedback.sound_profile.options`.
+                  const labelKey = `general.feedback.sound_profile.options.${p.id}.label` as const;
+                  const descriptionKey = `general.feedback.sound_profile.options.${p.id}.description` as const;
                   return (
                     <button
                       key={p.id}
@@ -254,10 +268,10 @@ export function GeneralSettings() {
                         void update('sound_profile', p.id);
                         previewProfile(p.id);
                       }}
-                      title={p.description}
+                      title={tSettings(descriptionKey)}
                       className={cn('ub-chip', current && 'ub-chip--active')}
                     >
-                      {p.label}
+                      {tSettings(labelKey)}
                     </button>
                   );
                 })}
@@ -265,8 +279,8 @@ export function GeneralSettings() {
             </Row>
           )}
           <Row
-            label="System notifications"
-            description="Raise a Windows toast when something actually needs your attention, dictation errors, model-install failures, successful model installs."
+            label={tSettings('general.feedback.notifications.label')}
+            description={tSettings('general.feedback.notifications.description')}
           >
             <Toggle
               checked={Boolean(g.notifications_enabled)}
