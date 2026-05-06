@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { Kbd } from '@/components/common/Kbd';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -30,6 +31,7 @@ type Conflict = {
 };
 
 export function ShortcutsSettings() {
+  const { t } = useTranslation('settings');
   const [slots, setSlots] = useState<Slot[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [capturing, setCapturing] = useState<ShortcutIdEnum | null>(null);
@@ -96,19 +98,25 @@ export function ShortcutsSettings() {
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
-        title="Shortcuts"
-        subtitle="Global keybindings. Press any key combination in any app to trigger."
+        title={t('shortcuts.title')}
+        subtitle={t('shortcuts.subtitle')}
       />
       <Card className="mt-6">
         {slots.map((slot) => {
           const conflict = conflictFor(slot.id);
           const isCapturing = capturing === slot.id;
           return (
+            // slot.label and slot.description are emitted by the Rust
+            // `list_shortcuts` command and stay verbatim. Backend-owned
+            // prose is deferred to a future error/event-codes branch
+            // and not catalogued here.
             <Row key={slot.id} label={slot.label} description={slot.description}>
               <div className="flex items-center gap-2">
                 {conflict && (
                   <span
-                    title={`Conflicts with another binding on ${conflict.accelerator}`}
+                    title={t('shortcuts.conflict.tooltip', {
+                      accelerator: conflict.accelerator,
+                    })}
                     className="text-amber"
                   >
                     <AlertTriangle className="h-4 w-4" />
@@ -128,15 +136,15 @@ export function ShortcutsSettings() {
                   )}
                 >
                   {isCapturing
-                    ? 'Press keys…'
-                    : slot.current?.accelerator ?? 'Unbound'}
+                    ? t('shortcuts.capture.press_keys')
+                    : slot.current?.accelerator ?? t('shortcuts.capture.unbound')}
                 </button>
                 {slot.current && !isCapturing && (
                   <button
                     onClick={() => void clear(slot.id)}
                     className="text-[11px] text-fg-dim transition-colors hover:text-rose"
                   >
-                    Clear
+                    {t('shortcuts.buttons.clear')}
                   </button>
                 )}
               </div>
@@ -145,7 +153,7 @@ export function ShortcutsSettings() {
         })}
       </Card>
       <p className="mt-3 text-[11px] text-muted inline-flex items-center gap-1">
-        Tip: press <Kbd>Esc</Kbd> to cancel capture.
+        {t('shortcuts.tip.prefix')} <Kbd>Esc</Kbd> {t('shortcuts.tip.suffix')}
       </p>
     </div>
   );

@@ -513,6 +513,43 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('about.footer.copyright_prefix');
   });
 
+  it('resolves every Shortcuts settings key', () => {
+    // Pinned list of every settings.shortcuts.* key consumed by
+    // ShortcutsSettings.tsx. Backend-owned slot.label and
+    // slot.description still flow straight through from `list_shortcuts`
+    // and are deliberately NOT catalogued — those move in the future
+    // backend-prose / error-codes branch.
+    const keys = [
+      'shortcuts.title',
+      'shortcuts.subtitle',
+      'shortcuts.capture.press_keys',
+      'shortcuts.capture.unbound',
+      'shortcuts.buttons.clear',
+      'shortcuts.conflict.tooltip',
+      'shortcuts.tip.prefix',
+      'shortcuts.tip.suffix',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders shortcuts.conflict.tooltip with the accelerator interpolated', () => {
+    // The conflict-warning tooltip displays the colliding accelerator
+    // (which itself comes from the Rust `detect_conflicts` payload).
+    // Pin the `{{accelerator}}` substitution so a future copy edit can't
+    // drop the interpolation silently.
+    const out = i18n.t('shortcuts.conflict.tooltip', {
+      ns: 'settings',
+      accelerator: 'Ctrl+Alt+Space',
+    });
+    expect(out).toContain('Ctrl+Alt+Space');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('shortcuts.conflict.tooltip');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -548,6 +585,11 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.about).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.about.footer).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.about.third_party).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.shortcuts).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.shortcuts.capture).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.shortcuts.buttons).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.shortcuts.conflict).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.shortcuts.tip).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
