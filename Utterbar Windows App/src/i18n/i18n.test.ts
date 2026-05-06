@@ -475,6 +475,44 @@ describe('i18n English foundation', () => {
     }
   });
 
+  it('resolves every About settings key', () => {
+    // Pinned list of every settings.about.* key consumed by
+    // AboutSettings.tsx. Adding/renaming a key here without updating
+    // the catalogue (or vice versa) fails the test before users see a
+    // missing-key fallback at runtime.
+    const keys = [
+      'about.title',
+      'about.tagline',
+      'about.version_pending',
+      'about.footer.copyright_prefix',
+      'about.footer.attribution_link',
+      'about.footer.location_suffix',
+      'about.footer.website_link',
+      'about.third_party.title',
+      'about.third_party.description',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders about.footer.copyright_prefix with the year interpolated', () => {
+    // The footer attribution mirrors the website footer's wording. Pin
+    // the `{{year}}` substitution so a future copy edit can't drop the
+    // interpolation silently and leave a literal mustache template
+    // visible to users.
+    const out = i18n.t('about.footer.copyright_prefix', {
+      ns: 'settings',
+      year: 2026,
+    });
+    expect(out).toContain('2026');
+    expect(out).toContain('Utterbar');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('about.footer.copyright_prefix');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -507,6 +545,9 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.bar_settings.visibility).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.bar_settings.appearance).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.bar_settings.position).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.about).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.about.footer).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.about.third_party).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);

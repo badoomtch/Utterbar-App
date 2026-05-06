@@ -356,5 +356,20 @@
         "button": "Reset position"
       }
     }
+  },
+  "about": {
+    "title": "About",
+    "tagline": "Local-only dictation for Windows. All audio and text processing is performed on this machine. No cloud services are contacted for transcription or post-processing.",
+    "version_pending": "v…",
+    "footer": {
+      "copyright_prefix": "© {{year}} Utterbar · Built by",
+      "attribution_link": "Ddraig Dev",
+      "location_suffix": "· Built in Wales",
+      "website_link": "utterbar.com"
+    },
+    "third_party": {
+      "title": "Third-party licences",
+      "description": "Open-source libraries and models bundled with Utterbar."
+    }
   }
 }

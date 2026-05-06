@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { getVersion } from '@tauri-apps/api/app';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/common/Card';
@@ -10,6 +11,7 @@ import { UtterbarWordmark } from '@/components/bar/UtterbarWordmark';
 import { THIRD_PARTY_LICENCES_MD } from '@/data/thirdPartyLicences';
 
 export function AboutSettings() {
+  const { t } = useTranslation('settings');
   const [version, setVersion] = useState<string>('');
   useEffect(() => {
     getVersion()
@@ -19,43 +21,45 @@ export function AboutSettings() {
 
   return (
     <div className="mx-auto max-w-2xl p-8">
-      <PageHeader title="About" />
+      <PageHeader title={t('about.title')} />
       <Card className="mt-6">
         <div className="flex items-center gap-4">
           <UtterbarLogoMark size={56} />
           <div>
             <UtterbarWordmark size={32} />
             <div className="mt-1 font-mono text-[11px] text-fg-dim">
-              {version ? `v${version}` : 'v…'}
+              {version ? `v${version}` : t('about.version_pending')}
             </div>
           </div>
         </div>
         <div className="mt-5 text-[13px] leading-relaxed text-muted max-w-[58ch]">
-          Local-only dictation for Windows. All audio and text processing is performed on this
-          machine. No cloud services are contacted for transcription or post-processing.
+          {t('about.tagline')}
         </div>
 
         <div className="mt-6 flex items-center justify-between border-t border-border-soft/50 pt-4">
-          {/* Matches the website footer's wording exactly:
+          {/* Footer attribution mirrors the website footer's wording exactly:
               "© {year} Utterbar · Built by Ddraig Dev · Built in Wales".
               Single source of truth so the app and the marketing site
-              never drift apart on attribution. */}
+              never drift apart on attribution. The line is split into a
+              prefix (with year interpolation), the link's button label,
+              and a suffix so the inline button keeps the same surrounding
+              text without resorting to a Trans component. */}
           <div className="text-[13px] text-muted">
-            © {new Date().getFullYear()} Utterbar · Built by{' '}
+            {t('about.footer.copyright_prefix', { year: new Date().getFullYear() })}{' '}
             <button
               onClick={() => void openShell('https://ddraig.dev').catch(() => undefined)}
               className="group inline-flex items-center gap-1 text-fg-hi hover:text-accent"
             >
-              Ddraig Dev
+              {t('about.footer.attribution_link')}
               <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
             </button>{' '}
-            · Built in Wales
+            {t('about.footer.location_suffix')}
           </div>
           <button
             onClick={() => void openShell('https://utterbar.com').catch(() => undefined)}
             className="font-mono text-[11px] text-fg-dim transition-colors hover:text-accent"
           >
-            utterbar.com
+            {t('about.footer.website_link')}
           </button>
         </div>
       </Card>
@@ -80,6 +84,7 @@ export function AboutSettings() {
  *   - mono font is appropriate for licence text
  */
 function ThirdPartyLicencesCard() {
+  const { t } = useTranslation('settings');
   const [expanded, setExpanded] = useState(false);
   return (
     <Card className="mt-4">
@@ -89,9 +94,9 @@ function ThirdPartyLicencesCard() {
         className="flex w-full items-center justify-between gap-3 text-left"
       >
         <div>
-          <div className="text-sm font-medium text-fg">Third-party licences</div>
+          <div className="text-sm font-medium text-fg">{t('about.third_party.title')}</div>
           <div className="mt-1 text-[12px] text-muted">
-            Open-source libraries and models bundled with Utterbar.
+            {t('about.third_party.description')}
           </div>
         </div>
         {expanded ? (
