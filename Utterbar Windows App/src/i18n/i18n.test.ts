@@ -392,6 +392,55 @@ describe('i18n English foundation', () => {
     }
   });
 
+  it('resolves every Accessibility settings key', () => {
+    // Pinned list of every settings.accessibility.* key consumed by
+    // AccessibilitySettings.tsx. Adding/renaming a key here without
+    // updating the catalogue (or vice versa) fails the test before
+    // users see a missing-key fallback at runtime.
+    const keys = [
+      'accessibility.title',
+      'accessibility.subtitle',
+      'accessibility.ui_scale.title',
+      'accessibility.ui_scale.description',
+      'accessibility.ui_scale.scale.label',
+      'accessibility.ui_scale.scale.description',
+      'accessibility.ui_scale.fine_tune.label',
+      'accessibility.ui_scale.value',
+      'accessibility.motion.title',
+      'accessibility.motion.description',
+      'accessibility.motion.reduce_motion.label',
+      'accessibility.motion.reduce_motion.description',
+      'accessibility.contrast.title',
+      'accessibility.contrast.description',
+      'accessibility.contrast.high_contrast.label',
+      'accessibility.contrast.high_contrast.description',
+      'accessibility.contrast.larger_focus_rings.label',
+      'accessibility.contrast.larger_focus_rings.description',
+      'accessibility.transparency.title',
+      'accessibility.transparency.description',
+      'accessibility.transparency.reduce_transparency.label',
+      'accessibility.transparency.reduce_transparency.description',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders accessibility.ui_scale.value with the percentage interpolated', () => {
+    // The chip presets and the slider readout share this template via
+    // `t('accessibility.ui_scale.value', { value })`. Pin both halves so a
+    // future regression that drops the `{{value}}` substitution fails.
+    const out = i18n.t('accessibility.ui_scale.value', {
+      ns: 'settings',
+      value: 125,
+    });
+    expect(out).toContain('125');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('accessibility.ui_scale.value');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -415,6 +464,11 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.text_output).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.text_output.delivery).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.text_output.formatting).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.accessibility).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.accessibility.ui_scale).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.accessibility.motion).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.accessibility.contrast).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.accessibility.transparency).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
