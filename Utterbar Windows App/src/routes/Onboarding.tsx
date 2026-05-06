@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
+import { useTranslation } from 'react-i18next';
 
 import { UtterbarLogoMark } from '@/components/bar/UtterbarLogoMark';
 import { UtterbarMiniMark } from '@/components/bar/UtterbarMiniMark';
@@ -39,25 +40,31 @@ import { cn } from '@/lib/cn';
 // (theme) to warm the user up before any technical commitment. Then the functional
 // chain, install model → mic → typing baseline → trigger style → shortcut, flows
 // uninterrupted into the payoff (ready).
-const ALL_STEPS = [
-  { id: 'welcome', title: 'Welcome to Utterbar' },
-  { id: 'privacy', title: 'Everything local, always' },
+//
+// Step ids are stable structural identifiers consumed by `StepContent` and the
+// progress-pip render. Visible per-step copy lives in
+// `src/i18n/locales/en/onboarding.json` under `step_titles.<id>` and the
+// step-specific sub-trees, resolved via `useTranslation('onboarding')` inside
+// the matching component. The id strings here MUST NOT be renamed.
+const ALL_STEPS: ReadonlyArray<{ id: string }> = [
+  { id: 'welcome' },
+  { id: 'privacy' },
   // Update-check consent sits immediately after the privacy step because it's
   // the one network call Utterbar makes by default. We surface the choice
   // explicitly here rather than burying it in Settings, the local-only
   // ethos means the user should know there's a single, opt-out outbound
   // request and decide for themselves whether to keep it on.
-  { id: 'updates', title: 'Update checks' },
-  { id: 'theme', title: 'Pick a theme' },
-  { id: 'model', title: 'Choose your ASR model' },
+  { id: 'updates' },
+  { id: 'theme' },
+  { id: 'model' },
   // `gpu` is conditionally included, only shown when a hardware GPU is detected.
-  { id: 'gpu', title: 'Use your GPU?' },
-  { id: 'mic', title: 'Pick and test your microphone' },
-  { id: 'baseline', title: 'Your typing speed' },
-  { id: 'trigger', title: 'How would you like to trigger recording?' },
-  { id: 'shortcut', title: 'Bind a recording shortcut' },
-  { id: 'bar', title: 'Where Utterbar lives' },
-  { id: 'ready', title: 'Ready to dictate' },
+  { id: 'gpu' },
+  { id: 'mic' },
+  { id: 'baseline' },
+  { id: 'trigger' },
+  { id: 'shortcut' },
+  { id: 'bar' },
+  { id: 'ready' },
 ];
 
 type GpuProbeResult = {
@@ -66,6 +73,7 @@ type GpuProbeResult = {
 };
 
 export function Onboarding() {
+  const { t } = useTranslation('onboarding');
   const [idx, setIdx] = useState(0);
   const [gpu, setGpu] = useState<GpuProbeResult | null>(null);
 
@@ -149,7 +157,7 @@ export function Onboarding() {
             disabled={idx === 0}
             className="text-[13px] text-muted transition-colors hover:text-fg-hi disabled:opacity-30 disabled:hover:text-muted"
           >
-            Back
+            {t('common.back')}
           </button>
           <CreditLine />
         </div>
@@ -162,17 +170,19 @@ export function Onboarding() {
               disabled={!canAdvance}
               className="!py-[0.45rem]"
             >
-              Continue <ArrowRight className="h-3.5 w-3.5" />
+              {t('common.continue')} <ArrowRight className="h-3.5 w-3.5" />
             </Button>
             {step.id === 'model' && !hasModelChoice && (
               <span className="text-[10px] text-muted">
-                Install a model or pick <span className="text-fg-hi">Skip for now</span> to continue.
+                {t('model.advance_hint_prefix')}{' '}
+                <span className="text-fg-hi">{t('model.advance_hint_pick')}</span>{' '}
+                {t('model.advance_hint_suffix')}
               </span>
             )}
           </div>
         ) : (
           <Button variant="cta" size="sm" onClick={finish} className="!py-[0.45rem]">
-            Start dictating <Check className="h-3.5 w-3.5" />
+            {t('common.start_dictating')} <Check className="h-3.5 w-3.5" />
           </Button>
         )}
       </footer>
@@ -181,12 +191,14 @@ export function Onboarding() {
 }
 
 function CreditLine() {
+  const { t } = useTranslation('onboarding');
   return (
     <button
       onClick={() => void openShell('https://jayparry.me').catch(() => undefined)}
       className="group inline-flex items-center gap-1 text-[11px] text-muted transition-colors hover:text-fg-hi"
     >
-      App by <span className="text-fg-hi group-hover:text-accent">Jay Parry</span>
+      {t('common.credit')}{' '}
+      <span className="text-fg-hi group-hover:text-accent">{t('common.credit_author')}</span>
       <ExternalLink className="h-2.5 w-2.5 opacity-60 group-hover:opacity-100" />
     </button>
   );
@@ -203,6 +215,7 @@ function StepContent({
   onFinish: () => void;
   gpu: GpuProbeResult | null;
 }) {
+  const { t } = useTranslation('onboarding');
   switch (id) {
     case 'welcome':
       return <WelcomeStep />;
@@ -210,8 +223,8 @@ function StepContent({
       return (
         <Hero
           icon={<Lock className="h-9 w-9 text-accent" />}
-          title="Everything stays on your machine"
-          body="No cloud transcription. No cloud post-processing. No telemetry by default. Your recordings, transcripts, and preferences are stored only on this PC."
+          title={t('privacy.title')}
+          body={t('privacy.body')}
         />
       );
     case 'updates':
@@ -230,8 +243,8 @@ function StepContent({
       return (
         <Hero
           icon={<Keyboard className="h-9 w-9 text-accent" />}
-          title="Bind a recording shortcut"
-          body="You can bind a global shortcut from Settings → Shortcuts once onboarding finishes. Any key combo works in any app. Ctrl+Space is set by default."
+          title={t('shortcut.title')}
+          body={t('shortcut.body')}
         />
       );
     case 'theme':
@@ -245,6 +258,7 @@ function StepContent({
 }
 
 function WelcomeStep() {
+  const { t } = useTranslation('onboarding');
   // Big logo + wordmark on the page itself, no framed wrapper. First impression
   // of the brand, so we let it breathe against bg-0.
   return (
@@ -265,10 +279,11 @@ function WelcomeStep() {
         transition={{ delay: 0.35, duration: 0.4 }}
         className="mt-10"
       >
-        <h1 className="text-3xl font-bold tracking-[-0.02em] text-fg-hi">Welcome</h1>
+        <h1 className="text-3xl font-bold tracking-[-0.02em] text-fg-hi">
+          {t('welcome.heading')}
+        </h1>
         <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-muted">
-          A premium dictation app for Windows that runs entirely on your machine. We'll get
-          you set up in under two minutes.
+          {t('welcome.body')}
         </p>
       </motion.div>
     </div>
@@ -301,6 +316,7 @@ function Hero({ icon, title, body }: { icon: React.ReactNode; title: string; bod
  * the user backs out and revisits.
  */
 function UpdateConsentStep() {
+  const { t } = useTranslation('onboarding');
   const data = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const enabled = Boolean(
@@ -319,12 +335,12 @@ function UpdateConsentStep() {
           <Sparkles className="h-9 w-9 text-accent" />
         </div>
         <h1 className="mt-6 text-[26px] font-bold tracking-[-0.02em] text-fg-hi">
-          Update checks
+          {t('updates.title')}
         </h1>
         <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-muted">
-          Utterbar can occasionally ask <span className="text-fg-hi">utterbar.com</span> if a
-          newer version is out. This is the only outbound request the app makes by default.
-          It sends just your current version, no usage, no telemetry, no identifiers.
+          {t('updates.body_prefix')}{' '}
+          <span className="text-fg-hi">{t('updates.body_domain')}</span>{' '}
+          {t('updates.body_suffix')}
         </p>
       </div>
       <div className="mx-auto mt-6 flex max-w-md flex-col gap-2">
@@ -334,10 +350,9 @@ function UpdateConsentStep() {
           selected={enabled}
           onSelect={() => set(true)}
         >
-          <div className="text-[14px] font-medium text-fg-hi">Yes, check for updates</div>
+          <div className="text-[14px] font-medium text-fg-hi">{t('updates.options.on_label')}</div>
           <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
-            Get a small toast when a new version is available. You always click Install
-            yourself, nothing downloads or runs in the background.
+            {t('updates.options.on_description')}
           </div>
         </RadioTile>
         <RadioTile
@@ -346,10 +361,9 @@ function UpdateConsentStep() {
           selected={!enabled}
           onSelect={() => set(false)}
         >
-          <div className="text-[14px] font-medium text-fg-hi">No, fully offline</div>
+          <div className="text-[14px] font-medium text-fg-hi">{t('updates.options.off_label')}</div>
           <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
-            Utterbar will never reach the internet. You can still check manually any time
-            from Settings → General → "Check now".
+            {t('updates.options.off_description')}
           </div>
         </RadioTile>
       </div>
@@ -439,6 +453,7 @@ const EXTRACT_HINT_SECS: Record<string, number> = {
 };
 
 function ModelPickStep() {
+  const { t } = useTranslation('onboarding');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const [models, setModels] = useState<ModelCatEntry[]>([]);
@@ -490,7 +505,7 @@ function ModelPickStep() {
         return e.payload;
       });
       if (e.payload.phase === 'done') void reload();
-      if (e.payload.phase === 'error') setError('Download failed. Check your connection and try again.');
+      if (e.payload.phase === 'error') setError(t('model.download.error_generic'));
     });
     return () => void p.then((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -519,7 +534,7 @@ function ModelPickStep() {
       await invoke('install_model', { id: pick });
       if (s) await patch({ models: { ...s.models, default_asr_model_id: pick } });
     } catch (e) {
-      setError(formatInvokeError(e));
+      setError(formatInvokeError(e, t));
     }
   };
 
@@ -538,25 +553,34 @@ function ModelPickStep() {
     const elapsedExtractSecs = Math.max(0, Math.floor((nowTick - extractStartRef.current) / 1000));
     switch (progress.phase) {
       case 'starting':
-        return 'Connecting…';
+        return t('model.download.connecting');
       case 'downloading': {
         const rate = elapsedDownloadSecs > 0 ? progress.bytes_done / elapsedDownloadSecs : 0;
         const remaining = Math.max(0, progress.bytes_total - progress.bytes_done);
         const etaSecs = rate > 0 ? Math.ceil(remaining / rate) : null;
-        const rateLabel = rate > 0 ? `${formatSize(rate)}/s` : '—';
-        const etaLabel = etaSecs != null ? `${formatSecs(etaSecs)} left` : 'calculating…';
-        return `Downloading · ${rateLabel} · ${etaLabel}`;
+        const rateLabel =
+          rate > 0
+            ? t('model.download.rate_unit', { size: formatSize(rate) })
+            : t('model.download.rate_unknown');
+        const etaLabel =
+          etaSecs != null
+            ? t('model.download.eta_known', { secs: formatSecs(etaSecs) })
+            : t('model.download.eta_unknown');
+        return t('model.download.downloading', { rate: rateLabel, eta: etaLabel });
       }
       case 'verifying':
-        return 'Verifying checksum…';
+        return t('model.download.verifying');
       case 'extracting': {
         const typical = EXTRACT_HINT_SECS[progress.model_id] ?? 60;
-        return `Extracting · ${formatSecs(elapsedExtractSecs)} / ~${formatSecs(typical)}`;
+        return t('model.download.extracting', {
+          elapsed: formatSecs(elapsedExtractSecs),
+          typical: formatSecs(typical),
+        });
       }
       case 'done':
-        return 'Done.';
+        return t('model.download.done');
       case 'error':
-        return 'Error, see below.';
+        return t('model.download.error_summary');
     }
   })();
 
@@ -564,11 +588,11 @@ function ModelPickStep() {
     <div className="rounded-block bg-bg-1 p-6">
       <div className="flex items-center gap-2">
         <SlidersHorizontal className="h-5 w-5 text-accent" />
-        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">Choose your ASR model</h1>
+        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
+          {t('model.title')}
+        </h1>
       </div>
-      <p className="mt-2 text-[13px] leading-relaxed text-muted">
-        Models run entirely on this machine. Change it later in Settings → Models.
-      </p>
+      <p className="mt-2 text-[13px] leading-relaxed text-muted">{t('model.subtitle')}</p>
 
       {/* Multilingual nudge. Parakeet (recommended default) is English
           only. Users dictating in other languages should pick Whisper —
@@ -581,8 +605,8 @@ function ModelPickStep() {
           className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
         />
         <span>
-          <span className="text-fg-hi">Dictating in another language?</span>{' '}
-          Pick the Whisper model below, it covers around 99 languages on the free tier.
+          <span className="text-fg-hi">{t('model.multilingual_lead')}</span>{' '}
+          {t('model.multilingual_body')}
         </span>
       </div>
 
@@ -602,12 +626,19 @@ function ModelPickStep() {
                   {formatSize(m.size_bytes)}
                 </span>
                 {m.recommended && (
-                  <span className="ub-chip ub-chip--live">Recommended</span>
+                  <span className="ub-chip ub-chip--live">{t('model.chip.recommended')}</span>
                 )}
                 {m.installed && (
-                  <span className="ub-chip text-moss">Installed</span>
+                  <span className="ub-chip text-moss">{t('model.chip.installed')}</span>
                 )}
               </div>
+              {/*
+                `m.description` is Rust-emitted prose from `ModelInfo.description`
+                in `src-tauri/src/domain/model.rs`. Localising backend-emitted
+                strings is deferred to a future error/event-codes branch — when
+                that lands, the Rust side will emit a stable code + args and
+                this paragraph will resolve through `t(...)` like the rest.
+              */}
               {m.description && (
                 <p className="mt-1 text-[12px] leading-snug text-muted">
                   {shortDescription(m.id, m.description)}
@@ -634,10 +665,8 @@ function ModelPickStep() {
             onSelect={() => setPick('stub')}
             disabled={Boolean(isInstalling)}
           >
-            <div className="font-medium text-fg-hi">Skip for now</div>
-            <p className="mt-1 text-[12px] leading-snug text-muted">
-              Placeholder transcriber. You can install a real model from Settings → Models later.
-            </p>
+            <div className="font-medium text-fg-hi">{t('model.stub.label')}</div>
+            <p className="mt-1 text-[12px] leading-snug text-muted">{t('model.stub.body')}</p>
           </RadioTile>
         </li>
       </ul>
@@ -651,12 +680,12 @@ function ModelPickStep() {
             disabled={!pick || Boolean(isInstalling) || (isInstalled && pick !== 'stub')}
           >
             {isInstalled && pick !== 'stub'
-              ? 'Installed'
+              ? t('model.button.installed')
               : pick === 'stub'
-                ? 'Use placeholder'
+                ? t('model.button.use_placeholder')
                 : isInstalling
-                  ? `${capitalise(progress!.phase)}…`
-                  : 'Download & install'}
+                  ? `${capitalise(progress!.phase)}${t('model.button.phase_suffix')}`
+                  : t('model.button.download_install')}
           </Button>
 
           {isInstalling && (
@@ -708,6 +737,7 @@ type InputDevice = {
 
 /** Single step combining mic selection, live meter, and a real record+transcribe test. */
 function MicAndTestStep() {
+  const { t } = useTranslation('onboarding');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const [devices, setDevices] = useState<InputDevice[]>([]);
@@ -770,7 +800,7 @@ function MicAndTestStep() {
       setElapsed(0);
       setPhase('recording');
     } catch (e) {
-      setError(formatInvokeError(e));
+      setError(formatInvokeError(e, t));
       setPhase('error');
     }
   };
@@ -782,16 +812,16 @@ function MicAndTestStep() {
       setResult(entry.processed_text || entry.raw_text || '(empty)');
       setPhase('done');
     } catch (e) {
-      setError(formatInvokeError(e));
+      setError(formatInvokeError(e, t));
       setPhase('error');
     }
   };
 
   const deviceOptions = [
-    { value: '', label: 'System default' },
+    { value: '', label: t('mic.device.system_default') },
     ...devices.map((d) => ({
       value: d.id,
-      label: d.name + (d.is_default ? ' · default' : ''),
+      label: d.name + (d.is_default ? t('mic.device.default_suffix') : ''),
     })),
   ];
 
@@ -799,13 +829,9 @@ function MicAndTestStep() {
     <div className="rounded-block bg-bg-1 p-8">
       <div className="flex items-center gap-2">
         <Mic className="h-5 w-5 text-accent" />
-        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
-          Pick and test your microphone
-        </h1>
+        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">{t('mic.title')}</h1>
       </div>
-      <p className="mt-3 text-[14px] leading-relaxed text-muted">
-        Choose your input device, then record a short test to confirm it's working end-to-end.
-      </p>
+      <p className="mt-3 text-[14px] leading-relaxed text-muted">{t('mic.body')}</p>
 
       <div className="mt-5 space-y-4">
         <Select
@@ -834,10 +860,10 @@ function MicAndTestStep() {
                     : 'bg-bg-2 text-fg hover:text-fg-hi',
                 )}
               >
-                {metering ? 'Stop meter' : 'Live meter'}
+                {metering ? t('mic.button.stop_meter') : t('mic.button.live_meter')}
               </button>
               <Button variant="ghost" size="sm" noLed onClick={() => void startRecord()}>
-                <Mic className="h-3 w-3" /> Record test
+                <Mic className="h-3 w-3" /> {t('mic.button.record_test')}
               </Button>
             </>
           ) : phase === 'recording' ? (
@@ -852,18 +878,18 @@ function MicAndTestStep() {
                   .padStart(2, '0')}
               </span>
               <Button variant="danger" size="sm" onClick={() => void stopRecord()}>
-                <Square className="h-3 w-3" /> Stop
+                <Square className="h-3 w-3" /> {t('mic.button.stop')}
               </Button>
             </>
           ) : (
-            <span className="text-[12px] text-muted">Processing…</span>
+            <span className="text-[12px] text-muted">{t('mic.processing')}</span>
           )}
         </div>
 
         {phase === 'done' && result && (
           <div className="rounded-input bg-[color-mix(in_oklab,var(--accent)_8%,var(--bg-1))] p-3">
             <div className="ub-eyebrow flex items-center gap-1.5 text-accent">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Transcript
+              <CheckCircle2 className="h-3.5 w-3.5" /> {t('mic.transcript_label')}
             </div>
             <div className="mt-1.5 whitespace-pre-wrap text-[13px] text-fg">{result}</div>
           </div>
@@ -876,9 +902,7 @@ function MicAndTestStep() {
         )}
 
         {devices.length === 0 && (
-          <div className="text-[12px] text-muted">
-            No input devices detected. Plug in a microphone or check Windows privacy settings.
-          </div>
+          <div className="text-[12px] text-muted">{t('mic.no_devices')}</div>
         )}
       </div>
     </div>
@@ -918,21 +942,28 @@ const TYPING_TEST_SENTENCES = [
  * reads as an honest measurement.
  */
 function BaselineStep() {
+  const { t } = useTranslation('onboarding');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const current = s?.typing_baseline_wpm ?? 55;
 
   type Mode = 'choose' | 'measure' | 'manual' | 'skipped' | 'measured';
   const [mode, setMode] = useState<Mode>('choose');
-  const [sentence, setSentence] = useState<string>(TYPING_TEST_SENTENCES[0]);
+  // Localised sentence set, falls back to the constant pool if i18next
+  // hasn't returned an array (defensive: returnObjects can hand back a
+  // string literal during init or for an empty translation).
+  const localisedSentencesRaw = t('baseline.sentences', { returnObjects: true });
+  const localisedSentences = Array.isArray(localisedSentencesRaw)
+    ? (localisedSentencesRaw as readonly string[])
+    : TYPING_TEST_SENTENCES;
+  const [sentence, setSentence] = useState<string>(localisedSentences[0] ?? TYPING_TEST_SENTENCES[0]);
   const [typed, setTyped] = useState('');
   const [startAt, setStartAt] = useState<number | null>(null);
   const [measuredWpm, setMeasuredWpm] = useState<number | null>(null);
 
   const beginMeasure = () => {
-    const pick = TYPING_TEST_SENTENCES[
-      Math.floor(Math.random() * TYPING_TEST_SENTENCES.length)
-    ];
+    const pool = localisedSentences.length > 0 ? localisedSentences : TYPING_TEST_SENTENCES;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
     setSentence(pick);
     setTyped('');
     setStartAt(null);
@@ -988,29 +1019,26 @@ function BaselineStep() {
   return (
     <div className="rounded-block bg-bg-1 p-8">
       <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
-        Your typing speed baseline
+        {t('baseline.title')}
       </h1>
-      <p className="mt-3 text-[14px] leading-relaxed text-muted">
-        We use this to estimate how much time you save by dictating. You can take a quick
-        typing test, enter a number you already know, or skip for now and tune it later.
-      </p>
+      <p className="mt-3 text-[14px] leading-relaxed text-muted">{t('baseline.body')}</p>
 
       {mode === 'choose' && (
         <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <BaselineChoice
-            title="Take the test"
-            sub="~20 seconds · most accurate"
+            title={t('baseline.choices.test_title')}
+            sub={t('baseline.choices.test_sub')}
             onClick={beginMeasure}
             primary
           />
           <BaselineChoice
-            title="Enter manually"
-            sub="Type in your known WPM"
+            title={t('baseline.choices.manual_title')}
+            sub={t('baseline.choices.manual_sub')}
             onClick={() => setMode('manual')}
           />
           <BaselineChoice
-            title="Skip"
-            sub={`Use the default ${current} WPM`}
+            title={t('baseline.choices.skip_title')}
+            sub={t('baseline.choices.skip_sub', { wpm: current })}
             onClick={() => setMode('skipped')}
           />
         </div>
@@ -1028,21 +1056,23 @@ function BaselineStep() {
             autoFocus
             value={typed}
             onChange={onType}
-            placeholder="Start typing the sentence above…"
+            placeholder={t('baseline.measure.placeholder')}
             rows={3}
             className="w-full"
           />
           <div className="flex items-center justify-between text-[12px] text-muted">
             <span>
               {startAt === null
-                ? 'Timer starts on your first keystroke.'
-                : `${Math.floor((Date.now() - startAt) / 1000)}s elapsed…`}
+                ? t('baseline.measure.timer_idle')
+                : t('baseline.measure.timer_active', {
+                    secs: Math.floor((Date.now() - startAt) / 1000),
+                  })}
             </span>
             <button
               onClick={beginMeasure}
               className="text-accent underline-offset-2 hover:underline"
             >
-              New sentence
+              {t('baseline.measure.new_sentence')}
             </button>
           </div>
         </div>
@@ -1050,25 +1080,25 @@ function BaselineStep() {
 
       {mode === 'measured' && measuredWpm != null && (
         <div className="mt-6 rounded-input bg-[color-mix(in_oklab,var(--accent)_8%,var(--bg-1))] p-4">
-          <div className="ub-eyebrow text-accent">Result</div>
+          <div className="ub-eyebrow text-accent">{t('baseline.result.label')}</div>
           <div className="mt-1 text-[18px] text-fg-hi">
             <span className="font-mono text-[32px] tabular-nums font-semibold">
               {measuredWpm}
             </span>{' '}
-            words per minute
+            {t('baseline.result.wpm_unit')}
           </div>
           <div className="mt-3 flex items-center gap-3 text-[12px]">
             <button
               onClick={beginMeasure}
               className="rounded-full bg-bg-2 px-3 py-1.5 text-fg hover:text-fg-hi"
             >
-              Try again
+              {t('baseline.result.try_again')}
             </button>
             <button
               onClick={() => setMode('manual')}
               className="text-muted hover:text-fg-hi"
             >
-              Enter manually instead
+              {t('baseline.result.manual_instead')}
             </button>
           </div>
         </div>
@@ -1086,7 +1116,7 @@ function BaselineStep() {
               className="flex-1"
             />
             <span className="w-20 text-right font-mono text-[16px] tabular-nums text-fg-hi">
-              {current} wpm
+              {current} {t('baseline.manual.wpm_suffix')}
             </span>
           </div>
           <div className="mt-3 flex items-center gap-3 text-[12px]">
@@ -1094,7 +1124,7 @@ function BaselineStep() {
               onClick={beginMeasure}
               className="text-accent underline-offset-2 hover:underline"
             >
-              Take the test instead
+              {t('baseline.manual.test_instead')}
             </button>
           </div>
         </div>
@@ -1102,14 +1132,13 @@ function BaselineStep() {
 
       {mode === 'skipped' && (
         <div className="mt-6 rounded-input bg-bg-2/60 p-4 text-[13px] text-muted">
-          Using the default {current} WPM. You can fine-tune this later in
-          Settings → General → Typing baseline.
+          {t('baseline.skipped.body', { wpm: current })}
           <div className="mt-3 flex items-center gap-3 text-[12px]">
             <button
               onClick={beginMeasure}
               className="text-accent underline-offset-2 hover:underline"
             >
-              Change my mind, take the test
+              {t('baseline.skipped.change_mind')}
             </button>
           </div>
         </div>
@@ -1148,6 +1177,7 @@ function BaselineChoice({
 }
 
 function TriggerStep() {
+  const { t } = useTranslation('onboarding');
   const [pick, setPick] = useState<'toggle' | 'hold_to_talk' | 'push_to_talk'>('toggle');
   // Two natural patterns first (toggle, hold), then the dual-purpose
   // hybrid. The previous copy described toggle and push-to-talk almost
@@ -1156,29 +1186,27 @@ function TriggerStep() {
   const items = [
     {
       id: 'toggle',
-      label: 'Toggle',
-      desc: 'Press the key to start recording. Press it again to stop. Most apps work this way.',
+      label: t('trigger.options.toggle_label'),
+      desc: t('trigger.options.toggle_description'),
     },
     {
       id: 'hold_to_talk',
-      label: 'Hold to talk',
-      desc: 'Hold the key down while speaking. Release to stop. Walkie-talkie style, good for short bursts.',
+      label: t('trigger.options.hold_label'),
+      desc: t('trigger.options.hold_description'),
     },
     {
       id: 'push_to_talk',
-      label: 'Push to talk (hybrid)',
-      desc: 'Same key does both. A quick tap toggles; holding it acts like hold-to-talk. Pick this if you want one key to handle both styles.',
+      label: t('trigger.options.push_label'),
+      desc: t('trigger.options.push_description'),
     },
   ] as const;
 
   return (
     <div className="rounded-block bg-bg-1 p-8">
       <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
-        How would you like to trigger recording?
+        {t('trigger.title')}
       </h1>
-      <p className="mt-2 text-[13px] leading-relaxed text-muted">
-        You can change this any time in Settings &rarr; Shortcuts, and bind different styles to different keys.
-      </p>
+      <p className="mt-2 text-[13px] leading-relaxed text-muted">{t('trigger.subtitle')}</p>
       <ul className="mt-5 space-y-2">
         {items.map((it) => (
           <li key={it.id}>
@@ -1199,6 +1227,12 @@ function TriggerStep() {
 }
 
 function ThemeStep() {
+  const { t: tOnb } = useTranslation('onboarding');
+  // Theme option labels are sourced from the existing `settings:` namespace
+  // (`general.appearance.theme.options.*`) rather than duplicated in
+  // `onboarding.json`, so a future locale only has to translate the strings
+  // once. The id (`obsidian`/`graphite`/`paper`) is the structural key.
+  const { t: tSettings } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   if (!s) return null;
@@ -1207,17 +1241,19 @@ function ThemeStep() {
     <div className="rounded-block bg-bg-1 p-8">
       <div className="flex items-center gap-2">
         <Palette className="h-5 w-5 text-accent" />
-        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">Pick a theme</h1>
+        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
+          {tOnb('theme.title')}
+        </h1>
       </div>
       <div className="mt-5 grid grid-cols-3 gap-3">
-        {themes.map((t) => {
-          const selected = s.general.theme === t;
+        {themes.map((themeId) => {
+          const selected = s.general.theme === themeId;
           return (
             <button
-              key={t}
-              onClick={() => void patch({ general: { ...s.general, theme: t } })}
+              key={themeId}
+              onClick={() => void patch({ general: { ...s.general, theme: themeId } })}
               className={cn(
-                'relative rounded-input px-4 py-6 text-[13px] capitalize transition-colors',
+                'relative rounded-input px-4 py-6 text-[13px] transition-colors',
                 selected ? 'bg-bg-2 text-fg-hi' : 'bg-bg-2/40 text-fg hover:bg-bg-2/70',
               )}
             >
@@ -1228,7 +1264,7 @@ function ThemeStep() {
                 )}
                 aria-hidden
               />
-              {t}
+              {tSettings(`general.appearance.theme.options.${themeId}` as const)}
             </button>
           );
         })}
@@ -1245,6 +1281,7 @@ function ThemeStep() {
  * Settings → Advanced if they want.
  */
 function GpuStep({ gpu }: { gpu: GpuProbeResult | null }) {
+  const { t } = useTranslation('onboarding');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   if (!s) return null;
@@ -1258,18 +1295,18 @@ function GpuStep({ gpu }: { gpu: GpuProbeResult | null }) {
   const options = [
     {
       id: 'auto' as const,
-      title: 'Smart (recommended)',
-      desc: 'Use your GPU when it helps, fall back to CPU for short clips. No surprises.',
+      title: t('gpu.options.auto_title'),
+      desc: t('gpu.options.auto_description'),
     },
     {
       id: 'direct_ml' as const,
-      title: 'Always use GPU',
-      desc: 'Fastest transcription. May briefly slow games, 3D apps, or heavy browser tabs while you dictate.',
+      title: t('gpu.options.always_title'),
+      desc: t('gpu.options.always_description'),
     },
     {
       id: 'cpu' as const,
-      title: 'CPU only',
-      desc: 'Keep the GPU free for other apps. Transcription is still fast, just a bit slower per utterance.',
+      title: t('gpu.options.cpu_title'),
+      desc: t('gpu.options.cpu_description'),
     },
   ];
 
@@ -1277,16 +1314,19 @@ function GpuStep({ gpu }: { gpu: GpuProbeResult | null }) {
     <div className="rounded-block bg-bg-1 p-8">
       <div className="flex items-center gap-2">
         <Zap className="h-5 w-5 text-accent" />
-        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">Use your GPU?</h1>
+        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">{t('gpu.title')}</h1>
       </div>
       <p className="mt-3 text-[14px] leading-relaxed text-muted">
-        We detected{' '}
-        <span className="font-medium text-fg-hi">{adapter?.name ?? 'a graphics card'}</span>
+        {t('gpu.body_prefix')}{' '}
+        <span className="font-medium text-fg-hi">
+          {adapter?.name ?? t('gpu.body_unknown_adapter')}
+        </span>
         {adapter && adapter.dedicated_video_memory_mb > 0
-          ? ` with ${adapter.dedicated_video_memory_mb.toLocaleString()} MB of dedicated memory`
+          ? t('gpu.body_with_memory', {
+              memoryMb: adapter.dedicated_video_memory_mb.toLocaleString(),
+            })
           : ''}
-        . Running transcription on it is typically 3–10× faster than CPU. You can change this
-        later in Settings → Advanced.
+        {t('gpu.body_suffix')}
       </p>
 
       <ul className="mt-5 space-y-2">
@@ -1318,6 +1358,7 @@ function GpuStep({ gpu }: { gpu: GpuProbeResult | null }) {
  * bar preview exactly because the preview IS the bar replica.
  */
 function BarStep() {
+  const { t } = useTranslation('onboarding');
   const s = useSettings((x) => x.data);
   if (!s) return null;
 
@@ -1325,15 +1366,9 @@ function BarStep() {
     <div className="rounded-block bg-bg-1 p-8">
       <div className="flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-accent" />
-        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
-          Where Utterbar lives
-        </h1>
+        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">{t('bar.title')}</h1>
       </div>
-      <p className="mt-3 max-w-lg text-[13px] leading-relaxed text-muted">
-        A small bar will float near the top of your screen whenever Utterbar is running. It shows
-        a live waveform while you dictate and lets you start, stop, or cancel with a click. You
-        can drag it anywhere you like, and it'll remember the position.
-      </p>
+      <p className="mt-3 max-w-lg text-[13px] leading-relaxed text-muted">{t('bar.body')}</p>
 
       {/* Mock desktop, a soft-grey rectangle with a "taskbar" strip that sells
           the "at the top of your screen" framing without needing an actual
@@ -1358,23 +1393,25 @@ function BarStep() {
         </div>
 
         <div className="ub-eyebrow absolute inset-x-0 bottom-6 text-center text-muted/60">
-          your desktop
+          {t('bar.preview_label')}
         </div>
       </div>
 
-      <p className="mt-5 text-[13px] leading-relaxed text-muted">
-        Tip: grab the bar anywhere that isn't a button to drag it. Hover to see the record, stop,
-        history, and settings controls.
-      </p>
+      <p className="mt-5 text-[13px] leading-relaxed text-muted">{t('bar.tip')}</p>
     </div>
   );
 }
 
 function ReadyStep() {
+  const { t } = useTranslation('onboarding');
   const s = useSettings((x) => x.data);
   const shortcut = (
     s?.shortcuts as { toggle_recording?: { label?: string; trigger_style?: string } } | undefined
   )?.toggle_recording;
+  // `Ctrl+Space` is the keystroke notation, not user prose. Leave it
+  // verbatim — translating "Ctrl" / "Space" per locale would make the
+  // shortcut unrecognisable to users coming from any tutorial that
+  // shows the canonical English binding.
   const label = shortcut?.label || 'Ctrl+Space';
   const triggerStyle = shortcut?.trigger_style || 'toggle';
   const keys = label.split('+');
@@ -1435,23 +1472,28 @@ function ReadyStep() {
   // the app is doing, rather than guessing whether "listening" is real.
   const promptLine = (() => {
     if (isListening) {
-      if (triggerStyle === 'hold_to_talk') return 'Speak now, release to finish.';
-      if (triggerStyle === 'push_to_talk') return 'Speak now, press again to stop.';
-      return 'Speak now, press the shortcut again to stop.';
+      if (triggerStyle === 'hold_to_talk') return t('ready.prompt.listening_hold');
+      if (triggerStyle === 'push_to_talk') return t('ready.prompt.listening_push');
+      return t('ready.prompt.listening_toggle');
     }
-    if (isProcessing) return 'Processing your speech…';
-    if (phase.kind === 'success') return 'Done, your words are in the box.';
+    if (isProcessing) return t('ready.prompt.processing');
+    if (phase.kind === 'success') return t('ready.prompt.success');
     if (phase.kind === 'error') {
-      return `Something went wrong: ${phase.message}`;
+      // `phase.message` is Rust-emitted prose; same backend-prose deferral
+      // that applies elsewhere in this file. The leading "Something went
+      // wrong:" framing is frontend-owned and lives in onboarding.json.
+      return t('ready.prompt.error', { message: phase.message });
     }
-    return 'Press the shortcut, speak, and your words will land in the box below.';
+    return t('ready.prompt.idle');
   })();
 
   return (
     <div className="rounded-block bg-bg-1 p-8">
       <div className="flex items-center justify-center gap-2">
         <Sparkles className="h-5 w-5 text-accent" />
-        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">You're ready</h1>
+        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
+          {t('ready.heading')}
+        </h1>
       </div>
       <p
         className={cn(
@@ -1495,10 +1537,10 @@ function ReadyStep() {
             {isProcessing ? (
               <span className="flex items-center gap-2">
                 <span className="ub-led" />
-                Transcribing…
+                {t('ready.transcribing')}
               </span>
             ) : (
-              <span>Waiting for the shortcut, the waveform will come alive when you're speaking.</span>
+              <span>{t('ready.waveform_idle')}</span>
             )}
           </div>
         )}
@@ -1508,7 +1550,7 @@ function ReadyStep() {
         ref={textareaRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Your dictated text will appear here…"
+        placeholder={t('ready.textarea_placeholder')}
         rows={4}
         className="mt-3 w-full"
       />
@@ -1516,10 +1558,10 @@ function ReadyStep() {
       <div className="mt-3 text-center text-[11px]">
         {pressedOnce && !isListening && !isProcessing ? (
           <span className="inline-flex items-center gap-1.5 text-moss">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Shortcut detected, dictation is live.
+            <CheckCircle2 className="h-3.5 w-3.5" /> {t('ready.shortcut_detected')}
           </span>
         ) : (
-          <span className="text-muted">Or click Start dictating below when you're ready.</span>
+          <span className="text-muted">{t('ready.click_start_hint')}</span>
         )}
       </div>
 
@@ -1533,9 +1575,8 @@ function ReadyStep() {
       {/* Warm-up expectation-setting. Without this, the first dictation taking 4-6s
           reads as "the app is slow" when really it's just a one-time load cost. */}
       <div className="mt-4 rounded-input bg-bg-2 p-3 text-[11px] leading-relaxed text-muted">
-        <span className="font-medium text-fg-hi">Heads up:</span> the first dictation loads the
-        model and takes a few seconds. Subsequent ones while the model is warm feel near-instant.
-        Tune how long the model stays warm in Settings → Models.
+        <span className="font-medium text-fg-hi">{t('ready.warmup_lead')}</span>{' '}
+        {t('ready.warmup_body')}
       </div>
     </div>
   );
@@ -1553,6 +1594,7 @@ function ReadyStep() {
  * onboarding flow doesn't grow longer.
  */
 function NameVocabularyCard() {
+  const { t } = useTranslation('onboarding');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1580,8 +1622,13 @@ function NameVocabularyCard() {
       setSaved(true);
     } catch (e) {
       setSaving(false);
+      // Backend-emitted error message takes precedence (Rust prose; same
+      // backend-prose deferral noted elsewhere). Frontend fallback used
+      // when no message is attached.
       const msg = (e as { message?: string } | null)?.message;
-      setError(typeof msg === 'string' && msg ? msg : 'Could not save. Try again later.');
+      setError(
+        typeof msg === 'string' && msg ? msg : t('ready.vocab.save_error_generic'),
+      );
     }
   };
 
@@ -1589,17 +1636,14 @@ function NameVocabularyCard() {
     <div className="mt-4 rounded-input bg-bg-2 p-3 text-[12px] leading-relaxed">
       <div className="flex items-center gap-2 text-fg-hi">
         <Sparkles className="h-3.5 w-3.5 text-accent" />
-        <span className="text-[12px] font-medium">Want Utterbar to get your name right?</span>
+        <span className="text-[12px] font-medium">{t('ready.vocab.title')}</span>
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted">
-        Add it to vocabulary now and dictation will spell it correctly from the very first try.
-        You can add more words later from Settings → Vocabulary.
-      </p>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted">{t('ready.vocab.body')}</p>
       <div className="mt-2 flex items-center gap-2">
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Type your name…"
+          placeholder={t('ready.vocab.placeholder')}
           maxLength={40}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -1614,14 +1658,14 @@ function NameVocabularyCard() {
           onClick={() => void save()}
           disabled={saving || !name.trim()}
         >
-          {saving ? 'Saving…' : 'Add'}
+          {saving ? t('ready.vocab.saving') : t('ready.vocab.save')}
         </Button>
         <button
           type="button"
           onClick={() => setSkipped(true)}
           className="text-[11px] text-muted transition-colors hover:text-fg-hi"
         >
-          Skip
+          {t('ready.vocab.skip')}
         </button>
       </div>
       {error && (
@@ -1657,8 +1701,15 @@ function formatSecs(secs: number): string {
   return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
 }
 
-function formatInvokeError(e: unknown): string {
-  if (e == null) return 'Unknown error';
+// `t` is passed in from the caller so the "Unknown error" frontend
+// fallback resolves through the active locale. Rust-emitted `e.message`
+// values still pass through verbatim; localising backend prose is
+// deferred to a future error/event-codes branch, same as elsewhere.
+function formatInvokeError(
+  e: unknown,
+  t: (key: 'errors.unknown') => string,
+): string {
+  if (e == null) return t('errors.unknown');
   if (typeof e === 'string') return e;
   if (typeof e === 'object') {
     const obj = e as { message?: unknown };

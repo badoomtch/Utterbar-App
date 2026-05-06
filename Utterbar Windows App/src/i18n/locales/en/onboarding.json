@@ -1,0 +1,206 @@
+{
+  "common": {
+    "back": "Back",
+    "continue": "Continue",
+    "start_dictating": "Start dictating",
+    "credit": "App by",
+    "credit_author": "Jay Parry"
+  },
+  "step_titles": {
+    "welcome": "Welcome to Utterbar",
+    "privacy": "Everything local, always",
+    "updates": "Update checks",
+    "theme": "Pick a theme",
+    "model": "Choose your ASR model",
+    "gpu": "Use your GPU?",
+    "mic": "Pick and test your microphone",
+    "baseline": "Your typing speed",
+    "trigger": "How would you like to trigger recording?",
+    "shortcut": "Bind a recording shortcut",
+    "bar": "Where Utterbar lives",
+    "ready": "Ready to dictate"
+  },
+  "welcome": {
+    "heading": "Welcome",
+    "body": "A premium dictation app for Windows that runs entirely on your machine. We'll get you set up in under two minutes."
+  },
+  "privacy": {
+    "title": "Everything stays on your machine",
+    "body": "No cloud transcription. No cloud post-processing. No telemetry by default. Your recordings, transcripts, and preferences are stored only on this PC."
+  },
+  "updates": {
+    "title": "Update checks",
+    "body_prefix": "Utterbar can occasionally ask",
+    "body_domain": "utterbar.com",
+    "body_suffix": "if a newer version is out. This is the only outbound request the app makes by default. It sends just your current version, no usage, no telemetry, no identifiers.",
+    "options": {
+      "on_label": "Yes, check for updates",
+      "on_description": "Get a small toast when a new version is available. You always click Install yourself, nothing downloads or runs in the background.",
+      "off_label": "No, fully offline",
+      "off_description": "Utterbar will never reach the internet. You can still check manually any time from Settings → General → \"Check now\"."
+    }
+  },
+  "model": {
+    "title": "Choose your ASR model",
+    "subtitle": "Models run entirely on this machine. Change it later in Settings → Models.",
+    "multilingual_lead": "Dictating in another language?",
+    "multilingual_body": "Pick the Whisper model below, it covers around 99 languages on the free tier.",
+    "chip": {
+      "recommended": "Recommended",
+      "installed": "Installed"
+    },
+    "stub": {
+      "label": "Skip for now",
+      "body": "Placeholder transcriber. You can install a real model from Settings → Models later."
+    },
+    "button": {
+      "installed": "Installed",
+      "use_placeholder": "Use placeholder",
+      "download_install": "Download & install",
+      "phase_suffix": "…"
+    },
+    "advance_hint_prefix": "Install a model or pick",
+    "advance_hint_pick": "Skip for now",
+    "advance_hint_suffix": "to continue.",
+    "download": {
+      "connecting": "Connecting…",
+      "downloading": "Downloading · {{rate}} · {{eta}}",
+      "rate_unit": "{{size}}/s",
+      "rate_unknown": "—",
+      "eta_known": "{{secs}} left",
+      "eta_unknown": "calculating…",
+      "verifying": "Verifying checksum…",
+      "extracting": "Extracting · {{elapsed}} / ~{{typical}}",
+      "done": "Done.",
+      "error_summary": "Error, see below.",
+      "error_generic": "Download failed. Check your connection and try again."
+    }
+  },
+  "gpu": {
+    "title": "Use your GPU?",
+    "body_prefix": "We detected",
+    "body_unknown_adapter": "a graphics card",
+    "body_with_memory": " with {{memoryMb}} MB of dedicated memory",
+    "body_suffix": ". Running transcription on it is typically 3–10× faster than CPU. You can change this later in Settings → Advanced.",
+    "options": {
+      "auto_title": "Smart (recommended)",
+      "auto_description": "Use your GPU when it helps, fall back to CPU for short clips. No surprises.",
+      "always_title": "Always use GPU",
+      "always_description": "Fastest transcription. May briefly slow games, 3D apps, or heavy browser tabs while you dictate.",
+      "cpu_title": "CPU only",
+      "cpu_description": "Keep the GPU free for other apps. Transcription is still fast, just a bit slower per utterance."
+    }
+  },
+  "mic": {
+    "title": "Pick and test your microphone",
+    "body": "Choose your input device, then record a short test to confirm it's working end-to-end.",
+    "device": {
+      "system_default": "System default",
+      "default_suffix": " · default"
+    },
+    "button": {
+      "live_meter": "Live meter",
+      "stop_meter": "Stop meter",
+      "record_test": "Record test",
+      "stop": "Stop"
+    },
+    "processing": "Processing…",
+    "transcript_label": "Transcript",
+    "no_devices": "No input devices detected. Plug in a microphone or check Windows privacy settings."
+  },
+  "baseline": {
+    "title": "Your typing speed baseline",
+    "body": "We use this to estimate how much time you save by dictating. You can take a quick typing test, enter a number you already know, or skip for now and tune it later.",
+    "choices": {
+      "test_title": "Take the test",
+      "test_sub": "~20 seconds · most accurate",
+      "manual_title": "Enter manually",
+      "manual_sub": "Type in your known WPM",
+      "skip_title": "Skip",
+      "skip_sub": "Use the default {{wpm}} WPM"
+    },
+    "measure": {
+      "placeholder": "Start typing the sentence above…",
+      "timer_idle": "Timer starts on your first keystroke.",
+      "timer_active": "{{secs}}s elapsed…",
+      "new_sentence": "New sentence"
+    },
+    "result": {
+      "label": "Result",
+      "wpm_unit": "words per minute",
+      "try_again": "Try again",
+      "manual_instead": "Enter manually instead"
+    },
+    "manual": {
+      "wpm_suffix": "wpm",
+      "test_instead": "Take the test instead"
+    },
+    "skipped": {
+      "body": "Using the default {{wpm}} WPM. You can fine-tune this later in Settings → General → Typing baseline.",
+      "change_mind": "Change my mind, take the test"
+    },
+    "sentences": [
+      "The quiet morning light crept across the floor as the kettle started to whistle softly in the kitchen.",
+      "Most people only realise how much they type in a day when they stop to watch their own hands move.",
+      "A good dictation tool should feel less like a tool and more like a second, patient pair of ears listening carefully.",
+      "She picked up the notebook, turned to a fresh page, and wrote the first sentence that came into her head.",
+      "Working from home for years had taught him to value the small rituals more than the long meetings ever could."
+    ]
+  },
+  "trigger": {
+    "title": "How would you like to trigger recording?",
+    "subtitle": "You can change this any time in Settings → Shortcuts, and bind different styles to different keys.",
+    "options": {
+      "toggle_label": "Toggle",
+      "toggle_description": "Press the key to start recording. Press it again to stop. Most apps work this way.",
+      "hold_label": "Hold to talk",
+      "hold_description": "Hold the key down while speaking. Release to stop. Walkie-talkie style, good for short bursts.",
+      "push_label": "Push to talk (hybrid)",
+      "push_description": "Same key does both. A quick tap toggles; holding it acts like hold-to-talk. Pick this if you want one key to handle both styles."
+    }
+  },
+  "shortcut": {
+    "title": "Bind a recording shortcut",
+    "body": "You can bind a global shortcut from Settings → Shortcuts once onboarding finishes. Any key combo works in any app. Ctrl+Space is set by default."
+  },
+  "theme": {
+    "title": "Pick a theme"
+  },
+  "bar": {
+    "title": "Where Utterbar lives",
+    "body": "A small bar will float near the top of your screen whenever Utterbar is running. It shows a live waveform while you dictate and lets you start, stop, or cancel with a click. You can drag it anywhere you like, and it'll remember the position.",
+    "preview_label": "your desktop",
+    "tip": "Tip: grab the bar anywhere that isn't a button to drag it. Hover to see the record, stop, history, and settings controls."
+  },
+  "ready": {
+    "heading": "You're ready",
+    "prompt": {
+      "listening_hold": "Speak now, release to finish.",
+      "listening_push": "Speak now, press again to stop.",
+      "listening_toggle": "Speak now, press the shortcut again to stop.",
+      "processing": "Processing your speech…",
+      "success": "Done, your words are in the box.",
+      "error": "Something went wrong: {{message}}",
+      "idle": "Press the shortcut, speak, and your words will land in the box below."
+    },
+    "transcribing": "Transcribing…",
+    "waveform_idle": "Waiting for the shortcut, the waveform will come alive when you're speaking.",
+    "textarea_placeholder": "Your dictated text will appear here…",
+    "shortcut_detected": "Shortcut detected, dictation is live.",
+    "click_start_hint": "Or click Start dictating below when you're ready.",
+    "warmup_lead": "Heads up:",
+    "warmup_body": "the first dictation loads the model and takes a few seconds. Subsequent ones while the model is warm feel near-instant. Tune how long the model stays warm in Settings → Models.",
+    "vocab": {
+      "title": "Want Utterbar to get your name right?",
+      "body": "Add it to vocabulary now and dictation will spell it correctly from the very first try. You can add more words later from Settings → Vocabulary.",
+      "placeholder": "Type your name…",
+      "save": "Add",
+      "saving": "Saving…",
+      "skip": "Skip",
+      "save_error_generic": "Could not save. Try again later."
+    }
+  },
+  "errors": {
+    "unknown": "Unknown error"
+  }
+}
