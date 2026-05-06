@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
@@ -9,23 +10,11 @@ import { EVT } from '@/lib/events';
 import { useSettings } from '@/state/settings';
 import { cn } from '@/lib/cn';
 
-const CAPTURE_SOURCES = [
-  {
-    id: 'microphone' as const,
-    label: 'Microphone',
-    note: 'Record your voice from the selected microphone. Best for everyday dictation.',
-  },
-  {
-    id: 'system' as const,
-    label: 'System audio',
-    note: 'Record whatever is playing through your speakers, meetings, videos, voice notes. WASAPI loopback: no virtual cable needed.',
-  },
-  {
-    id: 'mixed' as const,
-    label: 'Mixed (mic + system)',
-    note: 'Both at once, summed. Useful for transcribing calls where you also speak.',
-  },
-];
+// Stable id registry. ids match the `audio.capture_source` field's
+// serialised values on the Rust side, so the patch wiring continues to
+// write `'microphone' | 'system' | 'mixed'`. Visible label and note
+// resolve via t() at render time.
+const CAPTURE_SOURCE_IDS = ['microphone', 'system', 'mixed'] as const;
 
 type InputDevice = {
   id: string;
@@ -36,40 +25,22 @@ type InputDevice = {
 
 type NoiseLevel = 'off' | 'light' | 'balanced' | 'aggressive';
 
+// Stable id + structural numeric registry. ids match the
+// `audio.noise_suppression` field's serialised string values on the
+// Rust side and previewCutoffHz mirrors the backend's level_params()
+// (see services/audio/preprocess.rs); both are structural and stay in
+// source. Visible label and blurb resolve via t() at render time.
 const NOISE_LEVELS: {
   id: NoiseLevel;
-  label: string;
-  blurb: string;
-  /** High-pass cutoff (Hz) used for the in-UI audio preview. 0 = bypass. These
-   *  mirror the backend's level_params(), see services/audio/preprocess.rs.
+  /** High-pass cutoff (Hz) used for the in-UI audio preview. 0 = bypass.
    *  Preview is a short synthesised noise-plus-rumble clip run through a
    *  biquad HPF at this frequency, so you can hear each level cleaning up. */
   previewCutoffHz: number;
 }[] = [
-  {
-    id: 'off',
-    label: 'Off',
-    blurb: 'No processing. Lowest latency, keeps every nuance for the model.',
-    previewCutoffHz: 0,
-  },
-  {
-    id: 'light',
-    label: 'Light',
-    blurb: 'Trim subwoofer-band rumble (under ~60 Hz). Good for quiet rooms.',
-    previewCutoffHz: 60,
-  },
-  {
-    id: 'balanced',
-    label: 'Balanced',
-    blurb: 'Cuts fan hum, HVAC, and keyboard clatter between words. Best for most setups.',
-    previewCutoffHz: 120,
-  },
-  {
-    id: 'aggressive',
-    label: 'Aggressive',
-    blurb: 'Harder high-pass + higher gate. For cafés and noisy rooms; can clip soft consonants.',
-    previewCutoffHz: 200,
-  },
+  { id: 'off', previewCutoffHz: 0 },
+  { id: 'light', previewCutoffHz: 60 },
+  { id: 'balanced', previewCutoffHz: 120 },
+  { id: 'aggressive', previewCutoffHz: 200 },
 ];
 
 /** Lazy-shared AudioContext. Creating one per click leaks nodes, Web Audio
@@ -173,6 +144,7 @@ function playNoisePreview(cutoffHz: number): () => void {
 }
 
 export function AudioSettings() {
+  const { t } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const [devices, setDevices] = useState<InputDevice[]>([]);
@@ -216,33 +188,38 @@ export function AudioSettings() {
         ? 'balanced'
         : 'off';
 
+  // d.name is the OS-supplied device name and stays verbatim. d.id is
+  // the structural device key the Rust side uses to match the chosen
+  // microphone. The visible "System default" empty option and the
+  // per-device "system default" caption flag are frontend-owned chrome
+  // and resolve through t().
   const deviceOptions: SelectOption<string>[] = [
-    { value: '', label: 'System default' },
+    { value: '', label: t('audio.input_device.system_default') },
     ...devices.map((d) => ({
       value: d.id,
       label: d.name,
-      caption: d.is_default ? 'system default' : undefined,
+      caption: d.is_default ? t('audio.input_device.system_default_caption') : undefined,
     })),
   ];
 
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
-      <PageHeader title="Audio" subtitle="Input devices, preprocessing, and mic testing." />
+      <PageHeader title={t('audio.title')} subtitle={t('audio.subtitle')} />
       <div className="mt-6 space-y-4">
         <Card
-          title="Capture source"
-          description="What Utterbar listens to. Switch to System audio to transcribe a meeting or a video playing in another app; Mixed records both so a call where you also speak gets both sides."
+          title={t('audio.capture_source.title')}
+          description={t('audio.capture_source.description')}
         >
           {/* Capture-source picker, surface-elevation selection (selected
               tile lifts to bg-2 + gets the cyan left rail) consistent with
               the rest of the app's active-state vocabulary. */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {CAPTURE_SOURCES.map((opt) => {
-              const selected = (s.audio.capture_source ?? 'microphone') === opt.id;
+            {CAPTURE_SOURCE_IDS.map((id) => {
+              const selected = (s.audio.capture_source ?? 'microphone') === id;
               return (
                 <button
-                  key={opt.id}
-                  onClick={() => void patch({ audio: { ...s.audio, capture_source: opt.id } })}
+                  key={id}
+                  onClick={() => void patch({ audio: { ...s.audio, capture_source: id } })}
                   className={cn(
                     'group relative rounded-input p-3 text-left transition-colors',
                     selected ? 'bg-bg-2 text-fg-hi' : 'bg-bg-2/40 text-muted hover:bg-bg-2/70',
@@ -255,8 +232,12 @@ export function AudioSettings() {
                     )}
                     aria-hidden
                   />
-                  <div className="pl-2 text-[13px] font-medium">{opt.label}</div>
-                  <div className="pl-2 mt-1 text-[11.5px] leading-relaxed">{opt.note}</div>
+                  <div className="pl-2 text-[13px] font-medium">
+                    {t(`audio.capture_source.options.${id}.label` as const)}
+                  </div>
+                  <div className="pl-2 mt-1 text-[11.5px] leading-relaxed">
+                    {t(`audio.capture_source.options.${id}.note` as const)}
+                  </div>
                 </button>
               );
             })}
@@ -272,8 +253,8 @@ export function AudioSettings() {
           // shown when the source is System or Mixed; the default
           // Microphone capture has no need for the suggestion.
           <Card
-            title="Heads up: Meeting Mode handles this for you"
-            description="When a mode is flagged as a Meeting, Utterbar always uses mic + system audio together (no need to set it here), splits long recordings into 30-second chunks so they don't OOM the recogniser, and skips post-processing so the transcript stays verbatim. The built-in 'Meeting' mode is set up that way out of the box."
+            title={t('audio.meeting_callout.title')}
+            description={t('audio.meeting_callout.description')}
           >
             <a
               href="#/settings/modes"
@@ -283,15 +264,15 @@ export function AudioSettings() {
               }}
               className="text-[13px] text-accent hover:underline"
             >
-              Open Modes →
+              {t('audio.meeting_callout.link')}
             </a>
           </Card>
         )}
 
-        <Card title="Input device">
+        <Card title={t('audio.input_device.title')}>
           <Row
-            label="Microphone"
-            description="Which device Utterbar records from. System default follows whatever Windows has set."
+            label={t('audio.input_device.microphone.label')}
+            description={t('audio.input_device.microphone.description')}
           >
             <Select
               value={(s.audio.input_device_id as string | null) ?? ''}
@@ -302,7 +283,7 @@ export function AudioSettings() {
               minWidth="min-w-[18rem]"
             />
           </Row>
-          <Row label="Live meter">
+          <Row label={t('audio.input_device.live_meter.label')}>
             <div className="flex items-center gap-3">
               <div className="h-2 w-40 overflow-hidden rounded-full bg-bg-2">
                 <div
@@ -314,23 +295,26 @@ export function AudioSettings() {
                 onClick={() => (metering ? void stopMeter() : void startMeter())}
                 className="rounded-full bg-bg-2 px-3 py-1 text-[12px] text-muted transition-colors hover:text-fg-hi"
               >
-                {metering ? 'Stop' : 'Test'}
+                {metering
+                  ? t('audio.input_device.live_meter.stop')
+                  : t('audio.input_device.live_meter.test')}
               </button>
             </div>
           </Row>
         </Card>
 
         <Card
-          title="Noise handling"
-          description="Clean up the recording before it reaches Parakeet. Everything here runs locally in sub-millisecond time, there's no cloud pass."
+          title={t('audio.noise_handling.title')}
+          description={t('audio.noise_handling.description')}
         >
           <Row
-            label="Suppression strength"
-            description="Broadband filter that kills rumble, fan hum, and HVAC noise. Start with Balanced; step up to Aggressive only if there's still a lot of room noise in the background."
+            label={t('audio.noise_handling.suppression.label')}
+            description={t('audio.noise_handling.suppression.description')}
           >
             <div className="flex flex-wrap gap-2">
               {NOISE_LEVELS.map((lvl) => {
                 const selected = noiseLevel === lvl.id;
+                const blurb = t(`audio.noise_handling.suppression.levels.${lvl.id}.blurb` as const);
                 return (
                   <button
                     key={lvl.id}
@@ -346,23 +330,25 @@ export function AudioSettings() {
                         audio: { ...s.audio, noise_suppression: lvl.id },
                       });
                     }}
-                    title={`${lvl.blurb} · Click to preview`}
+                    title={t('audio.noise_handling.suppression.preview_tooltip', { blurb })}
                     className={cn('ub-chip', selected && 'ub-chip--active')}
                   >
-                    {lvl.label}
+                    {t(`audio.noise_handling.suppression.levels.${lvl.id}.label` as const)}
                   </button>
                 );
               })}
             </div>
           </Row>
           <div className="-mt-2 pl-1 pr-1 text-[11px] leading-relaxed text-muted">
-            {NOISE_LEVELS.find((x) => x.id === noiseLevel)?.blurb}{' '}
-            <span className="opacity-70">Tap any level to hear a ~1 s sample.</span>
+            {t(`audio.noise_handling.suppression.levels.${noiseLevel}.blurb` as const)}{' '}
+            <span className="opacity-70">
+              {t('audio.noise_handling.suppression.preview_hint')}
+            </span>
           </div>
 
           <Row
-            label="Between-word gate"
-            description="Zero out short quiet gaps so keyboard clicks, mouse-clicks, lip-smacks, and breath sounds between phrases don't reach the model. Complements the suppression above, safe to use at any level."
+            label={t('audio.noise_handling.noise_gate.label')}
+            description={t('audio.noise_handling.noise_gate.description')}
           >
             <Toggle
               checked={Boolean((s.audio as Record<string, unknown>).noise_gate)}
@@ -372,8 +358,8 @@ export function AudioSettings() {
             />
           </Row>
           <Row
-            label="Dynamic normalisation"
-            description="Boost quiet recordings to a consistent level before transcription. Helps when the microphone is far or the speaker is soft."
+            label={t('audio.noise_handling.dynamic_normalisation.label')}
+            description={t('audio.noise_handling.dynamic_normalisation.description')}
           >
             <Toggle
               checked={Boolean(s.audio.dynamic_normalisation)}
@@ -381,8 +367,8 @@ export function AudioSettings() {
             />
           </Row>
           <Row
-            label="Silence trimming"
-            description="Drop silent leading / trailing audio before the model sees it. Faster transcriptions, identical quality."
+            label={t('audio.noise_handling.silence_removal.label')}
+            description={t('audio.noise_handling.silence_removal.description')}
           >
             <Toggle
               checked={Boolean(s.audio.silence_removal)}

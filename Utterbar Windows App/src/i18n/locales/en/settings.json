@@ -389,5 +389,86 @@
       "prefix": "Tip: press",
       "suffix": "to cancel capture."
     }
+  },
+  "audio": {
+    "title": "Audio",
+    "subtitle": "Input devices, preprocessing, and mic testing.",
+    "capture_source": {
+      "title": "Capture source",
+      "description": "What Utterbar listens to. Switch to System audio to transcribe a meeting or a video playing in another app; Mixed records both so a call where you also speak gets both sides.",
+      "options": {
+        "microphone": {
+          "label": "Microphone",
+          "note": "Record your voice from the selected microphone. Best for everyday dictation."
+        },
+        "system": {
+          "label": "System audio",
+          "note": "Record whatever is playing through your speakers, meetings, videos, voice notes. WASAPI loopback: no virtual cable needed."
+        },
+        "mixed": {
+          "label": "Mixed (mic + system)",
+          "note": "Both at once, summed. Useful for transcribing calls where you also speak."
+        }
+      }
+    },
+    "meeting_callout": {
+      "title": "Heads up: Meeting Mode handles this for you",
+      "description": "When a mode is flagged as a Meeting, Utterbar always uses mic + system audio together (no need to set it here), splits long recordings into 30-second chunks so they don't OOM the recogniser, and skips post-processing so the transcript stays verbatim. The built-in 'Meeting' mode is set up that way out of the box.",
+      "link": "Open Modes →"
+    },
+    "input_device": {
+      "title": "Input device",
+      "microphone": {
+        "label": "Microphone",
+        "description": "Which device Utterbar records from. System default follows whatever Windows has set."
+      },
+      "system_default": "System default",
+      "system_default_caption": "system default",
+      "live_meter": {
+        "label": "Live meter",
+        "test": "Test",
+        "stop": "Stop"
+      }
+    },
+    "noise_handling": {
+      "title": "Noise handling",
+      "description": "Clean up the recording before it reaches Parakeet. Everything here runs locally in sub-millisecond time, there's no cloud pass.",
+      "suppression": {
+        "label": "Suppression strength",
+        "description": "Broadband filter that kills rumble, fan hum, and HVAC noise. Start with Balanced; step up to Aggressive only if there's still a lot of room noise in the background.",
+        "preview_tooltip": "{{blurb}} · Click to preview",
+        "preview_hint": "Tap any level to hear a ~1 s sample.",
+        "levels": {
+          "off": {
+            "label": "Off",
+            "blurb": "No processing. Lowest latency, keeps every nuance for the model."
+          },
+          "light": {
+            "label": "Light",
+            "blurb": "Trim subwoofer-band rumble (under ~60 Hz). Good for quiet rooms."
+          },
+          "balanced": {
+            "label": "Balanced",
+            "blurb": "Cuts fan hum, HVAC, and keyboard clatter between words. Best for most setups."
+          },
+          "aggressive": {
+            "label": "Aggressive",
+            "blurb": "Harder high-pass + higher gate. For cafés and noisy rooms; can clip soft consonants."
+          }
+        }
+      },
+      "noise_gate": {
+        "label": "Between-word gate",
+        "description": "Zero out short quiet gaps so keyboard clicks, mouse-clicks, lip-smacks, and breath sounds between phrases don't reach the model. Complements the suppression above, safe to use at any level."
+      },
+      "dynamic_normalisation": {
+        "label": "Dynamic normalisation",
+        "description": "Boost quiet recordings to a consistent level before transcription. Helps when the microphone is far or the speaker is soft."
+      },
+      "silence_removal": {
+        "label": "Silence trimming",
+        "description": "Drop silent leading / trailing audio before the model sees it. Faster transcriptions, identical quality."
+      }
+    }
   }
 }
