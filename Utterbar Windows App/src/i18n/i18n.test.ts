@@ -550,6 +550,80 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('shortcuts.conflict.tooltip');
   });
 
+  it('resolves every Audio settings key', () => {
+    // Pinned list of every settings.audio.* key consumed by
+    // AudioSettings.tsx. Backend/OS-owned device names and ids still
+    // flow straight through from `list_input_devices`; only frontend-
+    // owned chrome (page header, capture-source picker copy, the
+    // Meeting-Mode callout, the input-device card chrome, and the
+    // noise-handling card with its 4-level suppression registry)
+    // is catalogued here.
+    const keys = [
+      'audio.title',
+      'audio.subtitle',
+      'audio.capture_source.title',
+      'audio.capture_source.description',
+      'audio.capture_source.options.microphone.label',
+      'audio.capture_source.options.microphone.note',
+      'audio.capture_source.options.system.label',
+      'audio.capture_source.options.system.note',
+      'audio.capture_source.options.mixed.label',
+      'audio.capture_source.options.mixed.note',
+      'audio.meeting_callout.title',
+      'audio.meeting_callout.description',
+      'audio.meeting_callout.link',
+      'audio.input_device.title',
+      'audio.input_device.microphone.label',
+      'audio.input_device.microphone.description',
+      'audio.input_device.system_default',
+      'audio.input_device.system_default_caption',
+      'audio.input_device.live_meter.label',
+      'audio.input_device.live_meter.test',
+      'audio.input_device.live_meter.stop',
+      'audio.noise_handling.title',
+      'audio.noise_handling.description',
+      'audio.noise_handling.suppression.label',
+      'audio.noise_handling.suppression.description',
+      'audio.noise_handling.suppression.preview_tooltip',
+      'audio.noise_handling.suppression.preview_hint',
+      'audio.noise_handling.suppression.levels.off.label',
+      'audio.noise_handling.suppression.levels.off.blurb',
+      'audio.noise_handling.suppression.levels.light.label',
+      'audio.noise_handling.suppression.levels.light.blurb',
+      'audio.noise_handling.suppression.levels.balanced.label',
+      'audio.noise_handling.suppression.levels.balanced.blurb',
+      'audio.noise_handling.suppression.levels.aggressive.label',
+      'audio.noise_handling.suppression.levels.aggressive.blurb',
+      'audio.noise_handling.noise_gate.label',
+      'audio.noise_handling.noise_gate.description',
+      'audio.noise_handling.dynamic_normalisation.label',
+      'audio.noise_handling.dynamic_normalisation.description',
+      'audio.noise_handling.silence_removal.label',
+      'audio.noise_handling.silence_removal.description',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders audio.noise_handling.suppression.preview_tooltip with the blurb interpolated', () => {
+    // The preview tooltip composes the active level's blurb with the
+    // " · Click to preview" suffix at render time. Pin the
+    // `{{blurb}}` substitution so a future copy edit can't drop the
+    // interpolation silently and leave a literal mustache template
+    // visible to users.
+    const out = i18n.t('audio.noise_handling.suppression.preview_tooltip', {
+      ns: 'settings',
+      blurb: 'Cuts fan hum, HVAC, and keyboard clatter between words. Best for most setups.',
+    });
+    expect(out).toContain('Cuts fan hum');
+    expect(out).toContain('Click to preview');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('audio.noise_handling.suppression.preview_tooltip');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -590,6 +664,15 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.shortcuts.buttons).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.shortcuts.conflict).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.shortcuts.tip).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.capture_source).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.capture_source.options).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.meeting_callout).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.input_device).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.input_device.live_meter).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.noise_handling).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.noise_handling.suppression).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.audio.noise_handling.suppression.levels).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
