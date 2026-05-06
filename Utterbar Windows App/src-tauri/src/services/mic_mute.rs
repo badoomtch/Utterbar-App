@@ -377,6 +377,8 @@ pub fn apply(req: &MicMuteApplyRequest) -> Vec<(MicMuteApp, AppOutcome)> {
         find_window_for_processes, send_hotkey_to_window, DISCORD_PROCESSES, TEAMS_PROCESSES,
     };
 
+    tracing::info!("mic_mute diag: feature-on apply() entered");
+
     let mut results: Vec<(MicMuteApp, AppOutcome)> = Vec::new();
     let mut applied: Vec<MicMuteApp> = Vec::new();
 
@@ -384,22 +386,44 @@ pub fn apply(req: &MicMuteApplyRequest) -> Vec<(MicMuteApp, AppOutcome)> {
         (MicMuteApp::Teams, req.teams.as_ref(), TEAMS_PROCESSES),
         (MicMuteApp::Discord, req.discord.as_ref(), DISCORD_PROCESSES),
     ] {
-        let Some(combo) = hotkey else {
+        let Some(_combo) = hotkey else {
+            tracing::info!(
+                app = app.as_str(),
+                "mic_mute diag: NoHotkey, hotkey is None for this app"
+            );
             results.push((app, AppOutcome::NoHotkey));
             continue;
         };
         let Some(hwnd) = find_window_for_processes(processes) else {
+            tracing::info!(
+                app = app.as_str(),
+                processes = ?processes,
+                "mic_mute diag: NotRunning, find_window_for_processes returned None"
+            );
             results.push((app, AppOutcome::NotRunning));
             continue;
         };
-        let win_combo = hotkey_to_window_input(combo);
+        tracing::info!(
+            app = app.as_str(),
+            hwnd = ?hwnd,
+            "mic_mute diag: window found, sending hotkey"
+        );
+        let win_combo = hotkey_to_window_input(_combo);
         match send_hotkey_to_window(hwnd, &win_combo) {
             Ok(()) => {
+                tracing::info!(
+                    app = app.as_str(),
+                    "mic_mute diag: send_hotkey_to_window returned Ok"
+                );
                 results.push((app, AppOutcome::Sent));
                 applied.push(app);
             }
             Err(e) => {
-                tracing::warn!(app = app.as_str(), error = %e, "mic_mute: apply failed");
+                tracing::warn!(
+                    app = app.as_str(),
+                    error = %e,
+                    "mic_mute diag: send_hotkey_to_window returned Err"
+                );
                 results.push((app, AppOutcome::SendFailed));
             }
         }
