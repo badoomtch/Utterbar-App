@@ -270,5 +270,49 @@
         "description": "If you're holding Shift when you stop recording, Utterbar presses Enter for you right after pasting, so the message goes out in Teams, Slack, Discord, etc. without a second hand-off."
       }
     }
+  },
+  "accessibility": {
+    "title": "Accessibility",
+    "subtitle": "Make Utterbar's main window more comfortable to read, hear, and move through.",
+    "ui_scale": {
+      "title": "UI scale",
+      "description": "Scales the entire main window, text, padding, buttons, and icons, relative to the default. The floating bar is deliberately exempt so it stays the same physical size whatever you pick here.",
+      "scale": {
+        "label": "Scale",
+        "description": "Pick a preset or drag the slider for fine control."
+      },
+      "fine_tune": {
+        "label": "Fine tune"
+      },
+      "value": "{{value}}%"
+    },
+    "motion": {
+      "title": "Motion",
+      "description": "For anyone who finds bouncy animations distracting or vertigo-inducing.",
+      "reduce_motion": {
+        "label": "Reduce motion",
+        "description": "Minimise animations across Utterbar, the floating bar still appears, but the bouncy springs, bar-expand transitions, and launch pulse are suppressed. Framer Motion and CSS transitions both honour this."
+      }
+    },
+    "contrast": {
+      "title": "Contrast and focus",
+      "description": "Raise the visibility of text, borders, and keyboard focus. Useful for low-vision users and bright-room work.",
+      "high_contrast": {
+        "label": "High contrast",
+        "description": "Push dim greys toward full white (or full black on Paper), thicken hairline separators, and bump every border token to its stronger variant. Applies everywhere, main window, floating bar, onboarding."
+      },
+      "larger_focus_rings": {
+        "label": "Larger focus rings",
+        "description": "Thicken keyboard focus outlines from 2px to 4px with a stronger halo, so tab-navigated focus is unmistakable on any background. Mouse-driven focus is unaffected."
+      }
+    },
+    "transparency": {
+      "title": "Transparency",
+      "description": "Windows and sticky headers use subtle backdrop-blur by default. Turn it off if it makes content hard to read, or if your GPU is working hard on other things.",
+      "reduce_transparency": {
+        "label": "Reduce transparency",
+        "description": "Solidify any glass / frosted backgrounds and strip backdrop-blur throughout the app. Doesn't change layout, just the visual feel of headers and overlays."
+      }
+    }
   }
 }

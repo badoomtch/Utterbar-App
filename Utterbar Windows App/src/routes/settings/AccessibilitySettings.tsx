@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
@@ -16,6 +17,7 @@ import { cn } from '@/lib/cn';
 const SCALE_STOPS = [90, 100, 115, 125, 150, 175] as const;
 
 export function AccessibilitySettings() {
+  const { t } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
 
@@ -55,16 +57,19 @@ export function AccessibilitySettings() {
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader
-        title="Accessibility"
-        subtitle="Make Utterbar's main window more comfortable to read, hear, and move through."
+        title={t('accessibility.title')}
+        subtitle={t('accessibility.subtitle')}
       />
 
       <div className="mt-6 space-y-4">
         <Card
-          title="UI scale"
-          description="Scales the entire main window, text, padding, buttons, and icons, relative to the default. The floating bar is deliberately exempt so it stays the same physical size whatever you pick here."
+          title={t('accessibility.ui_scale.title')}
+          description={t('accessibility.ui_scale.description')}
         >
-          <Row label="Scale" description="Pick a preset or drag the slider for fine control.">
+          <Row
+            label={t('accessibility.ui_scale.scale.label')}
+            description={t('accessibility.ui_scale.scale.description')}
+          >
             <div className="flex flex-wrap items-center gap-2">
               {SCALE_STOPS.map((pct) => (
                 <button
@@ -72,12 +77,12 @@ export function AccessibilitySettings() {
                   onClick={() => commitScale(pct)}
                   className={cn('ub-chip font-mono', committedScale === pct && 'ub-chip--active')}
                 >
-                  {pct}%
+                  {t('accessibility.ui_scale.value', { value: pct })}
                 </button>
               ))}
             </div>
           </Row>
-          <Row label="Fine tune">
+          <Row label={t('accessibility.ui_scale.fine_tune.label')}>
             <div className="flex w-full items-center gap-3">
               <input
                 type="range"
@@ -96,18 +101,20 @@ export function AccessibilitySettings() {
                 onBlur={(e) => commitScale(Number(e.target.value))}
                 className="flex-1"
               />
-              <span className="w-14 text-right font-mono text-[12px] tabular-nums text-fg-hi">{uiScale}%</span>
+              <span className="w-14 text-right font-mono text-[12px] tabular-nums text-fg-hi">
+                {t('accessibility.ui_scale.value', { value: uiScale })}
+              </span>
             </div>
           </Row>
         </Card>
 
         <Card
-          title="Motion"
-          description="For anyone who finds bouncy animations distracting or vertigo-inducing."
+          title={t('accessibility.motion.title')}
+          description={t('accessibility.motion.description')}
         >
           <Row
-            label="Reduce motion"
-            description="Minimise animations across Utterbar, the floating bar still appears, but the bouncy springs, bar-expand transitions, and launch pulse are suppressed. Framer Motion and CSS transitions both honour this."
+            label={t('accessibility.motion.reduce_motion.label')}
+            description={t('accessibility.motion.reduce_motion.description')}
           >
             <Toggle
               checked={Boolean(g.reduce_motion)}
@@ -117,12 +124,12 @@ export function AccessibilitySettings() {
         </Card>
 
         <Card
-          title="Contrast and focus"
-          description="Raise the visibility of text, borders, and keyboard focus. Useful for low-vision users and bright-room work."
+          title={t('accessibility.contrast.title')}
+          description={t('accessibility.contrast.description')}
         >
           <Row
-            label="High contrast"
-            description="Push dim greys toward full white (or full black on Paper), thicken hairline separators, and bump every border token to its stronger variant. Applies everywhere, main window, floating bar, onboarding."
+            label={t('accessibility.contrast.high_contrast.label')}
+            description={t('accessibility.contrast.high_contrast.description')}
           >
             <Toggle
               checked={Boolean(g.high_contrast)}
@@ -130,8 +137,8 @@ export function AccessibilitySettings() {
             />
           </Row>
           <Row
-            label="Larger focus rings"
-            description="Thicken keyboard focus outlines from 2px to 4px with a stronger halo, so tab-navigated focus is unmistakable on any background. Mouse-driven focus is unaffected."
+            label={t('accessibility.contrast.larger_focus_rings.label')}
+            description={t('accessibility.contrast.larger_focus_rings.description')}
           >
             <Toggle
               checked={Boolean(g.larger_focus_rings)}
@@ -141,12 +148,12 @@ export function AccessibilitySettings() {
         </Card>
 
         <Card
-          title="Transparency"
-          description="Windows and sticky headers use subtle backdrop-blur by default. Turn it off if it makes content hard to read, or if your GPU is working hard on other things."
+          title={t('accessibility.transparency.title')}
+          description={t('accessibility.transparency.description')}
         >
           <Row
-            label="Reduce transparency"
-            description="Solidify any glass / frosted backgrounds and strip backdrop-blur throughout the app. Doesn't change layout, just the visual feel of headers and overlays."
+            label={t('accessibility.transparency.reduce_transparency.label')}
+            description={t('accessibility.transparency.reduce_transparency.description')}
           >
             <Toggle
               checked={Boolean(g.reduce_transparency)}
