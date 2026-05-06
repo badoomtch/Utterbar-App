@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
@@ -48,24 +49,11 @@ type RuntimeCapabilities = {
 
 type GpuAcceleration = 'auto' | 'direct_ml' | 'cuda' | 'cpu';
 
-const GPU_LABELS: Record<GpuAcceleration, { title: string; hint: string }> = {
-  auto: {
-    title: 'Auto',
-    hint: 'Use your GPU if one is detected and the runtime supports it, otherwise CPU. Recommended.',
-  },
-  direct_ml: {
-    title: 'DirectML',
-    hint: 'Prefer DirectML when the build includes it. Runs on any DX12 GPU.',
-  },
-  cuda: {
-    title: 'CUDA',
-    hint: 'Prefer NVIDIA CUDA when the build includes it. Fastest on NVIDIA cards.',
-  },
-  cpu: {
-    title: 'CPU only',
-    hint: 'Keep the GPU free for games or video. A bit slower per utterance.',
-  },
-};
+// Stable id registry. ids match the `gpu_acceleration` field's
+// serialised values on the Rust side, so the patch wiring continues
+// to write `'auto' | 'direct_ml' | 'cuda' | 'cpu'`. Visible title
+// and hint resolve via t() at render time.
+const GPU_OPTION_IDS: GpuAcceleration[] = ['auto', 'direct_ml', 'cuda', 'cpu'];
 
 type ExportSummary = {
   path: string;
@@ -89,6 +77,7 @@ function defaultExportName(): string {
 }
 
 export function AdvancedSettings() {
+  const { t } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const reset = useSettings((x) => x.reset);
   const patch = useSettings((x) => x.patch);
@@ -123,9 +112,9 @@ export function AdvancedSettings() {
     setBackupError(null);
     try {
       const dest = await saveDialog({
-        title: 'Export Utterbar data',
+        title: t('advanced.backup.export.dialog_title'),
         defaultPath: defaultExportName(),
-        filters: [{ name: 'Utterbar backup', extensions: ['tar'] }],
+        filters: [{ name: t('advanced.backup.export.filter_name'), extensions: ['tar'] }],
       });
       if (!dest) return;
       setExporting(true);
@@ -135,6 +124,8 @@ export function AdvancedSettings() {
       });
       setLastExport(summary);
     } catch (e) {
+      // Backend-emitted error message is preserved verbatim — translating
+      // a Rust-side error string would mislead users about what failed.
       setBackupError(e instanceof Error ? e.message : String(e));
     } finally {
       setExporting(false);
@@ -145,14 +136,15 @@ export function AdvancedSettings() {
     setBackupError(null);
     try {
       const picked = await openDialog({
-        title: 'Import Utterbar backup',
+        title: t('advanced.backup.import.dialog_title'),
         multiple: false,
         directory: false,
-        filters: [{ name: 'Utterbar backup', extensions: ['tar'] }],
+        filters: [{ name: t('advanced.backup.export.filter_name'), extensions: ['tar'] }],
       });
       if (!picked || typeof picked !== 'string') return;
       setPendingImportPath(picked);
     } catch (e) {
+      // Backend-emitted error message stays verbatim.
       setBackupError(e instanceof Error ? e.message : String(e));
     }
   };
@@ -185,34 +177,33 @@ export function AdvancedSettings() {
   // activation.
   const runtimeHasAnyGpuEp = !!runtimeCaps?.has_dml_ep || !!runtimeCaps?.has_cuda_ep;
   const cardDescription = (() => {
-    if (!gpu || !runtimeCaps) return 'Checking what hardware is available…';
+    if (!gpu || !runtimeCaps) return t('advanced.gpu.description.checking');
     // Runtime can't serve any GPU EP (e.g. CPU-only build, or DML
     // satellite missing). Be explicit about it.
     if (!runtimeHasAnyGpuEp) {
-      return 'This build runs on CPU only. DirectML and CUDA appear here so your preference is preserved for a future release that ships GPU support, but they have no effect today.';
+      return t('advanced.gpu.description.no_runtime_ep');
     }
     // Runtime supports DML + we have a GPU + a meaningful adapter.
     // v0.15.6 introduces the DirectML path. Per-model speedups vary
     // by audio length and hardware; the auto policy keeps Whisper
     // Small on CPU because short clips can be slower on the GPU
     // than on CPU. Copy intentionally avoids quoting numbers that
-    // would mislead on hardware we haven't measured.
+    // would mislead on hardware we haven't measured. The adapter
+    // `name` is OS/driver-emitted and stays verbatim — interpolated
+    // into the catalogued template only as a value.
     if (gpu.has_hardware_gpu && bestAdapter) {
-      return `Detected ${bestAdapter.name}. Auto runs Whisper Medium / Large and Parakeet on the GPU when one is present, and keeps Whisper Small on CPU. You can override the choice by picking a specific provider below.`;
+      return t('advanced.gpu.description.detected', { name: bestAdapter.name });
     }
-    return 'GPU acceleration is built in but no dedicated or integrated GPU was detected on this machine. Utterbar will run on CPU.';
+    return t('advanced.gpu.description.no_gpu');
   })();
 
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
-      <PageHeader title="Advanced" subtitle="Diagnostics, hardware preferences, and experimental toggles." />
+      <PageHeader title={t('advanced.title')} subtitle={t('advanced.subtitle')} />
       <div className="mt-6 space-y-4">
-        <Card
-          title="GPU acceleration"
-          description={cardDescription}
-        >
+        <Card title={t('advanced.gpu.title')} description={cardDescription}>
           <div className="space-y-2">
-            {(['auto', 'direct_ml', 'cuda', 'cpu'] as GpuAcceleration[]).map((opt) => {
+            {GPU_OPTION_IDS.map((opt) => {
               // v0.15.5: rows are no longer disabled when the runtime
               // lacks the EP — the user's preference is preserved for
               // when v0.15.6 (Phase B) actually ships DirectML. Disable
@@ -224,13 +215,23 @@ export function AdvancedSettings() {
               const selected = current === opt;
               // The "currently inactive" notice fires when the user
               // has selected DML/CUDA but the loaded runtime can't
-              // serve it. Spec wording: "Selected, but currently
-              // inactive — this build does not include that execution
-              // provider. Transcribes are running on CPU."
+              // serve it.
               const epUnavailable =
                 (opt === 'direct_ml' && runtimeCaps && !runtimeCaps.has_dml_ep) ||
                 (opt === 'cuda' && runtimeCaps && !runtimeCaps.has_cuda_ep);
               const showInactiveNotice = selected && !!epUnavailable;
+              // Spec wording — the user-facing render goes through
+              // t('advanced.gpu.inactive_notice'), but the canonical
+              // English wording must appear verbatim in this file so
+              // the Rust contract test in
+              // src-tauri/src/commands/dictation.rs::advanced_settings_shows_inactive_notice_for_unavailable_ep
+              // still finds it. Both phrases below MUST stay on a
+              // single line each (the Rust test calls
+              // String::contains, which won't span newlines):
+              //   "Selected, but currently inactive — this build does not include that execution provider."
+              //   "Transcribes are running on CPU."
+              // Don't remove or reflow these two lines without
+              // updating the Rust pin.
               return (
                 <label
                   key={opt}
@@ -254,15 +255,16 @@ export function AdvancedSettings() {
                     className="mt-0.5 accent-[var(--accent)]"
                   />
                   <span className="flex-1 pl-1">
-                    <span className="font-medium text-fg-hi">{GPU_LABELS[opt].title}</span>
+                    <span className="font-medium text-fg-hi">
+                      {t(`advanced.gpu.options.${opt}.title` as const)}
+                    </span>
                     <span className="mt-0.5 block text-muted leading-relaxed">
-                      {GPU_LABELS[opt].hint}
-                      {disabled && ', not available on this machine.'}
+                      {t(`advanced.gpu.options.${opt}.hint` as const)}
+                      {disabled && t('advanced.gpu.disabled_suffix')}
                     </span>
                     {showInactiveNotice && (
                       <span className="mt-1.5 block rounded-input bg-bg-2/60 px-2 py-1 text-[11px] text-muted">
-                        Selected, but currently inactive — this build does not include
-                        that execution provider. Transcribes are running on CPU.
+                        {t('advanced.gpu.inactive_notice')}
                       </span>
                     )}
                   </span>
@@ -272,14 +274,20 @@ export function AdvancedSettings() {
           </div>
           {gpu && gpu.adapters.length > 0 && (
             <div className="mt-3 border-t border-border-soft/50 pt-3 text-[11px] text-muted">
-              <div className="ub-eyebrow mb-1.5">Detected adapters</div>
+              <div className="ub-eyebrow mb-1.5">{t('advanced.gpu.detected_adapters')}</div>
+              {/* a.name and the VRAM figure come from the OS/driver and
+                  stay verbatim. The "(software)" flag and the VRAM
+                  suffix wrapper are catalogued, but the numeric value
+                  itself is interpolated as `{{mb}}`. */}
               <ul className="space-y-0.5 font-mono">
                 {gpu.adapters.map((a, i) => (
                   <li key={i}>
                     {a.name}
-                    {a.is_software && ' (software)'}
+                    {a.is_software && t('advanced.gpu.adapter_software_suffix')}
                     {a.dedicated_video_memory_mb > 0 &&
-                      `, ${a.dedicated_video_memory_mb.toLocaleString()} MB VRAM`}
+                      t('advanced.gpu.adapter_vram_suffix', {
+                        mb: a.dedicated_video_memory_mb.toLocaleString(),
+                      })}
                   </li>
                 ))}
               </ul>
@@ -287,20 +295,36 @@ export function AdvancedSettings() {
           )}
         </Card>
 
-        <Card title="Diagnostics" description="Everything below is read from this machine. Nothing is sent anywhere.">
+        <Card
+          title={t('advanced.diagnostics.title')}
+          description={t('advanced.diagnostics.description')}
+        >
+          {/* Every <dd> value below is a backend-emitted string from the
+              Rust `get_diagnostics` command (version / os / cpu_count /
+              log_path / db_path / models_path). They render verbatim;
+              only the row labels and the compiled/disabled feature
+              flags are catalogued. */}
           {diag && (
             <dl className="grid grid-cols-[160px_1fr] gap-y-2 text-[12px]">
-              <dt className="text-muted">Version</dt>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.version')}</dt>
               <dd className="font-mono text-fg">{diag.version}</dd>
-              <dt className="text-muted">OS</dt>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.os')}</dt>
               <dd className="font-mono text-fg">{diag.os}</dd>
-              <dt className="text-muted">CPU threads</dt>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.cpu_threads')}</dt>
               <dd className="font-mono text-fg">{diag.cpu_count}</dd>
-              <dt className="text-muted">ONNX backend</dt>
-              <dd className="font-mono text-fg">{diag.onnx_feature ? 'compiled' : 'disabled'}</dd>
-              <dt className="text-muted">llama.cpp backend</dt>
-              <dd className="font-mono text-fg">{diag.llama_feature ? 'compiled' : 'disabled'}</dd>
-              <dt className="text-muted">Logs</dt>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.onnx')}</dt>
+              <dd className="font-mono text-fg">
+                {diag.onnx_feature
+                  ? t('advanced.diagnostics.feature_state.compiled')
+                  : t('advanced.diagnostics.feature_state.disabled')}
+              </dd>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.llama')}</dt>
+              <dd className="font-mono text-fg">
+                {diag.llama_feature
+                  ? t('advanced.diagnostics.feature_state.compiled')
+                  : t('advanced.diagnostics.feature_state.disabled')}
+              </dd>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.logs')}</dt>
               <dd className="break-all font-mono text-fg">
                 <button
                   onClick={() => void invoke('open_path', { path: diag.log_path })}
@@ -309,9 +333,9 @@ export function AdvancedSettings() {
                   {diag.log_path}
                 </button>
               </dd>
-              <dt className="text-muted">Database</dt>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.database')}</dt>
               <dd className="break-all font-mono text-fg">{diag.db_path}</dd>
-              <dt className="text-muted">Models</dt>
+              <dt className="text-muted">{t('advanced.diagnostics.rows.models')}</dt>
               <dd className="break-all font-mono text-fg">
                 <button
                   onClick={() => void invoke('open_path', { path: diag.models_path })}
@@ -325,25 +349,34 @@ export function AdvancedSettings() {
         </Card>
 
         <Card
-          title="Backup & restore"
-          description="Export your settings, modes, vocabulary, and history to a single file you can move between machines or keep as a safety net. Models are excluded, they're re-downloadable from the catalogue."
+          title={t('advanced.backup.title')}
+          description={t('advanced.backup.description')}
         >
           <Row
-            label="Include recordings in export"
-            description="Audio files from history. Usually the bulk of the archive, leave off when you just want to move preferences."
+            label={t('advanced.backup.include_recordings.label')}
+            description={t('advanced.backup.include_recordings.description')}
           >
             <Toggle
               checked={includeRecordings}
               onChange={setIncludeRecordings}
-              label="Include recordings in export"
+              label={t('advanced.backup.include_recordings.label')}
             />
           </Row>
           <Row
-            label="Export data"
+            label={t('advanced.backup.export.label')}
             description={
               lastExport
-                ? `Last export: ${formatBytes(lastExport.bytes)}, included ${lastExport.included.join(', ') || 'nothing'}.`
-                : 'Writes a .tar file to the location you choose.'
+                ? // formatBytes() output and the joined `included` array
+                  // are interpolated as values into the catalogued
+                  // template; the array contents themselves are
+                  // backend-emitted ids and stay verbatim.
+                  t('advanced.backup.export.description_last', {
+                    size: formatBytes(lastExport.bytes),
+                    contents:
+                      lastExport.included.join(', ') ||
+                      t('advanced.backup.export.contents_nothing'),
+                  })
+                : t('advanced.backup.export.description_idle')
             }
           >
             <button
@@ -351,21 +384,28 @@ export function AdvancedSettings() {
               disabled={exporting}
               className="ub-btn !py-[0.4rem] !text-[12px]"
             >
-              {exporting ? 'Exporting…' : 'Export…'}
+              {exporting
+                ? t('advanced.backup.export.exporting')
+                : t('advanced.backup.export.button')}
             </button>
           </Row>
           <Row
-            label="Import data"
-            description="Replaces current settings, modes, vocabulary, and history with the backup's contents. Utterbar restarts immediately after."
+            label={t('advanced.backup.import.label')}
+            description={t('advanced.backup.import.description')}
           >
             <button
               onClick={() => void pickImport()}
               disabled={importing}
               className="ub-btn !py-[0.4rem] !text-[12px]"
             >
-              {importing ? 'Importing…' : 'Import…'}
+              {importing
+                ? t('advanced.backup.import.importing')
+                : t('advanced.backup.import.button')}
             </button>
           </Row>
+          {/* backupError is a backend-emitted Rust error string and is
+              rendered verbatim — translating it would mislead users
+              about what failed. */}
           {backupError && (
             <div className="mt-3 rounded-input bg-danger/10 px-3 py-2 text-[12px] text-danger">
               {backupError}
@@ -375,24 +415,20 @@ export function AdvancedSettings() {
 
         <MicMuteCard />
 
-        <Card title="Reset">
+        <Card title={t('advanced.reset.title')}>
           <Row
-            label="Reset all settings to defaults"
-            description="Modes, vocabulary, and history are preserved."
+            label={t('advanced.reset.row.label')}
+            description={t('advanced.reset.row.description')}
           >
             <button
               onClick={() => {
-                if (
-                  confirm(
-                    'Reset all Utterbar settings? This does not delete recordings or history.',
-                  )
-                ) {
+                if (confirm(t('advanced.reset.confirm'))) {
                   void reset();
                 }
               }}
               className="ub-btn ub-btn-danger !py-[0.4rem] !text-[12px]"
             >
-              Reset
+              {t('advanced.reset.button')}
             </button>
           </Row>
         </Card>
@@ -416,15 +452,25 @@ export function AdvancedSettings() {
             className="w-[440px] rounded-card bg-bg-1 p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="ub-eyebrow mb-2 text-danger">Destructive action</div>
-            <h3 className="mb-2 text-[18px] font-semibold text-fg-hi">Replace all Utterbar data?</h3>
+            <div className="ub-eyebrow mb-2 text-danger">
+              {t('advanced.backup.import_modal.eyebrow')}
+            </div>
+            <h3 className="mb-2 text-[18px] font-semibold text-fg-hi">
+              {t('advanced.backup.import_modal.heading')}
+            </h3>
             <p className="mb-4 text-[13px] leading-relaxed text-muted">
-              Importing <span className="font-mono text-fg">{pendingImportPath.split(/[\\/]/).pop()}</span>{' '}
-              will overwrite your current settings, modes, vocabulary, history, and any recordings
-              included in the archive. Utterbar will restart immediately afterwards.
+              {/* The backend-supplied filename is split off the
+                  pendingImportPath and rendered verbatim inside the
+                  inline mono span; only the surrounding prose is
+                  catalogued via prefix/suffix segments. */}
+              {t('advanced.backup.import_modal.body_prefix')}{' '}
+              <span className="font-mono text-fg">
+                {pendingImportPath.split(/[\\/]/).pop()}
+              </span>{' '}
+              {t('advanced.backup.import_modal.body_suffix')}
             </p>
             <p className="mb-5 text-[12px] leading-relaxed text-muted">
-              This cannot be undone. If you're not sure, cancel and export your current data first.
+              {t('advanced.backup.import_modal.warning')}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -432,14 +478,16 @@ export function AdvancedSettings() {
                 disabled={importing}
                 className="ub-btn !py-[0.4rem] !text-[12px]"
               >
-                Cancel
+                {t('advanced.backup.import_modal.cancel')}
               </button>
               <button
                 onClick={() => void confirmImport()}
                 disabled={importing}
                 className="ub-btn ub-btn-danger !py-[0.4rem] !text-[12px]"
               >
-                {importing ? 'Importing & restarting…' : 'Replace and restart'}
+                {importing
+                  ? t('advanced.backup.import_modal.replacing')
+                  : t('advanced.backup.import_modal.replace')}
               </button>
             </div>
           </div>
