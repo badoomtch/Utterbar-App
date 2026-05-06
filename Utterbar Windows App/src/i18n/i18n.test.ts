@@ -300,6 +300,62 @@ describe('i18n English foundation', () => {
     expect((value as readonly string[]).length).toBeGreaterThan(0);
   });
 
+  it('resolves every chrome key consumed by the app shell', () => {
+    // Pinned list of every common.chrome.* key the shell actually reads.
+    // Adding/renaming a key here without updating the catalogue (or vice
+    // versa) fails the test before users see a missing-key fallback at
+    // runtime.
+    const keys = [
+      'chrome.nav.dashboard',
+      'chrome.nav.history',
+      'chrome.nav.meetings',
+      'chrome.nav.modes',
+      'chrome.nav.vocabulary',
+      'chrome.nav.files',
+      'chrome.footer.strap',
+      'chrome.tier.pro',
+      'chrome.tier.free_cta',
+      'chrome.update_toast.title',
+      'chrome.update_toast.install',
+      'chrome.update_toast.installing',
+      'chrome.update_toast.later',
+      'chrome.update_toast.error_generic',
+      'chrome.update_toast.post_title',
+      'chrome.update_toast.post_body',
+      'chrome.update_toast.post_link',
+      'chrome.update_toast.dismiss_aria',
+      'chrome.upgrade_modal.feature_prefix',
+      'chrome.upgrade_modal.pro_word',
+      'chrome.upgrade_modal.feature_suffix',
+      'chrome.upgrade_modal.period.one_time',
+      'chrome.upgrade_modal.period.monthly',
+      'chrome.upgrade_modal.period.yearly',
+      'chrome.upgrade_modal.not_now',
+      'chrome.upgrade_modal.upgrade',
+      'chrome.pro_nudge.feature_prefix',
+      'chrome.pro_nudge.pro_word',
+      'chrome.pro_nudge.feature_suffix',
+      'chrome.pro_nudge.learn_more',
+      'chrome.managed_hint.default',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'common', key);
+      expect(value, `common.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `common.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders chrome.update_toast.post_title with the version interpolated', () => {
+    const out = i18n.t('chrome.update_toast.post_title', {
+      ns: 'common',
+      version: '0.19.0',
+    });
+    expect(out).toContain('0.19.0');
+    // Crucially: the raw key + Mustache placeholders must NOT leak through.
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('chrome.update_toast.post_title');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -307,6 +363,11 @@ describe('i18n English foundation', () => {
     expect(Object.keys(barEn.button).length).toBeGreaterThan(0);
     expect(Object.keys(barEn.mic_mute).length).toBeGreaterThan(0);
     expect(Object.keys(commonEn.language).length).toBeGreaterThan(0);
+    expect(Object.keys(commonEn.chrome).length).toBeGreaterThan(0);
+    expect(Object.keys(commonEn.chrome.nav).length).toBeGreaterThan(0);
+    expect(Object.keys(commonEn.chrome.update_toast).length).toBeGreaterThan(0);
+    expect(Object.keys(commonEn.chrome.upgrade_modal).length).toBeGreaterThan(0);
+    expect(Object.keys(commonEn.chrome.pro_nudge).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general.startup).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general.appearance).length).toBeGreaterThan(0);

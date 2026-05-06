@@ -1,5 +1,6 @@
 import { Sparkles } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/lib/cn';
 import { useLicence } from '@/state/licence';
@@ -43,6 +44,7 @@ export function ProNudge({
   dense?: boolean;
   className?: string;
 }) {
+  const { t } = useTranslation('common');
   const status = useLicence((s) => s.status);
   const loaded = useLicence((s) => s.loaded);
   // Don't render until the licence store has resolved — avoids flashing the
@@ -65,13 +67,21 @@ export function ProNudge({
         aria-hidden
       />
       <div className="flex-1 min-w-0">
+        {/*
+          Same prefix/pro/suffix shape as UpgradeModal: the framing wraps
+          "Pro" in an accent span, so we split the surrounding sentence
+          rather than restructuring the JSX. See UpgradeModal.tsx for the
+          deferral note on locales with different word order.
+        */}
         <div
           className={cn(
             'font-medium text-fg-hi',
             dense ? 'text-[12px]' : 'text-[13px]',
           )}
         >
-          {feature} is a <span className="text-accent">Pro</span> feature.
+          {feature} {t('chrome.pro_nudge.feature_prefix')}{' '}
+          <span className="text-accent">{t('chrome.pro_nudge.pro_word')}</span>{' '}
+          {t('chrome.pro_nudge.feature_suffix')}
         </div>
         {description && (
           <p
@@ -92,7 +102,7 @@ export function ProNudge({
           dense ? '!py-[0.3rem] !text-[11px]' : '!py-[0.4rem] !text-[12px]',
         )}
       >
-        Learn more →
+        {t('chrome.pro_nudge.learn_more')}
       </button>
     </div>
   );

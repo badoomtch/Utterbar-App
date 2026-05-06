@@ -1,5 +1,6 @@
 import { Sparkles, Check, ExternalLink } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
+import { useTranslation } from 'react-i18next';
 
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
@@ -47,6 +48,7 @@ export function UpgradeModal({
   /** Optional short list of Pro benefits to reinforce the pitch. */
   bullets?: string[];
 }) {
+  const { t } = useTranslation('common');
   const { price, loading } = useProPrice();
 
   return (
@@ -57,8 +59,19 @@ export function UpgradeModal({
             <Sparkles className="h-[18px] w-[18px] text-accent" />
           </div>
           <div className="flex-1 min-w-0">
+            {/*
+              The framing wraps "Pro" in an accent-coloured span. To preserve
+              the span we split the surrounding sentence into prefix + suffix
+              keys. A future locale with different word order can rephrase by
+              editing the keys; deeper word-order changes (ones that need
+              "Pro" to land elsewhere in the sentence) would warrant a
+              `<Trans>`-style component, deferred until a non-English locale
+              actually needs it.
+            */}
             <div className="text-[17px] font-bold leading-tight text-fg-hi">
-              {feature} is a <span className="text-accent">Pro</span> feature
+              {feature} {t('chrome.upgrade_modal.feature_prefix')}{' '}
+              <span className="text-accent">{t('chrome.upgrade_modal.pro_word')}</span>{' '}
+              {t('chrome.upgrade_modal.feature_suffix')}
             </div>
             {description && (
               <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
@@ -92,23 +105,23 @@ export function UpgradeModal({
             </span>
             {price.period === 'one_time' && (
               <span className="text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
-                one-time
+                {t('chrome.upgrade_modal.period.one_time')}
               </span>
             )}
             {price.period === 'monthly' && (
               <span className="text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
-                per month
+                {t('chrome.upgrade_modal.period.monthly')}
               </span>
             )}
             {price.period === 'yearly' && (
               <span className="text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
-                per year
+                {t('chrome.upgrade_modal.period.yearly')}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={onClose}>
-              Not now
+              {t('chrome.upgrade_modal.not_now')}
             </Button>
             <Button
               variant="cta"
@@ -121,7 +134,7 @@ export function UpgradeModal({
                 onClose();
               }}
             >
-              Upgrade
+              {t('chrome.upgrade_modal.upgrade')}
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           </div>

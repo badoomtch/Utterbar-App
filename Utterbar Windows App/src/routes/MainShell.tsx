@@ -44,14 +44,19 @@ import { BarSettings } from '@/routes/settings/BarSettings';
 import { LicenceSettings } from '@/routes/settings/LicenceSettings';
 import { UpdatesSettings } from '@/routes/settings/UpdatesSettings';
 
+// Workspace nav structural data — route paths, icons, and the stable
+// `labelKey` under `common.chrome.nav.*`. The visible label is resolved
+// at render time inside `MainShell` so a future locale flip swaps the
+// copy without restart. `to`, `labelKey`, and `icon` MUST NOT change
+// without updating the translation catalogue + tests.
 const NAV_PRIMARY = [
-  { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
-  { to: '/history', label: 'History', icon: HistoryIcon },
-  { to: '/meetings', label: 'Meetings', icon: Users },
-  { to: '/modes', label: 'Modes', icon: Shapes },
-  { to: '/vocabulary', label: 'Vocabulary', icon: Layers },
-  { to: '/files', label: 'Files', icon: FileAudio },
-];
+  { to: '/dashboard', labelKey: 'chrome.nav.dashboard', icon: BarChart3 },
+  { to: '/history', labelKey: 'chrome.nav.history', icon: HistoryIcon },
+  { to: '/meetings', labelKey: 'chrome.nav.meetings', icon: Users },
+  { to: '/modes', labelKey: 'chrome.nav.modes', icon: Shapes },
+  { to: '/vocabulary', labelKey: 'chrome.nav.vocabulary', icon: Layers },
+  { to: '/files', labelKey: 'chrome.nav.files', icon: FileAudio },
+] as const;
 
 // Settings nav data lives in `@/routes/settings_nav.ts` so the
 // per-section / per-match display labels can flip with the active
@@ -75,6 +80,7 @@ const NAV_PRIMARY = [
  */
 export function MainShell() {
   const { t } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   const [appVersion, setAppVersion] = useState<string>('');
   // Settings search query. Empty string = no filter, full list shown.
   // Lives in shell state because the input sits in the sidebar (above
@@ -91,6 +97,14 @@ export function MainShell() {
   // change the language, so `filterSettingsByQuery` doesn't fire on
   // every keystroke against a freshly-allocated array.
   const navSettings = useMemo(() => buildSettingsNav(t), [t]);
+
+  // Workspace nav resolved against the active common-namespace t().
+  // Same memo discipline as `navSettings`: a fresh array on every
+  // render would defeat NavLink memoisation downstream.
+  const navPrimary = useMemo(
+    () => NAV_PRIMARY.map((item) => ({ ...item, label: tCommon(item.labelKey) })),
+    [tCommon],
+  );
 
   // Reset scroll to the top whenever the route changes. Without this, paging
   // through Settings ("General" → "Accessibility" → "Privacy") keeps the scroll
@@ -138,7 +152,7 @@ export function MainShell() {
         </div>
 
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 pb-4">
-          <NavGroup label={t('nav.group.workspace')} items={NAV_PRIMARY} />
+          <NavGroup label={t('nav.group.workspace')} items={navPrimary} />
           <SettingsSearchInput
             ref={settingsSearchRef}
             value={settingsQuery}
@@ -192,7 +206,7 @@ export function MainShell() {
         <div className="shrink-0 px-5 pt-3 pb-5 space-y-2">
           <TierLine />
           <div className="ub-eyebrow font-mono">
-            {appVersion ? `v${appVersion}` : 'v…'} · local only
+            {appVersion ? `v${appVersion}` : 'v…'} · {tCommon('chrome.footer.strap')}
           </div>
         </div>
       </aside>
@@ -263,6 +277,7 @@ export function MainShell() {
  * frame on launch before `licence_status` resolves.
  */
 function TierLine() {
+  const { t } = useTranslation('common');
   const status = useLicence((s) => s.status);
   const loaded = useLicence((s) => s.loaded);
   if (!loaded || !status) return null;
@@ -274,7 +289,7 @@ function TierLine() {
         className="inline-flex items-center gap-2 text-[12px] font-medium text-fg-hi transition-colors hover:text-accent"
       >
         <Led size={6} />
-        Pro
+        {t('chrome.tier.pro')}
       </NavLink>
     );
   }
@@ -283,7 +298,7 @@ function TierLine() {
       onClick={() => void openShell('https://utterbar.com/pricing').catch(() => undefined)}
       className="text-[12px] font-medium text-muted transition-colors hover:text-fg-hi"
     >
-      Upgrade to Pro →
+      {t('chrome.tier.free_cta')}
     </button>
   );
 }
