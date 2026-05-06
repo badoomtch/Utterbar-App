@@ -624,6 +624,94 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('audio.noise_handling.suppression.preview_tooltip');
   });
 
+  it('resolves every Privacy settings key', () => {
+    // Pinned list of every settings.privacy.* key consumed by
+    // PrivacySettings.tsx. Backend-emitted DataPaths values, the
+    // user-supplied conferencing-app names, and the Rust validator's
+    // stable reason ids stay verbatim — only frontend chrome and the
+    // matching error-message catalogue are pinned here.
+    const keys = [
+      'privacy.title',
+      'privacy.subtitle',
+      'privacy.managed_hint',
+      'privacy.context.title',
+      'privacy.context.description',
+      'privacy.context.active_app.label',
+      'privacy.context.active_app.description',
+      'privacy.context.selection.label',
+      'privacy.context.selection.description',
+      'privacy.context.clipboard.label',
+      'privacy.context.clipboard.description',
+      'privacy.audio_retention.title',
+      'privacy.audio_retention.save_recordings.label',
+      'privacy.audio_retention.save_recordings.description',
+      'privacy.audio_retention.pro_nudge.feature',
+      'privacy.audio_retention.pro_nudge.description',
+      'privacy.audio_retention.delete_after.label',
+      'privacy.audio_retention.delete_after.description',
+      'privacy.audio_retention.delete_after.value',
+      'privacy.media.title',
+      'privacy.media.pause_music.label',
+      'privacy.media.pause_music.description',
+      'privacy.media.mute_conferencing.label',
+      'privacy.media.mute_conferencing.description',
+      'privacy.conferencing_apps.title',
+      'privacy.conferencing_apps.description_prefix',
+      'privacy.conferencing_apps.using_defaults',
+      'privacy.conferencing_apps.using_custom',
+      'privacy.conferencing_apps.edit_locked',
+      'privacy.conferencing_apps.reset_to_defaults',
+      'privacy.conferencing_apps.empty',
+      'privacy.conferencing_apps.input_placeholder',
+      'privacy.conferencing_apps.add',
+      'privacy.conferencing_apps.remove_aria',
+      'privacy.conferencing_apps.errors.empty',
+      'privacy.conferencing_apps.errors.invalid_characters',
+      'privacy.conferencing_apps.errors.too_long',
+      'privacy.conferencing_apps.errors.duplicate',
+      'privacy.conferencing_apps.errors.defaults_loading',
+      'privacy.conferencing_apps.errors.fallback',
+      'privacy.data_locations.title',
+      'privacy.data_locations.rows.config',
+      'privacy.data_locations.rows.database',
+      'privacy.data_locations.rows.models',
+      'privacy.data_locations.rows.recordings',
+      'privacy.data_locations.rows.logs',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders privacy.audio_retention.delete_after.value with the day count interpolated', () => {
+    // The retention slider readout reads `t(..., { days })`. Pin the
+    // `{{days}}` substitution so a future copy edit can't drop it
+    // silently and leave a literal mustache template visible.
+    const out = i18n.t('privacy.audio_retention.delete_after.value', {
+      ns: 'settings',
+      days: 14,
+    });
+    expect(out).toContain('14');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('privacy.audio_retention.delete_after.value');
+  });
+
+  it('renders privacy.conferencing_apps.remove_aria with the app name interpolated', () => {
+    // The remove-button aria-label is composed at render time per app.
+    // Pin the `{{name}}` substitution so screen-reader text always
+    // names the specific app being removed rather than a literal
+    // template string.
+    const out = i18n.t('privacy.conferencing_apps.remove_aria', {
+      ns: 'settings',
+      name: 'Teams.exe',
+    });
+    expect(out).toContain('Teams.exe');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('privacy.conferencing_apps.remove_aria');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -673,6 +761,14 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.audio.noise_handling).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.audio.noise_handling.suppression).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.audio.noise_handling.suppression.levels).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy.context).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy.audio_retention).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy.media).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy.conferencing_apps).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy.conferencing_apps.errors).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy.data_locations).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.privacy.data_locations.rows).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
