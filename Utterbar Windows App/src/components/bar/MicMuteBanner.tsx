@@ -66,6 +66,9 @@ export function MicMuteBanner() {
     <div
       role="status"
       aria-live="polite"
+      // pointer-events-auto on the banner element only (the wrapper
+      // in FloatingBar.tsx is pointer-events-none so the user can
+      // drag the pill through empty banner space).
       className={`pointer-events-auto select-none rounded-lg px-3 py-2 text-[12px] leading-relaxed shadow-lg ${
         reducedMotion ? '' : 'transition-opacity duration-200'
       } ${

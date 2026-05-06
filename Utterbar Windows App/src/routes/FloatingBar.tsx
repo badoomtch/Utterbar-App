@@ -551,7 +551,7 @@ export function FloatingBar() {
 
   return (
     <div
-      className="flex h-screen w-screen flex-col items-center justify-start gap-2 bg-transparent p-0"
+      className="relative flex h-screen w-screen items-start justify-center bg-transparent p-0"
       // Block the webview's default right-click menu on the floating window. Without
       // this the user gets "Save image", "Copy image", "Inspect" — and Save image
       // rasterises the transparent surface as a speckled blue-dot pattern (the
@@ -559,10 +559,21 @@ export function FloatingBar() {
       // useful in the menu for a pill-shaped single-purpose widget.
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Experimental Teams + Discord mic-mute banner. Renders above
-          the bar so it never compresses the existing chrome. Off
-          when no mic-mute event has been emitted (the common case). */}
-      <div className="pointer-events-none w-full max-w-[640px] px-2">
+      {/* Experimental Teams + Discord mic-mute banner. Absolutely
+          positioned BELOW the pill so it never participates in the
+          flex layout that holds the pill itself. v0.18.3 had the
+          banner as a flex sibling of the pill; under Framer
+          Motion's `layout` flag the pill's width collapsed when the
+          banner appeared, making the bar look "tiny / thin". v0.18.4
+          removes the banner from the flex flow entirely so the pill
+          renders at its full natural width regardless of banner
+          state. Position is below the pill so the user's gaze ends
+          on the banner immediately after the recording stops; the
+          pill's own state is the visual anchor above. The
+          `pointer-events-none` wrapper lets the user drag the pill
+          through banner space; the inner banner re-enables pointer
+          events for its "Confirmed" button. */}
+      <div className="pointer-events-none absolute left-1/2 top-[72px] z-10 w-full max-w-[480px] -translate-x-1/2 px-2">
         <MicMuteBanner />
       </div>
       <motion.div
