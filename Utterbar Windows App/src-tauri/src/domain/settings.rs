@@ -114,6 +114,14 @@ pub struct GeneralSettings {
     /// time if it's missing or malformed.
     #[serde(default)]
     pub custom_accent_hex: Option<String>,
+    /// Language used for the desktop app's user interface. Distinct from
+    /// dictation language (`ModelSettings.whisper_language`), which only
+    /// affects what the speech recogniser hears. Today the only shipping
+    /// variant is `English`; the field exists so a future locale can be
+    /// added without a settings migration. Serde-defaulted so existing
+    /// settings.json files upgrade cleanly.
+    #[serde(default)]
+    pub app_language: AppLanguage,
 }
 
 fn default_bar_outline() -> bool {
@@ -131,6 +139,20 @@ pub enum BarSize {
     Compact,
     #[default]
     Standard,
+}
+
+/// Language of the desktop app's user interface. Lives on `GeneralSettings`
+/// and is independent of dictation language (which is per-model and lives
+/// on `ModelSettings.whisper_language`). The serde tag is the BCP-47 / ISO
+/// 639-1 short code so settings.json reads naturally (e.g. `"app_language":
+/// "en"`). Adding a new locale means adding a variant here, a matching JSON
+/// resource on the frontend, and a row in the App language picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+#[serde(rename_all = "lowercase")]
+pub enum AppLanguage {
+    #[default]
+    En,
 }
 
 /// Cue-sound flavour. All profiles are synthesised on the fly via the frontend's
@@ -189,6 +211,7 @@ impl Default for GeneralSettings {
             bar_outline: true,
             releases_email: None,
             custom_accent_hex: None,
+            app_language: AppLanguage::default(),
         }
     }
 }
@@ -1063,5 +1086,47 @@ mod text_output_tests {
         let json = serde_json::to_string(&t).expect("serialise");
         let parsed: TextOutputSettings = serde_json::from_str(&json).expect("deserialise");
         assert!(parsed.smart_rewrite, "round-trip must preserve true");
+    }
+}
+
+#[cfg(test)]
+mod app_language_tests {
+    use super::*;
+
+    #[test]
+    fn default_app_language_is_english() {
+        assert_eq!(GeneralSettings::default().app_language, AppLanguage::En);
+    }
+
+    #[test]
+    fn app_language_serialises_as_lowercase_code() {
+        let json = serde_json::to_string(&AppLanguage::En).expect("serialise");
+        assert_eq!(json, "\"en\"");
+    }
+
+    #[test]
+    fn app_language_round_trips_through_general_settings() {
+        let g = GeneralSettings {
+            app_language: AppLanguage::En,
+            ..GeneralSettings::default()
+        };
+        let json = serde_json::to_string(&g).expect("serialise");
+        let parsed: GeneralSettings = serde_json::from_str(&json).expect("deserialise");
+        assert_eq!(parsed.app_language, AppLanguage::En);
+    }
+
+    #[test]
+    fn legacy_settings_without_app_language_default_to_english() {
+        let g_default = GeneralSettings::default();
+        // Pretend we loaded an older settings.json that never had `app_language`.
+        // The `#[serde(default)]` annotation must fill it back in.
+        let mut value = serde_json::to_value(&g_default).expect("serialise");
+        value
+            .as_object_mut()
+            .expect("object")
+            .remove("app_language");
+        let parsed: GeneralSettings =
+            serde_json::from_value(value).expect("deserialise without app_language");
+        assert_eq!(parsed.app_language, AppLanguage::En);
     }
 }

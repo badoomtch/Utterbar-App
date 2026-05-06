@@ -9,6 +9,7 @@ import { attachLicenceListener, useLicence } from '@/state/licence';
 import { usePolicy } from '@/state/policy';
 import { useSoundCues } from '@/design/sounds';
 import { useSystemNotifications } from '@/design/notifications';
+import { applyAppLanguage } from '@/i18n';
 
 import type { ShortcutId } from '@/generated/ShortcutId';
 
@@ -36,6 +37,7 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   const loadLicence = useLicence((s) => s.load);
   const loadPolicy = usePolicy((s) => s.load);
   const reduceMotion = useSettings((s) => s.data?.general.reduce_motion ?? false);
+  const appLanguage = useSettings((s) => s.data?.general.app_language);
   const isMain = isMainWindow();
 
   // Sound cues and system notifications are single-source by design (no amount of
@@ -80,6 +82,15 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
       root.removeAttribute('data-reduce-motion');
     }
   }, [reduceMotion]);
+
+  // Keep i18next's active language in sync with the user's saved
+  // preference. Runs once on hydration (settings load is asynchronous, so
+  // `appLanguage` flips from `undefined` to the persisted value) and again
+  // on every subsequent change. `applyAppLanguage` is a no-op when the
+  // language hasn't actually changed.
+  useEffect(() => {
+    applyAppLanguage(appLanguage);
+  }, [appLanguage]);
 
   // Hotkey debounce + in-flight latch. Fixes two different double-fire sources:
   //   1) Mouse buttons (especially cheap gaming mice / AutoHotKey rebinds) that bounce

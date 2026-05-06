@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Palette, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
@@ -9,9 +10,14 @@ import { useSettings } from '@/state/settings';
 import { useLicence, isPro } from '@/state/licence';
 import { cn } from '@/lib/cn';
 import { previewProfile, SOUND_PROFILES, type SoundProfileId } from '@/design/sounds';
+import type { AppLanguage } from '@/generated/AppLanguage';
 
 const ACCENTS = ['teal', 'amber', 'violet', 'rose', 'cyan', 'lime'] as const;
 const THEMES = ['obsidian', 'graphite', 'paper'] as const;
+// Languages currently available for the desktop UI. Today only English
+// ships; adding a locale means appending its `AppLanguage` variant here
+// AND adding the matching JSON resources in `src/i18n/locales/`.
+const APP_LANGUAGES: ReadonlyArray<AppLanguage> = ['en'] as const;
 
 /**
  * General settings.
@@ -32,6 +38,8 @@ export function GeneralSettings() {
   const licenceStatus = useLicence((x) => x.status);
   const pro = isPro(licenceStatus);
   const [showAccentUpgrade, setShowAccentUpgrade] = useState(false);
+  const { t: tSettings } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   // Hidden <input type="color">, clicking the Custom swatch chip opens the
   // OS colour picker through this ref, so we don't have to build a palette
   // UI ourselves and the user gets their native picker with recent colours,
@@ -197,6 +205,28 @@ export function GeneralSettings() {
             'All six preset accents stay free for everyone',
           ]}
         />
+
+        <Card title={tSettings('general.app_language.label')}>
+          <Row
+            label={tSettings('general.app_language.label')}
+            description={tSettings('general.app_language.description')}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              {APP_LANGUAGES.map((code) => (
+                <button
+                  key={code}
+                  onClick={() => void update('app_language', code)}
+                  className={cn(
+                    'ub-chip',
+                    (g.app_language ?? 'en') === code && 'ub-chip--active',
+                  )}
+                >
+                  {tCommon(`language.${code === 'en' ? 'english' : code}`)}
+                </button>
+              ))}
+            </div>
+          </Row>
+        </Card>
 
         <Card title="Feedback">
           <Row

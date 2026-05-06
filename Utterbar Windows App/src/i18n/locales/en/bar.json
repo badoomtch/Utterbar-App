@@ -1,0 +1,20 @@
+{
+  "phase": {
+    "ready": "Ready",
+    "initialising_model": "Initialising model",
+    "recording": "Recording",
+    "processing": "Processing",
+    "transcribing_meeting": "Transcribing meeting…",
+    "transcribing_meeting_with_progress": "Transcribing meeting · {{current}}/{{total}}",
+    "saved": "Saved · {{time}}{{modelSegment}} · {{chunks}} {{chunkWord}} · {{chars}} chars",
+    "auto_stopped_5_min": "Auto-stopped at 5 min",
+    "inserted": "Inserted",
+    "error": "Error",
+    "cancelled": "Cancelled",
+    "no_audio_detected": "No audio detected"
+  },
+  "unit": {
+    "chunk_one": "chunk",
+    "chunk_other": "chunks"
+  }
+}

@@ -1,4 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { cn } from '@/lib/cn';
 import { springs } from '@/design/motion';
 import { useDictation, type DictationPhase, type MeetingProgress } from '@/state/dictation';
@@ -27,7 +29,8 @@ export function StatePill({ phase }: { phase: DictationPhase }) {
   // here is safe (and a re-render is only triggered when the value
   // changes, by zustand's default reference equality).
   const meetingProgress = useDictation((s) => s.meetingProgress);
-  const { label, tone } = describe(phase, meetingProgress);
+  const { t } = useTranslation('bar');
+  const { label, tone } = describe(phase, meetingProgress, t);
   // The progress track is a thin accent line under the pill that fills
   // proportionally as chunks complete. Only shown for the meeting-
   // transcribe phase WITH a non-null progress payload (single-chunk
@@ -85,10 +88,14 @@ export function StatePill({ phase }: { phase: DictationPhase }) {
   );
 }
 
-function describe(phase: DictationPhase, meetingProgress: MeetingProgress | null) {
+function describe(
+  phase: DictationPhase,
+  meetingProgress: MeetingProgress | null,
+  t: TFunction<'bar'>,
+) {
   switch (phase.kind) {
     case 'idle':
-      return { label: 'Ready', tone: 'muted' as const };
+      return { label: t('phase.ready'), tone: 'muted' as const };
     case 'warming':
       // v0.6.7: `Warming` was the previous copy but read as too generic —
       // users saw `Processing` then `Warming` and assumed both meant the
@@ -96,37 +103,38 @@ function describe(phase: DictationPhase, meetingProgress: MeetingProgress | null
       // genuine cold-load, so the copy explicitly says so and uses the
       // accent tone (not muted) to signal "something is happening, just
       // longer than usual" rather than "idle".
-      return { label: 'Initialising model', tone: 'accent' as const };
+      return { label: t('phase.initialising_model'), tone: 'accent' as const };
     case 'listening':
-      return { label: 'Recording', tone: 'accent' as const };
+      return { label: t('phase.recording'), tone: 'accent' as const };
     case 'processing':
-      return { label: 'Processing', tone: 'accent' as const };
+      return { label: t('phase.processing'), tone: 'accent' as const };
     case 'transcribing_background': {
       // Meeting mode's chunked transcribe pass. Same visual treatment as
       // Processing (accent tone, same dot) but the copy tells the user
-      // what's actually happening — "Transcribing meeting…" — instead
-      // of the generic "Processing" that for a 5-min meeting can sit on
-      // screen for ~17 s with no context.
+      // what's actually happening instead of the generic "Processing" that
+      // for a 5-min meeting can sit on screen for ~17 s with no context.
       //
       // Append a "N/M" counter when chunk progress is known so the user
       // can read concrete progress at a glance instead of a static
-      // ellipsis. Falls back to the bare "Transcribing meeting…" copy
-      // for the single-chunk fast path (which does not emit progress)
-      // and for the brief moment between phase change and first
-      // progress event arrival.
+      // ellipsis. Falls back to the bare phrase for the single-chunk fast
+      // path (which does not emit progress) and for the brief moment
+      // between phase change and first progress event arrival.
       if (meetingProgress && meetingProgress.totalChunks > 0) {
         const current = meetingProgress.chunkIndex + 1;
         return {
-          label: `Transcribing meeting · ${current}/${meetingProgress.totalChunks}`,
+          label: t('phase.transcribing_meeting_with_progress', {
+            current,
+            total: meetingProgress.totalChunks,
+          }),
           tone: 'accent' as const,
         };
       }
-      return { label: 'Transcribing meeting…', tone: 'accent' as const };
+      return { label: t('phase.transcribing_meeting'), tone: 'accent' as const };
     }
     case 'success':
       // Meeting-mode success carries a summary so the user gets concrete
       // feedback ("5:01 · 11 chunks · 799 chars") instead of the generic
-      // "Inserted" pill that was indistinguishable between a 3-second
+      // success label that was indistinguishable between a 3-second
       // dictation and a 5-minute meeting that happened to process fast.
       // Ordinary dictations don't carry a summary and keep the original
       // copy.
@@ -136,43 +144,48 @@ function describe(phase: DictationPhase, meetingProgress: MeetingProgress | null
         const ss = duration_seconds % 60;
         const time = `${mm}:${ss.toString().padStart(2, '0')}`;
         // v0.15.3: model_label slots between time and chunk count so
-        // the user can correlate quality vs speed across meetings
-        // ("5:01 · Whisper Medium · 11 chunks · 799 chars"). Older
-        // events without the field would render `undefined` — use a
-        // defensive fallback.
+        // the user can correlate quality vs speed across meetings.
+        // Older events without the field would render `undefined` —
+        // use a defensive fallback.
         const modelSegment = model_label ? ` · ${model_label}` : '';
-        const label = `Saved · ${time}${modelSegment} · ${chunks} chunk${chunks === 1 ? '' : 's'} · ${chars.toLocaleString()} chars`;
+        const chunkWord = t(chunks === 1 ? 'unit.chunk_one' : 'unit.chunk_other');
+        const label = t('phase.saved', {
+          time,
+          modelSegment,
+          chunks,
+          chunkWord,
+          chars: chars.toLocaleString(),
+        });
         return { label, tone: 'success' as const };
       }
       // When the Rust auto-stop timer drove this stop (single-shot
       // dictation hit the 5-minute cap), surface a clear non-error
-      // label instead of the generic "Inserted" so the user
+      // label instead of the generic success copy so the user
       // understands why their recording ended without their hotkey
       // press. Audio up to the cap was transcribed and inserted
       // normally.
       if (phase.notice) {
-        return { label: 'Auto-stopped at 5 min', tone: 'success' as const };
+        return { label: t('phase.auto_stopped_5_min'), tone: 'success' as const };
       }
-      return { label: 'Inserted', tone: 'success' as const };
+      return { label: t('phase.inserted'), tone: 'success' as const };
     case 'error':
-      return { label: 'Error', tone: 'error' as const };
+      return { label: t('phase.error'), tone: 'error' as const };
     case 'cancelled':
-      return { label: 'Cancelled', tone: 'muted' as const };
+      return { label: t('phase.cancelled'), tone: 'muted' as const };
     case 'no_audio':
       // Muted tone — silence is a non-event, not a failure. The user
       // tapped the hotkey but nothing usable came out; we want the
       // message legible, not alarming.
       //
       // `phase.notice` is set by the Rust output validator when the
-      // drop wasn't plain silence (e.g. a Whisper decoder loop or a
-      // foreign-script hallucination on an English-only path). We
-      // surface it instead of the generic copy so the user can tell
-      // "we recorded but filtered something" apart from "we got
-      // silence". Same muted tone either way - neither is an error.
+      // drop wasn't plain silence (e.g. a decoder loop or a foreign-
+      // script hallucination on an English-only path). We surface it
+      // verbatim, since it is dynamic Rust-emitted prose rather than a
+      // fixed UI string. Localising backend messages is a later branch.
       if (phase.notice) {
         return { label: phase.notice, tone: 'muted' as const };
       }
-      return { label: 'No audio detected', tone: 'muted' as const };
+      return { label: t('phase.no_audio_detected'), tone: 'muted' as const };
   }
 }
 

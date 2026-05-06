@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 
 import './styles/globals.css';
+// Side-effect import: initialises i18next with the bundled English
+// resources before any component calls `useTranslation()`. Must precede
+// the route imports so the first render finds the namespace registered.
+import '@/i18n';
 
 import { AppBootstrap } from '@/routes/AppBootstrap';
 import { FloatingBar } from '@/routes/FloatingBar';
