@@ -356,6 +356,42 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('chrome.update_toast.post_title');
   });
 
+  it('resolves every Text Output settings key', () => {
+    // Pinned list of every settings.text_output.* key consumed by
+    // TextOutputSettings.tsx. Adding/renaming a key here without updating
+    // the catalogue (or vice versa) fails the test before users see a
+    // missing-key fallback at runtime.
+    const keys = [
+      'text_output.title',
+      'text_output.subtitle',
+      'text_output.delivery.title',
+      'text_output.delivery.paste_automatically.label',
+      'text_output.delivery.paste_automatically.description',
+      'text_output.delivery.restore_clipboard.label',
+      'text_output.delivery.restore_clipboard.description',
+      'text_output.delivery.keystroke_fallback.label',
+      'text_output.delivery.keystroke_fallback.description',
+      'text_output.formatting.title',
+      'text_output.formatting.auto_capitalise.label',
+      'text_output.formatting.auto_capitalise.description',
+      'text_output.formatting.trim_trailing_space.label',
+      'text_output.formatting.trim_trailing_space.description',
+      'text_output.formatting.auto_space_on_paste.label',
+      'text_output.formatting.auto_space_on_paste.description',
+      'text_output.formatting.numbers_as_digits.label',
+      'text_output.formatting.numbers_as_digits.description',
+      'text_output.formatting.smart_rewrite.label',
+      'text_output.formatting.smart_rewrite.description',
+      'text_output.formatting.shift_to_auto_send.label',
+      'text_output.formatting.shift_to_auto_send.description',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -376,6 +412,9 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.nav).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.nav.group).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.nav.search).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.text_output).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.text_output.delivery).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.text_output.formatting).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
