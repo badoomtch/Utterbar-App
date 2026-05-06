@@ -76,13 +76,18 @@
         ],
         [
             'title' => 'Mutes call-app audio while you dictate.',
-            'body'  => 'When you are on a call and need to dictate something into another window, Utterbar can silence what you HEAR from Teams, Slack, Discord, Zoom, and Webex for the duration of the recording, then restore it the moment you let go of the hotkey. Call audio and notification dings stop bleeding into your dictation. Toggle and editable app list live in Settings &gt; Privacy &gt; Media. The toggle is output-only: it does NOT mute your microphone inside the call app, so use that app&rsquo;s own mute button if that&rsquo;s what you need.',
-            'wins'  => ['Output audio only, not the mic', 'Editable app list', 'Auto-restored after dictation'],
+            'body'  => 'When you are on a call and need to dictate something into another window, Utterbar can silence what you HEAR from Teams, Slack, Discord, Zoom, and Webex for the duration of the recording, then restore it the moment you let go of the hotkey. Call audio and notification dings stop bleeding into your dictation. Toggle and editable app list live in Settings &gt; Privacy &gt; Media. This is output-only and covers all five apps.',
+            'wins'  => ['Output audio for all five apps', 'Editable app list', 'Auto-restored after dictation'],
+        ],
+        [
+            'title' => 'Optional experimental mic mute for Teams and Discord.',
+            'body'  => 'Different setting, different boundary. Settings &gt; Advanced &gt; Experimental has two off-by-default toggles, one for Teams and one for Discord. Enable a toggle, supply the mute hotkey you have configured in that app (Teams uses Ctrl+Shift+M by default; Discord uses whatever you set under User Settings, Keybinds, Toggle Mute), and Utterbar sends the hotkey as a global keystroke when you start and stop recording. A banner asks you to glance at the call app&rsquo;s own mute indicator to confirm: Utterbar cannot read the real mute state, so the banner is the honest version of &ldquo;we tried, please confirm&rdquo;. Teams and Discord only. Zoom and Webex are not supported. If your situation needs a guaranteed mute, use the call app&rsquo;s own mute button.',
+            'wins'  => ['Off by default', 'Teams + Discord only', 'Banner asks you to confirm'],
         ],
     ];
 @endphp
 
-<x-layouts.app title="Features" description="Thirteen things that make Utterbar different: press-to-talk hotkeys, AI-assistant dictation, local-only transcription, 30+ languages, auto-paste into any Windows app, modes, vocabulary, system audio, file transcription, optional Smart rewrite, conferencing-mute, and more.">
+<x-layouts.app title="Features" description="Fourteen things that make Utterbar different: press-to-talk hotkeys, AI-assistant dictation, local-only transcription, 30+ languages, auto-paste into any Windows app, modes, vocabulary, system audio, file transcription, optional Smart rewrite, conferencing output mute, and an experimental Teams + Discord mic mute.">
 
     {{-- Hero --}}
     <section class="pt-20 md:pt-28 pb-12">
@@ -92,7 +97,7 @@
                     What <x-wordmark /> actually does.
                 </h1>
                 <p class="ub-lead mt-8 max-w-xl">
-                    Thirteen things worth paying attention to. Everything else gets out of the way.
+                    Fourteen things worth paying attention to. Everything else gets out of the way.
                 </p>
             </div>
         </div>
