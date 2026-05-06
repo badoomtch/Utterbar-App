@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Mail } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
@@ -21,10 +22,11 @@ function isPlausibleEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-const UPDATE_CHANNELS = [
-  { id: 'stable' as const, label: 'Stable' },
-  { id: 'beta' as const, label: 'Beta' },
-];
+// Stable id registry. ids match the `update_channel` field's
+// serialised values on the Rust side, so the patch wiring continues
+// to write `'stable' | 'beta'`. Visible labels resolve via t() at
+// render time.
+const UPDATE_CHANNEL_IDS = ['stable', 'beta'] as const;
 
 /**
  * Settings → Updates.
@@ -41,6 +43,7 @@ const UPDATE_CHANNELS = [
  *      parser at the bottom of this file.
  */
 export function UpdatesSettings() {
+  const { t } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
 
@@ -66,12 +69,25 @@ export function UpdatesSettings() {
   const onBeta = channel === 'beta';
   const version = updateInfo?.current ?? '';
 
+  // The check-now row's helper text reflects the last manual outcome.
+  // updateInfo.current and updateInfo.available are backend-emitted
+  // version strings and stay verbatim — they're interpolated into the
+  // `description_available` template at render time, never catalogued.
+  const checkNowDescription =
+    lastManualOutcome === 'available' && updateInfo?.available
+      ? t('updates.channel.check_now.description_available', {
+          current: updateInfo.current,
+          available: updateInfo.available,
+        })
+      : lastManualOutcome === 'up-to-date'
+        ? t('updates.channel.check_now.description_up_to_date')
+        : lastManualOutcome === 'failed'
+          ? t('updates.channel.check_now.description_failed')
+          : t('updates.channel.check_now.description_idle');
+
   return (
     <div className="mx-auto w-full max-w-[880px] px-6 py-6">
-      <PageHeader
-        title="Updates"
-        subtitle="Choose your channel, see what changed in this version, and check for new releases."
-      />
+      <PageHeader title={t('updates.title')} subtitle={t('updates.subtitle')} />
 
       <div className="mt-6 space-y-4">
         {onBeta && (
@@ -83,47 +99,45 @@ export function UpdatesSettings() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
               <div className="text-[13px] leading-relaxed text-fg">
-                <div className="font-medium text-rose-300">You're on the beta channel.</div>
-                <div className="mt-1 text-muted">
-                  Beta builds are pre-release. They may break your install, lose data, or
-                  introduce new bugs. Switch to Stable below if you'd rather only see
-                  releases that have soaked through testing first.
+                <div className="font-medium text-rose-300">
+                  {t('updates.beta_warning.heading')}
                 </div>
+                <div className="mt-1 text-muted">{t('updates.beta_warning.body')}</div>
               </div>
             </div>
           </div>
         )}
 
         <Card
-          title="Channel"
-          description="Stable is the public-facing channel. Only releases that have soaked through beta land there. Beta receives pre-release builds for testing."
+          title={t('updates.channel.title')}
+          description={t('updates.channel.description')}
         >
-          <Row label="Update channel">
+          <Row label={t('updates.channel.row_label')}>
             <div className="flex gap-2">
-              {UPDATE_CHANNELS.map((c) => {
-                const current = channel === c.id;
+              {UPDATE_CHANNEL_IDS.map((id) => {
+                const current = channel === id;
                 return (
                   <button
-                    key={c.id}
+                    key={id}
                     onClick={() =>
                       patch({
                         advanced: {
                           ...s.advanced,
-                          update_channel: c.id,
+                          update_channel: id,
                         },
                       })
                     }
                     className={cn('ub-chip', current && 'ub-chip--active')}
                   >
-                    {c.label}
+                    {t(`updates.channel.options.${id}` as const)}
                   </button>
                 );
               })}
             </div>
           </Row>
           <Row
-            label="Check for updates automatically"
-            description="Checks the update feed on launch and shows a toast if a newer version is available. No auto-install, you always click Install."
+            label={t('updates.channel.auto_check.label')}
+            description={t('updates.channel.auto_check.description')}
           >
             <Toggle
               checked={Boolean(g.check_updates_automatically)}
@@ -131,16 +145,8 @@ export function UpdatesSettings() {
             />
           </Row>
           <Row
-            label="Check now"
-            description={
-              lastManualOutcome === 'available' && updateInfo?.available
-                ? `${updateInfo.current} → ${updateInfo.available}, see the toast to install.`
-                : lastManualOutcome === 'up-to-date'
-                  ? `You're up to date.`
-                  : lastManualOutcome === 'failed'
-                    ? "Couldn't reach the update server. Check your connection and try again."
-                    : 'Asks the update server right now, independent of the launch check.'
-            }
+            label={t('updates.channel.check_now.label')}
+            description={checkNowDescription}
           >
             <Button
               variant="ghost"
@@ -149,18 +155,28 @@ export function UpdatesSettings() {
               onClick={() => void runCheck({ manual: true })}
               disabled={checking}
             >
-              {checking ? 'Checking…' : 'Check now'}
+              {checking
+                ? t('updates.channel.check_now.checking')
+                : t('updates.channel.check_now.button')}
             </Button>
           </Row>
         </Card>
 
         <Card
-          title={version ? `What's new in ${version}` : "What's new in this version"}
-          description="Release notes for the version you're running. Older versions' notes live in the GitHub releases archive."
+          // The running version is a backend-emitted string and stays
+          // verbatim; only the surrounding "What's new in" prose is
+          // catalogued. When the version isn't yet known, fall back to
+          // the version-less title.
+          title={
+            version
+              ? t('updates.release_notes.title_with_version', { version })
+              : t('updates.release_notes.title_fallback')
+          }
+          description={t('updates.release_notes.description')}
         >
           {notes ? <ReleaseNotes md={notes} /> : (
             <div className="px-4 py-3 text-sm text-muted">
-              No release notes bundled for this version. (Probably running a dev build.)
+              {t('updates.release_notes.empty')}
             </div>
           )}
         </Card>
@@ -212,6 +228,7 @@ function ReleaseEmailCard({
   current: string | null;
   onSubscribe: (email: string | null) => void;
 }) {
+  const { t } = useTranslation('settings');
   const [enabled, setEnabled] = useState<boolean>(Boolean(current));
   const [email, setEmail] = useState<string>(current ?? '');
   const [busy, setBusy] = useState(false);
@@ -228,13 +245,13 @@ function ReleaseEmailCard({
   async function submit() {
     const trimmed = email.trim();
     if (!trimmed) {
-      setStatus({ tone: 'err', text: 'Enter your email to subscribe.' });
+      setStatus({ tone: 'err', text: t('updates.release_email.errors.empty') });
       return;
     }
     if (!isPlausibleEmail(trimmed)) {
       setStatus({
         tone: 'err',
-        text: "That doesn't look like an email address, check for typos.",
+        text: t('updates.release_email.errors.invalid'),
       });
       return;
     }
@@ -243,6 +260,10 @@ function ReleaseEmailCard({
     try {
       const msg = await invoke<string>('subscribe_to_release_updates', { email: trimmed });
       onSubscribe(trimmed);
+      // Server-returned `msg` is backend prose and stays verbatim — the
+      // server (utterbar.com) owns the double-opt-in flow and its
+      // confirmation copy. Showing it untranslated keeps the UI honest
+      // about what was actually delivered.
       setStatus({ tone: 'ok', text: msg });
     } catch (e) {
       // Two error shapes can land here: an OrliqError envelope from
@@ -250,6 +271,8 @@ function ReleaseEmailCard({
       // from invoke. Trust `.message` only when `code` is also
       // present; everything else collapses to a generic copy so a
       // stringified JS error never leaks into the settings surface.
+      // env.message is backend-emitted prose (Rust-side i18n branch
+      // territory) and stays verbatim.
       const env = e as { kind?: string; code?: string; message?: string };
       const looksLikeOrliqError =
         typeof env?.code === 'string' && typeof env?.message === 'string';
@@ -257,7 +280,7 @@ function ReleaseEmailCard({
         tone: 'err',
         text: looksLikeOrliqError
           ? env.message!
-          : "Couldn't reach the server. Check your connection and try again.",
+          : t('updates.release_email.errors.fallback'),
       });
     } finally {
       setBusy(false);
@@ -279,12 +302,12 @@ function ReleaseEmailCard({
 
   return (
     <Card
-      title="Release updates"
-      description="Get a short email when a new Utterbar version ships. What's new, how to update, nothing else. Unsubscribe in one click from any release mail."
+      title={t('updates.release_email.title')}
+      description={t('updates.release_email.description')}
     >
       <Row
-        label="Email me when there's a new release"
-        description="At most one mail per release. Your address stays on the server's list only; we never share it."
+        label={t('updates.release_email.row.label')}
+        description={t('updates.release_email.row.description')}
       >
         <Toggle checked={enabled} onChange={toggle} />
       </Row>
@@ -294,14 +317,19 @@ function ReleaseEmailCard({
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2 text-[13px] text-fg-hi">
                 <Mail className="h-4 w-4 text-accent shrink-0" />
-                <span className="truncate">Subscribed as {current}</span>
+                {/* `current` is the user-supplied email and is
+                    interpolated into the catalogued template at
+                    render time so the string itself stays verbatim. */}
+                <span className="truncate">
+                  {t('updates.release_email.subscribed_as', { email: current })}
+                </span>
               </div>
               <button
                 type="button"
                 onClick={() => setEmail('')}
                 className="ub-btn ub-btn-plain !py-[0.4rem] !text-[12px] shrink-0"
               >
-                Change email
+                {t('updates.release_email.change_email')}
               </button>
             </div>
           ) : (
@@ -309,7 +337,7 @@ function ReleaseEmailCard({
               <Mail className="h-4 w-4 text-muted shrink-0" />
               <Input
                 type="email"
-                placeholder="you@example.com"
+                placeholder={t('updates.release_email.input_placeholder')}
                 value={email}
                 disabled={busy}
                 onChange={(e) => setEmail(e.target.value)}
@@ -325,7 +353,9 @@ function ReleaseEmailCard({
                 disabled={busy || email.trim().length === 0}
                 className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] shrink-0"
               >
-                {busy ? 'Sending…' : 'Subscribe'}
+                {busy
+                  ? t('updates.release_email.sending')
+                  : t('updates.release_email.subscribe')}
               </button>
             </div>
           )}
