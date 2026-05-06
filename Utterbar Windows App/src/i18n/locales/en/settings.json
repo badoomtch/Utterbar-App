@@ -548,5 +548,59 @@
         "logs": "Logs"
       }
     }
+  },
+  "updates": {
+    "title": "Updates",
+    "subtitle": "Choose your channel, see what changed in this version, and check for new releases.",
+    "beta_warning": {
+      "heading": "You're on the beta channel.",
+      "body": "Beta builds are pre-release. They may break your install, lose data, or introduce new bugs. Switch to Stable below if you'd rather only see releases that have soaked through testing first."
+    },
+    "channel": {
+      "title": "Channel",
+      "description": "Stable is the public-facing channel. Only releases that have soaked through beta land there. Beta receives pre-release builds for testing.",
+      "row_label": "Update channel",
+      "options": {
+        "stable": "Stable",
+        "beta": "Beta"
+      },
+      "auto_check": {
+        "label": "Check for updates automatically",
+        "description": "Checks the update feed on launch and shows a toast if a newer version is available. No auto-install, you always click Install."
+      },
+      "check_now": {
+        "label": "Check now",
+        "description_idle": "Asks the update server right now, independent of the launch check.",
+        "description_available": "{{current}} → {{available}}, see the toast to install.",
+        "description_up_to_date": "You're up to date.",
+        "description_failed": "Couldn't reach the update server. Check your connection and try again.",
+        "checking": "Checking…",
+        "button": "Check now"
+      }
+    },
+    "release_notes": {
+      "title_with_version": "What's new in {{version}}",
+      "title_fallback": "What's new in this version",
+      "description": "Release notes for the version you're running. Older versions' notes live in the GitHub releases archive.",
+      "empty": "No release notes bundled for this version. (Probably running a dev build.)"
+    },
+    "release_email": {
+      "title": "Release updates",
+      "description": "Get a short email when a new Utterbar version ships. What's new, how to update, nothing else. Unsubscribe in one click from any release mail.",
+      "row": {
+        "label": "Email me when there's a new release",
+        "description": "At most one mail per release. Your address stays on the server's list only; we never share it."
+      },
+      "input_placeholder": "you@example.com",
+      "subscribe": "Subscribe",
+      "sending": "Sending…",
+      "subscribed_as": "Subscribed as {{email}}",
+      "change_email": "Change email",
+      "errors": {
+        "empty": "Enter your email to subscribe.",
+        "invalid": "That doesn't look like an email address, check for typos.",
+        "fallback": "Couldn't reach the server. Check your connection and try again."
+      }
+    }
   }
 }

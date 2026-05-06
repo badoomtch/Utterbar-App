@@ -712,6 +712,99 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('privacy.conferencing_apps.remove_aria');
   });
 
+  it('resolves every Updates settings key', () => {
+    // Pinned list of every settings.updates.* key consumed by
+    // UpdatesSettings.tsx. Backend-emitted version strings, the
+    // bundled release-notes markdown, server-returned subscription
+    // messages, OrliqError envelope messages, and the user-supplied
+    // email value all stay verbatim — only frontend chrome is pinned
+    // here.
+    const keys = [
+      'updates.title',
+      'updates.subtitle',
+      'updates.beta_warning.heading',
+      'updates.beta_warning.body',
+      'updates.channel.title',
+      'updates.channel.description',
+      'updates.channel.row_label',
+      'updates.channel.options.stable',
+      'updates.channel.options.beta',
+      'updates.channel.auto_check.label',
+      'updates.channel.auto_check.description',
+      'updates.channel.check_now.label',
+      'updates.channel.check_now.description_idle',
+      'updates.channel.check_now.description_available',
+      'updates.channel.check_now.description_up_to_date',
+      'updates.channel.check_now.description_failed',
+      'updates.channel.check_now.checking',
+      'updates.channel.check_now.button',
+      'updates.release_notes.title_with_version',
+      'updates.release_notes.title_fallback',
+      'updates.release_notes.description',
+      'updates.release_notes.empty',
+      'updates.release_email.title',
+      'updates.release_email.description',
+      'updates.release_email.row.label',
+      'updates.release_email.row.description',
+      'updates.release_email.input_placeholder',
+      'updates.release_email.subscribe',
+      'updates.release_email.sending',
+      'updates.release_email.subscribed_as',
+      'updates.release_email.change_email',
+      'updates.release_email.errors.empty',
+      'updates.release_email.errors.invalid',
+      'updates.release_email.errors.fallback',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders updates.channel.check_now.description_available with current and available interpolated', () => {
+    // Both versions come from the Rust updater feed (updateInfo.current,
+    // updateInfo.available) and stay verbatim. Pin both `{{current}}`
+    // and `{{available}}` substitutions so a future copy edit can't
+    // drop either silently.
+    const out = i18n.t('updates.channel.check_now.description_available', {
+      ns: 'settings',
+      current: '0.20.0',
+      available: '0.20.1',
+    });
+    expect(out).toContain('0.20.0');
+    expect(out).toContain('0.20.1');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('updates.channel.check_now.description_available');
+  });
+
+  it('renders updates.release_notes.title_with_version with the version interpolated', () => {
+    // The What's-new card title interpolates the running version.
+    // Pin the `{{version}}` substitution so the catalogue can't drop
+    // it and leave a literal mustache template visible in the title.
+    const out = i18n.t('updates.release_notes.title_with_version', {
+      ns: 'settings',
+      version: '0.20.1',
+    });
+    expect(out).toContain('0.20.1');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('updates.release_notes.title_with_version');
+  });
+
+  it('renders updates.release_email.subscribed_as with the email interpolated', () => {
+    // The "Subscribed as" line displays the user-supplied email
+    // verbatim through the catalogued template. Pin the `{{email}}`
+    // substitution so the email can never be dropped or replaced by
+    // a literal placeholder.
+    const out = i18n.t('updates.release_email.subscribed_as', {
+      ns: 'settings',
+      email: 'jay@example.com',
+    });
+    expect(out).toContain('jay@example.com');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('updates.release_email.subscribed_as');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -769,6 +862,16 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.privacy.conferencing_apps.errors).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.privacy.data_locations).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.privacy.data_locations.rows).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.beta_warning).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.channel).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.channel.options).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.channel.auto_check).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.channel.check_now).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.release_notes).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.release_email).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.release_email.row).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.updates.release_email.errors).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
