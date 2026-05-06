@@ -371,5 +371,23 @@
       "title": "Third-party licences",
       "description": "Open-source libraries and models bundled with Utterbar."
     }
+  },
+  "shortcuts": {
+    "title": "Shortcuts",
+    "subtitle": "Global keybindings. Press any key combination in any app to trigger.",
+    "capture": {
+      "press_keys": "Press keys…",
+      "unbound": "Unbound"
+    },
+    "buttons": {
+      "clear": "Clear"
+    },
+    "conflict": {
+      "tooltip": "Conflicts with another binding on {{accelerator}}"
+    },
+    "tip": {
+      "prefix": "Tip: press",
+      "suffix": "to cancel capture."
+    }
   }
 }
