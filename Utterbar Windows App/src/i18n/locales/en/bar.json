@@ -16,5 +16,16 @@
   "unit": {
     "chunk_one": "chunk",
     "chunk_other": "chunks"
+  },
+  "button": {
+    "record": "Record",
+    "stop": "Stop",
+    "cancel": "Cancel",
+    "settings": "Settings",
+    "copy_last_message": "Copy last message",
+    "copied": "Copied"
+  },
+  "mic_mute": {
+    "confirmed": "Confirmed"
   }
 }
