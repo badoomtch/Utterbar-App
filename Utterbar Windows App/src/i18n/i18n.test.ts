@@ -441,6 +441,40 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('accessibility.ui_scale.value');
   });
 
+  it('resolves every Bar settings key', () => {
+    // Pinned list of every settings.bar_settings.* key consumed by
+    // BarSettings.tsx. Adding/renaming a key here without updating the
+    // catalogue (or vice versa) fails the test before users see a
+    // missing-key fallback at runtime.
+    const keys = [
+      'bar_settings.title',
+      'bar_settings.subtitle',
+      'bar_settings.visibility.title',
+      'bar_settings.visibility.always.label',
+      'bar_settings.visibility.always.description',
+      'bar_settings.visibility.while_recording.label',
+      'bar_settings.visibility.while_recording.description',
+      'bar_settings.visibility.hidden.label',
+      'bar_settings.visibility.hidden.description',
+      'bar_settings.appearance.title',
+      'bar_settings.appearance.size.label',
+      'bar_settings.appearance.size.description',
+      'bar_settings.appearance.size.options.compact',
+      'bar_settings.appearance.size.options.standard',
+      'bar_settings.appearance.outline.label',
+      'bar_settings.appearance.outline.description',
+      'bar_settings.position.title',
+      'bar_settings.position.reset.label',
+      'bar_settings.position.reset.description',
+      'bar_settings.position.reset.button',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -469,6 +503,10 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.accessibility.motion).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.accessibility.contrast).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.accessibility.transparency).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.bar_settings).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.bar_settings.visibility).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.bar_settings.appearance).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.bar_settings.position).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);

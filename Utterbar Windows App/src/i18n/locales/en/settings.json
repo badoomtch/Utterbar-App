@@ -314,5 +314,47 @@
         "description": "Solidify any glass / frosted backgrounds and strip backdrop-blur throughout the app. Doesn't change layout, just the visual feel of headers and overlays."
       }
     }
+  },
+  "bar_settings": {
+    "title": "Utterbar",
+    "subtitle": "The floating pill that lives on top of your desktop. Tune what it looks like and when it shows up.",
+    "visibility": {
+      "title": "Visibility",
+      "always": {
+        "label": "Always visible",
+        "description": "The Utterbar sits at the top of your screen whenever the app is running. Default behaviour — easiest to spot, easiest to click."
+      },
+      "while_recording": {
+        "label": "Only while recording",
+        "description": "The bar stays hidden until you trigger dictation, then pops in so you can see the waveform and stop / cancel. Minimal on-screen footprint."
+      },
+      "hidden": {
+        "label": "Never show",
+        "description": "The Utterbar never appears. Drive everything from your keyboard shortcut and the tray icon. The fastest, quietest setup."
+      }
+    },
+    "appearance": {
+      "title": "Appearance",
+      "size": {
+        "label": "Size",
+        "description": "Compact shrinks the pill footprint. Standard gives its controls more breathing room.",
+        "options": {
+          "compact": "Compact",
+          "standard": "Standard"
+        }
+      },
+      "outline": {
+        "label": "Accent outline",
+        "description": "Adds a thin accent-coloured border around the pill so it's easier to pick out against bright wallpapers and light backgrounds."
+      }
+    },
+    "position": {
+      "title": "Position",
+      "reset": {
+        "label": "Reset position",
+        "description": "Snap the Utterbar back to the top-centre of your current monitor. Use this if the pill has ended up behind the taskbar, off-screen, or on a monitor you've since unplugged. Also available from the tray icon's right-click menu.",
+        "button": "Reset position"
+      }
+    }
   }
 }
