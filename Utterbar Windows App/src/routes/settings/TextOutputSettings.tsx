@@ -1,9 +1,12 @@
+import { useTranslation } from 'react-i18next';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
 import { useSettings } from '@/state/settings';
 
 export function TextOutputSettings() {
+  const { t } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   if (!s) return null;
@@ -11,82 +14,85 @@ export function TextOutputSettings() {
   const update = (key: string, value: unknown) =>
     patch({ text_output: { ...s.text_output, [key]: value } });
 
-  const t = s.text_output as Record<string, boolean>;
+  // Renamed from `t` to avoid shadowing the i18next translator above. The
+  // structural settings field shape is unchanged — every row still reads
+  // `to.<field>` and writes via `update('<field>', v)` against the
+  // `text_output.<field>` slot on Settings.
+  const to = s.text_output as Record<string, boolean>;
 
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
-      <PageHeader title="Text Output" subtitle="How dictated text reaches your active app." />
+      <PageHeader title={t('text_output.title')} subtitle={t('text_output.subtitle')} />
       <div className="mt-6 space-y-4">
-        <Card title="Delivery">
+        <Card title={t('text_output.delivery.title')}>
           <Row
-            label="Paste automatically"
-            description="After transcription, copy the result to the clipboard and simulate Ctrl+V. This is the fastest, most reliable path, most apps accept it."
+            label={t('text_output.delivery.paste_automatically.label')}
+            description={t('text_output.delivery.paste_automatically.description')}
           >
-            <Toggle checked={t.paste_automatically} onChange={(v) => void update('paste_automatically', v)} />
+            <Toggle checked={to.paste_automatically} onChange={(v) => void update('paste_automatically', v)} />
           </Row>
           <Row
-            label="Restore previous clipboard"
-            description="About 1.5 seconds after pasting, put whatever was on your clipboard before back. Keeps your copy buffer intact."
+            label={t('text_output.delivery.restore_clipboard.label')}
+            description={t('text_output.delivery.restore_clipboard.description')}
           >
-            <Toggle checked={t.restore_clipboard} onChange={(v) => void update('restore_clipboard', v)} />
+            <Toggle checked={to.restore_clipboard} onChange={(v) => void update('restore_clipboard', v)} />
           </Row>
           <Row
-            label="Type it out if paste is blocked"
-            description="Some apps (admin tools, remote desktop, a few games) don't accept pasted text. When that happens, Utterbar types the words in one character at a time instead. Slower, but it reaches apps that would otherwise drop the paste. Leave this on unless you've got a reason not to."
+            label={t('text_output.delivery.keystroke_fallback.label')}
+            description={t('text_output.delivery.keystroke_fallback.description')}
           >
-            <Toggle checked={t.keystroke_fallback} onChange={(v) => void update('keystroke_fallback', v)} />
+            <Toggle checked={to.keystroke_fallback} onChange={(v) => void update('keystroke_fallback', v)} />
           </Row>
         </Card>
 
-        <Card title="Formatting">
+        <Card title={t('text_output.formatting.title')}>
           <Row
-            label="Auto-capitalise first letter"
-            description="Make sure the inserted text starts with a capital letter, regardless of how the model transcribed it."
+            label={t('text_output.formatting.auto_capitalise.label')}
+            description={t('text_output.formatting.auto_capitalise.description')}
           >
-            <Toggle checked={t.auto_capitalise} onChange={(v) => void update('auto_capitalise', v)} />
+            <Toggle checked={to.auto_capitalise} onChange={(v) => void update('auto_capitalise', v)} />
           </Row>
           <Row
-            label="Trim trailing whitespace"
-            description="Remove any spaces, tabs, or newlines at the end of the transcribed text before it gets inserted."
+            label={t('text_output.formatting.trim_trailing_space.label')}
+            description={t('text_output.formatting.trim_trailing_space.description')}
           >
-            <Toggle checked={t.trim_trailing_space} onChange={(v) => void update('trim_trailing_space', v)} />
+            <Toggle checked={to.trim_trailing_space} onChange={(v) => void update('trim_trailing_space', v)} />
           </Row>
           <Row
-            label="Auto-space between dictations"
-            description="When you dictate two things back-to-back in the same app, add a space between them if the first one didn't already end with whitespace. Keeps 'hello' + 'world' from colliding into 'helloworld'."
+            label={t('text_output.formatting.auto_space_on_paste.label')}
+            description={t('text_output.formatting.auto_space_on_paste.description')}
           >
             <Toggle
-              checked={t.auto_space_on_paste ?? true}
+              checked={to.auto_space_on_paste ?? true}
               onChange={(v) => void update('auto_space_on_paste', v)}
             />
           </Row>
           <Row
-            label="Numbers as digits"
-            description="Convert spoken numbers into digits (&lsquo;twenty three&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;five pounds&rsquo; &rarr; &lsquo;5 pounds&rsquo;). Idioms stay as words (&lsquo;one of these days&rsquo;). Turn off if you prefer numbers spelled out."
+            label={t('text_output.formatting.numbers_as_digits.label')}
+            description={t('text_output.formatting.numbers_as_digits.description')}
           >
             <Toggle
-              checked={t.numbers_as_digits ?? true}
+              checked={to.numbers_as_digits ?? true}
               onChange={(v) => void update('numbers_as_digits', v)}
             />
           </Row>
           <Row
-            label="Smart rewrite"
-            description="Clean up fillers (&lsquo;um&rsquo;, &lsquo;uh&rsquo;, &lsquo;like&rsquo;), spacing, capitalisation, and terminal punctuation locally before insertion. Deterministic only &mdash; no AI model, no cloud service, no model download. Adds a small amount of processing time. Off by default. Best for chat and email-style dictation; turn off if you dictate code (the rule that capitalises sentence starts will also capitalise keywords like &lsquo;let&rsquo; or &lsquo;fn&rsquo;). Meeting Mode is unaffected (transcripts stay verbatim)."
+            label={t('text_output.formatting.smart_rewrite.label')}
+            description={t('text_output.formatting.smart_rewrite.description')}
           >
             <Toggle
-              checked={t.smart_rewrite ?? false}
+              checked={to.smart_rewrite ?? false}
               onChange={(v) => void update('smart_rewrite', v)}
             />
           </Row>
           <Row
-            label="Hold Shift to auto-send"
-            description="If you're holding Shift when you stop recording, Utterbar presses Enter for you right after pasting, so the message goes out in Teams, Slack, Discord, etc. without a second hand-off."
+            label={t('text_output.formatting.shift_to_auto_send.label')}
+            description={t('text_output.formatting.shift_to_auto_send.description')}
           >
-            <Toggle checked={t.shift_to_auto_send} onChange={(v) => void update('shift_to_auto_send', v)} />
+            <Toggle checked={to.shift_to_auto_send} onChange={(v) => void update('shift_to_auto_send', v)} />
           </Row>
         </Card>
       </div>
     </div>
   );
 }
-
