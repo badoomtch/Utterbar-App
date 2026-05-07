@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, forwardRef, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openShell } from '@tauri-apps/plugin-shell';
@@ -25,24 +25,70 @@ import { PostUpdateToast, UpdateToast } from '@/components/common/UpdateToast';
 import { cn } from '@/lib/cn';
 import { filterSettingsByQuery, settingsSearchMatchSummary } from '@/routes/settings_search';
 import { buildSettingsNav } from '@/routes/settings_nav';
-import { Dashboard } from '@/routes/Dashboard';
-import { HistoryRoute } from '@/routes/HistoryRoute';
-import { MeetingsRoute } from '@/routes/MeetingsRoute';
-import { ModesRoute } from '@/routes/ModesRoute';
-import { VocabularyRoute } from '@/routes/VocabularyRoute';
-import { FilesRoute } from '@/routes/FilesRoute';
-import { AccessibilitySettings } from '@/routes/settings/AccessibilitySettings';
-import { GeneralSettings } from '@/routes/settings/GeneralSettings';
-import { AudioSettings } from '@/routes/settings/AudioSettings';
-import { ModelsSettings } from '@/routes/settings/ModelsSettings';
-import { ShortcutsSettings } from '@/routes/settings/ShortcutsSettings';
-import { TextOutputSettings } from '@/routes/settings/TextOutputSettings';
-import { PrivacySettings } from '@/routes/settings/PrivacySettings';
-import { AdvancedSettings } from '@/routes/settings/AdvancedSettings';
-import { AboutSettings } from '@/routes/settings/AboutSettings';
-import { BarSettings } from '@/routes/settings/BarSettings';
-import { LicenceSettings } from '@/routes/settings/LicenceSettings';
-import { UpdatesSettings } from '@/routes/settings/UpdatesSettings';
+// Route-level code-splitting. Each pane below is loaded the first time
+// the user navigates to it, not when MainShell mounts. The chrome
+// (sidebar, header, footer) stays painted during the chunk fetch via
+// the Suspense boundary in the <main> element below; the fetched chunk
+// is cached for the rest of the session, so subsequent navigations are
+// indistinguishable from the eager-import behaviour. Source files use
+// named exports — `lazy` requires a default — so each import resolves
+// the named export into the shape `lazy` expects.
+const Dashboard = lazy(() =>
+  import('@/routes/Dashboard').then((m) => ({ default: m.Dashboard })),
+);
+const HistoryRoute = lazy(() =>
+  import('@/routes/HistoryRoute').then((m) => ({ default: m.HistoryRoute })),
+);
+const MeetingsRoute = lazy(() =>
+  import('@/routes/MeetingsRoute').then((m) => ({ default: m.MeetingsRoute })),
+);
+const ModesRoute = lazy(() =>
+  import('@/routes/ModesRoute').then((m) => ({ default: m.ModesRoute })),
+);
+const VocabularyRoute = lazy(() =>
+  import('@/routes/VocabularyRoute').then((m) => ({ default: m.VocabularyRoute })),
+);
+const FilesRoute = lazy(() =>
+  import('@/routes/FilesRoute').then((m) => ({ default: m.FilesRoute })),
+);
+const AccessibilitySettings = lazy(() =>
+  import('@/routes/settings/AccessibilitySettings').then((m) => ({
+    default: m.AccessibilitySettings,
+  })),
+);
+const GeneralSettings = lazy(() =>
+  import('@/routes/settings/GeneralSettings').then((m) => ({ default: m.GeneralSettings })),
+);
+const AudioSettings = lazy(() =>
+  import('@/routes/settings/AudioSettings').then((m) => ({ default: m.AudioSettings })),
+);
+const ModelsSettings = lazy(() =>
+  import('@/routes/settings/ModelsSettings').then((m) => ({ default: m.ModelsSettings })),
+);
+const ShortcutsSettings = lazy(() =>
+  import('@/routes/settings/ShortcutsSettings').then((m) => ({ default: m.ShortcutsSettings })),
+);
+const TextOutputSettings = lazy(() =>
+  import('@/routes/settings/TextOutputSettings').then((m) => ({ default: m.TextOutputSettings })),
+);
+const PrivacySettings = lazy(() =>
+  import('@/routes/settings/PrivacySettings').then((m) => ({ default: m.PrivacySettings })),
+);
+const AdvancedSettings = lazy(() =>
+  import('@/routes/settings/AdvancedSettings').then((m) => ({ default: m.AdvancedSettings })),
+);
+const AboutSettings = lazy(() =>
+  import('@/routes/settings/AboutSettings').then((m) => ({ default: m.AboutSettings })),
+);
+const BarSettings = lazy(() =>
+  import('@/routes/settings/BarSettings').then((m) => ({ default: m.BarSettings })),
+);
+const LicenceSettings = lazy(() =>
+  import('@/routes/settings/LicenceSettings').then((m) => ({ default: m.LicenceSettings })),
+);
+const UpdatesSettings = lazy(() =>
+  import('@/routes/settings/UpdatesSettings').then((m) => ({ default: m.UpdatesSettings })),
+);
 
 // Workspace nav structural data — route paths, icons, and the stable
 // `labelKey` under `common.chrome.nav.*`. The visible label is resolved
@@ -232,27 +278,35 @@ export function MainShell() {
         ref={mainRef}
         className="flex-1 min-h-0 overflow-y-auto bg-bg-0"
       >
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/history" element={<HistoryRoute />} />
-          <Route path="/meetings" element={<MeetingsRoute />} />
-          <Route path="/modes" element={<ModesRoute />} />
-          <Route path="/vocabulary" element={<VocabularyRoute />} />
-          <Route path="/files" element={<FilesRoute />} />
-          <Route path="/settings/general" element={<GeneralSettings />} />
-          <Route path="/settings/bar" element={<BarSettings />} />
-          <Route path="/settings/audio" element={<AudioSettings />} />
-          <Route path="/settings/models" element={<ModelsSettings />} />
-          <Route path="/settings/shortcuts" element={<ShortcutsSettings />} />
-          <Route path="/settings/text-output" element={<TextOutputSettings />} />
-          <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
-          <Route path="/settings/privacy" element={<PrivacySettings />} />
-          <Route path="/settings/advanced" element={<AdvancedSettings />} />
-          <Route path="/settings/licence" element={<LicenceSettings />} />
-          <Route path="/settings/updates" element={<UpdatesSettings />} />
-          <Route path="/settings/about" element={<AboutSettings />} />
-        </Routes>
+        {/* Suspense fallback is null on purpose: the chrome (sidebar,
+            header, footer) stays painted around <main>, and chunk
+            fetches off the local Tauri filesystem are fast enough
+            that a "Loading…" placeholder would flash and feel worse
+            than a brief blank pane. Subsequent navigations to the
+            same route hit Vite's in-memory cache instantly. */}
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/history" element={<HistoryRoute />} />
+            <Route path="/meetings" element={<MeetingsRoute />} />
+            <Route path="/modes" element={<ModesRoute />} />
+            <Route path="/vocabulary" element={<VocabularyRoute />} />
+            <Route path="/files" element={<FilesRoute />} />
+            <Route path="/settings/general" element={<GeneralSettings />} />
+            <Route path="/settings/bar" element={<BarSettings />} />
+            <Route path="/settings/audio" element={<AudioSettings />} />
+            <Route path="/settings/models" element={<ModelsSettings />} />
+            <Route path="/settings/shortcuts" element={<ShortcutsSettings />} />
+            <Route path="/settings/text-output" element={<TextOutputSettings />} />
+            <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
+            <Route path="/settings/privacy" element={<PrivacySettings />} />
+            <Route path="/settings/advanced" element={<AdvancedSettings />} />
+            <Route path="/settings/licence" element={<LicenceSettings />} />
+            <Route path="/settings/updates" element={<UpdatesSettings />} />
+            <Route path="/settings/about" element={<AboutSettings />} />
+          </Routes>
+        </Suspense>
       </main>
       <UpdateToast />
       <PostUpdateToast />
