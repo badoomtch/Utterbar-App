@@ -1608,7 +1608,6 @@ async fn transcribe_chunked(
     pcm: Vec<i16>,
     sample_rate: u32,
     target_language: Option<String>,
-    vocabulary_hints: Vec<String>,
 ) -> anyhow::Result<AsrResult> {
     // Chunk size and overlap rationale lives on the
     // CHUNKED_MEETING_CHUNK_SECS / CHUNKED_MEETING_OVERLAP_SECS
@@ -1659,7 +1658,6 @@ async fn transcribe_chunked(
                 AsrOptions {
                     language_hint: target_language,
                     want_word_timings: false,
-                    vocabulary_hints,
                 },
             )
             .await;
@@ -1718,7 +1716,6 @@ async fn transcribe_chunked(
                 AsrOptions {
                     language_hint: target_language.clone(),
                     want_word_timings: false,
-                    vocabulary_hints: vocabulary_hints.clone(),
                 },
             )
             .await?;
@@ -2090,14 +2087,12 @@ fn format_speaker_turn(start_sec: u32, speaker_id: i32, text: &str) -> String {
 // nuking it now would just force a re-write of code we already know
 // the shape of. See releases/0.15.1.md.
 #[allow(dead_code)]
-#[allow(clippy::too_many_arguments)] // 8 args; mirrors transcribe_chunked's shape
 async fn transcribe_meeting_diarised(
     state: &Arc<AppState>,
     model_id: &str,
     pcm: Vec<i16>,
     sample_rate: u32,
     target_language: Option<String>,
-    vocabulary_hints: Vec<String>,
     seg_path: &std::path::Path,
     embed_path: &std::path::Path,
 ) -> anyhow::Result<AsrResult> {
@@ -2194,7 +2189,6 @@ async fn transcribe_meeting_diarised(
                 AsrOptions {
                     language_hint: target_language.clone(),
                     want_word_timings: false,
-                    vocabulary_hints: vocabulary_hints.clone(),
                 },
             )
             .await?;
@@ -2588,15 +2582,6 @@ pub(crate) async fn stop_recording_inner(
     let mode = pre_active_mode.clone();
     let model_id = resolved_model_id.clone();
 
-    let vocab_hints: Vec<String> = state
-        .vocabulary
-        .list_words()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|w| w.enabled)
-        .map(|w| w.word)
-        .collect();
-
     // Persist the recording to disk if the user has opted in. We do this before handing
     // the PCM to the inference layer (which consumes the vec) so we're writing the
     // exact same audio that was transcribed. File naming is `<ulid>.wav` under
@@ -2738,7 +2723,6 @@ pub(crate) async fn stop_recording_inner(
             final_.pcm,
             final_.sample_rate,
             mode.target_language.clone(),
-            vocab_hints,
         )
         .await
     } else {
@@ -2754,7 +2738,6 @@ pub(crate) async fn stop_recording_inner(
                 AsrOptions {
                     language_hint: mode.target_language.clone(),
                     want_word_timings: false,
-                    vocabulary_hints: vocab_hints,
                 },
             )
             .await
@@ -5926,6 +5909,90 @@ mod diarised_helpers_tests {
             "CaptureHandle::stop must set the stop flag BEFORE the mem::take \
              extraction; otherwise the capture thread could append between \
              extraction and our return"
+        );
+    }
+
+    /// **v0.20.0 dead-vocabulary-hints contract.** The dictation hot
+    /// path must NOT call `state.vocabulary.list_words()` — the
+    /// active sherpa-onnx providers (parakeet, whisper, zipformer)
+    /// all destructure their `AsrOptions` parameter as `_opts` and
+    /// have never read `vocabulary_hints`. Pre-perf, dictation.rs
+    /// scanned the vocabulary DB and cloned the resulting word list
+    /// into `AsrOptions.vocabulary_hints` on every transcribe — pure
+    /// dead plumbing. The field has been removed from `AsrOptions`,
+    /// and the hot-path collection is gone. Source-grep so a future
+    /// refactor that re-introduces the dead scan fails CI.
+    ///
+    /// Replacement behaviour (separate code path) is explicitly
+    /// preserved: `apply_replacements` must still be called from
+    /// dictation.rs and history.rs, and `VocabularyService` must
+    /// still expose `list_words` / `apply_replacements` for the
+    /// Settings → Vocabulary UI and the file-jobs ASR path.
+    #[test]
+    fn dictation_does_not_collect_vocabulary_words_for_asr() {
+        // 1. dictation.rs production code (everything before the
+        //    test module marker) must not call list_words at all.
+        //    The only legitimate consumers are commands/vocabulary.rs
+        //    and services/vocabulary.rs.
+        let dictation_src = read_source("src-tauri/src/commands/dictation.rs");
+        let test_mod_marker = "#[cfg(test)]";
+        let production_src = dictation_src
+            .split(test_mod_marker)
+            .next()
+            .unwrap_or(&dictation_src);
+        assert!(
+            !production_src.contains(".list_words("),
+            "commands/dictation.rs production path must not call \
+             VocabularyService::list_words() — the active ASR providers \
+             do not consume vocabulary_hints, so collecting words on \
+             every transcribe is dead plumbing. Replacement behaviour \
+             goes through apply_replacements, which is a separate path."
+        );
+
+        // 2. AsrOptions must no longer carry the dead hint field.
+        //    Build the needle at runtime so this assert's own message
+        //    doesn't itself contain the literal token (which would
+        //    make the file-level grep below trip on this test
+        //    module). Pin both the struct definition (provider.rs)
+        //    and any field initialiser in the production part of
+        //    dictation.rs.
+        let needle = format!("{}{}", "vocabulary_", "hints");
+        let provider_src = read_source("src-tauri/src/services/inference/provider.rs");
+        assert!(
+            !provider_src.contains(&needle),
+            "services/inference/provider.rs::AsrOptions must not declare \
+             a `{needle}` field — no active provider reads it"
+        );
+        assert!(
+            !production_src.contains(&needle),
+            "commands/dictation.rs production path must not reference \
+             `{needle}` anywhere — the field was removed from AsrOptions"
+        );
+
+        // 3. VocabularyService::list_words must still exist for the
+        //    Settings → Vocabulary UI and import/export paths.
+        let vocab_src = read_source("src-tauri/src/services/vocabulary.rs");
+        assert!(
+            vocab_src.contains("pub fn list_words("),
+            "services/vocabulary.rs must still expose list_words() for the \
+             Settings → Vocabulary UI; only the hot-path call from dictation \
+             was removed"
+        );
+
+        // 4. Replacement behaviour preserved end-to-end. dictation.rs
+        //    must still apply replacements to the ASR text, and the
+        //    service must still expose apply_replacements + list_replacements.
+        assert!(
+            production_src.contains(".apply_replacements("),
+            "commands/dictation.rs must still call apply_replacements on \
+             the ASR text — replacement is a separate, user-visible path \
+             from the (now-removed) vocabulary_hints scan"
+        );
+        assert!(
+            vocab_src.contains("pub fn apply_replacements(")
+                && vocab_src.contains("pub fn list_replacements("),
+            "services/vocabulary.rs must still expose apply_replacements \
+             and list_replacements"
         );
     }
 }
