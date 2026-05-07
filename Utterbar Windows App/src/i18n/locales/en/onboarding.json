@@ -11,6 +11,7 @@
     "privacy": "Everything local, always",
     "updates": "Update checks",
     "theme": "Pick a theme",
+    "language": "Pick your dictation language",
     "model": "Choose your ASR model",
     "gpu": "Use your GPU?",
     "mic": "Pick and test your microphone",
@@ -199,6 +200,19 @@
       "skip": "Skip",
       "save_error_generic": "Could not save. Try again later."
     }
+  },
+  "language": {
+    "title": "Pick your dictation language",
+    "subtitle": "This is the language Utterbar listens for when you dictate. The interface language is separate; this app stays in English.",
+    "picker_label": "Dictation language",
+    "picker_description": "You can change this later in Settings → Models. Picking a non-English language here will recommend a multilingual model on the next step.",
+    "warning": {
+      "english_only_title": "This model only supports English",
+      "english_only_body": "You picked a non-English dictation language, but {{model}} is English-only. Switch to a multilingual model below.",
+      "no_multilingual_title": "No multilingual model available",
+      "no_multilingual_body": "No multilingual model is in the catalogue yet. Install Whisper from Settings → Models, then come back and pick this language again."
+    },
+    "switch_to_multilingual": "Switch to multilingual model"
   },
   "errors": {
     "unknown": "Unknown error"

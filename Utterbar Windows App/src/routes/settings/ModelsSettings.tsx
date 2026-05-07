@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Flame, Radio } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/common/Card';
@@ -8,16 +9,18 @@ import { Select, type SelectOption } from '@/components/common/Select';
 import { ScoreBars } from '@/components/common/ScoreBars';
 import { Toggle } from '@/components/common/Toggle';
 
-// Sentinel for "keep the model loaded forever", matches the u32::MAX
-// special case in `services/inference/mod.rs` (both the inline unload
-// and the idle sweeper short-circuit on this value).
-const FOREVER = 4_294_967_295; // u32::MAX
 import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { formatBytes } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { useLicence, isPro } from '@/state/licence';
 import { useSettings } from '@/state/settings';
+import { DICTATION_LANGUAGES } from '@/lib/dictationLanguages';
+
+// Sentinel for "keep the model loaded forever", matches the u32::MAX
+// special case in `services/inference/mod.rs` (both the inline unload
+// and the idle sweeper short-circuit on this value).
+const FOREVER = 4_294_967_295; // u32::MAX
 
 type ModelInfo = {
   id: string;
@@ -43,39 +46,13 @@ const ENGINE_LABEL: Record<string, string> = {
   zipformer: 'Zipformer · k2-fsa',
 };
 
-/** Whisper language picker shortlist. ~20 most common languages plus
- *  Auto-detect at the top. Whisper itself supports ~99 languages, if
- *  someone needs a less common one, they can edit `whisper_language`
- *  in the settings JSON directly (advanced path). The shortlist keeps
- *  the visible UI manageable and covers the realistic 95% of users. */
-const WHISPER_LANGUAGE_OPTIONS: SelectOption<string>[] = [
-  { value: 'auto', label: 'Auto-detect (recommended)' },
-  { value: 'en', label: 'English' },
-  { value: 'es', label: 'Spanish' },
-  { value: 'fr', label: 'French' },
-  { value: 'de', label: 'German' },
-  { value: 'it', label: 'Italian' },
-  { value: 'pt', label: 'Portuguese' },
-  { value: 'nl', label: 'Dutch' },
-  { value: 'pl', label: 'Polish' },
-  { value: 'tr', label: 'Turkish' },
-  { value: 'ru', label: 'Russian' },
-  { value: 'ar', label: 'Arabic' },
-  { value: 'hi', label: 'Hindi' },
-  { value: 'ja', label: 'Japanese' },
-  { value: 'ko', label: 'Korean' },
-  { value: 'zh', label: 'Chinese' },
-  { value: 'id', label: 'Indonesian' },
-  { value: 'th', label: 'Thai' },
-  { value: 'vi', label: 'Vietnamese' },
-  { value: 'sv', label: 'Swedish' },
-  { value: 'no', label: 'Norwegian' },
-  { value: 'da', label: 'Danish' },
-  { value: 'fi', label: 'Finnish' },
-  { value: 'cs', label: 'Czech' },
-  { value: 'el', label: 'Greek' },
-  { value: 'he', label: 'Hebrew' },
-];
+// Whisper-language picker shortlist lives in the shared
+// `lib/dictationLanguages` registry alongside the onboarding
+// dictation-language step (imported above), so the two surfaces stay
+// aligned. `whisper_language` is still written verbatim into
+// Settings; labels resolve through i18next at render time. Whisper
+// itself supports ~99 languages — power users can edit the field
+// directly in the settings JSON if a less common code is needed.
 
 type Progress = {
   model_id: string;
@@ -85,6 +62,23 @@ type Progress = {
 };
 
 export function ModelsSettings() {
+  const { t } = useTranslation('settings');
+  // Language labels live in the `common` namespace because the same
+  // strings are reused by the onboarding dictation-language step.
+  // Resolved per-render so labels stay reactive to a future locale
+  // swap; the values written back to `models.whisper_language` are
+  // the structural ISO codes from the registry, not the display
+  // labels.
+  const { t: tCommon } = useTranslation('common');
+  // Cast bypasses i18next's closed-union typed key signature for the
+  // dynamic registry lookup. The registry guarantees every entry's
+  // labelKey resolves; this cast is the standard shape used elsewhere
+  // when a per-id key is built at render time (see settings_nav.ts).
+  const tCommonLoose = tCommon as unknown as (k: string) => string;
+  const whisperLanguageOptions: SelectOption<string>[] = DICTATION_LANGUAGES.map((lang) => ({
+    value: lang.code,
+    label: tCommonLoose(lang.labelKey.replace(/^common\./, '')),
+  }));
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [progress, setProgress] = useState<Record<string, Progress>>({});
   // `loadedId` is the id of the model currently resident in memory, null
@@ -227,10 +221,7 @@ export function ModelsSettings() {
 
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
-      <PageHeader
-        title="Models"
-        subtitle="Parakeet ASR models. Downloaded once, stored locally, never uploaded anywhere."
-      />
+      <PageHeader title={t('models.title')} subtitle={t('models.subtitle')} />
 
       {/* Single source of truth for card spacing. Matches the convention
           used in GeneralSettings, AdvancedSettings, etc. Per-card `mt-*`
@@ -405,8 +396,8 @@ export function ModelsSettings() {
           minor speed win when always dictating in the same one. */}
       {hasWhisperInstalled && (
         <Card
-          title="Whisper language"
-          description="Used by Whisper models only. Auto-detect picks the language at the start of each dictation; pinning a specific one is slightly faster but locks you to that language."
+          title={t('models.whisper_language.title')}
+          description={t('models.whisper_language.description')}
         >
           <div className="flex items-center gap-3">
             <Radio className="h-4 w-4 text-accent" />
@@ -414,7 +405,7 @@ export function ModelsSettings() {
               value={whisperLanguage}
               onChange={(v) => updateWhisperLanguage(v)}
               minWidth="min-w-[20rem]"
-              options={WHISPER_LANGUAGE_OPTIONS}
+              options={whisperLanguageOptions}
             />
           </div>
         </Card>

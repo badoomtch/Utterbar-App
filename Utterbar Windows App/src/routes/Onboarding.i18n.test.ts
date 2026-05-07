@@ -91,4 +91,59 @@ describe('Onboarding i18n source-grep guard', () => {
     // silently fork the strings.
     expect(SOURCE).toMatch(/general\.appearance\.theme\.options\./);
   });
+
+  it('routes the new dictation-language step through onboarding.language.* keys', () => {
+    // The dictation-language step (`DictationLanguageStep`) writes
+    // `models.whisper_language` and is the only frontend touch point
+    // for the user's chosen dictation language. The picker labels
+    // come from `lib/dictationLanguages.ts` via the shared `common.*`
+    // namespace; the surrounding chrome lives under
+    // `onboarding.language.*`. Pin every key the step actually
+    // resolves so a future copy edit can't drift away from the
+    // catalogue.
+    expect(SOURCE).toMatch(/language\.title/);
+    expect(SOURCE).toMatch(/language\.subtitle/);
+    expect(SOURCE).toMatch(/language\.picker_label/);
+    expect(SOURCE).toMatch(/language\.picker_description/);
+    expect(SOURCE).toMatch(/language\.warning\.english_only_title/);
+    expect(SOURCE).toMatch(/language\.warning\.english_only_body/);
+    expect(SOURCE).toMatch(/language\.warning\.no_multilingual_title/);
+    expect(SOURCE).toMatch(/language\.warning\.no_multilingual_body/);
+    expect(SOURCE).toMatch(/language\.switch_to_multilingual/);
+  });
+
+  it('writes the dictation choice to models.whisper_language, never to general.app_language', () => {
+    // The contract: dictation language is `models.whisper_language`,
+    // app interface language is `general.app_language`. They must
+    // stay decoupled. Pin the positive shape (DictationLanguageStep
+    // patches `models: { ..., whisper_language: code }`) and a
+    // negative pin against `app_language: ` written from the new
+    // step. The latter would catch a future regression that couples
+    // the two.
+    expect(SOURCE).toMatch(/whisper_language:\s*code/);
+    // The new step must not patch general.app_language. (The existing
+    // GeneralSettings page is the only legitimate writer; that page
+    // is unaffected by this branch.)
+    expect(SOURCE).not.toMatch(/general:\s*\{[^}]*app_language:[^}]*whisper_language/);
+  });
+
+  it('uses the pure recommendation helper for language-aware model picking', () => {
+    // The recommendation logic lives in
+    // `routes/onboarding_model_recommendation.ts` so it can be unit-
+    // tested in pure Node. Pin both the import shape and the live
+    // call site so a future refactor that inlines the logic back
+    // into the JSX (and loses test coverage) fails immediately.
+    expect(SOURCE).toMatch(/from ['"]@\/routes\/onboarding_model_recommendation['"]/);
+    expect(SOURCE).toMatch(/recommendModelForLanguage\(/);
+  });
+
+  it('passes the offending model display name through the english-only warning interpolation', () => {
+    // m.display_name is Rust-emitted and stays verbatim; the
+    // surrounding warning prose interpolates it as `{{model}}`. Pin
+    // the wiring so a future copy edit can't drop the model name and
+    // leave a literal mustache template visible to users.
+    expect(SOURCE).toMatch(
+      /language\.warning\.english_only_body['"][\s\S]{0,200}model:/,
+    );
+  });
 });

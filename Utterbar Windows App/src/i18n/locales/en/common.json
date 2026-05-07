@@ -1,6 +1,31 @@
 {
   "language": {
-    "english": "English"
+    "english": "English",
+    "auto_detect": "Auto-detect (recommended)",
+    "spanish": "Spanish",
+    "french": "French",
+    "german": "German",
+    "italian": "Italian",
+    "portuguese": "Portuguese",
+    "dutch": "Dutch",
+    "polish": "Polish",
+    "turkish": "Turkish",
+    "russian": "Russian",
+    "arabic": "Arabic",
+    "hindi": "Hindi",
+    "japanese": "Japanese",
+    "korean": "Korean",
+    "chinese": "Chinese",
+    "indonesian": "Indonesian",
+    "thai": "Thai",
+    "vietnamese": "Vietnamese",
+    "swedish": "Swedish",
+    "norwegian": "Norwegian",
+    "danish": "Danish",
+    "finnish": "Finnish",
+    "czech": "Czech",
+    "greek": "Greek",
+    "hebrew": "Hebrew"
   },
   "chrome": {
     "nav": {
