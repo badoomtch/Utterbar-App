@@ -231,14 +231,17 @@ describe('i18n English foundation', () => {
   });
 
   it('resolves at least one representative key for every onboarding step', () => {
-    // Pinned 12-step list. The Onboarding `STEPS` const order is part of
-    // the user journey; this test fails loudly if any step's translation
-    // key disappears or the catalogue gets reshuffled.
+    // Pinned 13-step list (12 base + the dictation-language step
+    // added in the language-aware-onboarding-models branch). The
+    // Onboarding `STEPS` const order is part of the user journey;
+    // this test fails loudly if any step's translation key disappears
+    // or the catalogue gets reshuffled.
     const keys = [
       'welcome.heading',
       'privacy.title',
       'updates.title',
       'theme.title',
+      'language.title',
       'model.title',
       'gpu.title',
       'mic.title',
@@ -926,6 +929,108 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('advanced.backup.export.description_last');
   });
 
+  it('resolves every dictation-language onboarding key', () => {
+    // Pinned list of every onboarding.language.* key consumed by
+    // DictationLanguageStep + the language-aware warnings in
+    // ModelPickStep. The dictation-language step writes
+    // models.whisper_language; it does NOT touch general.app_language
+    // (interface language stays English). Adding/renaming a key here
+    // without updating the catalogue (or vice versa) fails the test
+    // before users see a missing-key fallback at runtime.
+    const keys = [
+      'language.title',
+      'language.subtitle',
+      'language.picker_label',
+      'language.picker_description',
+      'language.warning.english_only_title',
+      'language.warning.english_only_body',
+      'language.warning.no_multilingual_title',
+      'language.warning.no_multilingual_body',
+      'language.switch_to_multilingual',
+      // step_titles.language must exist alongside the existing 12 step
+      // titles; the new step is rendered as a 13th progress pip.
+      'step_titles.language',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'onboarding', key);
+      expect(value, `onboarding.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `onboarding.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders language.warning.english_only_body with the model name interpolated', () => {
+    // The warning composes the offending model's display_name (Rust-
+    // emitted, stays verbatim) into the English-only-warning body.
+    // Pin the `{{model}}` substitution so a future copy edit can't
+    // drop the interpolation silently.
+    const out = i18n.t('language.warning.english_only_body', {
+      ns: 'onboarding',
+      model: 'Parakeet TDT v3 (int8)',
+    });
+    expect(out).toContain('Parakeet TDT v3 (int8)');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('language.warning.english_only_body');
+  });
+
+  it('exposes a common.language label for every dictation-language registry entry', () => {
+    // The shared dictation-language registry in lib/dictationLanguages
+    // points each catalogue code at a `common.language.*` key. Pin
+    // every code here so a future rename of the registry can't drift
+    // away from the catalogue without failing.
+    const codes = [
+      'auto_detect',
+      'english',
+      'spanish',
+      'french',
+      'german',
+      'italian',
+      'portuguese',
+      'dutch',
+      'polish',
+      'turkish',
+      'russian',
+      'arabic',
+      'hindi',
+      'japanese',
+      'korean',
+      'chinese',
+      'indonesian',
+      'thai',
+      'vietnamese',
+      'swedish',
+      'norwegian',
+      'danish',
+      'finnish',
+      'czech',
+      'greek',
+      'hebrew',
+    ];
+    for (const code of codes) {
+      const value = i18n.getResource('en', 'common', `language.${code}`);
+      expect(value, `common.json missing key language.${code}`).toBeTruthy();
+      expect(typeof value, `common.json key language.${code} must be string`).toBe('string');
+    }
+  });
+
+  it('resolves the new Models settings header + Whisper-language card keys', () => {
+    // Scoped Models settings localisation: the page header + the
+    // Whisper-language card chrome (which is the surface most exposed
+    // by the new dictation-language flow). Full ModelsSettings.tsx
+    // localisation is deliberately deferred to a follow-up branch
+    // because most of that file is dense backend-emitted prose.
+    const keys = [
+      'models.title',
+      'models.subtitle',
+      'models.whisper_language.title',
+      'models.whisper_language.description',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -1006,6 +1111,8 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.advanced.backup.import).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.advanced.backup.import_modal).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.advanced.reset).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.models).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.models.whisper_language).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);
@@ -1013,5 +1120,7 @@ describe('i18n English foundation', () => {
     expect(Object.keys(onboardingEn.baseline).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.ready).length).toBeGreaterThan(0);
     expect(onboardingEn.baseline.sentences.length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.language).length).toBeGreaterThan(0);
+    expect(Object.keys(onboardingEn.language.warning).length).toBeGreaterThan(0);
   });
 });

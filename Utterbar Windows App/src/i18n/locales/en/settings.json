@@ -700,5 +700,13 @@
       "button": "Reset",
       "confirm": "Reset all Utterbar settings? This does not delete recordings or history."
     }
+  },
+  "models": {
+    "title": "Models",
+    "subtitle": "Parakeet ASR models. Downloaded once, stored locally, never uploaded anywhere.",
+    "whisper_language": {
+      "title": "Whisper language",
+      "description": "Used by Whisper models only. Auto-detect picks the language at the start of each dictation; pinning a specific one is slightly faster but locks you to that language."
+    }
   }
 }

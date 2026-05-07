@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Check,
   ExternalLink,
+  Languages,
   Lock,
   Mic,
   Sparkles,
@@ -32,6 +33,11 @@ import { EVT } from '@/lib/events';
 import { useSettings } from '@/state/settings';
 import { springs } from '@/design/motion';
 import { cn } from '@/lib/cn';
+import { DICTATION_LANGUAGES, isMultilingualOnly } from '@/lib/dictationLanguages';
+import {
+  recommendModelForLanguage,
+  type RecommendationModel,
+} from '@/routes/onboarding_model_recommendation';
 
 // 9 steps, down from 10. The separate "Record a quick test" step is folded into the
 // mic step now, since having both a mic-test bar and a subsequent record-test page
@@ -56,6 +62,11 @@ const ALL_STEPS: ReadonlyArray<{ id: string }> = [
   // request and decide for themselves whether to keep it on.
   { id: 'updates' },
   { id: 'theme' },
+  // Dictation language goes immediately before the model step so the
+  // user's choice can drive the model recommendation. Frontend-only:
+  // writes models.whisper_language. Does NOT touch general.app_language
+  // — interface language is a separate concern.
+  { id: 'language' },
   { id: 'model' },
   // `gpu` is conditionally included, only shown when a hardware GPU is detected.
   { id: 'gpu' },
@@ -229,6 +240,8 @@ function StepContent({
       );
     case 'updates':
       return <UpdateConsentStep />;
+    case 'language':
+      return <DictationLanguageStep />;
     case 'model':
       return <ModelPickStep />;
     case 'gpu':
@@ -452,6 +465,73 @@ const EXTRACT_HINT_SECS: Record<string, number> = {
   'sherpa-parakeet-tdt-0.6b-v3-fp16': 90,
 };
 
+/**
+ * Dictation-language picker. Drives `models.whisper_language` and is
+ * read by the next step's `ModelPickStep` to pick a compatible model.
+ * App interface language is not touched — that's `general.app_language`,
+ * which stays English-only for the foreseeable future.
+ */
+function DictationLanguageStep() {
+  const { t } = useTranslation('onboarding');
+  const { t: tCommon } = useTranslation('common');
+  // Cast bypasses i18next's closed-union typed key signature for the
+  // dynamic registry lookup. The dictation-language registry
+  // guarantees every entry's labelKey resolves; this cast is the
+  // standard shape used elsewhere when a per-id key is built at
+  // render time (see settings_nav.ts).
+  const tCommonLoose = tCommon as unknown as (k: string) => string;
+  const s = useSettings((x) => x.data);
+  const patch = useSettings((x) => x.patch);
+  if (!s) return null;
+  const current =
+    (s.models as { whisper_language?: string } | undefined)?.whisper_language ?? 'auto';
+
+  const options = DICTATION_LANGUAGES.map((lang) => ({
+    value: lang.code,
+    // Strip the `common.` prefix from the registry's labelKey because
+    // the `tCommonLoose` translator is already namespaced. Keeps the
+    // registry portable to other call sites that use a different
+    // namespace strategy.
+    label: tCommonLoose(lang.labelKey.replace(/^common\./, '')),
+  }));
+
+  const setLanguage = (code: string) =>
+    patch({
+      models: { ...(s.models as Record<string, unknown>), whisper_language: code },
+    });
+
+  return (
+    <div className="rounded-block bg-bg-1 p-8">
+      <div className="flex items-center gap-2">
+        <Languages className="h-5 w-5 text-accent" />
+        <h1 className="text-[22px] font-bold tracking-[-0.02em] text-fg-hi">
+          {t('language.title')}
+        </h1>
+      </div>
+      <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-muted">
+        {t('language.subtitle')}
+      </p>
+
+      <div className="mt-6 max-w-md">
+        <label className="block text-[13px] font-medium text-fg-hi">
+          {t('language.picker_label')}
+        </label>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted">
+          {t('language.picker_description')}
+        </p>
+        <div className="mt-3">
+          <Select
+            value={current}
+            onChange={(v) => void setLanguage(v)}
+            options={options}
+            minWidth="min-w-[18rem]"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModelPickStep() {
   const { t } = useTranslation('onboarding');
   const s = useSettings((x) => x.data);
@@ -460,6 +540,16 @@ function ModelPickStep() {
   const [pick, setPick] = useState<string>('');
   const [progress, setProgress] = useState<ModelProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Dictation language drives the recommendation. Language was set on
+  // the previous step (`DictationLanguageStep`) into
+  // models.whisper_language; we read it here and let the pure helper
+  // pick a compatible model. English / auto preserve existing behaviour
+  // (installed > recommended > first); non-English filters to
+  // multilingual models and surfaces a warning if the current pick is
+  // English-only.
+  const dictationLanguage =
+    (s?.models as { whisper_language?: string } | undefined)?.whisper_language ?? 'auto';
 
   const downloadStartRef = useRef<number>(0);
   const extractStartRef = useRef<number>(0);
@@ -475,11 +565,17 @@ function ModelPickStep() {
         const onboarding = list.filter((m) => !m.requires_pro);
         setModels(onboarding);
         if (!pick) {
-          const installed = onboarding.find((m) => m.installed);
-          const recommended = onboarding.find((m) => m.recommended);
-          setPick(
-            installed?.id ?? recommended?.id ?? onboarding[0]?.id ?? '',
-          );
+          // Defer to the pure recommendation helper so the language
+          // constraint applies on first paint too. For English / auto
+          // dictation this preserves the original priority
+          // (installed > recommended > first); for non-English it
+          // filters to multilingual.
+          const initial = recommendModelForLanguage({
+            models: onboarding as readonly RecommendationModel[],
+            currentSelection: null,
+            dictationLanguage,
+          });
+          setPick(initial.recommendedId ?? '');
         }
       })
       .catch(() => undefined);
@@ -542,6 +638,27 @@ function ModelPickStep() {
   const isInstalling =
     progress && progress.model_id === pick && progress.phase !== 'done' && progress.phase !== 'error';
   const isInstalled = active?.installed;
+
+  // Re-run the recommendation against the live model + current pick.
+  // English / auto dictation always returns `default` (compatible) and
+  // produces no banner. Non-English returns either a benign
+  // `multilingual_match`, an `selection_english_only` warning with a
+  // one-click switch to the recommendation, or — when the catalogue
+  // has no multilingual entry at all — a `no_multilingual_available`
+  // fallback that routes the user to Settings → Models.
+  const recommendation = recommendModelForLanguage({
+    models: models as readonly RecommendationModel[],
+    currentSelection: pick || null,
+    dictationLanguage,
+  });
+  const showEnglishOnlyWarning =
+    isMultilingualOnly(dictationLanguage) &&
+    recommendation.reason === 'selection_english_only' &&
+    recommendation.recommendedId !== null &&
+    recommendation.recommendedId !== pick;
+  const showNoMultilingualWarning =
+    isMultilingualOnly(dictationLanguage) &&
+    recommendation.reason === 'no_multilingual_available';
   const pct =
     progress && progress.bytes_total > 0
       ? Math.round((progress.bytes_done / progress.bytes_total) * 100)
@@ -609,6 +726,50 @@ function ModelPickStep() {
           {t('model.multilingual_body')}
         </span>
       </div>
+
+      {/* Language-aware warning. Fires only when the user picked a
+          non-English dictation language on the previous step but the
+          currently-highlighted model is English-only — offers a
+          one-click switch to the multilingual recommendation. The
+          `recommendation.recommendedId` is guaranteed non-null in this
+          branch (helper guards the `selection_english_only` case). */}
+      {showEnglishOnlyWarning && recommendation.recommendedId && (
+        <div className="mt-3 rounded-input border border-rose-500/40 bg-rose-500/10 p-3 text-[12px] leading-relaxed text-fg">
+          <div className="font-medium text-rose-300">
+            {t('language.warning.english_only_title')}
+          </div>
+          <div className="mt-1 text-muted">
+            {/* `m.display_name` is Rust-emitted and stays verbatim; the
+                surrounding prose interpolates it as `{{model}}`. */}
+            {t('language.warning.english_only_body', {
+              model:
+                models.find((m) => m.id === pick)?.display_name ?? pick,
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPick(recommendation.recommendedId!)}
+            className="mt-2 ub-btn ub-btn-cta !py-[0.4rem] !text-[12px]"
+          >
+            {t('language.switch_to_multilingual')}
+          </button>
+        </div>
+      )}
+
+      {/* No multilingual model in the catalogue at all. Frontend can
+          still show the model list below (the user can install one),
+          but the banner explains why none of the listed models suit
+          the chosen dictation language. */}
+      {showNoMultilingualWarning && (
+        <div className="mt-3 rounded-input border border-amber-500/40 bg-amber-500/10 p-3 text-[12px] leading-relaxed text-fg">
+          <div className="font-medium text-amber-300">
+            {t('language.warning.no_multilingual_title')}
+          </div>
+          <div className="mt-1 text-muted">
+            {t('language.warning.no_multilingual_body')}
+          </div>
+        </div>
+      )}
 
       <ul className="mt-5 space-y-2">
         {models.map((m) => (
