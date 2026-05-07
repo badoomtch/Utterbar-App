@@ -805,6 +805,127 @@ describe('i18n English foundation', () => {
     expect(out).not.toContain('updates.release_email.subscribed_as');
   });
 
+  it('resolves every Advanced settings key', () => {
+    // Pinned list of every settings.advanced.* key consumed by
+    // AdvancedSettings.tsx. Backend-emitted Diagnostics fields
+    // (version/os/cpu_count/log_path/db_path/models_path), GPU
+    // adapter names + VRAM numbers, the Rust-side backupError
+    // string, and the basename split off the pending import path
+    // all stay verbatim — only frontend chrome and the matching
+    // status fragments are pinned here.
+    const keys = [
+      'advanced.title',
+      'advanced.subtitle',
+      'advanced.gpu.title',
+      'advanced.gpu.description.checking',
+      'advanced.gpu.description.no_runtime_ep',
+      'advanced.gpu.description.detected',
+      'advanced.gpu.description.no_gpu',
+      'advanced.gpu.options.auto.title',
+      'advanced.gpu.options.auto.hint',
+      'advanced.gpu.options.direct_ml.title',
+      'advanced.gpu.options.direct_ml.hint',
+      'advanced.gpu.options.cuda.title',
+      'advanced.gpu.options.cuda.hint',
+      'advanced.gpu.options.cpu.title',
+      'advanced.gpu.options.cpu.hint',
+      'advanced.gpu.disabled_suffix',
+      'advanced.gpu.inactive_notice',
+      'advanced.gpu.detected_adapters',
+      'advanced.gpu.adapter_software_suffix',
+      'advanced.gpu.adapter_vram_suffix',
+      'advanced.diagnostics.title',
+      'advanced.diagnostics.description',
+      'advanced.diagnostics.rows.version',
+      'advanced.diagnostics.rows.os',
+      'advanced.diagnostics.rows.cpu_threads',
+      'advanced.diagnostics.rows.onnx',
+      'advanced.diagnostics.rows.llama',
+      'advanced.diagnostics.rows.logs',
+      'advanced.diagnostics.rows.database',
+      'advanced.diagnostics.rows.models',
+      'advanced.diagnostics.feature_state.compiled',
+      'advanced.diagnostics.feature_state.disabled',
+      'advanced.backup.title',
+      'advanced.backup.description',
+      'advanced.backup.include_recordings.label',
+      'advanced.backup.include_recordings.description',
+      'advanced.backup.export.label',
+      'advanced.backup.export.description_idle',
+      'advanced.backup.export.description_last',
+      'advanced.backup.export.contents_nothing',
+      'advanced.backup.export.exporting',
+      'advanced.backup.export.button',
+      'advanced.backup.export.dialog_title',
+      'advanced.backup.export.filter_name',
+      'advanced.backup.import.label',
+      'advanced.backup.import.description',
+      'advanced.backup.import.importing',
+      'advanced.backup.import.button',
+      'advanced.backup.import.dialog_title',
+      'advanced.backup.import_modal.eyebrow',
+      'advanced.backup.import_modal.heading',
+      'advanced.backup.import_modal.body_prefix',
+      'advanced.backup.import_modal.body_suffix',
+      'advanced.backup.import_modal.warning',
+      'advanced.backup.import_modal.cancel',
+      'advanced.backup.import_modal.replace',
+      'advanced.backup.import_modal.replacing',
+      'advanced.reset.title',
+      'advanced.reset.row.label',
+      'advanced.reset.row.description',
+      'advanced.reset.button',
+      'advanced.reset.confirm',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders advanced.gpu.description.detected with the adapter name interpolated', () => {
+    // The OS/driver-emitted adapter name flows verbatim through the
+    // catalogued template's `{{name}}` substitution. Pin it so a
+    // future copy edit can't drop the interpolation silently.
+    const out = i18n.t('advanced.gpu.description.detected', {
+      ns: 'settings',
+      name: 'NVIDIA GeForce RTX 4070',
+    });
+    expect(out).toContain('NVIDIA GeForce RTX 4070');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('advanced.gpu.description.detected');
+  });
+
+  it('renders advanced.gpu.adapter_vram_suffix with the megabyte count interpolated', () => {
+    // The VRAM count (already locale-formatted via toLocaleString) is
+    // interpolated as `{{mb}}` into the suffix. Pin the substitution
+    // so a future regression that drops the placeholder leaves
+    // ", undefined MB VRAM" instead.
+    const out = i18n.t('advanced.gpu.adapter_vram_suffix', {
+      ns: 'settings',
+      mb: '8,192',
+    });
+    expect(out).toContain('8,192');
+    expect(out).toContain('MB VRAM');
+    expect(out).not.toContain('{{');
+  });
+
+  it('renders advanced.backup.export.description_last with size + contents interpolated', () => {
+    // The last-export hint composes a formatted byte-size and a
+    // joined contents list. Pin both `{{size}}` and `{{contents}}`
+    // substitutions so neither can be dropped silently.
+    const out = i18n.t('advanced.backup.export.description_last', {
+      ns: 'settings',
+      size: '4.2 MB',
+      contents: 'settings, modes, vocabulary, history',
+    });
+    expect(out).toContain('4.2 MB');
+    expect(out).toContain('settings, modes, vocabulary, history');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('advanced.backup.export.description_last');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -872,6 +993,19 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.updates.release_email).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.updates.release_email.row).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.updates.release_email.errors).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.gpu).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.gpu.description).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.gpu.options).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.diagnostics).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.diagnostics.rows).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.diagnostics.feature_state).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.backup).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.backup.include_recordings).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.backup.export).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.backup.import).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.backup.import_modal).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.advanced.reset).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);

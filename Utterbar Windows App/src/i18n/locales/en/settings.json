@@ -602,5 +602,103 @@
         "fallback": "Couldn't reach the server. Check your connection and try again."
       }
     }
+  },
+  "advanced": {
+    "title": "Advanced",
+    "subtitle": "Diagnostics, hardware preferences, and experimental toggles.",
+    "gpu": {
+      "title": "GPU acceleration",
+      "description": {
+        "checking": "Checking what hardware is available…",
+        "no_runtime_ep": "This build runs on CPU only. DirectML and CUDA appear here so your preference is preserved for a future release that ships GPU support, but they have no effect today.",
+        "detected": "Detected {{name}}. Auto runs Whisper Medium / Large and Parakeet on the GPU when one is present, and keeps Whisper Small on CPU. You can override the choice by picking a specific provider below.",
+        "no_gpu": "GPU acceleration is built in but no dedicated or integrated GPU was detected on this machine. Utterbar will run on CPU."
+      },
+      "options": {
+        "auto": {
+          "title": "Auto",
+          "hint": "Use your GPU if one is detected and the runtime supports it, otherwise CPU. Recommended."
+        },
+        "direct_ml": {
+          "title": "DirectML",
+          "hint": "Prefer DirectML when the build includes it. Runs on any DX12 GPU."
+        },
+        "cuda": {
+          "title": "CUDA",
+          "hint": "Prefer NVIDIA CUDA when the build includes it. Fastest on NVIDIA cards."
+        },
+        "cpu": {
+          "title": "CPU only",
+          "hint": "Keep the GPU free for games or video. A bit slower per utterance."
+        }
+      },
+      "disabled_suffix": ", not available on this machine.",
+      "inactive_notice": "Selected, but currently inactive — this build does not include that execution provider. Transcribes are running on CPU.",
+      "detected_adapters": "Detected adapters",
+      "adapter_software_suffix": " (software)",
+      "adapter_vram_suffix": ", {{mb}} MB VRAM"
+    },
+    "diagnostics": {
+      "title": "Diagnostics",
+      "description": "Everything below is read from this machine. Nothing is sent anywhere.",
+      "rows": {
+        "version": "Version",
+        "os": "OS",
+        "cpu_threads": "CPU threads",
+        "onnx": "ONNX backend",
+        "llama": "llama.cpp backend",
+        "logs": "Logs",
+        "database": "Database",
+        "models": "Models"
+      },
+      "feature_state": {
+        "compiled": "compiled",
+        "disabled": "disabled"
+      }
+    },
+    "backup": {
+      "title": "Backup & restore",
+      "description": "Export your settings, modes, vocabulary, and history to a single file you can move between machines or keep as a safety net. Models are excluded, they're re-downloadable from the catalogue.",
+      "include_recordings": {
+        "label": "Include recordings in export",
+        "description": "Audio files from history. Usually the bulk of the archive, leave off when you just want to move preferences."
+      },
+      "export": {
+        "label": "Export data",
+        "description_idle": "Writes a .tar file to the location you choose.",
+        "description_last": "Last export: {{size}}, included {{contents}}.",
+        "contents_nothing": "nothing",
+        "exporting": "Exporting…",
+        "button": "Export…",
+        "dialog_title": "Export Utterbar data",
+        "filter_name": "Utterbar backup"
+      },
+      "import": {
+        "label": "Import data",
+        "description": "Replaces current settings, modes, vocabulary, and history with the backup's contents. Utterbar restarts immediately after.",
+        "importing": "Importing…",
+        "button": "Import…",
+        "dialog_title": "Import Utterbar backup"
+      },
+      "import_modal": {
+        "eyebrow": "Destructive action",
+        "heading": "Replace all Utterbar data?",
+        "body_prefix": "Importing",
+        "body_suffix": "will overwrite your current settings, modes, vocabulary, history, and any recordings included in the archive. Utterbar will restart immediately afterwards.",
+        "warning": "This cannot be undone. If you're not sure, cancel and export your current data first.",
+        "cancel": "Cancel",
+        "replace": "Replace and restart",
+        "replacing": "Importing & restarting…"
+      }
+    },
+    "reset": {
+      "title": "Reset",
+      "row": {
+        "label": "Reset all settings to defaults",
+        "description": "Modes, vocabulary, and history are preserved."
+      },
+      "button": "Reset",
+      "confirm": "Reset all Utterbar settings? This does not delete recordings or history."
+    }
   }
 }
