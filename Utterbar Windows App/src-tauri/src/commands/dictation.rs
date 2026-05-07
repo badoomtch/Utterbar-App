@@ -5041,6 +5041,172 @@ mod diarised_helpers_tests {
         );
     }
 
+    /// **v0.19.4 updater install-restart contract.** The main-window
+    /// `CloseRequested` handler in `main.rs` MUST consult the
+    /// `updater_install_in_progress` flag on `AppState` BEFORE the
+    /// `close_to_tray ? prevent_close + hide` intercept, and MUST
+    /// `return` early when the flag is set so the updater's
+    /// `handle.exit(0)` shutdown can proceed. Without this gate, a
+    /// user with `general.close_to_tray = true` (the default) sees
+    /// Install & restart hide the app to the tray instead of letting
+    /// NSIS overwrite the running .exe. Source-grep pin so a future
+    /// refactor of the close handler can't silently drop the bypass.
+    #[test]
+    fn close_handler_skips_intercept_when_updater_install_in_progress() {
+        let src = read_source("src-tauri/src/main.rs");
+        // The handler must read the flag with a load() call against
+        // updater_install_in_progress BEFORE the close_to_tray branch.
+        let flag_load_idx = src
+            .find("updater_install_in_progress")
+            .expect("main.rs close handler must reference updater_install_in_progress");
+        let close_to_tray_idx = src
+            .find(".close_to_tray")
+            .expect("main.rs close handler must read .close_to_tray");
+        assert!(
+            flag_load_idx < close_to_tray_idx,
+            "main.rs must read updater_install_in_progress BEFORE .close_to_tray; \
+             otherwise an updater-triggered exit gets intercepted as a close-to-tray"
+        );
+        // The bypass must early-return (not just log) so neither
+        // prevent_close nor hide() runs when the flag is set. We
+        // pin the .load() call near .updater_install_in_progress
+        // without locking the indentation pattern, because cargo fmt
+        // can reflow the surrounding code.
+        let load_idx = src
+            .find(".updater_install_in_progress")
+            .and_then(|start| src[start..].find(".load(").map(|off| start + off))
+            .expect(
+                "main.rs close handler must call .load() on updater_install_in_progress \
+                 with explicit ordering",
+            );
+        assert!(load_idx > 0);
+        // Defence-in-depth: the early return literal must appear
+        // inside the close handler scope.
+        let handler_slice_start = src
+            .find("if let tauri::WindowEvent::CloseRequested")
+            .expect("main.rs must have the CloseRequested intercept");
+        let handler_slice = &src[handler_slice_start..];
+        assert!(
+            handler_slice.contains("return;"),
+            "main.rs CloseRequested handler must early-return when the updater flag is set"
+        );
+    }
+
+    /// **v0.19.4 updater install-restart contract (set side).** The
+    /// `install_update` command must set
+    /// `updater_install_in_progress = true` BEFORE `spawn_installer`
+    /// and the `handle.exit(0)` shutdown task fire, so the close
+    /// handler in `main.rs` can read a `true` value when its
+    /// `CloseRequested` event arrives. The flag must also be cleared
+    /// on the spawn-installer error branch so a failed install
+    /// doesn't lock the user out of normal close-to-tray on their
+    /// next genuine [X] click.
+    #[test]
+    fn install_update_sets_intent_flag_before_spawn_and_exit() {
+        let src = read_source("src-tauri/src/commands/updater.rs");
+        // Flag set must precede spawn_installer. The store-true line
+        // appears as `.store(true, Ordering::SeqCst);` indented inside
+        // a method-chain on `.updater_install_in_progress`.
+        let store_true_idx = src
+            .find(".updater_install_in_progress")
+            .and_then(|start| src[start..].find(".store(true,").map(|off| start + off))
+            .expect("install_update must store(true) on updater_install_in_progress");
+        let spawn_idx = src
+            .find("spawn_installer(&path)")
+            .expect("install_update must call spawn_installer");
+        assert!(
+            store_true_idx < spawn_idx,
+            "install_update must set updater_install_in_progress = true BEFORE spawn_installer; \
+             otherwise the close handler can race the exit task with a stale `false` read"
+        );
+        // The exit task is the consumer; pin that it sits AFTER the
+        // store_true point too.
+        let handle_exit_idx = src
+            .find("handle.exit(0);")
+            .expect("install_update must schedule handle.exit(0)");
+        assert!(
+            store_true_idx < handle_exit_idx,
+            "install_update must set updater_install_in_progress = true BEFORE handle.exit(0)"
+        );
+        // Error-path clear: a failed spawn_installer must reset the
+        // flag so the next [X] click goes to tray as expected. The
+        // store(false) line appears in the spawn-error branch with
+        // its own method-chain indentation.
+        let store_false_idx = src.find(".store(false,").inspect(|&idx| {
+            // Confirm the store(false) is on .updater_install_in_progress
+            // by checking the preceding 80 bytes contain the field name.
+            let look_back_start = idx.saturating_sub(80);
+            let context = &src[look_back_start..idx];
+            assert!(
+                context.contains("updater_install_in_progress"),
+                ".store(false) at byte {} must be on .updater_install_in_progress",
+                idx
+            );
+        });
+        assert!(
+            store_false_idx.is_some(),
+            "install_update must clear updater_install_in_progress on the spawn_installer \
+             error branch; otherwise a failed install leaves the user unable to use \
+             close-to-tray"
+        );
+    }
+
+    /// **v0.19.3 placement contract.** The Settings → Models
+    /// language-compatibility warning v0.19.2 introduced must render
+    /// directly below the Whisper-language card, not between the
+    /// Default model card and the Meeting Mode card. v0.19.3 moved
+    /// it; this test pins the move at the Rust layer too so a
+    /// future refactor can't silently revert the placement.
+    #[test]
+    fn models_language_warning_renders_beside_whisper_picker() {
+        let src = read_source("src/routes/settings/ModelsSettings.tsx");
+        // Both warning catalogue keys must appear AFTER the Whisper-
+        // language card title prop and BEFORE the Keep-warm card title.
+        let whisper_picker_idx = src
+            .find("models.whisper_language.title")
+            .expect("ModelsSettings.tsx must reference models.whisper_language.title");
+        let english_warn_idx = src
+            .find("models.language_warning.english_only_title")
+            .expect("ModelsSettings.tsx must reference the english-only warning key");
+        let no_multi_warn_idx = src
+            .find("models.language_warning.no_multilingual_title")
+            .expect("ModelsSettings.tsx must reference the no-multilingual warning key");
+        let keep_warm_idx = src
+            .find("\"Keep-warm duration\"")
+            .expect("ModelsSettings.tsx must still have the Keep-warm card title");
+        assert!(
+            whisper_picker_idx < english_warn_idx && english_warn_idx < keep_warm_idx,
+            "english-only warning must render between the Whisper-language card and the \
+             Keep-warm card in source order (the v0.19.3 placement)"
+        );
+        assert!(
+            whisper_picker_idx < no_multi_warn_idx && no_multi_warn_idx < keep_warm_idx,
+            "no-multilingual warning must render between the Whisper-language card and the \
+             Keep-warm card in source order (the v0.19.3 placement)"
+        );
+        // Negative pin against the v0.19.2 placement (between Default
+        // model and Meeting Mode anchors). Both anchors are still
+        // untranslated literals — a deliberate part of the
+        // scope-deferred Models localisation — so the source-grep is
+        // stable across this branch.
+        let default_model_idx = src
+            .find("title=\"Default model\"")
+            .expect("ModelsSettings.tsx must still have the Default model card title");
+        let meeting_model_idx = src
+            .find("title=\"Meeting mode model\"")
+            .expect("ModelsSettings.tsx must still have the Meeting mode card title");
+        assert!(
+            !(english_warn_idx > default_model_idx && english_warn_idx < meeting_model_idx),
+            "english-only warning MUST NOT sit between Default model and Meeting Mode \
+             (the v0.19.2 placement that v0.19.3 fixed)"
+        );
+        assert!(
+            !(no_multi_warn_idx > default_model_idx && no_multi_warn_idx < meeting_model_idx),
+            "no-multilingual warning MUST NOT sit between Default model and Meeting Mode \
+             (the v0.19.2 placement that v0.19.3 fixed)"
+        );
+    }
+
     /// **v0.15.5 telemetry contract.** The `meeting transcribe
     /// complete` log line carries `provider_requested`,
     /// `provider_used`, `fallback_used`, `fallback_reason`.
