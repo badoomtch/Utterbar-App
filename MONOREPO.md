@@ -716,24 +716,29 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 
 ---
 
-## 12. Current state (2026-04-30, post-v0.15.6 stable promotion)
+## 12. Current state (2026-05-07, post-v0.19.5 beta)
 
 ### Desktop app
-- **Last publicly-shipped stable:** `v0.15.6` (admin release row id=56, 2026-04-30). Shown on `/download` with the `latest` pill. Stable channel: v0.7.0 → v0.8.7 → v0.10.0 → v0.12.0 → v0.15.6. Promotion brought forward from the planned 2026-05-05 soak floor after compressed QA on Jay's machine and a v0.12.0 → v0.15.6 upgrade test on a second machine.
-- **Beta channel:** `v0.15.6` (id=54, 2026-04-30). Same binary as stable, same SHA. Beta row preserved through the stable promotion so beta clients continue to receive normal feed responses.
-- **What v0.15.6 ships.** DirectML execution provider via vendored sherpa-onnx + ORT 1.14.1 + DirectML 1.15.0 bundle at [src-tauri/vendor/sherpa-onnx/](Utterbar%20Windows%20App/src-tauri/vendor/sherpa-onnx/). v0.8.7 Whisper-on-CPU pin lifted. Model-aware Auto policy: Medium / Large / Parakeet route to DML on DX12 hardware, Small stays on CPU (real-meeting QA: Small CPU RTF 0.190 vs Small DML RTF 0.222 on a 9-minute meeting). Telemetry adds `dml_available` + `provider_policy_reason` (nine pinned strings). UTF-8 `£`-input panic in `services/llm/deterministic.rs` fixed pre-publish. SHA-256 `39ed250fa3d0ee94f5fb7c3d695e02693cfcdbf3766c94b0c4ce9cf9424885f9` across all three rows (54, 55-deleted, 56).
-- **Stable promotion ritual on 2026-04-30.** Initial stable publish created row 55 with the original beta-only notes; row 55 was then deleted with `delete_file=0` and superseded by row 56 carrying consolidated v0.12.0 → v0.15.6 release notes (stable users skipped the entire beta line and needed the recap). Same SHA across both. No `--announce` on either stable publish; subscriber list was empty.
-- **In-tree version:** `v0.15.6` across `package.json`, `Cargo.toml`, `tauri.conf.json`. Build commit: `cb1cf31`. Merge commit on `main`: `fda8785`. Release-note prep: `0c78569`. Release-note consolidation: `44e5f0b`. Tag `v0.15.6` points at the build commit `cb1cf31` per the runbook ("tag points at the exact commit that was built"); docs commits sit on `main` after the tag.
-- **Versioning convention** (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)): `0.x.0` minor = mainline / stable, `0.x.y` patch = beta soak. v0.15.6 is the exception that proved the rule — the patch carrying DirectML went straight to stable after compressed QA, but only because the binary had already soaked on beta and a real-machine v0.12.0 → v0.15.6 upgrade had been tested. Future releases should still follow the minor-on-stable / patch-on-beta cadence.
-- **Beta-channel chain since the v0.12.0 stable cut:** v0.12.1 → v0.13.0 → v0.13.1 → v0.13.2 → v0.13.3 → v0.14.0 → v0.14.1 → v0.14.2 → v0.14.3 → v0.14.4 → v0.14.5 → v0.14.6 → v0.14.7 → v0.14.8 → v0.14.9 → v0.14.10 → v0.14.11 → v0.14.12 → v0.14.13 → v0.15.0 (pulled by v0.15.1) → v0.15.1 → v0.15.2 → v0.15.3 → v0.15.4 → v0.15.5 → v0.15.6.
-- **Long-form transcription crash, addressed in v0.12.1.** v0.12.0 user reproduced a hard crash on a 40-min mic+loopback recording (sherpa offline decoder allocates O(duration) memory; OOM at ~12 GB). v0.12.1 shipped two safety patches: recording cap lifted to 8 h, transcribe-input ceiling at 5 min returning a clear user-facing error rather than crashing the process. The 5-min cap manifests on regular (non-meeting) dictation as a 302s refusal-with-audio-loss UX issue — tracked as a v0.15.6 follow-up in [TODO.md](TODO.md). The proper fix (streaming-recogniser rebuild) is queued as a future major work item.
-- **Speaker diarisation:** disabled in shipping builds since v0.15.1. The first attempt (v0.15.0) produced 91 speaker clusters on a 5-min meeting with cross-language Whisper hallucinations; pulled by v0.15.1 hotfix. Diariser code stays in tree behind `#[allow(dead_code)]` for the eventual rework. See [TODO.md "Diarisation — still deferred"](TODO.md) for the architecture sketch + open verification questions.
-- v0.6.1 was pulled (crashes); v0.6.2–v0.6.9 were internal-only iterations. All their user-facing fixes rolled forward into v0.7.0.
-- **Tauri IPC crash** — patched via vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). See §10.9.
+- **Last publicly-shipped stable:** `v0.19.0` (admin release row id=78, 2026-05-06). Shown on `/download` with the `latest` pill. Stable chain: v0.7.0 → v0.8.7 → v0.10.0 → v0.12.0 → v0.15.6 → v0.16.0 → v0.17.0 → v0.18.0 → v0.19.0. v0.19.0 bundles the soaked v0.18.1 → v0.18.4 beta line on top of v0.18.0: Settings search v2 (sidebar + per-pane drill-down with help-text matching) plus the experimental Teams + Discord microphone-mute toggles (off by default, hidden under Settings → Advanced → Experimental). Stable build produced with `npx tauri build --features experimental_mic_mute` so users on stable can flip the toggle after upgrade; the Cargo feature stays off in `default = []`.
+- **Beta channel:** `v0.19.5` (admin row id=83, 2026-05-07). Performance pass on top of v0.19.4. Bundles five Tier-1 perf changes from the in-session audit: runtime capabilities cached once per process via `OnceLock<RuntimeCapabilities>`; `CaptureHandle::stop` moves the final PCM buffer with `std::mem::take` instead of cloning twice (eliminates up to 2 × ~920 MB allocator churn at the 8-hour safety cap); the launch prewarm task now fires for any non-zero `warm_duration_secs` (so the shipped 120 s default warm window pre-loads the model at launch, not only the keep-forever sentinel); dead `vocabulary_hints` plumbing removed from the dictation hot path (no active provider read it); Vite bundle code-split via `React.lazy` so the floating bar boots against a 449 kB / 147 kB gzip chunk instead of 711 kB / 213 kB gzip. Beta channel only; no `--announce`, no `latest` pill. Tag `v0.19.5` at `c4d48b8`. SHA-256 `952b9476c65c8109cbf836c11b12c8ebb4c61f3d709b23b320fa1d64181363db`. Installer at `https://dl.utterbar.com/releases/0.19.5/Utterbar-Setup-0.19.5.exe`, 20,102,874 bytes.
+- **Beta soak chain on top of v0.19.0:** five-deep, all bundle into the next v0.20.0 stable when soak completes per [CLAUDE.md §5.7](CLAUDE.md):
+  - v0.19.1 (row 79): English i18n foundation across the Settings panes, Floating Bar chrome, and the Update Toast; language-aware onboarding step that picks the dictation language and recommends a multilingual Whisper model when non-English. App UI itself ships English only; the picker controls only `models.whisper_language`, what Utterbar listens for.
+  - v0.19.2 (row 80): Settings, Models warning when the dictation language is non-English and the default model is English-only. Surfaces a one-click "Switch to multilingual model" button if such a model is installed; an amber install-hint card otherwise.
+  - v0.19.3 (row 81): placement hotfix. The v0.19.2 warning now sits directly beside the Whisper-language picker that triggered it, not further down the page. Logic byte-identical to v0.19.2.
+  - v0.19.4 (row 82): auto-update Install & restart first-click fix. Closes the v0.19.x bug where Install & restart could be intercepted by close-to-tray and hide the app instead of installing the update. Adds an `updater_install_in_progress` AtomicBool on AppState that the close handler reads before the close-to-tray branch.
+  - v0.19.5 (row 83): performance pass, as above.
+- **What v0.16 → v0.18 shipped (now stable):** v0.16.0 bundled the v0.15.7 → v0.15.12 beta line: ASR output validation across every transcribe surface, an auto-stop on regular dictation, and a B2B layer covering managed fleet licences, air-gapped activation, and volume self-serve checkout. v0.17.0 bundled v0.16.1 → v0.16.5: launch-at-startup repair, ASR prewarm and timing improvements, desktop UX polish, an opt-in deterministic Smart rewrite, and the conferencing output-mute settings clarity work. v0.18.0 bundled v0.17.1 and v0.17.2: narrow tunes to the floating-bar waveform.
+- **In-tree version:** `v0.19.5` across `package.json`, `Cargo.toml`, `tauri.conf.json`. Release commit: `c4d48b8` ("Release v0.19.5"). The five perf merges that v0.19.5 bundles sit at `55a05b8` (gpu cache), `3e91ce3` (capture-stop mem::take), `5447076` (prewarm), `69a0bdf` (drop vocab hints), `b94aca7` (frontend code-split), all merged through their `--no-ff` integration commits. Tag `v0.19.5` points at the build commit `c4d48b8`.
+- **Versioning convention** (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)): `0.x.0` minor = mainline / stable, `0.x.y` patch = beta soak. The cadence is feature work lands on a series of `0.x.1`, `0.x.2`, ... betas; once the line has soaked, the next mainline `0.(x+1).0` promotes the lot to stable. v0.16, v0.17, v0.18, and v0.19 all followed the rule.
+- **Long-form transcription cap, addressed in v0.12.1, unchanged through v0.19.5.** Recording cap is 8 hours. Transcribe-input ceiling on regular (non-meeting) dictation is 5 minutes (302 s); meeting mode chunks past that. The 5-min cap manifests on regular dictation as a 302 s refusal-with-audio-loss UX issue tracked in [TODO.md](TODO.md); the proper fix (streaming-recogniser rebuild) is queued as a future major work item.
+- **DirectML execution provider, shipped in v0.15.6, unchanged through v0.19.5.** Vendored sherpa-onnx + ORT 1.14.1 + DirectML 1.15.0 bundle at [src-tauri/vendor/sherpa-onnx/](Utterbar%20Windows%20App/src-tauri/vendor/sherpa-onnx/). Model-aware Auto policy: Medium / Large / Parakeet route to DML on DX12 hardware, Small stays on CPU.
+- **Speaker diarisation:** disabled in shipping builds since v0.15.1. The v0.15.0 attempt produced 91 speaker clusters on a 5-min meeting with cross-language Whisper hallucinations; pulled by v0.15.1 hotfix. Diariser code stays in tree behind `#[allow(dead_code)]` for the eventual rework. See [TODO.md](TODO.md) for the architecture sketch + open verification questions. v0.19.5 explicitly preserved the dead-code path when removing the unrelated `vocabulary_hints` field from `transcribe_meeting_diarised`'s signature.
+- v0.6.1 was pulled (crashes); v0.6.2 → v0.6.9 were internal-only iterations. All their user-facing fixes rolled forward into v0.7.0.
+- **Tauri IPC crash** — patched via vendored `tauri-runtime-wry` at [src-tauri/vendor/tauri-runtime-wry-2.10.1/](Utterbar%20Windows%20App/src-tauri/vendor/tauri-runtime-wry-2.10.1/). Still load-bearing as of v0.19.5. See §10.9.
 - Windows SDK Debugging Tools (cdb.exe + `analyse-crash.ps1`) installed.
-- Multi-engine ASR live: Parakeet-TDT (default), Whisper (Small / Medium / Large v3, multilingual; v0.15.6 lifted the v0.8.7 CPU-pin so Whisper now honours user-selected provider), Zipformer.
+- Multi-engine ASR live: Parakeet-TDT (default English, INT8, greedy_search), Whisper (Small / Medium / Large v3, multilingual; honours the user-selected provider since v0.15.6 lifted the v0.8.7 CPU-pin), Zipformer.
 
-### B2B / business surface (2026-04-27, in-tree)
+### B2B / business surface (2026-04-27 first-pass, extended through v0.16.0 stable)
 - **Marketing:** `/business` landing page (privacy + deployment +
   predictable licensing angle, pitched at call centres, legal,
   healthcare, internal IT). Volume-pricing block on `/pricing`
@@ -744,6 +749,21 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
   deployment requirement checkboxes). Persists to a separate
   `business_enquiries` table with admin index/show + status update
   at `/admin/business`. Email goes to `AdminNotify`.
+- **Volume self-serve checkout (shipped via v0.15.x → v0.16.0).**
+  `POST /api/checkout/create-volume-session` accepts quantity 5–100,
+  mints a Pro licence with `max_devices = quantity`, SKU
+  `utterbar-pro-volume`. Two-tier rate (£29/seat to 24, £19/seat
+  from 25) lives in [VolumePricing.php](Utterbar%20Website/app/Services/Pricing/VolumePricing.php).
+  Website-only; no desktop app change required. Larger orders still
+  flow through the enquiry form so Jay can hand-mint with bespoke
+  `max_devices`.
+- **Managed fleet licences and air-gapped activation (shipped via the v0.15.11 / v0.15.12 betas, bundled into v0.16.0 stable).**
+  Air-gapped flow: admin exports a fingerprint request from the
+  desktop app, uploads it to the admin console, downloads the
+  resulting `licence.bin`, places it at `<data_dir>/licence.bin` on
+  the locked-down machine. The desktop app picks it up at next
+  launch via [commands/licence.rs](Utterbar%20Windows%20App/src-tauri/src/commands/licence.rs).
+  No outbound network call from the locked-down machine.
 - **IT documentation:** `/docs/it-deployment` covers system reqs,
   silent NSIS install, exact network egress (5 calls enumerated),
   air-gapped deployment, group-policy registry pinning, code-signing
@@ -751,24 +771,30 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 - **Group-policy registry overlay (desktop app):**
   [src-tauri/src/services/policy.rs](Utterbar%20Windows%20App/src-tauri/src/services/policy.rs).
   Reads `HKLM\SOFTWARE\Policies\Utterbar` at boot (HKCU as per-user
-  fallback, HKLM wins on conflict). Three pinnable values:
+  fallback, HKLM wins on conflict). Six pinnable values:
   `UpdateChannel` (REG_SZ: stable|beta), `CheckUpdatesAutomatically`
-  (REG_DWORD: 0|1), `BlockModelDownloads` (REG_DWORD: 0|1). Wired
-  into `SettingsStore::snapshot()` so policy overlays user settings
-  on every read, and into `ModelRegistry::install()` so a pinned
-  block surfaces a clear refusal. Unit-tested.
+  (REG_DWORD: 0|1), `BlockModelDownloads` (REG_DWORD: 0|1),
+  `BlockHistory` (REG_DWORD: 0|1), `BlockHistoryExport` (REG_DWORD:
+  0|1; superset semantics with `BlockHistory`), `BlockTelemetry`
+  (REG_DWORD: 0|1; redundant in practice because no telemetry ships
+  by [CLAUDE.md §5.1](CLAUDE.md), but kept so IT can pin the
+  guarantee). Wired into `SettingsStore::snapshot()` so policy
+  overlays user settings on every read, and into
+  `ModelRegistry::install()` so a pinned block surfaces a clear
+  refusal. Unit-tested.
 - **What we deliberately did NOT build:** SAML/SSO, an enterprise
   admin dashboard, cloud dictation portals, a Salesforce/Jira
   integration, SOC2 badges, anything that would replace the local-only
-  story. Air-gapped activation deferred to "on request" until we have
-  a confirmed buyer asking for it. Self-serve checkout still
-  hard-locked to 1 seat (Personal); Team and above flow through
-  enquiry so Jay hand-mints a licence with the right `max_devices`.
+  story. Code-signing certificate explicitly skipped per
+  [CLAUDE.md §4](CLAUDE.md); SmartScreen warnings on first install
+  are expected. Machine-bound `licence.bin` (v3 payload) deferred
+  until a buyer asks; the v2 signed payload reserves 14 bytes for
+  a fingerprint hash but the v2 verifier silently ignores them.
 
 ### Website
 - Live on Cloudways. All contract endpoints deployed:
   - `GET /api/pricing` → `£39.99 GBP`.
-  - `GET /api/updater/check?current=<v>&channel=<stable|beta>` — returns the latest **eligibility-filtered** row for the channel. Eligibility includes `updater_signature IS NOT NULL` when `UPDATER_PUBLIC_KEY_B64` is configured. Net effect today (verified 2026-04-30, post-stable-promotion): both stable and beta return v0.15.6 with the same SHA. Both rows are Ed25519-signed.
+  - `GET /api/updater/check?current=<v>&channel=<stable|beta>` — returns the latest **eligibility-filtered** row for the channel. Eligibility includes `updater_signature IS NOT NULL` when `UPDATER_PUBLIC_KEY_B64` is configured. Net effect today (verified 2026-05-07, post-v0.19.5-beta-publish): stable returns v0.19.0 (admin row 78); beta returns v0.19.5 (admin row 83, SHA `952b9476c65c8109cbf836c11b12c8ebb4c61f3d709b23b320fa1d64181363db`). Both rows are Ed25519-signed; channel separation is enforced server-side, so a stable client never sees the v0.19.5 beta row.
   - `POST /api/licence/{fetch,activate,deactivate,heartbeat}` → working under v2 keypair.
   - `POST /api/stripe/webhook` → live; mints licences on `checkout.session.completed` under v2 keypair.
   - `POST /api/admin/releases` → admin token + audit log + signed-metadata required when key is configured.
@@ -780,7 +806,7 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 
 ### Environment
 - Stripe: **live mode**, £39.99 GBP, Stripe Tax on, adaptive pricing on.
-- **Licence keypair:** rotated to v2 on 2026-04-26. `LICENCE_PAYLOAD_VERSION=2` server-side. Both v1 and v2 public keys baked into the desktop app at [verify.rs](Utterbar%20Windows%20App/src-tauri/src/services/licence/verify.rs) — verification picks by payload version byte. v1 sunset planned ~6 weeks after v0.9.0 saturates.
+- **Licence keypair:** v2 only. `LICENCE_PAYLOAD_VERSION=2` server-side; `PUBLIC_KEY_BYTES_V2` baked into the desktop app at [verify.rs](Utterbar%20Windows%20App/src-tauri/src/services/licence/verify.rs). The transitional v1 acceptance has been removed from the desktop verifier; pre-v0.9.0 caches no longer verify and need a re-fetch from the server on next launch (rare in practice now that v0.9.0 is many releases behind).
 - **Updater keypair:** separate Ed25519 key, operator-local. Private key in `~/.utterbar-deploy/.env` only. Public key in server `.env` and baked into [updater.rs](Utterbar%20Windows%20App/src-tauri/src/commands/updater.rs).
 - Licence cache: DPAPI-encrypted at rest (`%APPDATA%\Utterbar\licence.json` wrapped via `CryptProtectData`); legacy plaintext caches auto-upgrade on next save.
 - R2 CDN: `dl.utterbar.com` — installers at `releases/<v>/Utterbar-Setup-<v>.exe` (+ legacy `Utterbar-Setup.exe` alias for the versioned-key validator fix).
@@ -792,7 +818,7 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 
 Ranked by user-impact, current priorities:
 
-1. **Ed25519 key rotation.** Sandbox keypair is still trusted by shipped clients. Plan + execute per [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md). Needs careful roll-out so existing v0.7.0 installs don't silently break.
+1. ~~**Ed25519 key rotation.**~~ — done. v2 keypair shipped 2026-04-26; the desktop verifier in [verify.rs](Utterbar%20Windows%20App/src-tauri/src/services/licence/verify.rs) now exposes `PUBLIC_KEY_BYTES_V2` only, the transitional v1 acceptance window is closed. Pre-v0.9.0 caches re-fetch from the server on next launch.
 2. ~~**Legal pages refresh**~~ — done. `legal/privacy.blade.php` now lists purchase records, device activations, and the fingerprint-hash policy.
 3. **File a comment on upstream [tauri#10001](https://github.com/tauri-apps/tauri/issues/10001)** with the minidumps' symbolicated stacks + failure bucket. Helps upstream.
 4. **Admin dashboard cohesion** — no releases link from `/admin`, no licence-revoke UI. Website-only, ships whenever.
