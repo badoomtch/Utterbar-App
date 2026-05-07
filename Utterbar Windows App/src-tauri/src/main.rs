@@ -417,15 +417,18 @@ fn main() {
                 // the model warm for N seconds and this task evicts it.
                 state_bg.inference.clone().spawn_idle_sweeper();
 
-                // Background prewarm of the default ASR model when the user
-                // has set `warm_duration_secs == u32::MAX` ("keep loaded
-                // forever"). Without this, the first dictation after launch
-                // pays the full native sherpa-onnx cold-load cost (~0.3–4 s
-                // depending on model + provider + disk cache). The prewarm
-                // task is fire-and-forget; failures are logged and do not
-                // affect startup. See `services::inference::prewarm` for the
-                // full rationale, locking-safety contract, and pure decision
-                // helper.
+                // Background prewarm of the default ASR model whenever the
+                // user has any warm window enabled (`warm_duration_secs > 0`,
+                // which is the shipped default of 120 s and every other
+                // non-zero choice including the keep-forever `u32::MAX`).
+                // Without this, the first dictation after launch pays the
+                // full native sherpa-onnx cold-load cost (~0.3–4 s depending
+                // on model + provider + disk cache). The prewarm task is
+                // fire-and-forget; failures are logged and do not affect
+                // startup. The idle sweeper still evicts the prewarmed model
+                // after `warm_duration_secs` if the user never dictates. See
+                // `services::inference::prewarm` for the full rationale,
+                // locking-safety contract, and pure decision helper.
                 let prewarm_snap = state_bg.settings.snapshot().await;
                 if let Some(model_id) =
                     services::inference::prewarm::should_prewarm_default(&prewarm_snap)

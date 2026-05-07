@@ -9,16 +9,30 @@
 //! dictation after launch pays the full warm cost — typically
 //! 0.3–4 s, sometimes more on a cold disk or first-DML build.
 //!
-//! When the user has set `models.warm_duration_secs == u32::MAX`
-//! they have already opted into "keep the model resident
-//! forever" — the idle sweeper in
-//! `InferenceOrchestrator::spawn_idle_sweeper` no-ops on that
-//! sentinel. There is no reason to make them wait until first
+//! Anyone who keeps the warm window enabled (the default 120 s
+//! ships out of the box, and explicit "keep forever" via
+//! `warm_duration_secs == u32::MAX` is the opt-in extreme of the
+//! same lever) wants the model resident at the moment they next
+//! dictate. There is no reason to make them wait until first
 //! dictation to pay the cost. Prewarming on app startup turns
-//! their first dictation into a cache-hit fast-path and
-//! shifts the cost into the post-launch background tick where
-//! the user is already waiting for the rest of the UI to
-//! settle.
+//! their first dictation into a cache-hit fast-path and shifts
+//! the cost into the post-launch background tick where the user
+//! is already waiting for the rest of the UI to settle.
+//!
+//! The idle sweeper still owns eviction. If the user launches
+//! Utterbar and then doesn't dictate for `warm_duration_secs`
+//! seconds, the sweeper evicts the prewarmed model on its normal
+//! 10 s tick — exactly as if the user had dictated once and then
+//! gone idle. We don't fight the sweeper; we just shift the
+//! "first load" cost off the user's first hotkey press.
+//!
+//! The only setting we explicitly opt OUT of prewarming is
+//! `warm_duration_secs == 0` ("evict immediately after each
+//! transcription") — those users have asked the orchestrator to
+//! keep RAM/VRAM free between dictations, and prewarming would
+//! load a model only for the inline-unload path in `transcribe`
+//! to drop it again at the next dictation. Honour the user's
+//! intent.
 //!
 //! Constraints the helper honours:
 //!   * Non-blocking — the caller hands off to a tokio task and
@@ -51,12 +65,15 @@ use crate::services::inference::InferenceOrchestrator;
 /// launch, and if so which model id?
 ///
 /// Returns `Some(model_id)` only when both:
-///   1. `warm_duration_secs == u32::MAX` (the "keep loaded
-///      forever" sentinel — see the orchestrator's idle
-///      sweeper). Other settings either evict the model after
-///      transcribe (0) or after N seconds (other), and prewarming
-///      against those would either be wasted work or fight the
-///      sweeper.
+///   1. `warm_duration_secs > 0`. A non-zero warm window means the
+///      user wants the model resident at least a little while
+///      after each dictation; the same intent applies BEFORE the
+///      first dictation. The idle sweeper handles eviction
+///      uniformly across the full range — finite N seconds keeps
+///      the model warm for N, `u32::MAX` keeps it forever.
+///      Only `0` ("evict immediately after each transcription")
+///      opts out: those users have explicitly asked us to keep
+///      RAM/VRAM free between dictations.
 ///   2. `default_asr_model_id == Some(non-empty id)`. Empty or
 ///      missing means the user has no default picked yet
 ///      (post-onboarding stub / post-v0.8.0 retirement state),
@@ -65,7 +82,7 @@ use crate::services::inference::InferenceOrchestrator;
 /// Pure helper — caller passes a settings snapshot, no I/O. Lets
 /// the unit tests pin every branch without spinning up state.
 pub fn should_prewarm_default(settings: &Settings) -> Option<String> {
-    if settings.models.warm_duration_secs != u32::MAX {
+    if settings.models.warm_duration_secs == 0 {
         return None;
     }
     let id = settings.models.default_asr_model_id.as_deref()?;
@@ -120,24 +137,56 @@ mod tests {
 
     #[test]
     fn no_prewarm_when_warm_duration_is_zero() {
+        // `warm_duration_secs == 0` is the explicit "evict
+        // immediately after every transcription" opt-out. The
+        // user has asked us to keep RAM/VRAM free between
+        // dictations; prewarming on launch would directly
+        // contradict that intent.
         let s = settings_with(0, Some("sherpa-parakeet-tdt-0.6b-v3-int8"));
         assert_eq!(should_prewarm_default(&s), None);
     }
 
     #[test]
-    fn no_prewarm_when_warm_duration_is_finite() {
-        // The default of 120 s is the "evict after 2 minutes idle"
-        // setting. Prewarm would race the sweeper.
+    fn prewarm_when_default_120s_warm_window_and_default_set() {
+        // The shipped default. Pre-perf this test asserted
+        // `None` because prewarm only fired for u32::MAX. The
+        // perf fix lifts that gate so default users no longer
+        // pay a cold model load on first dictation. The idle
+        // sweeper still evicts the prewarmed model 120 s after
+        // launch if the user never dictates.
         let s = settings_with(120, Some("sherpa-parakeet-tdt-0.6b-v3-int8"));
-        assert_eq!(should_prewarm_default(&s), None);
+        assert_eq!(
+            should_prewarm_default(&s),
+            Some("sherpa-parakeet-tdt-0.6b-v3-int8".into())
+        );
+    }
+
+    #[test]
+    fn prewarm_when_short_warm_window_and_default_set() {
+        // An aggressive setting like 30 s still wins prewarm —
+        // the user has chosen a short warm window, not zero.
+        // The idle sweeper, which polls every 10 s, evicts the
+        // prewarmed model promptly if the user doesn't dictate
+        // within 30 s of launch.
+        let s = settings_with(30, Some("sherpa-whisper-small"));
+        assert_eq!(
+            should_prewarm_default(&s),
+            Some("sherpa-whisper-small".into())
+        );
     }
 
     #[test]
     fn no_prewarm_when_default_model_is_none() {
-        // u32::MAX is the "keep loaded forever" sentinel, but
-        // there's nothing to keep loaded.
-        let s = settings_with(u32::MAX, None);
-        assert_eq!(should_prewarm_default(&s), None);
+        // No default picked — nothing to load. Holds across the
+        // full warm-window spectrum: short, default, infinite.
+        for &warm in &[1u32, 120u32, u32::MAX] {
+            let s = settings_with(warm, None);
+            assert_eq!(
+                should_prewarm_default(&s),
+                None,
+                "warm_duration_secs={warm} with no default model must not prewarm"
+            );
+        }
     }
 
     #[test]
@@ -145,14 +194,20 @@ mod tests {
         // Empty / whitespace defensively coerced to "no model".
         // settings.json hand-edits or migration artefacts might
         // produce these.
-        let s = settings_with(u32::MAX, Some(""));
+        let s = settings_with(120, Some(""));
         assert_eq!(should_prewarm_default(&s), None);
-        let s = settings_with(u32::MAX, Some("   "));
+        let s = settings_with(120, Some("   "));
+        assert_eq!(should_prewarm_default(&s), None);
+        // Same outcome for the keep-forever sentinel — the empty
+        // id wins regardless of warm window.
+        let s = settings_with(u32::MAX, Some(""));
         assert_eq!(should_prewarm_default(&s), None);
     }
 
     #[test]
     fn prewarm_when_keep_forever_and_default_set() {
+        // The pre-perf path still works: u32::MAX users keep
+        // their launch prewarm.
         let s = settings_with(u32::MAX, Some("sherpa-whisper-medium"));
         assert_eq!(
             should_prewarm_default(&s),
@@ -162,7 +217,7 @@ mod tests {
 
     #[test]
     fn prewarm_trims_surrounding_whitespace() {
-        let s = settings_with(u32::MAX, Some("  sherpa-whisper-small  "));
+        let s = settings_with(120, Some("  sherpa-whisper-small  "));
         assert_eq!(
             should_prewarm_default(&s),
             Some("sherpa-whisper-small".into())
