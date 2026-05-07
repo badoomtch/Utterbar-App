@@ -176,4 +176,78 @@ describe('ModelsSettings i18n source-grep guard (scoped)', () => {
     // contract identifier doesn't drift.
     expect(SOURCE).toContain("languages.includes('multi')");
   });
+
+  it('renders the language-compatibility warning beside the Whisper-language picker', () => {
+    // Source-order placement guard. Before this branch the warning
+    // sat between the Default model card and the Meeting Mode card,
+    // which left a long visual gap between the picker that triggered
+    // the warning (Whisper language) and the warning itself. The fix
+    // is to render the warning directly below the Whisper-language
+    // card so the cause and the message are visually adjacent.
+    //
+    // We pin source order rather than DOM order because the test is
+    // pure Node: 'models.whisper_language.title' appears once in JSX
+    // (as the Whisper-language card title prop), and the language-
+    // warning keys appear once each in the warning blocks. The pin
+    // is robust because both are catalogue-key references that can
+    // only resolve in those exact source positions.
+    const whisperPickerIdx = SOURCE.indexOf('models.whisper_language.title');
+    const englishWarnIdx = SOURCE.indexOf('models.language_warning.english_only_title');
+    const noMultiWarnIdx = SOURCE.indexOf('models.language_warning.no_multilingual_title');
+    expect(whisperPickerIdx).toBeGreaterThan(-1);
+    expect(englishWarnIdx).toBeGreaterThan(-1);
+    expect(noMultiWarnIdx).toBeGreaterThan(-1);
+    expect(
+      englishWarnIdx,
+      'english-only warning must render AFTER the Whisper-language picker',
+    ).toBeGreaterThan(whisperPickerIdx);
+    expect(
+      noMultiWarnIdx,
+      'no-multilingual warning must render AFTER the Whisper-language picker',
+    ).toBeGreaterThan(whisperPickerIdx);
+
+    // Closest stable downstream anchor is the Keep-warm duration card.
+    // Pin that the warning sits ABOVE that card, otherwise the warning
+    // would drift below other unrelated cards on a future restructure.
+    const keepWarmIdx = SOURCE.indexOf('"Keep-warm duration"');
+    expect(keepWarmIdx).toBeGreaterThan(-1);
+    expect(
+      englishWarnIdx,
+      'english-only warning must render BEFORE the Keep-warm card',
+    ).toBeLessThan(keepWarmIdx);
+    expect(
+      noMultiWarnIdx,
+      'no-multilingual warning must render BEFORE the Keep-warm card',
+    ).toBeLessThan(keepWarmIdx);
+
+    // The two warnings must not appear twice (catch a regression that
+    // copies the block instead of moving it). lastIndexOf must equal
+    // indexOf for each catalogue key.
+    expect(SOURCE.lastIndexOf('models.language_warning.english_only_title')).toBe(
+      englishWarnIdx,
+    );
+    expect(SOURCE.lastIndexOf('models.language_warning.no_multilingual_title')).toBe(
+      noMultiWarnIdx,
+    );
+
+    // Negative pin against the OLD placement: the warning must NOT
+    // sit between the Default model Card and the Meeting Mode Card.
+    // Anchors: 'title="Default model"' (the Default model Card title)
+    // and 'title="Meeting mode model"' (the Meeting Mode Card title).
+    // Both are still untranslated literals — a deliberate part of the
+    // scope-deferred Models localisation — so the source-grep is
+    // stable across this branch.
+    const defaultModelIdx = SOURCE.indexOf('title="Default model"');
+    const meetingModelIdx = SOURCE.indexOf('title="Meeting mode model"');
+    expect(defaultModelIdx).toBeGreaterThan(-1);
+    expect(meetingModelIdx).toBeGreaterThan(-1);
+    expect(
+      englishWarnIdx > defaultModelIdx && englishWarnIdx < meetingModelIdx,
+      'english-only warning must NOT sit between Default model and Meeting mode (the v0.19.2 placement)',
+    ).toBe(false);
+    expect(
+      noMultiWarnIdx > defaultModelIdx && noMultiWarnIdx < meetingModelIdx,
+      'no-multilingual warning must NOT sit between Default model and Meeting mode (the v0.19.2 placement)',
+    ).toBe(false);
+  });
 });
