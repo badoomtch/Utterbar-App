@@ -550,9 +550,16 @@ impl CaptureHandle {
     ///     — any audio the mic physically captured during this window still counts.
     ///   • Then flip the stop flag, which un-parks the capture thread. The thread
     ///     drops the stream, which flushes any in-flight WASAPI frames.
-    ///   • Wait a short drain window for the drop to complete, THEN snapshot.
-    ///   • Finally, check the buffer hasn't grown since the snapshot (rare, but can
-    ///     happen on slow hosts) and re-snapshot if so.
+    ///   • Wait the full drain window (drop latency + late-callback grace) BEFORE
+    ///     touching the buffer, so by the time we extract there are no further
+    ///     writers to race.
+    ///   • `mem::take` the buffer in a single pass — replacing the shared `Vec<i16>`
+    ///     with an empty one and moving the populated allocation into our return
+    ///     value. Avoids the previous double-clone (up to 2× 920 MB on the 8-hour
+    ///     safety cap, ~19 MB twice on a 5-minute dictation) at the cost of a
+    ///     theoretical late frame that lands AFTER the take being held in a buffer
+    ///     nothing ever drains — the handle drops immediately after this call so
+    ///     that allocation is freed within microseconds anyway.
     pub async fn stop(&self) -> CaptureFinal {
         // Grace tail — keep capturing for a beat past the user's stop gesture. 220 ms
         // covers typical WASAPI period + the user's end-of-word tail on the vast
@@ -562,18 +569,17 @@ impl CaptureHandle {
 
         // Flip stop, then give the capture thread time to drop the cpal stream and
         // flush any last-callback frames. 120 ms is empirically enough on WASAPI;
-        // low-latency drivers need ~20 ms, so this is generous.
+        // low-latency drivers need ~20 ms, so this is generous. The extra 30 ms
+        // covers the slow-host case where a final callback fires just after the
+        // stream drop returns; previously we re-snapshotted to catch this, now we
+        // simply wait long enough that the late callback has already landed.
         self.stop_flag.store(true, Ordering::Relaxed);
         tokio::time::sleep(std::time::Duration::from_millis(120)).await;
-
-        // Snapshot — and re-check once in case a very slow host fired a final
-        // callback between the first snapshot and now. Cheap insurance.
-        let mut pcm = self.buffer.lock().unwrap().clone();
         tokio::time::sleep(std::time::Duration::from_millis(30)).await;
-        let second = self.buffer.lock().unwrap().clone();
-        if second.len() > pcm.len() {
-            pcm = second;
-        }
+
+        // Single-pass extraction — move the populated buffer out, leaving an empty
+        // Vec behind. No clone of the captured PCM, regardless of length.
+        let pcm = std::mem::take(&mut *self.buffer.lock().unwrap());
 
         let duration_ms = (pcm.len() as u64 * 1000) / TARGET_RATE as u64;
         CaptureFinal {

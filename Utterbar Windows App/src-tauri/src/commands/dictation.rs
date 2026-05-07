@@ -5837,4 +5837,95 @@ mod diarised_helpers_tests {
              dictation.rs; found 0. The setting was added but never wired."
         );
     }
+
+    /// **v0.20.0 capture-stop allocation contract.** `CaptureHandle::stop`
+    /// in `services/audio/capture.rs` MUST extract the captured PCM via a
+    /// single `std::mem::take` of the locked buffer, NOT via two
+    /// full-buffer `.clone()` snapshots. The previous double-snapshot
+    /// guarded against a late-callback race; with the safety cap at 8
+    /// hours that meant up to 2 × ~920 MB of allocator churn per stop.
+    /// The new flow waits the same total drain window (120 ms + 30 ms)
+    /// before extraction and then moves the buffer once. Source-grep so
+    /// a future refactor that re-introduces a clone here fails CI.
+    #[test]
+    fn capture_stop_moves_buffer_without_double_clone() {
+        let src = read_source("src-tauri/src/services/audio/capture.rs");
+        // Find the body of `pub async fn stop(&self) -> CaptureFinal`
+        // and inspect only that function's source. We pin against the
+        // matching closing `}` at the same indentation level.
+        let fn_marker = "pub async fn stop(&self) -> CaptureFinal {";
+        let start = src
+            .find(fn_marker)
+            .expect("CaptureHandle::stop signature must be present in capture.rs");
+        // Walk to the closing brace by tracking depth from the opening `{` of the fn.
+        let body_start = start + fn_marker.len();
+        let bytes = src.as_bytes();
+        let mut depth: i32 = 1;
+        let mut i = body_start;
+        while i < bytes.len() && depth > 0 {
+            match bytes[i] {
+                b'{' => depth += 1,
+                b'}' => depth -= 1,
+                _ => {}
+            }
+            i += 1;
+        }
+        assert!(
+            depth == 0,
+            "could not locate end of CaptureHandle::stop body — source layout has changed"
+        );
+        let body = &src[body_start..i];
+
+        // 1. Must use std::mem::take on the locked buffer — single-pass extraction.
+        assert!(
+            body.contains("std::mem::take(&mut *self.buffer.lock().unwrap())"),
+            "CaptureHandle::stop must extract the final buffer via \
+             `std::mem::take(&mut *self.buffer.lock().unwrap())` to avoid \
+             cloning up to 920 MB on the safety cap path"
+        );
+
+        // 2. Must NOT clone the buffer at all in this function. The previous
+        //    pattern was `self.buffer.lock().unwrap().clone()`; pin its absence.
+        assert!(
+            !body.contains(".lock().unwrap().clone()"),
+            "CaptureHandle::stop must NOT clone the locked PCM buffer; the \
+             v0.19.x double-snapshot pattern was replaced with std::mem::take. \
+             Re-introducing `.lock().unwrap().clone()` would re-introduce up to \
+             2× full-buffer allocator churn per stop."
+        );
+
+        // 3. The drain wait that previously sat between the two snapshots
+        //    must remain — the late-callback grace is what makes the single
+        //    take safe. Pin both the 120 ms drop-drain and the 30 ms
+        //    late-callback wait so a future tidy-up can't quietly remove
+        //    the second sleep and shrink the safety margin.
+        assert!(
+            body.contains("Duration::from_millis(120)"),
+            "CaptureHandle::stop must keep the 120 ms drop-drain wait after \
+             setting the stop flag so the cpal stream finishes flushing \
+             before extraction"
+        );
+        assert!(
+            body.contains("Duration::from_millis(30)"),
+            "CaptureHandle::stop must keep the 30 ms late-callback wait \
+             before extracting the buffer; this is the budget that made the \
+             previous re-snapshot unnecessary, so removing it would lose \
+             tail audio on slow hosts"
+        );
+
+        // 4. The stop flag must still be flipped before the buffer is taken,
+        //    so the capture thread is on its way out and not appending behind us.
+        let stop_flag_idx = body
+            .find("self.stop_flag.store(true,")
+            .expect("CaptureHandle::stop must still set self.stop_flag.store(true, …) before extracting the buffer");
+        let take_idx = body
+            .find("std::mem::take(&mut *self.buffer.lock().unwrap())")
+            .expect("expected std::mem::take call located above");
+        assert!(
+            stop_flag_idx < take_idx,
+            "CaptureHandle::stop must set the stop flag BEFORE the mem::take \
+             extraction; otherwise the capture thread could append between \
+             extraction and our return"
+        );
+    }
 }
