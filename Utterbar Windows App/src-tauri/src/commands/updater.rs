@@ -253,6 +253,11 @@ pub async fn install_update(
         _ => "stable",
     };
 
+    // Clone the inner Arc<AppState> before we hand `state` off to
+    // `check_update` (which consumes it). The clone is what we use
+    // for the `updater_install_in_progress` flag operations later.
+    let state_for_flag = std::sync::Arc::clone(&state);
+
     let info = check_update(state).await?;
     let (version, download_url, sha256, size_bytes, signature) = match (
         info.available,
@@ -366,6 +371,29 @@ pub async fn install_update(
     // whether to surface the post-update toast.
     write_pending_relaunch(&version);
 
+    // Mark the updater install as in-flight BEFORE we spawn the
+    // installer or schedule the exit task. The main-window
+    // CloseRequested handler in main.rs reads this flag (with
+    // `Ordering::SeqCst` against this store) and, when set, skips its
+    // `close_to_tray ? prevent_close + hide` intercept — without this
+    // gate, `handle.exit(0)` below fires CloseRequested, the close
+    // handler hides the window instead of letting the exit proceed,
+    // and the running .exe stays alive while NSIS tries to overwrite
+    // it. Net effect for the user: clicking Install & restart hid the
+    // app to the tray and the install never applied. See AppState
+    // field doc for the full chain.
+    //
+    // Set this AFTER all the can-fail prep (download, hash, sig
+    // verify, downgrade-prevention, write to %TEMP%, write
+    // pending_relaunch.json) so a `?` early-return never leaves the
+    // flag stuck `true`. If `spawn_installer` itself fails below, the
+    // explicit clear on the error branch resets the flag so the
+    // user's next genuine X-click still goes to the tray as expected.
+    use std::sync::atomic::Ordering;
+    state_for_flag
+        .updater_install_in_progress
+        .store(true, Ordering::SeqCst);
+
     // Spawn the installer silently. `/S` is NSIS's silent-install flag —
     // the user sees no UI, the installer overwrites the app in place,
     // and the NSIS_HOOK_POSTINSTALL hook (in installer.nsh) re-launches
@@ -375,7 +403,14 @@ pub async fn install_update(
     // guess when the installer was done. ExecShell from inside NSIS is
     // how Squirrel / VS Code / Slack / Discord do it — the relaunch is
     // a child of the installer, fully detached, no shell scripting.
-    spawn_installer(&path)?;
+    if let Err(e) = spawn_installer(&path) {
+        // Clear the intent flag so a failed spawn doesn't lock the
+        // user out of normal close-to-tray on their next [X] click.
+        state_for_flag
+            .updater_install_in_progress
+            .store(false, Ordering::SeqCst);
+        return Err(e);
+    }
 
     // Exit after a short beat so both spawns have stuck. Using
     // `handle.exit(0)` instead of `std::process::exit(0)` lets Tauri's

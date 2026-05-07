@@ -210,12 +210,36 @@ fn main() {
             // returns None on every subsequent click. When the user has explicitly
             // turned `close_to_tray` off in settings, let the close proceed: they
             // expect [X] to actually exit the app (tray icon remains as re-entry).
+            //
+            // Updater-install bypass (v0.19.4+): when
+            // `commands::updater::install_update` is shutting the app
+            // down to let NSIS overwrite the .exe, the close arrives via
+            // `handle.exit(0)` and looks identical to a user [X] click
+            // at this layer. If the user has `close_to_tray` on (the
+            // default), the intercept below would hide the window
+            // instead of letting the exit proceed, the running binary
+            // would stay alive, and NSIS would silently fail to
+            // overwrite it. The `updater_install_in_progress` flag is
+            // set inside `install_update` BEFORE `handle.exit(0)` is
+            // scheduled; reading it here lets us honour the updater's
+            // intent regardless of `close_to_tray`. Normal user closes
+            // with no install in flight see no change.
             if let Some(main_w) = app.get_webview_window("main") {
                 let win_clone = main_w.clone();
                 let state_close = state.clone();
                 let app_handle_close = app.handle().clone();
                 main_w.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Updater install/restart in progress? Let the
+                        // close go through unconditionally — that's the
+                        // updater's `handle.exit(0)` firing and we must
+                        // not intercept it as a normal user close.
+                        if state_close
+                            .updater_install_in_progress
+                            .load(std::sync::atomic::Ordering::SeqCst)
+                        {
+                            return;
+                        }
                         let close_to_tray =
                             tauri::async_runtime::block_on(state_close.settings.snapshot())
                                 .general

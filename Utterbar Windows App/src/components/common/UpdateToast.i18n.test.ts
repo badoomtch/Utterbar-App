@@ -71,4 +71,27 @@ describe('UpdateToast i18n source-grep guard', () => {
     expect(SOURCE).toMatch(/return anyE\.message;/);
     expect(SOURCE).toMatch(/chrome\.update_toast\.error_generic/);
   });
+
+  it('synchronously guards Install & restart against double-click via a ref', () => {
+    // The `installing` state drives the disabled prop and the spinner
+    // copy, but a React state update doesn't take effect until the
+    // next render. Without a synchronous ref, a fast double-click can
+    // fire `install_update` twice in the microsecond window before
+    // re-render. The fix is a `useRef`-gated check at the top of the
+    // click handler — pin both the ref import and its use at the
+    // start of the install path, plus the early return if it's
+    // already true.
+    expect(SOURCE).toMatch(/installingRef\s*=\s*useRef/);
+    expect(SOURCE).toMatch(/if\s*\(\s*installingRef\.current\s*\)\s*return\s*;/);
+    // The ref must be set BEFORE the IPC fires, not after — pin the
+    // ordering by asserting the assignment is followed (eventually)
+    // by the invoke call within the same source span.
+    expect(SOURCE).toMatch(
+      /installingRef\.current\s*=\s*true[\s\S]{0,200}invoke\(['"]install_update['"]\)/,
+    );
+    // On failure, the ref must clear so the user can retry. The
+    // `setInstalling(false)` was already there pre-fix; the ref
+    // clear is the new line that protects retry.
+    expect(SOURCE).toMatch(/installingRef\.current\s*=\s*false/);
+  });
 });

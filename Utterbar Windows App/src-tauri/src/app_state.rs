@@ -169,6 +169,28 @@ pub struct AppState {
     /// dictation module needs to read/write it but no other code
     /// should touch it.
     pub(crate) active_recording_context: RwLock<Option<ActiveRecordingContext>>,
+    /// Updater install/restart intent flag (v0.19.4+).
+    ///
+    /// `commands::updater::install_update` flips this to `true`
+    /// immediately before spawning the silent NSIS installer + the
+    /// `handle.exit(0)` shutdown task. The main-window
+    /// `CloseRequested` handler in `main.rs` checks the flag and, when
+    /// set, lets the close proceed instead of intercepting it as a
+    /// normal close-to-tray action — without this guard, the user's
+    /// `general.close_to_tray = true` preference would call
+    /// `api.prevent_close()` on the updater's exit, leaving the
+    /// running .exe alive and blocking NSIS from overwriting it.
+    /// (Symptom: clicking Install & restart hides the window; the
+    /// install never applies; reopening + clicking again works
+    /// because the second pass races different timing.)
+    ///
+    /// Set late in the install path (after all the can-fail
+    /// download/verify/sig-check steps) so a `?` early-return on a
+    /// signature mismatch or download failure never leaves the flag
+    /// stuck. Cleared on the `spawn_installer` error branch so a
+    /// failed-to-spawn installer doesn't lock the user out of
+    /// close-to-tray on the next genuine X-click.
+    pub updater_install_in_progress: AtomicBool,
     handle: RwLock<Option<AppHandle>>,
 }
 
@@ -390,6 +412,7 @@ impl AppState {
             start_recording_pending: AtomicBool::new(false),
             meeting_preflight_in_progress: AtomicBool::new(false),
             active_recording_context: RwLock::new(None),
+            updater_install_in_progress: AtomicBool::new(false),
             handle: RwLock::new(None),
         })
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Download, X } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
@@ -51,6 +51,18 @@ export function UpdateToast() {
   const check = useUpdate((s) => s.check);
   const dismiss = useUpdate((s) => s.dismiss);
 
+  // Synchronous click guard. `installing` (state) drives the disabled
+  // prop and the spinner copy, but a React state update doesn't take
+  // effect until the next render — there is a microsecond window
+  // between the first click and the re-render where a fast double-
+  // click can fire `install_update` twice. The Rust side is already
+  // idempotent (`updater_install_in_progress` flag + the can-fail
+  // prep is reentrant), but a duplicate IPC call would race the exit
+  // task and is wasted work either way. The ref flips synchronously
+  // inside the click handler so the second click sees `true` and
+  // bails before the IPC even fires.
+  const installingRef = useRef(false);
+
   // Single check per app launch. Wait for settings to hydrate before
   // firing — calling pre-hydrate would read the default `true` and run a
   // check the user may have explicitly disabled in a previous session,
@@ -64,6 +76,11 @@ export function UpdateToast() {
   }, [settingsLoaded, autoCheck, check]);
 
   const install = async () => {
+    // Synchronous guard against a double-click landing in the React
+    // render-tick window. See the `installingRef` comment above; this
+    // is the gate that prevents a duplicate `install_update` IPC.
+    if (installingRef.current) return;
+    installingRef.current = true;
     setInstalling(true);
     setError(null);
     try {
@@ -71,6 +88,8 @@ export function UpdateToast() {
       // If we get here the app is about to exit; keep the spinner up so the
       // user isn't looking at a re-enabled button for the ~400ms before exit.
     } catch (e) {
+      // Failed install — clear the ref so the user can retry.
+      installingRef.current = false;
       setInstalling(false);
       setError(extractErrorMessage(e, t));
     }
