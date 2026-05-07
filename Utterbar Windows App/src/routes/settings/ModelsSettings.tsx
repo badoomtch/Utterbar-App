@@ -15,7 +15,11 @@ import { formatBytes } from '@/lib/format';
 import { cn } from '@/lib/cn';
 import { useLicence, isPro } from '@/state/licence';
 import { useSettings } from '@/state/settings';
-import { DICTATION_LANGUAGES } from '@/lib/dictationLanguages';
+import { DICTATION_LANGUAGES, isMultilingualOnly } from '@/lib/dictationLanguages';
+import {
+  recommendModelForLanguage,
+  type RecommendationModel,
+} from '@/routes/onboarding_model_recommendation';
 
 // Sentinel for "keep the model loaded forever", matches the u32::MAX
 // special case in `services/inference/mod.rs` (both the inline unload
@@ -219,6 +223,36 @@ export function ModelsSettings() {
   const licenceStatus = useLicence((s) => s.status);
   const pro = isPro(licenceStatus);
 
+  // Reuse the onboarding recommendation helper against the *installed*
+  // model list so Settings → Models recommends a switch to a model the
+  // user already has, not one they need to download. The helper's
+  // `selection_english_only` reason keys the warning + one-click switch;
+  // `no_multilingual_available` keys the install hint pointing at the
+  // model list further down. The helper takes only id/languages/
+  // installed/recommended — `m.display_name`/`m.description`/`m.version`
+  // stay verbatim Rust-emitted prose and are not consulted here.
+  const settingsRecommendation = recommendModelForLanguage({
+    models: installedModels as readonly RecommendationModel[],
+    currentSelection: defaultModelId,
+    dictationLanguage: whisperLanguage,
+  });
+  const selectedDefaultModel =
+    defaultModelId !== null
+      ? installedModels.find((m) => m.id === defaultModelId) ?? null
+      : null;
+  // Warn only when there is an explicit default (the implicit "first
+  // installed" fallback shouldn't trip the warning unless the first
+  // installed model is itself English-only). isMultilingualOnly() gates
+  // the entire warning so English / Auto users never see anything.
+  const showEnglishOnlyWarning =
+    isMultilingualOnly(whisperLanguage) &&
+    settingsRecommendation.reason === 'selection_english_only' &&
+    selectedDefaultModel !== null &&
+    !selectedDefaultModel.languages.includes('multi');
+  const showNoMultilingualWarning =
+    isMultilingualOnly(whisperLanguage) &&
+    settingsRecommendation.reason === 'no_multilingual_available';
+
   return (
     <div className="mx-auto max-w-3xl p-8 pb-16">
       <PageHeader title={t('models.title')} subtitle={t('models.subtitle')} />
@@ -258,6 +292,54 @@ export function ModelsSettings() {
           </div>
         )}
       </Card>
+
+      {/* Language-compatibility warning. Mirrors the same banner
+          onboarding shows on the model step: when the user has set
+          Whisper language to a non-English language but the selected
+          default model is English-only (Parakeet, English-only
+          Whisper variants, Zipformer), warn and offer a one-click
+          switch to a multilingual model among the *installed* set.
+          When no installed model is multilingual, point the user at
+          the install list further down rather than auto-installing.
+          Meeting Mode below has no equivalent banner because every
+          option in its picker is already multilingual Whisper. */}
+      {showEnglishOnlyWarning && settingsRecommendation.recommendedId && (
+        <div className="rounded-input border border-rose-500/40 bg-rose-500/10 p-4">
+          <div className="text-[13px] font-medium text-rose-300">
+            {t('models.language_warning.english_only_title')}
+          </div>
+          <div className="mt-1 text-[12px] leading-relaxed text-muted">
+            {/* selectedDefaultModel.display_name is Rust-emitted and
+                stays verbatim; the surrounding catalogue template
+                interpolates it as `{{model}}`. */}
+            {t('models.language_warning.english_only_body', {
+              model: selectedDefaultModel?.display_name ?? defaultModelId ?? '',
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              updateDefaultModel(settingsRecommendation.recommendedId)
+            }
+            className="mt-3 ub-btn ub-btn-cta !py-[0.4rem] !text-[12px]"
+          >
+            {t('models.language_warning.switch_to_multilingual')}
+          </button>
+        </div>
+      )}
+      {showNoMultilingualWarning && (
+        <div className="rounded-input border border-amber-500/40 bg-amber-500/10 p-4">
+          <div className="text-[13px] font-medium text-amber-300">
+            {t('models.language_warning.no_multilingual_title')}
+          </div>
+          <div className="mt-1 text-[12px] leading-relaxed text-muted">
+            {t('models.language_warning.no_multilingual_body')}
+          </div>
+          <div className="mt-2 text-[11.5px] text-muted">
+            {t('models.language_warning.install_multilingual_hint')}
+          </div>
+        </div>
+      )}
 
       {/* v0.15.3: Meeting Mode model picker. Always visible (even if
           no Whisper model is installed yet) so a user with zero

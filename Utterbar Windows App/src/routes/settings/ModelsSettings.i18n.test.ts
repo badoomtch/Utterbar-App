@@ -111,4 +111,69 @@ describe('ModelsSettings i18n source-grep guard (scoped)', () => {
     expect(SOURCE).toMatch(/meeting_asr_model_id/);
     expect(SOURCE).toMatch(/warm_duration_secs/);
   });
+
+  it('routes the language-compatibility warning through models.language_warning.* keys', () => {
+    // Settings → Models surfaces the same banner shape as onboarding
+    // when whisper_language is non-English and the default model is
+    // English-only. Pin every key the warning resolves so a future
+    // copy edit can't drift away from the catalogue.
+    expect(SOURCE).toMatch(/models\.language_warning\.english_only_title/);
+    expect(SOURCE).toMatch(/models\.language_warning\.english_only_body/);
+    expect(SOURCE).toMatch(/models\.language_warning\.no_multilingual_title/);
+    expect(SOURCE).toMatch(/models\.language_warning\.no_multilingual_body/);
+    expect(SOURCE).toMatch(/models\.language_warning\.switch_to_multilingual/);
+    expect(SOURCE).toMatch(/models\.language_warning\.install_multilingual_hint/);
+  });
+
+  it('reuses the shared onboarding helper for the language-compatibility check', () => {
+    // The recommendation logic lives in
+    // `routes/onboarding_model_recommendation.ts` so it can be unit-
+    // tested in pure Node and so onboarding + Settings stay in
+    // lock-step. Pin both the import shape and the live call site so
+    // a future refactor that inlines the rules into the JSX (and
+    // forks the two surfaces) fails immediately.
+    expect(SOURCE).toMatch(/from ['"]@\/routes\/onboarding_model_recommendation['"]/);
+    expect(SOURCE).toMatch(/recommendModelForLanguage\(/);
+    // isMultilingualOnly() gates the warning so English / Auto users
+    // never see anything; the dictation-language registry is the
+    // single source of truth for what counts as "needs multilingual".
+    expect(SOURCE).toMatch(/isMultilingualOnly\(/);
+  });
+
+  it('passes the offending display_name through the english-only warning interpolation', () => {
+    // selectedDefaultModel.display_name is Rust-emitted prose and
+    // stays verbatim; the warning body interpolates it as `{{model}}`.
+    // Pin the wiring so a future regression that drops the model
+    // name and leaves a literal mustache template fails at build
+    // time.
+    expect(SOURCE).toMatch(
+      /models\.language_warning\.english_only_body['"][\s\S]{0,200}model:/,
+    );
+    // The fallback chain must not wrap display_name in t() — that
+    // would silently rename a Rust-owned string in the UI.
+    expect(SOURCE).not.toMatch(/t\(['"][^'"]*display_name/);
+  });
+
+  it('switches to the helper-recommended model id, never patches general.app_language', () => {
+    // The one-click switch button calls updateDefaultModel with the
+    // helper's recommendedId. Pin the wiring shape positively, then
+    // negative-pin against any general.app_language patch from this
+    // file (interface language is `general.app_language`, dictation
+    // language is `models.whisper_language`; the contract must stay
+    // separated).
+    expect(SOURCE).toMatch(
+      /updateDefaultModel\(\s*settingsRecommendation\.recommendedId\s*\)/,
+    );
+    expect(SOURCE).not.toMatch(/app_language/);
+  });
+
+  it('keeps the multilingual contract structural via languages.includes("multi")', () => {
+    // The multilingual filter is the single contract identifier
+    // (services/models.rs marks Whisper variants with
+    // `languages: vec!["multi"]`; English-only models declare
+    // `["en"]`). The Settings warning gate-checks this on the
+    // selected model directly. Pin the structural string so the
+    // contract identifier doesn't drift.
+    expect(SOURCE).toContain("languages.includes('multi')");
+  });
 });
