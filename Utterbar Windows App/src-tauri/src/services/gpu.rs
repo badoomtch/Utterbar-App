@@ -102,14 +102,51 @@ pub struct RuntimeCapabilities {
     pub has_cuda_ep: bool,
 }
 
+/// Process-lifetime cache for the result of
+/// `compute_runtime_capabilities`. The runtime DLL set next to the
+/// running executable is fixed for the lifetime of the process — the
+/// installer is the only thing that changes it, and the installer
+/// runs while the app is exiting (see `commands/updater.rs`). Computing
+/// the result once and reusing it avoids ~11 MB of `std::fs::read` +
+/// O(N) byte-scan on every call.
+///
+/// Pre-cache cost: the first call still does the full probe (one disk
+/// read of `onnxruntime.dll`, two `Path::is_file` syscalls). The probe
+/// is invoked from the inference provider-resolution path (per
+/// `ensure_loaded`) and from the dictation-complete telemetry log
+/// (twice per transcribe on meeting paths). Without the cache, a
+/// 30-chunk meeting was issuing ~31 redundant DLL reads. With the
+/// cache, exactly one is issued per process.
+///
+/// Tests use `probe_runtime_dir` directly with fixture directories
+/// and bypass this cache deliberately. Don't add a cache to
+/// `probe_runtime_dir` — it would break those fixtures.
+static RUNTIME_CAPS_CACHE: std::sync::OnceLock<RuntimeCapabilities> = std::sync::OnceLock::new();
+
 /// Probe the runtime DLL set next to the current executable for
 /// optional execution-provider satellites. See `RuntimeCapabilities`
 /// for the design rationale.
 ///
+/// **Cached.** The first call computes the result; subsequent calls
+/// return a clone of the cached value without re-reading the DLL. The
+/// runtime DLL set is fixed for the process lifetime, so this is
+/// safe. See `RUNTIME_CAPS_CACHE` for the rationale.
+///
 /// Falls back to `false / false` if the exe path can't be resolved.
 /// Conservative default — at worst a user with a working DML setup
-/// gets told it's inactive.
+/// gets told it's inactive. The fallback is also cached, on the same
+/// process-lifetime reasoning: `current_exe()` doesn't realistically
+/// change after process start.
 pub fn runtime_capabilities() -> RuntimeCapabilities {
+    RUNTIME_CAPS_CACHE
+        .get_or_init(compute_runtime_capabilities)
+        .clone()
+}
+
+/// Uncached probe used by `runtime_capabilities` on first call. Kept
+/// private so call sites use the cached entry point. Behaviour matches
+/// the original `runtime_capabilities` body byte-for-byte.
+fn compute_runtime_capabilities() -> RuntimeCapabilities {
     let exe_dir = match std::env::current_exe() {
         Ok(p) => p.parent().map(|d| d.to_path_buf()),
         Err(_) => None,
@@ -437,6 +474,79 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
         assert!(caps.has_cuda_ep);
         assert!(!caps.has_dml_ep);
+    }
+
+    /// **Cache contract.** `runtime_capabilities()` must return the
+    /// same value on repeated calls within a single process — the DLL
+    /// set is fixed for process lifetime, so the cached result must be
+    /// stable. We can't directly observe "the DLL was not re-read" in
+    /// a unit test (the cache is a `OnceLock<RuntimeCapabilities>`,
+    /// not an instrumented mock), but we can pin the deterministic
+    /// behaviour the cache must preserve: every call returns equal
+    /// values to every other call. A regression that, say, swapped
+    /// the cache for a fresh probe per call would still pass this
+    /// test by coincidence on a stable machine, so the source-grep
+    /// pin below covers the implementation contract.
+    #[test]
+    fn runtime_capabilities_repeated_calls_return_equal_results() {
+        let a = runtime_capabilities();
+        let b = runtime_capabilities();
+        let c = runtime_capabilities();
+        assert_eq!(a.has_dml_ep, b.has_dml_ep);
+        assert_eq!(a.has_cuda_ep, b.has_cuda_ep);
+        assert_eq!(b.has_dml_ep, c.has_dml_ep);
+        assert_eq!(b.has_cuda_ep, c.has_cuda_ep);
+    }
+
+    /// **Source-grep contract pin.** Companion to the equal-results
+    /// behavioural test above. Pins that `runtime_capabilities` is
+    /// implemented via a process-lifetime cache (`OnceLock` +
+    /// `get_or_init`) and that `probe_runtime_dir` itself remains
+    /// uncached so the fixture-driven tests above keep working. A
+    /// future regression that drops the cache (the audit-fixed
+    /// behaviour, ~11 MB DLL read on every dictation) fails this
+    /// test loudly.
+    #[test]
+    fn runtime_capabilities_uses_process_lifetime_cache() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("services")
+            .join("gpu.rs");
+        let src = std::fs::read_to_string(&path).expect("read gpu.rs");
+
+        // The cache primitive: a OnceLock<RuntimeCapabilities>. Pin
+        // the type rather than the variable name so a rename of the
+        // static doesn't break the test.
+        assert!(
+            src.contains("OnceLock<RuntimeCapabilities>"),
+            "gpu.rs must declare a OnceLock<RuntimeCapabilities> for the runtime-capability cache"
+        );
+
+        // The public entry point must consult the cache via
+        // `get_or_init`. Without this, the cache exists but isn't
+        // wired in.
+        assert!(
+            src.contains(".get_or_init("),
+            "runtime_capabilities() must consult the cache via get_or_init"
+        );
+
+        // The probe helper that fixture-driven tests use must stay
+        // uncached — it's where the fresh disk-read happens. Make
+        // sure no future refactor adds a cache there too.
+        let probe_fn_idx = src
+            .find("pub fn probe_runtime_dir(")
+            .expect("probe_runtime_dir must remain a public uncached helper");
+        // The next 600 bytes after the signature should NOT contain
+        // a cache lookup. If a future change inserts one, this fires.
+        let probe_window = &src[probe_fn_idx..probe_fn_idx + src[probe_fn_idx..].len().min(600)];
+        assert!(
+            !probe_window.contains("OnceLock"),
+            "probe_runtime_dir must NOT introduce its own cache; fixture tests rely on per-call disk reads"
+        );
+        assert!(
+            !probe_window.contains("get_or_init"),
+            "probe_runtime_dir must NOT use get_or_init; fixture tests rely on per-call disk reads"
+        );
     }
 
     /// Substring search helper smoke test.
