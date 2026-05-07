@@ -1031,6 +1031,45 @@ describe('i18n English foundation', () => {
     }
   });
 
+  it('resolves every Models language-compatibility warning key', () => {
+    // The Settings → Models language-compatibility warning mirrors
+    // the onboarding model-step banner: when whisper_language is
+    // non-English and the default model is English-only, surface a
+    // warning with a one-click switch to a multilingual model;
+    // when no installed multilingual model exists, show an install
+    // hint pointing at the model list. Pin every key the warning
+    // resolves so a future copy edit can't drift away from the
+    // catalogue.
+    const keys = [
+      'models.language_warning.english_only_title',
+      'models.language_warning.english_only_body',
+      'models.language_warning.no_multilingual_title',
+      'models.language_warning.no_multilingual_body',
+      'models.language_warning.switch_to_multilingual',
+      'models.language_warning.install_multilingual_hint',
+    ];
+    for (const key of keys) {
+      const value = i18n.getResource('en', 'settings', key);
+      expect(value, `settings.json missing key ${key}`).toBeTruthy();
+      expect(typeof value, `settings.json key ${key} must be string`).toBe('string');
+    }
+  });
+
+  it('renders models.language_warning.english_only_body with the model name interpolated', () => {
+    // The offending model's Rust-emitted display_name is interpolated
+    // into the warning body as `{{model}}`. Pin the substitution so a
+    // future copy edit can't drop it silently and leave a literal
+    // mustache template visible to users. The display_name itself
+    // stays verbatim (Rust-emitted prose, deferred).
+    const out = i18n.t('models.language_warning.english_only_body', {
+      ns: 'settings',
+      model: 'Parakeet TDT v3 (int8)',
+    });
+    expect(out).toContain('Parakeet TDT v3 (int8)');
+    expect(out).not.toContain('{{');
+    expect(out).not.toContain('models.language_warning.english_only_body');
+  });
+
   it('catalogues are non-empty (placeholder check)', () => {
     // Defensive against a bad merge that empties a JSON file. ESM
     // imports compile-time pin them; this is the sanity belt.
@@ -1113,6 +1152,7 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.advanced.reset).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.models).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.models.whisper_language).length).toBeGreaterThan(0);
+    expect(Object.keys(settingsEn.models.language_warning).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.welcome).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.model.download).length).toBeGreaterThan(0);

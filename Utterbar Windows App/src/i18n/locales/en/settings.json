@@ -707,6 +707,14 @@
     "whisper_language": {
       "title": "Whisper language",
       "description": "Used by Whisper models only. Auto-detect picks the language at the start of each dictation; pinning a specific one is slightly faster but locks you to that language."
+    },
+    "language_warning": {
+      "english_only_title": "This model only supports English",
+      "english_only_body": "Your dictation language is set to a non-English language, but {{model}} is English-only. Switch to a multilingual Whisper model to dictate in your chosen language.",
+      "no_multilingual_title": "No multilingual model installed",
+      "no_multilingual_body": "Your dictation language is set to a non-English language, but no multilingual Whisper model is installed yet. Install one from the model list below, then come back here to set it as your default.",
+      "switch_to_multilingual": "Switch to multilingual model",
+      "install_multilingual_hint": "Browse the model list below and install a Whisper variant."
     }
   }
 }
