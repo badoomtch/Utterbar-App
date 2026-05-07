@@ -18,7 +18,6 @@ pub struct AudioBuffer {
 pub struct AsrOptions {
     pub language_hint: Option<String>,
     pub want_word_timings: bool,
-    pub vocabulary_hints: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
