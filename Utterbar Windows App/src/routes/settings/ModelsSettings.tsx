@@ -293,54 +293,6 @@ export function ModelsSettings() {
         )}
       </Card>
 
-      {/* Language-compatibility warning. Mirrors the same banner
-          onboarding shows on the model step: when the user has set
-          Whisper language to a non-English language but the selected
-          default model is English-only (Parakeet, English-only
-          Whisper variants, Zipformer), warn and offer a one-click
-          switch to a multilingual model among the *installed* set.
-          When no installed model is multilingual, point the user at
-          the install list further down rather than auto-installing.
-          Meeting Mode below has no equivalent banner because every
-          option in its picker is already multilingual Whisper. */}
-      {showEnglishOnlyWarning && settingsRecommendation.recommendedId && (
-        <div className="rounded-input border border-rose-500/40 bg-rose-500/10 p-4">
-          <div className="text-[13px] font-medium text-rose-300">
-            {t('models.language_warning.english_only_title')}
-          </div>
-          <div className="mt-1 text-[12px] leading-relaxed text-muted">
-            {/* selectedDefaultModel.display_name is Rust-emitted and
-                stays verbatim; the surrounding catalogue template
-                interpolates it as `{{model}}`. */}
-            {t('models.language_warning.english_only_body', {
-              model: selectedDefaultModel?.display_name ?? defaultModelId ?? '',
-            })}
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              updateDefaultModel(settingsRecommendation.recommendedId)
-            }
-            className="mt-3 ub-btn ub-btn-cta !py-[0.4rem] !text-[12px]"
-          >
-            {t('models.language_warning.switch_to_multilingual')}
-          </button>
-        </div>
-      )}
-      {showNoMultilingualWarning && (
-        <div className="rounded-input border border-amber-500/40 bg-amber-500/10 p-4">
-          <div className="text-[13px] font-medium text-amber-300">
-            {t('models.language_warning.no_multilingual_title')}
-          </div>
-          <div className="mt-1 text-[12px] leading-relaxed text-muted">
-            {t('models.language_warning.no_multilingual_body')}
-          </div>
-          <div className="mt-2 text-[11.5px] text-muted">
-            {t('models.language_warning.install_multilingual_hint')}
-          </div>
-        </div>
-      )}
-
       {/* v0.15.3: Meeting Mode model picker. Always visible (even if
           no Whisper model is installed yet) so a user with zero
           Whispers can find their way in — the row's Install link
@@ -491,6 +443,63 @@ export function ModelsSettings() {
             />
           </div>
         </Card>
+      )}
+
+      {/* Language-compatibility warning. Placed directly below the
+          Whisper language picker so the warning sits next to the
+          control that triggered it; previously rendered between the
+          Default model card and the Meeting Mode card, where the link
+          back to the language pick wasn't visually obvious. The
+          warning's own gating is independent of the Whisper-language
+          card's `hasWhisperInstalled` precondition: a user can hold a
+          non-English `whisper_language` value with zero Whisper models
+          installed (the Whisper-language card hides in that case but
+          the no-multilingual-installed warning still fires below).
+          When the user has set Whisper language to a non-English
+          language but the selected default model is English-only
+          (Parakeet, English-only Whisper variants, Zipformer), warn
+          and offer a one-click switch to a multilingual model among
+          the *installed* set. When no installed model is multilingual,
+          point the user at the install list further down rather than
+          auto-installing. Meeting Mode below has no equivalent banner
+          because every option in its picker is already multilingual
+          Whisper. */}
+      {showEnglishOnlyWarning && settingsRecommendation.recommendedId && (
+        <div className="rounded-input border border-rose-500/40 bg-rose-500/10 p-4">
+          <div className="text-[13px] font-medium text-rose-300">
+            {t('models.language_warning.english_only_title')}
+          </div>
+          <div className="mt-1 text-[12px] leading-relaxed text-muted">
+            {/* selectedDefaultModel.display_name is Rust-emitted and
+                stays verbatim; the surrounding catalogue template
+                interpolates it as `{{model}}`. */}
+            {t('models.language_warning.english_only_body', {
+              model: selectedDefaultModel?.display_name ?? defaultModelId ?? '',
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              updateDefaultModel(settingsRecommendation.recommendedId)
+            }
+            className="mt-3 ub-btn ub-btn-cta !py-[0.4rem] !text-[12px]"
+          >
+            {t('models.language_warning.switch_to_multilingual')}
+          </button>
+        </div>
+      )}
+      {showNoMultilingualWarning && (
+        <div className="rounded-input border border-amber-500/40 bg-amber-500/10 p-4">
+          <div className="text-[13px] font-medium text-amber-300">
+            {t('models.language_warning.no_multilingual_title')}
+          </div>
+          <div className="mt-1 text-[12px] leading-relaxed text-muted">
+            {t('models.language_warning.no_multilingual_body')}
+          </div>
+          <div className="mt-2 text-[11.5px] text-muted">
+            {t('models.language_warning.install_multilingual_hint')}
+          </div>
+        </div>
       )}
 
       <Card
