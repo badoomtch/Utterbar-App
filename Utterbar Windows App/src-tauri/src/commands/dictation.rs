@@ -6194,4 +6194,114 @@ mod diarised_helpers_tests {
         // tests in the same binary that might inspect LAST_DELIVERY.
         clear_last();
     }
+
+    /// **v0.19.6 release-build mic-mute contract.** The
+    /// experimental Teams + Discord per-app microphone mute is
+    /// behind the `experimental_mic_mute` Cargo feature. Without
+    /// it, `mic_mute::apply()` is a no-op stub and the Settings →
+    /// Advanced → Experimental toggle silently does nothing. The
+    /// feature stays out of `default = []` so dev iteration
+    /// (`cargo test`, plain `pnpm tauri build`, `pnpm tauri:dev`)
+    /// skips the Win32 SendInput path; release builds must opt
+    /// in by name.
+    ///
+    /// v0.19.0 stable was built with the feature, but the
+    /// requirement never made it into `package.json` or the
+    /// runbook, so v0.19.1 → v0.19.5 betas silently dropped
+    /// it. Source-grep so a future runbook edit, npm-script
+    /// rename, or release-doc cleanup that drops the feature
+    /// fails CI before it can ship a no-op mic-mute toggle to
+    /// users.
+    ///
+    /// Pins the feature flag in three places:
+    ///   1. `package.json` exposes a `tauri:build:release`
+    ///      script that includes `--features experimental_mic_mute`.
+    ///   2. `RELEASE_RUNBOOK.md` §4 (the canonical release
+    ///      ritual) instructs the operator to use it.
+    ///   3. `Utterbar Windows App/RELEASE.md` §1 (the underlying
+    ///      release flow the runbook enforces) instructs the
+    ///      same.
+    ///
+    /// Also pins that `services/mic_mute.rs` keeps both the
+    /// feature-on and feature-off `apply` definitions, so the
+    /// no-op stub doesn't accidentally become the only path.
+    #[test]
+    fn release_build_includes_experimental_mic_mute_feature() {
+        // read_source resolves paths relative to the parent of
+        // CARGO_MANIFEST_DIR, which is the `Utterbar Windows App/`
+        // directory. The runbook lives one level higher (repo root).
+        let pkg_json = read_source("package.json");
+        let runbook = read_source("../RELEASE_RUNBOOK.md");
+        let app_release = read_source("RELEASE.md");
+        let mic_mute = read_source("src-tauri/src/services/mic_mute.rs");
+
+        // 1. package.json must expose tauri:build:release with the
+        //    feature flag in the command body. Pin both the script
+        //    name (so docs can reference it stably) and the flag
+        //    body (so a future rename of the script alone can't
+        //    silently drop the feature).
+        assert!(
+            pkg_json.contains("\"tauri:build:release\""),
+            "package.json must define a `tauri:build:release` npm \
+             script — runbooks point users at this script name; \
+             renaming it without updating the docs leaves a \
+             dangling reference"
+        );
+        assert!(
+            pkg_json.contains("--features experimental_mic_mute"),
+            "package.json must pass `--features experimental_mic_mute` \
+             on the release build script. Plain `tauri build` \
+             produces a binary where mic_mute::apply() is the \
+             no-op stub, which silently breaks the Settings → \
+             Advanced → Experimental toggle"
+        );
+
+        // 2. RELEASE_RUNBOOK.md §4 must point at the release
+        //    script (or pass the flag explicitly). A future
+        //    runbook tidy that reverts to plain `pnpm tauri build`
+        //    would silently re-introduce the v0.19.1 → v0.19.5
+        //    regression — fail CI on that change.
+        assert!(
+            runbook.contains("tauri:build:release")
+                || runbook.contains("--features experimental_mic_mute"),
+            "RELEASE_RUNBOOK.md must reference either the \
+             `tauri:build:release` script or the explicit \
+             `--features experimental_mic_mute` flag in its build \
+             instructions; plain `pnpm tauri build` ships a \
+             feature-stripped binary"
+        );
+
+        // 3. RELEASE.md (the underlying flow) same constraint.
+        assert!(
+            app_release.contains("tauri:build:release")
+                || app_release.contains("--features experimental_mic_mute"),
+            "Utterbar Windows App/RELEASE.md must reference either \
+             the `tauri:build:release` script or the explicit \
+             `--features experimental_mic_mute` flag in its build \
+             instructions"
+        );
+
+        // 4. mic_mute.rs must keep BOTH paths. The feature-off
+        //    stub is what every dev/test build sees; the feature-on
+        //    real implementation is what release builds compile.
+        //    Source-grep both `cfg` attributes so a future tidy
+        //    that collapses to one path alone fails this test
+        //    rather than silently shipping a permanent no-op.
+        assert!(
+            mic_mute.contains("#[cfg(not(feature = \"experimental_mic_mute\"))]"),
+            "services/mic_mute.rs must keep the feature-off stub \
+             path. Removing it would mean every dev/test build \
+             fails to compile, but more importantly removing the \
+             gate entirely would make the feature unconditional, \
+             which is a deliberate-design decision that should \
+             require an explicit Cargo `default` change, not a \
+             quiet refactor"
+        );
+        assert!(
+            mic_mute.contains("#[cfg(feature = \"experimental_mic_mute\")]"),
+            "services/mic_mute.rs must keep the feature-on real \
+             apply path. Without it, release builds with the \
+             feature enabled would compile but silently no-op"
+        );
+    }
 }

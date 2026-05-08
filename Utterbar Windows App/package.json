@@ -11,8 +11,9 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build:release": "tauri build --features experimental_mic_mute",
     "version:bump": "node scripts/bump-version.mjs",
-    "release": "node scripts/bump-version.mjs && tauri build",
+    "release": "node scripts/bump-version.mjs && tauri build --features experimental_mic_mute",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\""

@@ -117,8 +117,10 @@ git commit -m "Release v<version>"
 ```bash
 cd "Utterbar Windows App"
 pnpm install                 # idempotent; safety
-pnpm tauri build
+pnpm tauri:build:release
 ```
+
+`tauri:build:release` is the canonical release-build script. It runs `tauri build --features experimental_mic_mute` so the experimental Teams + Discord per-app microphone mute path is compiled in. The Cargo feature stays off in `default = []` so dev builds (`pnpm tauri:dev`, plain `pnpm tauri:build`, `cargo test`) skip the Win32 `SendInput` path entirely; release builds opt in by name. v0.19.0 stable was built with this feature; v0.19.1 → v0.19.5 betas were not, which is the regression v0.19.6 fixes. **Do not** use plain `pnpm tauri build` for a release — the mic-mute toggle in Settings → Advanced → Experimental will appear enabled but silently no-op.
 
 Expected output:
 ```
@@ -135,6 +137,7 @@ Finished 2 bundles at:
   ```bash
   sha256sum "src-tauri/target/release/bundle/nsis/Utterbar_<version>_x64-setup.exe"
   ```
+- [ ] Mic-mute feature compiled in. `strings utterbar.exe | grep send_hotkey_globally` returns at least one match. Zero matches means you ran plain `pnpm tauri build` — re-run with `pnpm tauri:build:release` and re-bundle.
 - [ ] Smoke-test the installer on Jay's machine: install, launch, dictate one sentence, confirm text appears in Notepad.
 - [ ] Check `%APPDATA%\Utterbar\logs\crash.log` after 5 minutes of use — if any new entries appear, **STOP**. Do not ship. Investigate the crash before publishing. (v0.6.1 was shipped with an active illegal-instruction crash — don't repeat that.)
 

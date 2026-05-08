@@ -104,8 +104,10 @@ git tag v0.7.0
 ### 1. Build the installer
 
 ```bash
-pnpm tauri build
+pnpm tauri:build:release
 ```
+
+`tauri:build:release` is the canonical release-build script. It runs `tauri build --features experimental_mic_mute` so the experimental Teams + Discord per-app microphone mute is compiled in. The Cargo feature stays off in `default = []`, so plain `pnpm tauri build` (dev iteration) skips that path; release builds opt in by name. **Do not** use plain `pnpm tauri build` for a release; the Settings → Advanced → Experimental mic-mute toggle will appear enabled but silently no-op. See [`../RELEASE_RUNBOOK.md` §4](../RELEASE_RUNBOOK.md) for the full ritual.
 
 Output: `src-tauri/target/release/bundle/nsis/Utterbar_<version>_x64-setup.exe`
 
