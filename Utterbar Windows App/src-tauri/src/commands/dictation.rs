@@ -5995,4 +5995,203 @@ mod diarised_helpers_tests {
              and list_replacements"
         );
     }
+
+    /// **Auto-space-on-paste contract.** Pins the round-trip
+    /// behaviour of `record_delivery` + `should_prepend_space` so a
+    /// future refactor of the per-app continuation heuristic can't
+    /// silently regress the "hello" + "world" → "hello world"
+    /// glue between back-to-back dictations in the same field.
+    ///
+    /// Bundled into a single test fn rather than split into many,
+    /// because `LAST_DELIVERY` is a process-global `OnceLock<Mutex<…>>`
+    /// and parallel test functions would race on it. Each scenario
+    /// below resets that state explicitly, runs the gate, asserts.
+    ///
+    /// Scenarios pinned (numbered to match the gate's six branches
+    /// in `should_prepend_space` plus the round-trip with
+    /// `record_delivery`):
+    ///
+    ///   1. No prior delivery → no space. The very first dictation
+    ///      after launch must never get a leading space inserted.
+    ///   2. Happy path — "hello" then "world" within the window
+    ///      and same app → space prepended.
+    ///   3. Time window — beyond `AUTO_SPACE_WINDOW_MS` (45 s) →
+    ///      no space, even if every other condition matches.
+    ///   4. App switch — different `app_exe` → no space, even
+    ///      within the time window.
+    ///   5. Trailing whitespace on prior — "hello " then "world"
+    ///      → no space (would be doubled).
+    ///   6. Trailing open punct on prior — "(" then "world" →
+    ///      no space (open paren / quote / bracket should hug the
+    ///      next word).
+    ///   7. New text starts with non-alnum — prior "hello", new
+    ///      "." → no space (don't push punctuation off the word).
+    ///   8. Same-app gate is case-sensitive on `app_exe` strings.
+    ///      `Some("Notepad.exe")` and `Some("notepad.exe")` are
+    ///      treated as different apps — pinning current behaviour
+    ///      so a future "case-insensitive comparison" change is a
+    ///      deliberate choice with a test fail.
+    ///   9. `None`/`None` app_exe (privacy: context-active-app off)
+    ///      still allows auto-space — both sides see "no known
+    ///      app", which is treated as the same unknown app.
+    ///
+    /// Test resets `LAST_DELIVERY` to `None` between scenarios so
+    /// each branch is exercised against a known starting state.
+    #[test]
+    fn auto_space_round_trip_contract() {
+        // Helper: clear LAST_DELIVERY before each scenario.
+        let clear_last = || {
+            if let Ok(mut g) = last_delivery().lock() {
+                *g = None;
+            }
+        };
+
+        // Scenario 1: no prior delivery → no space.
+        clear_last();
+        assert!(
+            !should_prepend_space(1_000, Some("notepad.exe"), "world"),
+            "scenario 1: cold state (no prior delivery) must NOT \
+             prepend a space — every first dictation after launch \
+             would otherwise get a leading space"
+        );
+
+        // Scenario 2: happy path — "hello" then "world" within the
+        // window and same app → space prepended.
+        clear_last();
+        record_delivery(10_000, Some("notepad.exe"), "hello");
+        assert!(
+            should_prepend_space(20_000, Some("notepad.exe"), "world"),
+            "scenario 2: prior 'hello' in same app within 10 s, \
+             new text starts with alnum, no trailing whitespace — \
+             must prepend space (the headline use case)"
+        );
+
+        // Scenario 3: time window — beyond 45 s → no space.
+        // Pick a delta of 45_001 ms so we're exactly one tick past
+        // the boundary; the gate uses strict `>` so this must fail.
+        clear_last();
+        record_delivery(0, Some("notepad.exe"), "hello");
+        assert!(
+            !should_prepend_space(AUTO_SPACE_WINDOW_MS + 1, Some("notepad.exe"), "world"),
+            "scenario 3: gap > AUTO_SPACE_WINDOW_MS must NOT \
+             prepend a space — user has likely moved on to a \
+             different thought / field"
+        );
+
+        // Scenario 3b: exactly at the boundary — `>` not `>=`,
+        // so equal is still inside the window. Pin both sides
+        // of the boundary.
+        clear_last();
+        record_delivery(0, Some("notepad.exe"), "hello");
+        assert!(
+            should_prepend_space(AUTO_SPACE_WINDOW_MS, Some("notepad.exe"), "world"),
+            "scenario 3b: gap exactly == AUTO_SPACE_WINDOW_MS \
+             must STILL prepend a space (gate uses strict `>`)"
+        );
+
+        // Scenario 4: app switch → no space.
+        clear_last();
+        record_delivery(10_000, Some("notepad.exe"), "hello");
+        assert!(
+            !should_prepend_space(20_000, Some("slack.exe"), "world"),
+            "scenario 4: prior delivery in notepad.exe but current \
+             active app is slack.exe — different field, must NOT \
+             prepend a space"
+        );
+
+        // Scenario 5: prior ended with whitespace → no space
+        // (would double up). `record_delivery` itself reads the
+        // last char of the delivered string to compute this; pin
+        // that the round-trip honours it.
+        clear_last();
+        record_delivery(10_000, Some("notepad.exe"), "hello ");
+        assert!(
+            !should_prepend_space(20_000, Some("notepad.exe"), "world"),
+            "scenario 5: prior delivery already ended with a space — \
+             must NOT prepend another (would produce 'hello  world')"
+        );
+
+        // Scenario 6: prior ended with open punct → no space
+        // (the open paren / quote / bracket should hug the next
+        // token). Pin all five open-punct chars from the helper:
+        // '(', '[', '{', '"', '\''.
+        for open in ["(", "[", "{", "\"", "'"] {
+            clear_last();
+            record_delivery(10_000, Some("notepad.exe"), open);
+            assert!(
+                !should_prepend_space(20_000, Some("notepad.exe"), "world"),
+                "scenario 6: prior delivery ended with open punct \
+                 {open:?} — must NOT prepend a space (open punct \
+                 should hug the next token)"
+            );
+        }
+
+        // Scenario 7: new text starts with non-alnum → no space.
+        // Pin a representative spread: closing punct, quote,
+        // sentence-ender. None should get a leading space.
+        clear_last();
+        record_delivery(10_000, Some("notepad.exe"), "hello");
+        for next in [".", ",", "!", "?", ")", "]", "}", "\""] {
+            assert!(
+                !should_prepend_space(20_000, Some("notepad.exe"), next),
+                "scenario 7: new text {next:?} starts with non-alnum — \
+                 must NOT prepend a space (would push punctuation \
+                 off the previous word)"
+            );
+        }
+
+        // Scenario 8: same-app gate is case-sensitive. Currently
+        // `prev.app_exe.as_deref() != current_app_exe` uses string
+        // equality, which is case-sensitive. Pin the existing
+        // behaviour so a future "case-insensitive" tweak is a
+        // deliberate decision rather than a silent change.
+        clear_last();
+        record_delivery(10_000, Some("Notepad.exe"), "hello");
+        assert!(
+            !should_prepend_space(20_000, Some("notepad.exe"), "world"),
+            "scenario 8: same-app gate is currently case-sensitive — \
+             'Notepad.exe' and 'notepad.exe' are treated as different \
+             apps. If a future fix makes the comparison \
+             case-insensitive, flip this assertion deliberately."
+        );
+
+        // Scenario 9: None/None still allows auto-space. When
+        // `privacy.allow_context_active_app == false`, both sides
+        // see `app_exe = None`. The gate's `==` over `Option<&str>`
+        // returns true for None == None, so the auto-space heuristic
+        // continues to work for users who have context-app disabled.
+        clear_last();
+        record_delivery(10_000, None, "hello");
+        assert!(
+            should_prepend_space(20_000, None, "world"),
+            "scenario 9: both prior and current app_exe are None \
+             (privacy: context-active-app disabled) — auto-space \
+             must STILL fire, treating 'no known app' as 'the same \
+             unknown app'"
+        );
+
+        // Scenario 9b: None vs Some still counts as a switch.
+        // (Asymmetric privacy or active-app probe failure between
+        // two dictations.) Pin the strict equality so a privacy
+        // setting flip mid-session doesn't silently glue text
+        // across apps.
+        clear_last();
+        record_delivery(10_000, None, "hello");
+        assert!(
+            !should_prepend_space(20_000, Some("notepad.exe"), "world"),
+            "scenario 9b: prior had no app_exe (None) but current \
+             does — treat as a context change, do NOT prepend"
+        );
+        clear_last();
+        record_delivery(10_000, Some("notepad.exe"), "hello");
+        assert!(
+            !should_prepend_space(20_000, None, "world"),
+            "scenario 9b': prior had app_exe but current is None — \
+             treat as a context change, do NOT prepend"
+        );
+
+        // Final cleanup so this test doesn't leak state into other
+        // tests in the same binary that might inspect LAST_DELIVERY.
+        clear_last();
+    }
 }
