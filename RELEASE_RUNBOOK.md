@@ -137,7 +137,11 @@ Finished 2 bundles at:
   ```bash
   sha256sum "src-tauri/target/release/bundle/nsis/Utterbar_<version>_x64-setup.exe"
   ```
-- [ ] Mic-mute feature compiled in. `strings utterbar.exe | grep send_hotkey_globally` returns at least one match. Zero matches means you ran plain `pnpm tauri build` — re-run with `pnpm tauri:build:release` and re-bundle.
+- [ ] Mic-mute feature compiled in. Run:
+  ```bash
+  grep -ac "send_hotkey_globally" "src-tauri/target/release/utterbar.exe"
+  ```
+  A count of `1` or more means the feature-on mic-mute path is present. A count of `0` means you ran plain `pnpm tauri build` — STOP, re-run with `pnpm tauri:build:release`, and re-bundle. Do not use `strings utterbar.exe | grep …` for this check on Windows / Git Bash; `strings` is not part of the default Git Bash install and silently produces zero output, which gave a false negative during the v0.19.6 publish. `grep -a` reads the binary directly and works without extra tooling.
 - [ ] Smoke-test the installer on Jay's machine: install, launch, dictate one sentence, confirm text appears in Notepad.
 - [ ] Check `%APPDATA%\Utterbar\logs\crash.log` after 5 minutes of use — if any new entries appear, **STOP**. Do not ship. Investigate the crash before publishing. (v0.6.1 was shipped with an active illegal-instruction crash — don't repeat that.)
 
