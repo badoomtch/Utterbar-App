@@ -6,11 +6,16 @@ import commonEn from './locales/en/common.json';
 import onboardingEn from './locales/en/onboarding.json';
 import settingsEn from './locales/en/settings.json';
 
+import barEs from './locales/es/bar.json';
+import commonEs from './locales/es/common.json';
+import onboardingEs from './locales/es/onboarding.json';
+import settingsEs from './locales/es/settings.json';
+
 import type { AppLanguage } from '@/generated/AppLanguage';
 
 // Resources are bundled directly. No backend loader, no async fetch — every
-// English string ships with the binary, so first paint never has to wait on
-// IO. Adding a new locale means importing its JSON files here and adding a
+// string ships with the binary, so first paint never has to wait on IO.
+// Adding a new locale means importing its JSON files here and adding a
 // branch to `resolveLng()`. Keep one namespace per UI region; this file is
 // the single source of truth for the namespace registry.
 const resources = {
@@ -20,13 +25,22 @@ const resources = {
     onboarding: onboardingEn,
     settings: settingsEn,
   },
+  es: {
+    bar: barEs,
+    common: commonEs,
+    onboarding: onboardingEs,
+    settings: settingsEs,
+  },
 } as const;
 
 // Maps the Rust-side `AppLanguage` enum (BCP-47 short codes) to the i18next
-// language tag. `AppLanguage::En` -> `"en"`. Keep this aligned with the
-// `serde(rename_all = "lowercase")` attribute on the Rust enum.
+// language tag. `AppLanguage::En` -> `"en"`, `AppLanguage::Es` -> `"es"`.
+// Keep this aligned with the `serde(rename_all = "lowercase")` attribute on
+// the Rust enum.
 function resolveLng(lang: AppLanguage | undefined): string {
   switch (lang) {
+    case 'es':
+      return 'es';
     case 'en':
     default:
       return 'en';
@@ -37,6 +51,7 @@ void i18n.use(initReactI18next).init({
   resources,
   lng: 'en',
   fallbackLng: 'en',
+  supportedLngs: ['en', 'es'],
   defaultNS: 'common',
   ns: ['bar', 'common', 'onboarding', 'settings'],
   interpolation: {

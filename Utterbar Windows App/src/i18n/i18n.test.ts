@@ -1,10 +1,14 @@
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 
-import i18n from './index';
+import i18n, { applyAppLanguage } from './index';
 import barEn from './locales/en/bar.json';
 import commonEn from './locales/en/common.json';
 import onboardingEn from './locales/en/onboarding.json';
 import settingsEn from './locales/en/settings.json';
+import barEs from './locales/es/bar.json';
+import commonEs from './locales/es/common.json';
+import onboardingEs from './locales/es/onboarding.json';
+import settingsEs from './locales/es/settings.json';
 
 beforeAll(async () => {
   // The bootstrap module calls `init()` synchronously, but i18next resolves
@@ -12,6 +16,71 @@ beforeAll(async () => {
   // makes the assertions deterministic regardless of import order.
   await i18n.loadNamespaces(['bar', 'common', 'onboarding', 'settings']);
 });
+
+/**
+ * Recursively collects every leaf path from a nested catalogue object.
+ * For arrays, only the array's path is recorded (not per-element); the
+ * Spanish parity test then asserts the same array length on both sides.
+ *
+ * Used by the Spanish-locale parity tests below to guarantee Spanish has
+ * exactly the same key surface as English, no extra keys, no missing keys.
+ */
+function collectPaths(obj: unknown, prefix = ''): string[] {
+  if (obj === null || obj === undefined) return [prefix];
+  if (Array.isArray(obj)) return [prefix];
+  if (typeof obj === 'object') {
+    const out: string[] = [];
+    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      out.push(...collectPaths(val, path));
+    }
+    return out;
+  }
+  // String / number / boolean leaf
+  return [prefix];
+}
+
+/**
+ * Extracts every Mustache-style interpolation placeholder from a string,
+ * sorted and deduplicated. Used to enforce that the Spanish translation
+ * of every interpolated key carries the same `{{name}}` placeholders as
+ * the English source. Order doesn't matter; presence does.
+ */
+function placeholdersOf(s: string): string[] {
+  const matches = s.match(/\{\{[^}]+\}\}/g) ?? [];
+  return Array.from(new Set(matches)).sort();
+}
+
+/**
+ * Walks both catalogues in parallel and returns every leaf path that holds
+ * a string value in EN. Lets the placeholder-parity test compare the EN
+ * and ES strings at every interpolated key without manually enumerating
+ * them.
+ */
+function collectStringLeaves(obj: unknown, prefix = ''): Array<[string, string]> {
+  if (obj === null || obj === undefined) return [];
+  if (typeof obj === 'string') return [[prefix, obj]];
+  if (Array.isArray(obj)) return [];
+  if (typeof obj === 'object') {
+    const out: Array<[string, string]> = [];
+    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      out.push(...collectStringLeaves(val, path));
+    }
+    return out;
+  }
+  return [];
+}
+
+function getByPath(obj: unknown, path: string): unknown {
+  const parts = path.split('.');
+  let cur: unknown = obj;
+  for (const part of parts) {
+    if (cur === null || cur === undefined || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  return cur;
+}
 
 describe('i18n English foundation', () => {
   it('initialises with English as the active language', () => {
@@ -1162,5 +1231,203 @@ describe('i18n English foundation', () => {
     expect(onboardingEn.baseline.sentences.length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.language).length).toBeGreaterThan(0);
     expect(Object.keys(onboardingEn.language.warning).length).toBeGreaterThan(0);
+  });
+});
+
+describe('i18n Spanish locale', () => {
+  // Each pair: [namespace, English source, Spanish source]. Drives the
+  // catalogue parity + placeholder parity tests below; adding a fifth
+  // namespace (or a new locale) means appending a row here, not editing
+  // each test individually.
+  const NAMESPACES: Array<[string, unknown, unknown]> = [
+    ['bar', barEn, barEs],
+    ['common', commonEn, commonEs],
+    ['onboarding', onboardingEn, onboardingEs],
+    ['settings', settingsEn, settingsEs],
+  ];
+
+  it('every Spanish namespace has exactly the same key surface as English', () => {
+    // Catalogue parity: every key path present in EN must exist in ES,
+    // and ES must NOT introduce any extra key paths. Diff both sets and
+    // surface every divergence with the namespace prefix so a missing
+    // Spanish key is fixable in one read.
+    for (const [ns, en, es] of NAMESPACES) {
+      const enPaths = new Set(collectPaths(en));
+      const esPaths = new Set(collectPaths(es));
+      const missingInEs = [...enPaths].filter((p) => !esPaths.has(p));
+      const extraInEs = [...esPaths].filter((p) => !enPaths.has(p));
+      expect(missingInEs, `Spanish ${ns}.json is missing keys present in English`).toEqual([]);
+      expect(extraInEs, `Spanish ${ns}.json has keys not present in English`).toEqual([]);
+    }
+  });
+
+  it('every interpolated Spanish string contains the same placeholders as English', () => {
+    // Placeholder parity. For every leaf string in the English catalogue
+    // that contains at least one Mustache placeholder, the matching
+    // Spanish string must contain exactly the same set of placeholders.
+    // Otherwise we'd render with `undefined` substitutions or leak
+    // literal `{{...}}` to users.
+    for (const [ns, en, es] of NAMESPACES) {
+      const leaves = collectStringLeaves(en);
+      for (const [path, enValue] of leaves) {
+        const enPlaceholders = placeholdersOf(enValue);
+        if (enPlaceholders.length === 0) continue;
+        const esValue = getByPath(es, path);
+        expect(typeof esValue, `Spanish ${ns}.${path} is not a string`).toBe('string');
+        const esPlaceholders = placeholdersOf(String(esValue));
+        expect(
+          esPlaceholders,
+          `Spanish ${ns}.${path} placeholder set diverges from English (en=${JSON.stringify(enPlaceholders)} es=${JSON.stringify(esPlaceholders)})`,
+        ).toEqual(enPlaceholders);
+      }
+    }
+  });
+
+  it('baseline.sentences in Spanish has the same array length as English', () => {
+    // The typing-test pool is the only array of strings in the catalogues.
+    // Different lengths would mean BaselineStep's pool-rotation logic
+    // sees different cardinalities depending on UI language, which is
+    // confusing to QA and breaks any deterministic-shuffle invariant
+    // we may add later.
+    expect(onboardingEs.baseline.sentences.length).toBe(onboardingEn.baseline.sentences.length);
+  });
+
+  describe('with i18n switched to Spanish', () => {
+    beforeAll(async () => {
+      applyAppLanguage('es');
+      await i18n.loadNamespaces(['bar', 'common', 'onboarding', 'settings']);
+    });
+
+    afterAll(() => {
+      // Restore English so the rest of the suite (and any later test
+      // file in the same vitest worker) sees the canonical default.
+      applyAppLanguage('en');
+    });
+
+    it('initialises with es as the active language tag', () => {
+      expect(i18n.language).toBe('es');
+    });
+
+    it('resolves a representative key from every namespace', () => {
+      // One sample per namespace, deliberately picked from different
+      // shapes (chrome nav, bar phase, onboarding step title, settings
+      // page title, settings whisper-language card title) so a missing
+      // namespace fails the test loudly rather than silently returning
+      // English fallback for the others.
+      expect(i18n.t('chrome.nav.dashboard', { ns: 'common' })).toBe('Panel');
+      expect(i18n.t('button.cancel', { ns: 'bar' })).toBe('Cancelar');
+      expect(i18n.t('step_titles.language', { ns: 'onboarding' })).toContain('idioma');
+      expect(i18n.t('general.title', { ns: 'settings' })).toBe('General');
+      expect(i18n.t('models.whisper_language.title', { ns: 'settings' })).toContain('Whisper');
+    });
+
+    it('App language description still distinguishes interface from dictation in Spanish', () => {
+      // Spanish equivalent of the honesty contract pinned for English.
+      // The picker's description must keep the user clear on which
+      // setting governs which language; a future Spanish copy edit
+      // that softens this loses the contract here too.
+      const desc = String(
+        i18n.getResource('es', 'settings', 'general.app_language.description'),
+      );
+      expect(desc).toContain('interfaz');
+      expect(desc).toContain('dictado');
+      expect(desc).toContain('Modelos');
+    });
+
+    it('renders chrome.update_toast.post_title with the version interpolated in Spanish', () => {
+      // The placeholder-parity test guarantees `{{version}}` exists in
+      // the Spanish string. This test additionally verifies the
+      // substitution itself runs cleanly and the raw mustache template
+      // never reaches the user.
+      const out = i18n.t('chrome.update_toast.post_title', {
+        ns: 'common',
+        version: '0.21.0',
+      });
+      expect(out).toContain('0.21.0');
+      expect(out).not.toContain('{{');
+      expect(out).not.toContain('chrome.update_toast.post_title');
+    });
+
+    it('English remains available as a fallback safety net', () => {
+      // i18next's fallbackLng is still 'en'. Adding Spanish must not
+      // change that — if a future ES key goes missing somehow despite
+      // the parity test, users see the English string rather than a
+      // raw catalogue path. i18next normalises a string config into
+      // a one-element array internally, so this test accepts either
+      // representation as long as the resolved fallback is `en`.
+      const fb = i18n.options.fallbackLng;
+      const tag = Array.isArray(fb) ? fb[0] : fb;
+      expect(tag).toBe('en');
+    });
+  });
+
+  it('switching app language does not touch the dictation-language registry', () => {
+    // Dictation language lives at models.whisper_language and uses the
+    // word-name keys under common.language.* (e.g. language.spanish).
+    // App language uses the BCP-47 tags (language.es). Pin the
+    // separation: applyAppLanguage('es') must not mutate or alias the
+    // word-name keys, so the dictation-language picker continues to
+    // render its full registry list independently of the app's UI tag.
+    applyAppLanguage('es');
+    // The word-name keys still resolve in Spanish (just translated to
+    // their Spanish word, not aliased to the BCP-47 tag).
+    expect(i18n.getResource('es', 'common', 'language.spanish')).toBeTruthy();
+    expect(i18n.getResource('es', 'common', 'language.english')).toBeTruthy();
+    // The new BCP-47 self-name key is independent and stays "Español"
+    // regardless of UI locale (universal convention: language pickers
+    // show each language in its own script).
+    expect(i18n.getResource('en', 'common', 'language.es')).toBe('Español');
+    expect(i18n.getResource('es', 'common', 'language.es')).toBe('Español');
+    applyAppLanguage('en');
+  });
+});
+
+describe('Settings → General app-language picker contract', () => {
+  // Source-grep guards. These read GeneralSettings.tsx as text so a
+  // future refactor that breaks the picker's contract fails CI before
+  // shipping. Pinned facts:
+  //
+  //   1. The APP_LANGUAGES array contains both 'en' and 'es'.
+  //   2. The picker writes general.app_language, NOT
+  //      models.whisper_language. The two settings are independent;
+  //      conflating them was the single biggest risk flagged in the
+  //      Spanish-pilot brief.
+  //   3. The chip label is rendered through tCommon(`language.${...}`)
+  //      so labels stay catalogue-routed rather than hard-coded.
+
+  const SOURCE: string = (() => {
+    // Read at module-import time so the test list reads cleanly. The
+    // helper is private to this describe block.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('node:path') as typeof import('node:path');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const url = require('node:url') as typeof import('node:url');
+    const here = path.dirname(url.fileURLToPath(import.meta.url));
+    const target = path.resolve(here, '..', 'routes', 'settings', 'GeneralSettings.tsx');
+    return fs.readFileSync(target, 'utf8');
+  })();
+
+  it('APP_LANGUAGES includes both en and es', () => {
+    // The literal array shape `['en', 'es'] as const` is the canonical
+    // way new locales are registered. A regex tolerant to whitespace
+    // catches both compact and pretty-printed variants without making
+    // the test fragile to ordering of unrelated lines.
+    expect(SOURCE).toMatch(/APP_LANGUAGES[^=]*=\s*\[\s*['"]en['"]\s*,\s*['"]es['"]/);
+  });
+
+  it('picker writes general.app_language, never models.whisper_language', () => {
+    // Pin the write target. The picker MUST call update('app_language', ...)
+    // and MUST NOT touch whisper_language from this surface.
+    expect(SOURCE).toContain("update('app_language', code)");
+    expect(SOURCE).not.toContain('whisper_language');
+  });
+
+  it('picker label is routed through the i18n catalogue', () => {
+    // The chip label resolves through tCommon(`language.${code...}`)
+    // rather than being hard-coded. A future refactor that hard-codes
+    // 'English'/'Spanish' loses translation coverage on Spanish UI.
+    expect(SOURCE).toMatch(/tCommon\(`language\./);
   });
 });
