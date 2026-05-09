@@ -1,0 +1,85 @@
+{
+  "language": {
+    "english": "Anglais",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "pt": "Português",
+    "nl": "Nederlands",
+    "auto_detect": "Détection automatique (recommandé)",
+    "spanish": "Espagnol",
+    "french": "Français",
+    "german": "Allemand",
+    "italian": "Italien",
+    "portuguese": "Portugais",
+    "dutch": "Néerlandais",
+    "polish": "Polonais",
+    "turkish": "Turc",
+    "russian": "Russe",
+    "arabic": "Arabe",
+    "hindi": "Hindi",
+    "japanese": "Japonais",
+    "korean": "Coréen",
+    "chinese": "Chinois",
+    "indonesian": "Indonésien",
+    "thai": "Thaï",
+    "vietnamese": "Vietnamien",
+    "swedish": "Suédois",
+    "norwegian": "Norvégien",
+    "danish": "Danois",
+    "finnish": "Finnois",
+    "czech": "Tchèque",
+    "greek": "Grec",
+    "hebrew": "Hébreu"
+  },
+  "chrome": {
+    "nav": {
+      "dashboard": "Tableau de bord",
+      "history": "Historique",
+      "meetings": "Réunions",
+      "modes": "Modes",
+      "vocabulary": "Vocabulaire",
+      "files": "Fichiers"
+    },
+    "footer": {
+      "strap": "local uniquement"
+    },
+    "tier": {
+      "pro": "Pro",
+      "free_cta": "Passer à Pro →"
+    },
+    "update_toast": {
+      "title": "Mise à jour disponible",
+      "install": "Installer et redémarrer",
+      "installing": "Installation…",
+      "later": "Plus tard",
+      "error_generic": "La mise à jour a échoué. Réessayez dans un instant.",
+      "post_title": "Mis à jour vers v{{version}}",
+      "post_body": "Vous êtes sur la dernière version.",
+      "post_link": "Voir les nouveautés →",
+      "dismiss_aria": "Fermer"
+    },
+    "upgrade_modal": {
+      "feature_prefix": "est une",
+      "pro_word": "Pro",
+      "feature_suffix": "fonctionnalité",
+      "period": {
+        "one_time": "paiement unique",
+        "monthly": "par mois",
+        "yearly": "par an"
+      },
+      "not_now": "Pas maintenant",
+      "upgrade": "Mettre à niveau"
+    },
+    "pro_nudge": {
+      "feature_prefix": "est une",
+      "pro_word": "Pro",
+      "feature_suffix": "fonctionnalité.",
+      "learn_more": "En savoir plus →"
+    },
+    "managed_hint": {
+      "default": "Désactivé par votre administrateur."
+    }
+  }
+}

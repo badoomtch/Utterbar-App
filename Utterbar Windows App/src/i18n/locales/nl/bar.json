@@ -1,0 +1,31 @@
+{
+  "phase": {
+    "ready": "Klaar",
+    "initialising_model": "Model wordt geïnitialiseerd",
+    "recording": "Aan het opnemen",
+    "processing": "Bezig met verwerken",
+    "transcribing_meeting": "Bezig met transcriberen van vergadering…",
+    "transcribing_meeting_with_progress": "Bezig met transcriberen van vergadering · {{current}}/{{total}}",
+    "saved": "Opgeslagen · {{time}}{{modelSegment}} · {{chunks}} {{chunkWord}} · {{chars}} tekens",
+    "auto_stopped_5_min": "Automatisch gestopt na 5 min",
+    "inserted": "Ingevoegd",
+    "error": "Fout",
+    "cancelled": "Geannuleerd",
+    "no_audio_detected": "Geen audio gedetecteerd"
+  },
+  "unit": {
+    "chunk_one": "fragment",
+    "chunk_other": "fragmenten"
+  },
+  "button": {
+    "record": "Opnemen",
+    "stop": "Stoppen",
+    "cancel": "Annuleren",
+    "settings": "Instellingen",
+    "copy_last_message": "Laatste bericht kopiëren",
+    "copied": "Gekopieerd"
+  },
+  "mic_mute": {
+    "confirmed": "Bevestigd"
+  }
+}

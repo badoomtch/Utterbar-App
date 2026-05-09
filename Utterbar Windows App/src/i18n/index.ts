@@ -11,6 +11,31 @@ import commonEs from './locales/es/common.json';
 import onboardingEs from './locales/es/onboarding.json';
 import settingsEs from './locales/es/settings.json';
 
+import barFr from './locales/fr/bar.json';
+import commonFr from './locales/fr/common.json';
+import onboardingFr from './locales/fr/onboarding.json';
+import settingsFr from './locales/fr/settings.json';
+
+import barDe from './locales/de/bar.json';
+import commonDe from './locales/de/common.json';
+import onboardingDe from './locales/de/onboarding.json';
+import settingsDe from './locales/de/settings.json';
+
+import barIt from './locales/it/bar.json';
+import commonIt from './locales/it/common.json';
+import onboardingIt from './locales/it/onboarding.json';
+import settingsIt from './locales/it/settings.json';
+
+import barPt from './locales/pt/bar.json';
+import commonPt from './locales/pt/common.json';
+import onboardingPt from './locales/pt/onboarding.json';
+import settingsPt from './locales/pt/settings.json';
+
+import barNl from './locales/nl/bar.json';
+import commonNl from './locales/nl/common.json';
+import onboardingNl from './locales/nl/onboarding.json';
+import settingsNl from './locales/nl/settings.json';
+
 import type { AppLanguage } from '@/generated/AppLanguage';
 
 // Resources are bundled directly. No backend loader, no async fetch — every
@@ -31,16 +56,55 @@ const resources = {
     onboarding: onboardingEs,
     settings: settingsEs,
   },
+  fr: {
+    bar: barFr,
+    common: commonFr,
+    onboarding: onboardingFr,
+    settings: settingsFr,
+  },
+  de: {
+    bar: barDe,
+    common: commonDe,
+    onboarding: onboardingDe,
+    settings: settingsDe,
+  },
+  it: {
+    bar: barIt,
+    common: commonIt,
+    onboarding: onboardingIt,
+    settings: settingsIt,
+  },
+  pt: {
+    bar: barPt,
+    common: commonPt,
+    onboarding: onboardingPt,
+    settings: settingsPt,
+  },
+  nl: {
+    bar: barNl,
+    common: commonNl,
+    onboarding: onboardingNl,
+    settings: settingsNl,
+  },
 } as const;
 
 // Maps the Rust-side `AppLanguage` enum (BCP-47 short codes) to the i18next
-// language tag. `AppLanguage::En` -> `"en"`, `AppLanguage::Es` -> `"es"`.
-// Keep this aligned with the `serde(rename_all = "lowercase")` attribute on
-// the Rust enum.
+// language tag. Keep this aligned with the `serde(rename_all = "lowercase")`
+// attribute on the Rust enum.
 function resolveLng(lang: AppLanguage | undefined): string {
   switch (lang) {
     case 'es':
       return 'es';
+    case 'fr':
+      return 'fr';
+    case 'de':
+      return 'de';
+    case 'it':
+      return 'it';
+    case 'pt':
+      return 'pt';
+    case 'nl':
+      return 'nl';
     case 'en':
     default:
       return 'en';
@@ -51,7 +115,7 @@ void i18n.use(initReactI18next).init({
   resources,
   lng: 'en',
   fallbackLng: 'en',
-  supportedLngs: ['en', 'es'],
+  supportedLngs: ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl'],
   defaultNS: 'common',
   ns: ['bar', 'common', 'onboarding', 'settings'],
   interpolation: {

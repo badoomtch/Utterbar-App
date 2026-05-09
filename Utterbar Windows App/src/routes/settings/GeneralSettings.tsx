@@ -17,10 +17,18 @@ const THEMES = ['obsidian', 'graphite', 'paper'] as const;
 // Languages currently available for the desktop UI. Adding a locale means
 // (a) appending its `AppLanguage` variant here, (b) adding the matching
 // JSON resources in `src/i18n/locales/`, and (c) ensuring `common.language.<code>`
-// exists in BOTH English and the new locale's catalogue so the chip label
-// renders in the language it represents (e.g. "Español" displays the same
-// regardless of which UI language is currently active).
-const APP_LANGUAGES: ReadonlyArray<AppLanguage> = ['en', 'es'] as const;
+// exists in EVERY locale's catalogue so the chip label renders in the
+// language it represents (e.g. "Español" displays the same regardless of
+// which UI language is currently active).
+const APP_LANGUAGES: ReadonlyArray<AppLanguage> = [
+  'en',
+  'es',
+  'fr',
+  'de',
+  'it',
+  'pt',
+  'nl',
+] as const;
 
 /**
  * General settings.

@@ -2,6 +2,11 @@
   "language": {
     "english": "Inglés",
     "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "pt": "Português",
+    "nl": "Nederlands",
     "auto_detect": "Detección automática (recomendado)",
     "spanish": "Español",
     "french": "Francés",

@@ -1,0 +1,31 @@
+{
+  "phase": {
+    "ready": "Pronto",
+    "initialising_model": "Inizializzazione modello",
+    "recording": "Registrazione",
+    "processing": "Elaborazione",
+    "transcribing_meeting": "Trascrizione riunione…",
+    "transcribing_meeting_with_progress": "Trascrizione riunione · {{current}}/{{total}}",
+    "saved": "Salvato · {{time}}{{modelSegment}} · {{chunks}} {{chunkWord}} · {{chars}} caratteri",
+    "auto_stopped_5_min": "Interrotto automaticamente a 5 min",
+    "inserted": "Inserito",
+    "error": "Errore",
+    "cancelled": "Annullato",
+    "no_audio_detected": "Nessun audio rilevato"
+  },
+  "unit": {
+    "chunk_one": "frammento",
+    "chunk_other": "frammenti"
+  },
+  "button": {
+    "record": "Registra",
+    "stop": "Arresta",
+    "cancel": "Annulla",
+    "settings": "Impostazioni",
+    "copy_last_message": "Copia ultimo messaggio",
+    "copied": "Copiato"
+  },
+  "mic_mute": {
+    "confirmed": "Confermato"
+  }
+}

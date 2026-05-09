@@ -1,0 +1,85 @@
+{
+  "language": {
+    "english": "Englisch",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "pt": "Português",
+    "nl": "Nederlands",
+    "auto_detect": "Automatisch erkennen (empfohlen)",
+    "spanish": "Spanisch",
+    "french": "Französisch",
+    "german": "Deutsch",
+    "italian": "Italienisch",
+    "portuguese": "Portugiesisch",
+    "dutch": "Niederländisch",
+    "polish": "Polnisch",
+    "turkish": "Türkisch",
+    "russian": "Russisch",
+    "arabic": "Arabisch",
+    "hindi": "Hindi",
+    "japanese": "Japanisch",
+    "korean": "Koreanisch",
+    "chinese": "Chinesisch",
+    "indonesian": "Indonesisch",
+    "thai": "Thailändisch",
+    "vietnamese": "Vietnamesisch",
+    "swedish": "Schwedisch",
+    "norwegian": "Norwegisch",
+    "danish": "Dänisch",
+    "finnish": "Finnisch",
+    "czech": "Tschechisch",
+    "greek": "Griechisch",
+    "hebrew": "Hebräisch"
+  },
+  "chrome": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "history": "Verlauf",
+      "meetings": "Meetings",
+      "modes": "Modi",
+      "vocabulary": "Vokabular",
+      "files": "Dateien"
+    },
+    "footer": {
+      "strap": "nur lokal"
+    },
+    "tier": {
+      "pro": "Pro",
+      "free_cta": "Auf Pro upgraden →"
+    },
+    "update_toast": {
+      "title": "Update verfügbar",
+      "install": "Installieren und neu starten",
+      "installing": "Wird installiert…",
+      "later": "Später",
+      "error_generic": "Update fehlgeschlagen. Versuche es gleich noch einmal.",
+      "post_title": "Auf v{{version}} aktualisiert",
+      "post_body": "Du nutzt die neueste Version.",
+      "post_link": "Was ist neu →",
+      "dismiss_aria": "Schließen"
+    },
+    "upgrade_modal": {
+      "feature_prefix": "ist eine",
+      "pro_word": "Pro",
+      "feature_suffix": "Funktion",
+      "period": {
+        "one_time": "einmalig",
+        "monthly": "pro Monat",
+        "yearly": "pro Jahr"
+      },
+      "not_now": "Nicht jetzt",
+      "upgrade": "Upgraden"
+    },
+    "pro_nudge": {
+      "feature_prefix": "ist eine",
+      "pro_word": "Pro",
+      "feature_suffix": "Funktion.",
+      "learn_more": "Mehr erfahren →"
+    },
+    "managed_hint": {
+      "default": "Von deinem Administrator deaktiviert."
+    }
+  }
+}
