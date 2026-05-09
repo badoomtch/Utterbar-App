@@ -1,0 +1,31 @@
+{
+  "phase": {
+    "ready": "Bereit",
+    "initialising_model": "Modell wird initialisiert",
+    "recording": "Aufnahme",
+    "processing": "Verarbeitung",
+    "transcribing_meeting": "Meeting wird transkribiert…",
+    "transcribing_meeting_with_progress": "Meeting wird transkribiert · {{current}}/{{total}}",
+    "saved": "Gespeichert · {{time}}{{modelSegment}} · {{chunks}} {{chunkWord}} · {{chars}} Zeichen",
+    "auto_stopped_5_min": "Automatisch nach 5 Min. gestoppt",
+    "inserted": "Eingefügt",
+    "error": "Fehler",
+    "cancelled": "Abgebrochen",
+    "no_audio_detected": "Kein Audio erkannt"
+  },
+  "unit": {
+    "chunk_one": "Segment",
+    "chunk_other": "Segmente"
+  },
+  "button": {
+    "record": "Aufnehmen",
+    "stop": "Stopp",
+    "cancel": "Abbrechen",
+    "settings": "Einstellungen",
+    "copy_last_message": "Letzte Nachricht kopieren",
+    "copied": "Kopiert"
+  },
+  "mic_mute": {
+    "confirmed": "Bestätigt"
+  }
+}

@@ -154,6 +154,11 @@ pub enum AppLanguage {
     #[default]
     En,
     Es,
+    Fr,
+    De,
+    It,
+    Pt,
+    Nl,
 }
 
 /// Cue-sound flavour. All profiles are synthesised on the fly via the frontend's

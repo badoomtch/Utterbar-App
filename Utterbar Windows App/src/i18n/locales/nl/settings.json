@@ -1,0 +1,720 @@
+{
+  "general": {
+    "title": "Algemeen",
+    "startup": {
+      "title": "Opstart",
+      "launch_on_login": {
+        "label": "Starten bij aanmelden",
+        "description": "Start Utterbar automatisch wanneer je je aanmeldt bij Windows, zodat de zwevende balk er altijd is zonder hem handmatig te openen."
+      },
+      "start_minimised": {
+        "label": "Geminimaliseerd starten",
+        "description": "Indien aan, start Utterbar direct in het systeemvak en de zwevende balk, zonder hoofdvenster totdat je erom vraagt. Indien uit, opent het Dashboard bij het starten zodat je je statistieken meteen ziet."
+      },
+      "close_to_tray": {
+        "label": "Sluiten naar systeemvak",
+        "description": "Op de X van een venster drukken verbergt het in het systeemvak in plaats van af te sluiten."
+      }
+    },
+    "appearance": {
+      "title": "Uiterlijk",
+      "theme": {
+        "label": "Thema",
+        "description": "Achtergrondpalet voor het hoofdvenster en de introductie.",
+        "options": {
+          "obsidian": "Obsidiaan",
+          "graphite": "Grafiet",
+          "paper": "Papier"
+        }
+      },
+      "accent": {
+        "label": "Accent",
+        "description": "De kleur die wordt gebruikt voor de opnameknop, het pilglyph, accenten en de golfvorm van de zwevende balk."
+      },
+      "custom_accent": {
+        "title_pro": "Kies een willekeurige kleur (Pro)",
+        "title_free": "Aangepast accent is een Pro-functie",
+        "aria": "Aangepaste accentkleur"
+      }
+    },
+    "app_language": {
+      "label": "App-taal",
+      "description": "Interfacetaal. De dicteertaal stel je apart in bij Modellen."
+    },
+    "feedback": {
+      "title": "Feedback",
+      "sound_cues": {
+        "label": "Geluidssignalen",
+        "description": "Speelt een korte gesynthetiseerde toon af wanneer de opname begint, stopt, slaagt of faalt. De tonen worden in de app gegenereerd via WebAudio, dus geen samplebestanden; standaard zacht volume."
+      },
+      "sound_profile": {
+        "label": "Geluidsprofiel",
+        "description": "Welke familie van signaaltonen te gebruiken. Klik op een profiel om de succesvolle toon te horen.",
+        "options": {
+          "default": {
+            "label": "Standaard",
+            "description": "Warme driehoekstonen op een muzikale kwint — de zachte, bevredigende standaard."
+          },
+          "classic": {
+            "label": "Tactiel",
+            "description": "Knapperige mechanische klikken bij start / stop, een zachte bel bij succes."
+          },
+          "subtle": {
+            "label": "Subtiel",
+            "description": "Stille piepjes met één toon — minimaal, zonder melodie."
+          },
+          "chime": {
+            "label": "Klokkenspel",
+            "description": "Warme driehoeksgolf-tertsen met langere uitsterving."
+          }
+        }
+      },
+      "notifications": {
+        "label": "Systeemmeldingen",
+        "description": "Toont een Windows-melding wanneer iets echt je aandacht nodig heeft: dictaatfouten, mislukte modelinstallaties, geslaagde modelinstallaties."
+      }
+    },
+    "upgrade": {
+      "custom_accent": {
+        "feature": "Aangepaste accentkleuren",
+        "description": "Kies een willekeurige kleur voor de accentfamilie, de opnameknop, de golfvorm van de zwevende balk, het pilglyph en elk accent. De zes voorinstellingen zijn gratis; eigen kleur hoort bij Pro.",
+        "bullets": {
+          "any_hex": "Kies een willekeurige hex-kleur met de Windows-kleurkiezer",
+          "auto_tint_shade": "Automatisch afgeleide tinten en schaduwen, zodat verlopen diepte behouden",
+          "presets_free": "Alle zes voorinstellingen blijven gratis voor iedereen"
+        }
+      }
+    }
+  },
+  "nav": {
+    "group": {
+      "workspace": "Werkruimte",
+      "settings": "Instellingen"
+    },
+    "search": {
+      "placeholder": "Instellingen zoeken",
+      "clear": "Zoekopdracht wissen",
+      "no_match": "Geen instelling komt overeen met \"{{query}}\""
+    },
+    "general": {
+      "label": "Algemeen",
+      "matches": {
+        "theme": "Thema",
+        "accent": "Accentkleur",
+        "launch_at_startup": "Starten bij systeemstart",
+        "start_minimised": "Geminimaliseerd starten",
+        "show_in_tray": "In systeemvak weergeven",
+        "notification_sound": "Meldingsgeluid",
+        "app_language": "App-taal"
+      }
+    },
+    "bar": {
+      "label": "Utterbar",
+      "matches": {
+        "position": "Positie zwevende balk",
+        "auto_hide": "Automatisch verbergen bij inactiviteit",
+        "background": "Achtergrondgedrag"
+      }
+    },
+    "audio": {
+      "label": "Audio",
+      "matches": {
+        "microphone": "Microfoon",
+        "input_device": "Invoerapparaat",
+        "noise_gate": "Ruisdrempel",
+        "gain": "Versterking",
+        "sample_rate": "Samplefrequentie",
+        "system_audio": "Systeemaudio"
+      }
+    },
+    "models": {
+      "label": "Modellen",
+      "matches": {
+        "default_dictation_model": "Standaard dicteermodel",
+        "meeting_mode_model": "Model voor Vergadermodus",
+        "model_downloads": "Modeldownloads",
+        "keep_model_warm": "Model warm houden",
+        "whisper": "Whisper",
+        "parakeet": "Parakeet"
+      }
+    },
+    "shortcuts": {
+      "label": "Sneltoetsen",
+      "matches": {
+        "toggle_recording_hotkey": "Sneltoets opname wisselen",
+        "cancel_recording_hotkey": "Sneltoets opname annuleren"
+      }
+    },
+    "text_output": {
+      "label": "Tekstuitvoer",
+      "matches": {
+        "paste_automatically": "Automatisch plakken",
+        "restore_clipboard": "Klembord herstellen",
+        "type_out_if_blocked": "Typen als plakken geblokkeerd is",
+        "auto_capitalise": "Automatische hoofdletter",
+        "trim_trailing_whitespace": "Spaties aan het einde knippen",
+        "auto_space": "Automatische spatie",
+        "numbers_as_digits": "Getallen als cijfers",
+        "smart_rewrite": "Slim herschrijven",
+        "hold_shift_auto_send": "Shift vasthouden om automatisch te verzenden"
+      }
+    },
+    "accessibility": {
+      "label": "Toegankelijkheid",
+      "matches": {
+        "reduce_motion": "Beweging verminderen",
+        "high_contrast": "Hoog contrast",
+        "text_size": "Tekstgrootte",
+        "tooltips": "Knopinfo"
+      }
+    },
+    "privacy": {
+      "label": "Privacy",
+      "matches": {
+        "save_recordings": "Opnames bewaren",
+        "delete_after": "Opnames verwijderen na",
+        "active_app_context": "Context actieve app",
+        "selection_context": "Context van selectie",
+        "clipboard_context": "Context van klembord",
+        "pause_music": "Muziek pauzeren tijdens opnemen",
+        "mute_conferencing_output": "Uitvoer van vergader-apps dempen",
+        "apps_to_silence": "Apps om te dempen",
+        "data_locations": "Datalocaties"
+      }
+    },
+    "advanced": {
+      "label": "Geavanceerd",
+      "matches": {
+        "gpu_acceleration": "GPU-versnelling",
+        "directml": "DirectML",
+        "cpu_only": "Alleen CPU",
+        "mute_mic_teams": "Mic dempen in Teams (experimenteel)",
+        "mute_mic_discord": "Mic dempen in Discord (experimenteel)",
+        "diagnostics": "Diagnose",
+        "export_data": "Data exporteren",
+        "import_backup": "Back-up importeren",
+        "reset_settings": "Instellingen resetten"
+      }
+    },
+    "licence": {
+      "label": "Licentie",
+      "matches": {
+        "activate_pro": "Pro activeren",
+        "licence_key": "Licentiesleutel",
+        "devices": "Apparaten",
+        "managed_licence_bin": "Beheerde licence.bin",
+        "air_gapped_activation": "Activering zonder verbinding"
+      }
+    },
+    "updates": {
+      "label": "Updates",
+      "matches": {
+        "update_channel": "Updatekanaal",
+        "check_for_updates": "Controleer op updates",
+        "beta_channel": "Bètakanaal",
+        "stable_channel": "Stabiel kanaal",
+        "release_notes": "Releaseopmerkingen"
+      }
+    },
+    "about": {
+      "label": "Over",
+      "matches": {
+        "version": "Versie",
+        "credits": "Credits",
+        "website_links": "Websitekoppelingen"
+      }
+    }
+  },
+  "text_output": {
+    "title": "Tekstuitvoer",
+    "subtitle": "Hoe gedicteerde tekst in je actieve app belandt.",
+    "delivery": {
+      "title": "Aflevering",
+      "paste_automatically": {
+        "label": "Automatisch plakken",
+        "description": "Na transcriptie wordt het resultaat naar het klembord gekopieerd en wordt Ctrl+V gesimuleerd. Dit is de snelste, meest betrouwbare route; de meeste apps accepteren het."
+      },
+      "restore_clipboard": {
+        "label": "Vorig klembord herstellen",
+        "description": "Ongeveer 1,5 seconde na het plakken wordt teruggezet wat eerder op je klembord stond. Houdt je kopieerbuffer intact."
+      },
+      "keystroke_fallback": {
+        "label": "Typen als plakken geblokkeerd is",
+        "description": "Sommige apps (admintools, extern bureaublad, enkele games) accepteren geen geplakte tekst. Wanneer dat gebeurt, typt Utterbar de woorden teken voor teken. Langzamer, maar bereikt apps die het plakken anders zouden negeren. Laat aan tenzij je een reden hebt om dat niet te doen."
+      }
+    },
+    "formatting": {
+      "title": "Opmaak",
+      "auto_capitalise": {
+        "label": "Eerste letter automatisch in hoofdletter",
+        "description": "Zorgt ervoor dat de ingevoegde tekst met een hoofdletter begint, ongeacht hoe het model het heeft getranscribeerd."
+      },
+      "trim_trailing_space": {
+        "label": "Spaties aan het einde knippen",
+        "description": "Verwijdert spaties, tabs of nieuwe regels aan het einde van de getranscribeerde tekst voordat deze wordt ingevoegd."
+      },
+      "auto_space_on_paste": {
+        "label": "Automatische spatie tussen dictaten",
+        "description": "Wanneer je twee dingen achter elkaar dicteert in dezelfde app, wordt er een spatie tussen geplaatst als de eerste niet al met een spatie eindigde. Voorkomt dat 'hallo' + 'wereld' samenklonteren tot 'hallowereld'."
+      },
+      "numbers_as_digits": {
+        "label": "Getallen als cijfers",
+        "description": "Converteert gesproken getallen naar cijfers (&lsquo;drieëntwintig&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;vijf euro&rsquo; &rarr; &lsquo;5 euro&rsquo;). Idiomatische uitdrukkingen blijven woorden (&lsquo;een dezer dagen&rsquo;). Schakel uit als je liever uitgeschreven getallen hebt."
+      },
+      "smart_rewrite": {
+        "label": "Slim herschrijven",
+        "description": "Ruimt stopwoorden op (&lsquo;eh&rsquo;, &lsquo;hmm&rsquo;, &lsquo;zeg maar&rsquo;), spatiëring, hoofdletters en eindleestekens lokaal voor invoegen. Alleen deterministisch &mdash; geen AI-model, geen clouddienst, geen modeldownload. Voegt wat verwerkingstijd toe. Standaard uit. Het beste voor chat- en e-maildictaat; schakel uit als je code dicteert (de regel die zinsbegin met hoofdletter zet, zal ook trefwoorden als &lsquo;let&rsquo; of &lsquo;fn&rsquo; met hoofdletter zetten). Vergadermodus wordt niet beïnvloed (transcripties blijven letterlijk)."
+      },
+      "shift_to_auto_send": {
+        "label": "Shift vasthouden om automatisch te verzenden",
+        "description": "Als je Shift vasthoudt wanneer je de opname stopt, drukt Utterbar Enter voor je in direct na het plakken, zodat het bericht in Teams, Slack, Discord, enz. de deur uitgaat zonder een tweede actie."
+      }
+    }
+  },
+  "accessibility": {
+    "title": "Toegankelijkheid",
+    "subtitle": "Maak het hoofdvenster van Utterbar comfortabeler om te lezen, te horen en doorheen te navigeren.",
+    "ui_scale": {
+      "title": "UI-schaal",
+      "description": "Schaalt het hele hoofdvenster: tekst, opvulling, knoppen en pictogrammen, ten opzichte van de standaardgrootte. De zwevende balk is bewust uitgesloten zodat hij ongeacht je keuze hier dezelfde fysieke grootte behoudt.",
+      "scale": {
+        "label": "Schaal",
+        "description": "Kies een voorinstelling of versleep de schuifregelaar voor fijne controle."
+      },
+      "fine_tune": {
+        "label": "Fijn afstemmen"
+      },
+      "value": "{{value}}%"
+    },
+    "motion": {
+      "title": "Beweging",
+      "description": "Voor wie verende animaties afleidend of duizelingwekkend vindt.",
+      "reduce_motion": {
+        "label": "Beweging verminderen",
+        "description": "Beperkt animaties in heel Utterbar; de zwevende balk verschijnt nog steeds, maar de verende veren, balk-uitvouwtransities en startpuls worden onderdrukt. Zowel Framer Motion als CSS-overgangen respecteren dit."
+      }
+    },
+    "contrast": {
+      "title": "Contrast en focus",
+      "description": "Verhoog de zichtbaarheid van tekst, randen en toetsenbordfocus. Nuttig voor mensen met een visuele beperking en voor werk in fel verlichte ruimtes.",
+      "high_contrast": {
+        "label": "Hoog contrast",
+        "description": "Duwt fletse grijstinten richting puur wit (of puur zwart op Papier), maakt fijne scheidingslijnen dikker en tilt elke randwaarde naar zijn sterkere variant. Geldt overal: hoofdvenster, zwevende balk, introductie."
+      },
+      "larger_focus_rings": {
+        "label": "Grotere focusringen",
+        "description": "Maakt de toetsenbordfocuscontouren dikker van 2 px naar 4 px met een sterkere halo, zodat tab-genavigeerde focus op elke achtergrond onmiskenbaar is. Muisgestuurde focus wordt niet beïnvloed."
+      }
+    },
+    "transparency": {
+      "title": "Transparantie",
+      "description": "Vensters en plakkende headers gebruiken standaard subtiele achtergrondvervaging. Schakel uit als het de inhoud moeilijk leesbaar maakt of als je GPU het druk heeft met andere zaken.",
+      "reduce_transparency": {
+        "label": "Transparantie verminderen",
+        "description": "Maakt glas/matte achtergronden dichter en verwijdert achtergrondvervaging in de hele app. Verandert de lay-out niet, alleen het visuele gevoel van headers en overlays."
+      }
+    }
+  },
+  "bar_settings": {
+    "title": "Utterbar",
+    "subtitle": "De zwevende pil die boven je bureaublad woont. Stel het uiterlijk en het verschijningsmoment in.",
+    "visibility": {
+      "title": "Zichtbaarheid",
+      "always": {
+        "label": "Altijd zichtbaar",
+        "description": "Utterbar zit aan de bovenkant van je scherm zolang de app draait. Standaardgedrag — het makkelijkst te vinden, het makkelijkst aan te klikken."
+      },
+      "while_recording": {
+        "label": "Alleen tijdens opnemen",
+        "description": "De balk blijft verborgen tot je het dictaat activeert; dan duikt hij op zodat je de golfvorm ziet en kunt stoppen / annuleren. Minimale voetafdruk op het scherm."
+      },
+      "hidden": {
+        "label": "Nooit weergeven",
+        "description": "Utterbar verschijnt nooit. Stuur alles aan vanaf je toetsenbordsneltoets en het systeemvakpictogram. De snelste, meest stille opzet."
+      }
+    },
+    "appearance": {
+      "title": "Uiterlijk",
+      "size": {
+        "label": "Grootte",
+        "description": "Compact verkleint de pil. Standaard geeft de bedieningselementen meer ruimte.",
+        "options": {
+          "compact": "Compact",
+          "standard": "Standaard"
+        }
+      },
+      "outline": {
+        "label": "Accentcontour",
+        "description": "Voegt een dunne rand in de accentkleur rond de pil toe, zodat hij makkelijker te onderscheiden is op heldere achtergronden."
+      }
+    },
+    "position": {
+      "title": "Positie",
+      "reset": {
+        "label": "Positie resetten",
+        "description": "Klikt Utterbar terug naar het bovenmidden van je huidige monitor. Gebruik dit als de pil achter de taakbalk, buiten beeld of op een inmiddels losgekoppelde monitor is beland. Ook beschikbaar via het rechtsklikmenu van het systeemvakpictogram.",
+        "button": "Positie resetten"
+      }
+    }
+  },
+  "about": {
+    "title": "Over",
+    "tagline": "Lokaal-alleen dictaat voor Windows. Alle audio- en tekstverwerking gebeurt op deze computer. Er worden geen cloud-services gecontacteerd voor transcriptie of nabewerking.",
+    "version_pending": "v…",
+    "footer": {
+      "copyright_prefix": "© {{year}} Utterbar · Gebouwd door",
+      "attribution_link": "Ddraig Dev",
+      "location_suffix": "· Gebouwd in Wales",
+      "website_link": "utterbar.com"
+    },
+    "third_party": {
+      "title": "Licenties van derden",
+      "description": "Open-source-bibliotheken en -modellen meegebundeld met Utterbar."
+    }
+  },
+  "shortcuts": {
+    "title": "Sneltoetsen",
+    "subtitle": "Globale toetscombinaties. Druk een willekeurige combinatie in elke app om te activeren.",
+    "capture": {
+      "press_keys": "Druk op toetsen…",
+      "unbound": "Niet toegewezen"
+    },
+    "buttons": {
+      "clear": "Wissen"
+    },
+    "conflict": {
+      "tooltip": "Conflict met een andere binding op {{accelerator}}"
+    },
+    "tip": {
+      "prefix": "Tip: druk",
+      "suffix": "om het vastleggen te annuleren."
+    }
+  },
+  "audio": {
+    "title": "Audio",
+    "subtitle": "Invoerapparaten, voorverwerking en microfoontest.",
+    "capture_source": {
+      "title": "Opnamebron",
+      "description": "Waar Utterbar naar luistert. Schakel naar Systeemaudio om een vergadering of een video in een andere app te transcriberen; Gemengd neemt beide op zodat een gesprek waarin je ook spreekt beide kanten vastlegt.",
+      "options": {
+        "microphone": {
+          "label": "Microfoon",
+          "note": "Neemt je stem op vanaf de geselecteerde microfoon. Het beste voor dagelijks dictaat."
+        },
+        "system": {
+          "label": "Systeemaudio",
+          "note": "Neemt op wat via je luidsprekers wordt afgespeeld: vergaderingen, video's, spraakmemo's. WASAPI-loopback: geen virtuele kabel nodig."
+        },
+        "mixed": {
+          "label": "Gemengd (mic + systeem)",
+          "note": "Beide tegelijk, opgeteld. Handig om gesprekken te transcriberen waarin je ook spreekt."
+        }
+      }
+    },
+    "meeting_callout": {
+      "title": "Let op: Vergadermodus regelt dit voor je",
+      "description": "Wanneer een modus als Vergadering is gemarkeerd, gebruikt Utterbar altijd mic + systeemaudio samen (hoeft hier niet ingesteld te worden), splitst hij lange opnames in stukken van 30 seconden zodat ze de recogniser niet uit het geheugen blazen, en slaat hij nabewerking over zodat de transcriptie letterlijk blijft. De ingebouwde modus 'Vergadering' is standaard zo ingesteld.",
+      "link": "Modi openen →"
+    },
+    "input_device": {
+      "title": "Invoerapparaat",
+      "microphone": {
+        "label": "Microfoon",
+        "description": "Vanaf welk apparaat Utterbar opneemt. Systeemstandaard volgt wat Windows heeft ingesteld."
+      },
+      "system_default": "Systeemstandaard",
+      "system_default_caption": "systeemstandaard",
+      "live_meter": {
+        "label": "Live-meter",
+        "test": "Testen",
+        "stop": "Stoppen"
+      }
+    },
+    "noise_handling": {
+      "title": "Ruisbehandeling",
+      "description": "Maakt de opname schoon voordat hij Parakeet bereikt. Alles hier draait lokaal in sub-milliseconde tijd, geen cloud-passage.",
+      "suppression": {
+        "label": "Sterkte van de onderdrukking",
+        "description": "Breedbandfilter dat gerommel, ventilatorgebrom en HVAC-lawaai elimineert. Begin met Gebalanceerd; ga alleen naar Agressief als er nog veel kamerlawaai op de achtergrond is.",
+        "preview_tooltip": "{{blurb}} · Klik om te beluisteren",
+        "preview_hint": "Tik op een niveau om een sample van ~1 s te horen.",
+        "levels": {
+          "off": {
+            "label": "Uit",
+            "blurb": "Geen verwerking. Laagste latentie, behoudt elke nuance voor het model."
+          },
+          "light": {
+            "label": "Licht",
+            "blurb": "Snijdt subwoofer-band gerommel weg (onder ~60 Hz). Goed voor stille kamers."
+          },
+          "balanced": {
+            "label": "Gebalanceerd",
+            "blurb": "Snijdt ventilatorgebrom, HVAC en toetsenbordgeklikker tussen woorden weg. Het beste voor de meeste opstellingen."
+          },
+          "aggressive": {
+            "label": "Agressief",
+            "blurb": "Hardere hoogdoorlaatfilter + hogere drempel. Voor cafés en lawaaiige kamers; kan zachte medeklinkers afkappen."
+          }
+        }
+      },
+      "noise_gate": {
+        "label": "Drempel tussen woorden",
+        "description": "Stelt korte stille pauzes op nul zodat toetsenbordklikken, muisklikken, lipgeklak en ademgeluiden tussen frasen het model niet bereiken. Vult de bovenstaande onderdrukking aan; veilig op elk niveau."
+      },
+      "dynamic_normalisation": {
+        "label": "Dynamische normalisatie",
+        "description": "Tilt zachte opnames op naar een consistent niveau voor transcriptie. Helpt wanneer de microfoon ver weg is of de spreker zacht spreekt."
+      },
+      "silence_removal": {
+        "label": "Stilte trimmen",
+        "description": "Verwijdert leidende / volgende stilte voordat het model het ziet. Snellere transcripties, identieke kwaliteit."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Privacy",
+    "subtitle": "Utterbar verwerkt alles op het apparaat. Jij hebt altijd de controle over wat bewaard wordt en wat als context wordt gebruikt.",
+    "managed_hint": "Sommige privacy-instellingen op dit apparaat worden beheerd door je beheerder. Start Utterbar opnieuw om beleidswijzigingen door te voeren.",
+    "context": {
+      "title": "Contextopname",
+      "description": "Welke signalen mag een modus gebruiken om de uitvoer aan te passen?",
+      "active_app": {
+        "label": "Context van actieve app toestaan",
+        "description": "App-uitvoerbaar bestand en venstertitel."
+      },
+      "selection": {
+        "label": "Context van selectie toestaan",
+        "description": "Tekst die momenteel is geselecteerd in de voorgrond-app."
+      },
+      "clipboard": {
+        "label": "Context van klembord toestaan",
+        "description": "Meest recent gekopieerde tekst."
+      }
+    },
+    "audio_retention": {
+      "title": "Audiobehoud",
+      "save_recordings": {
+        "label": "Opnames bewaren",
+        "description": "Bewaart de WAV van elk dictaat op schijf zodat je het later opnieuw kunt afspelen of transcriberen. Bestanden staan in je Opnames-map en worden automatisch opgeruimd na het bewaarvenster hieronder."
+      },
+      "pro_nudge": {
+        "feature": "Audiobehoud",
+        "description": "Bewaar een lokale WAV van elk dictaat zodat je het later opnieuw kunt beluisteren of transcriberen. Alleen op je schijf opgeslagen, nooit geüpload."
+      },
+      "delete_after": {
+        "label": "Opnames verwijderen na",
+        "description": "Oudere WAV's worden bij elk nieuw dictaat automatisch opgeruimd, zodat de opnamemap niet uitdijt.",
+        "value": "{{days}} dagen"
+      }
+    },
+    "media": {
+      "title": "Media",
+      "pause_music": {
+        "label": "Muziek pauzeren tijdens opnemen",
+        "description": "Pauzeert automatisch Spotify, YouTube, Apple Music en elke andere app die zich heeft geregistreerd bij de Windows-mediabesturing terwijl je dicteert. Alleen sessies die Utterbar pauzeerde worden hervat."
+      },
+      "mute_conferencing": {
+        "label": "Uitvoer van vergader-apps dempen tijdens opnemen",
+        "description": "Dempt wat je HOORT van Teams, Slack, Discord, Zoom en Webex terwijl je dicteert, zodat gespreksaudio en notificatiepiepjes niet de kamer in lekken. Hersteld zodra het dictaat eindigt. Dit dempt NIET je microfoon binnen die apps; gebruik daarvoor de eigen dempknop van elke app."
+      }
+    },
+    "conferencing_apps": {
+      "title": "Apps om te dempen",
+      "description_prefix": "Namen van uitvoerbare bestanden worden hoofdletterongevoelig vergeleken met draaiende processen.",
+      "using_defaults": "Ingebouwde standaardwaarden in gebruik.",
+      "using_custom": "Je aangepaste lijst in gebruik.",
+      "edit_locked": "Schakel de bovenstaande schakelaar in om deze lijst te bewerken.",
+      "reset_to_defaults": "Standaardwaarden herstellen",
+      "empty": "Geen apps geconfigureerd.",
+      "input_placeholder": "bijv. Teams.exe",
+      "add": "Toevoegen",
+      "remove_aria": "{{name}} verwijderen",
+      "errors": {
+        "empty": "Voer een naam van een uitvoerbaar bestand in.",
+        "invalid_characters": "Alleen letters, cijfers, punt, underscore en streepje. Geen paden, stationsletters, aanhalingstekens of jokertekens.",
+        "too_long": "Naam is te lang (max 64 tekens).",
+        "duplicate": "Die app staat al in de lijst.",
+        "defaults_loading": "Standaardwaarden worden nog geladen — probeer het zo opnieuw.",
+        "fallback": "Die naam is niet geldig."
+      }
+    },
+    "data_locations": {
+      "title": "Datalocaties",
+      "rows": {
+        "config": "Configuratie",
+        "database": "Database",
+        "models": "Modellen",
+        "recordings": "Opnames",
+        "logs": "Logboeken"
+      }
+    }
+  },
+  "updates": {
+    "title": "Updates",
+    "subtitle": "Kies je kanaal, zie wat er in deze versie is veranderd en zoek naar nieuwe releases.",
+    "beta_warning": {
+      "heading": "Je zit op het bètakanaal.",
+      "body": "Bètabuilds zijn voorversies. Ze kunnen je installatie breken, gegevens verliezen of nieuwe bugs introduceren. Schakel hieronder over naar Stabiel als je liever alleen versies ziet die al door tests heen zijn."
+    },
+    "channel": {
+      "title": "Kanaal",
+      "description": "Stabiel is het publieke kanaal. Alleen versies die in bèta zijn gerijpt belanden daar. Bèta ontvangt voorversiebuilds voor tests.",
+      "row_label": "Updatekanaal",
+      "options": {
+        "stable": "Stabiel",
+        "beta": "Bèta"
+      },
+      "auto_check": {
+        "label": "Automatisch op updates controleren",
+        "description": "Controleert de update-feed bij het opstarten en toont een melding als er een nieuwere versie beschikbaar is. Geen automatische installatie; jij klikt altijd op Installeren."
+      },
+      "check_now": {
+        "label": "Nu controleren",
+        "description_idle": "Vraagt nu meteen aan de updateserver, onafhankelijk van de opstartcontrole.",
+        "description_available": "{{current}} → {{available}}, zie de melding om te installeren.",
+        "description_up_to_date": "Je bent up-to-date.",
+        "description_failed": "Kon de updateserver niet bereiken. Controleer je verbinding en probeer het opnieuw.",
+        "checking": "Bezig met controleren…",
+        "button": "Nu controleren"
+      }
+    },
+    "release_notes": {
+      "title_with_version": "Wat is nieuw in {{version}}",
+      "title_fallback": "Wat is nieuw in deze versie",
+      "description": "Releaseopmerkingen voor de versie die je draait. Opmerkingen van oudere versies leven in het GitHub-releases-archief.",
+      "empty": "Geen releaseopmerkingen meegeleverd voor deze versie. (Waarschijnlijk een ontwikkelbuild.)"
+    },
+    "release_email": {
+      "title": "Release-updates",
+      "description": "Ontvang een korte e-mail wanneer er een nieuwe Utterbar-versie uitkomt. Wat is nieuw, hoe te updaten, niets meer. Met één klik uit te schrijven vanuit elke release-mail.",
+      "row": {
+        "label": "Mail me wanneer er een nieuwe release is",
+        "description": "Maximaal één mail per release. Je adres blijft alleen op de serverlijst; we delen het nooit."
+      },
+      "input_placeholder": "jij@voorbeeld.com",
+      "subscribe": "Abonneren",
+      "sending": "Bezig met verzenden…",
+      "subscribed_as": "Geabonneerd als {{email}}",
+      "change_email": "E-mail wijzigen",
+      "errors": {
+        "empty": "Voer je e-mail in om te abonneren.",
+        "invalid": "Dat lijkt geen e-mailadres, controleer op typefouten.",
+        "fallback": "Kon de server niet bereiken. Controleer je verbinding en probeer het opnieuw."
+      }
+    }
+  },
+  "advanced": {
+    "title": "Geavanceerd",
+    "subtitle": "Diagnose, hardwarevoorkeuren en experimentele schakelaars.",
+    "gpu": {
+      "title": "GPU-versnelling",
+      "description": {
+        "checking": "Controleren welke hardware beschikbaar is…",
+        "no_runtime_ep": "Deze build draait alleen op CPU. DirectML en CUDA verschijnen hier zodat je voorkeur bewaard blijft voor een toekomstige versie die GPU-ondersteuning bevat, maar ze hebben vandaag geen effect.",
+        "detected": "{{name}} gedetecteerd. Auto draait Whisper Medium / Large en Parakeet op de GPU wanneer er een aanwezig is, en houdt Whisper Small op CPU. Je kunt de keuze overrulen door hieronder een specifieke provider te kiezen.",
+        "no_gpu": "GPU-versnelling is ingebouwd, maar er is op deze machine geen toegewijde of geïntegreerde GPU gedetecteerd. Utterbar draait op CPU."
+      },
+      "options": {
+        "auto": {
+          "title": "Auto",
+          "hint": "Gebruik je GPU als die is gedetecteerd en de runtime hem ondersteunt, anders CPU. Aanbevolen."
+        },
+        "direct_ml": {
+          "title": "DirectML",
+          "hint": "Geeft de voorkeur aan DirectML wanneer de build het bevat. Werkt op elke DX12-GPU."
+        },
+        "cuda": {
+          "title": "CUDA",
+          "hint": "Geeft de voorkeur aan NVIDIA CUDA wanneer de build het bevat. Het snelst op NVIDIA-kaarten."
+        },
+        "cpu": {
+          "title": "Alleen CPU",
+          "hint": "Houdt de GPU vrij voor games of video. Iets langzamer per uiting."
+        }
+      },
+      "disabled_suffix": ", niet beschikbaar op deze machine.",
+      "inactive_notice": "Geselecteerd, maar momenteel inactief — deze build bevat die uitvoeringsprovider niet. Transcripties draaien op CPU.",
+      "detected_adapters": "Gedetecteerde adapters",
+      "adapter_software_suffix": " (software)",
+      "adapter_vram_suffix": ", {{mb}} MB VRAM"
+    },
+    "diagnostics": {
+      "title": "Diagnose",
+      "description": "Alles hieronder wordt van deze machine gelezen. Er wordt niets ergens naartoe verzonden.",
+      "rows": {
+        "version": "Versie",
+        "os": "OS",
+        "cpu_threads": "CPU-threads",
+        "onnx": "ONNX-backend",
+        "llama": "llama.cpp-backend",
+        "logs": "Logboeken",
+        "database": "Database",
+        "models": "Modellen"
+      },
+      "feature_state": {
+        "compiled": "gecompileerd",
+        "disabled": "uitgeschakeld"
+      }
+    },
+    "backup": {
+      "title": "Back-up en herstel",
+      "description": "Exporteer je instellingen, modi, woordenschat en geschiedenis naar één bestand dat je tussen machines kunt verplaatsen of als vangnet kunt bewaren. Modellen zijn uitgesloten; die zijn opnieuw te downloaden uit de catalogus.",
+      "include_recordings": {
+        "label": "Opnames opnemen in export",
+        "description": "Audiobestanden uit de geschiedenis. Meestal het grootste deel van het archief; laat uit als je alleen voorkeuren wilt verplaatsen."
+      },
+      "export": {
+        "label": "Data exporteren",
+        "description_idle": "Schrijft een .tar-bestand naar de locatie die je kiest.",
+        "description_last": "Laatste export: {{size}}, bevatte {{contents}}.",
+        "contents_nothing": "niets",
+        "exporting": "Bezig met exporteren…",
+        "button": "Exporteren…",
+        "dialog_title": "Utterbar-data exporteren",
+        "filter_name": "Utterbar-back-up"
+      },
+      "import": {
+        "label": "Data importeren",
+        "description": "Vervangt de huidige instellingen, modi, woordenschat en geschiedenis door de inhoud van de back-up. Utterbar herstart direct daarna.",
+        "importing": "Bezig met importeren…",
+        "button": "Importeren…",
+        "dialog_title": "Utterbar-back-up importeren"
+      },
+      "import_modal": {
+        "eyebrow": "Destructieve actie",
+        "heading": "Alle Utterbar-data vervangen?",
+        "body_prefix": "Importeren van",
+        "body_suffix": "overschrijft je huidige instellingen, modi, woordenschat, geschiedenis en alle in het archief opgenomen opnames. Utterbar herstart direct daarna.",
+        "warning": "Dit kan niet ongedaan worden gemaakt. Als je het niet zeker weet, annuleer en exporteer eerst je huidige data.",
+        "cancel": "Annuleren",
+        "replace": "Vervangen en herstarten",
+        "replacing": "Bezig met importeren en herstarten…"
+      }
+    },
+    "reset": {
+      "title": "Resetten",
+      "row": {
+        "label": "Alle instellingen terugzetten naar standaard",
+        "description": "Modi, woordenschat en geschiedenis blijven behouden."
+      },
+      "button": "Resetten",
+      "confirm": "Alle Utterbar-instellingen resetten? Dit verwijdert geen opnames of geschiedenis."
+    }
+  },
+  "models": {
+    "title": "Modellen",
+    "subtitle": "Parakeet ASR-modellen. Eenmaal gedownload, lokaal opgeslagen, nooit ergens naartoe geüpload.",
+    "whisper_language": {
+      "title": "Whisper-taal",
+      "description": "Wordt alleen door Whisper-modellen gebruikt. Automatische detectie kiest de taal aan het begin van elk dictaat; een specifieke vastzetten is iets sneller maar koppelt je aan die taal."
+    },
+    "language_warning": {
+      "english_only_title": "Dit model ondersteunt alleen Engels",
+      "english_only_body": "Je dicteertaal staat ingesteld op een andere taal dan Engels, maar {{model}} is alleen Engels. Schakel over naar een meertalig Whisper-model om in je gekozen taal te dicteren.",
+      "no_multilingual_title": "Geen meertalig model geïnstalleerd",
+      "no_multilingual_body": "Je dicteertaal staat ingesteld op een andere taal dan Engels, maar er is nog geen meertalig Whisper-model geïnstalleerd. Installeer er een uit de modellenlijst hieronder en kom dan terug om het als standaard in te stellen.",
+      "switch_to_multilingual": "Overschakelen naar meertalig model",
+      "install_multilingual_hint": "Blader door de modellenlijst hieronder en installeer een Whisper-variant."
+    }
+  }
+}

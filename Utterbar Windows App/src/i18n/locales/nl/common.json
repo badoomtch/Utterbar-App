@@ -1,0 +1,85 @@
+{
+  "language": {
+    "english": "Engels",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "pt": "Português",
+    "nl": "Nederlands",
+    "auto_detect": "Automatisch detecteren (aanbevolen)",
+    "spanish": "Spaans",
+    "french": "Frans",
+    "german": "Duits",
+    "italian": "Italiaans",
+    "portuguese": "Portugees",
+    "dutch": "Nederlands",
+    "polish": "Pools",
+    "turkish": "Turks",
+    "russian": "Russisch",
+    "arabic": "Arabisch",
+    "hindi": "Hindi",
+    "japanese": "Japans",
+    "korean": "Koreaans",
+    "chinese": "Chinees",
+    "indonesian": "Indonesisch",
+    "thai": "Thais",
+    "vietnamese": "Vietnamees",
+    "swedish": "Zweeds",
+    "norwegian": "Noors",
+    "danish": "Deens",
+    "finnish": "Fins",
+    "czech": "Tsjechisch",
+    "greek": "Grieks",
+    "hebrew": "Hebreeuws"
+  },
+  "chrome": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "history": "Geschiedenis",
+      "meetings": "Vergaderingen",
+      "modes": "Modi",
+      "vocabulary": "Woordenschat",
+      "files": "Bestanden"
+    },
+    "footer": {
+      "strap": "alleen lokaal"
+    },
+    "tier": {
+      "pro": "Pro",
+      "free_cta": "Upgraden naar Pro →"
+    },
+    "update_toast": {
+      "title": "Update beschikbaar",
+      "install": "Installeren en herstarten",
+      "installing": "Installeren…",
+      "later": "Later",
+      "error_generic": "Update mislukt. Probeer het zo opnieuw.",
+      "post_title": "Bijgewerkt naar v{{version}}",
+      "post_body": "Je hebt de nieuwste versie.",
+      "post_link": "Wat is nieuw →",
+      "dismiss_aria": "Sluiten"
+    },
+    "upgrade_modal": {
+      "feature_prefix": "is een",
+      "pro_word": "Pro",
+      "feature_suffix": "functie",
+      "period": {
+        "one_time": "eenmalig",
+        "monthly": "per maand",
+        "yearly": "per jaar"
+      },
+      "not_now": "Niet nu",
+      "upgrade": "Upgraden"
+    },
+    "pro_nudge": {
+      "feature_prefix": "is een",
+      "pro_word": "Pro",
+      "feature_suffix": "functie.",
+      "learn_more": "Meer informatie →"
+    },
+    "managed_hint": {
+      "default": "Uitgeschakeld door je beheerder."
+    }
+  }
+}

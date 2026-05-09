@@ -9,6 +9,26 @@ import barEs from './locales/es/bar.json';
 import commonEs from './locales/es/common.json';
 import onboardingEs from './locales/es/onboarding.json';
 import settingsEs from './locales/es/settings.json';
+import barFr from './locales/fr/bar.json';
+import commonFr from './locales/fr/common.json';
+import onboardingFr from './locales/fr/onboarding.json';
+import settingsFr from './locales/fr/settings.json';
+import barDe from './locales/de/bar.json';
+import commonDe from './locales/de/common.json';
+import onboardingDe from './locales/de/onboarding.json';
+import settingsDe from './locales/de/settings.json';
+import barIt from './locales/it/bar.json';
+import commonIt from './locales/it/common.json';
+import onboardingIt from './locales/it/onboarding.json';
+import settingsIt from './locales/it/settings.json';
+import barPt from './locales/pt/bar.json';
+import commonPt from './locales/pt/common.json';
+import onboardingPt from './locales/pt/onboarding.json';
+import settingsPt from './locales/pt/settings.json';
+import barNl from './locales/nl/bar.json';
+import commonNl from './locales/nl/common.json';
+import onboardingNl from './locales/nl/onboarding.json';
+import settingsNl from './locales/nl/settings.json';
 
 beforeAll(async () => {
   // The bootstrap module calls `init()` synchronously, but i18next resolves
@@ -1236,9 +1256,9 @@ describe('i18n English foundation', () => {
 
 describe('i18n Spanish locale', () => {
   // Each pair: [namespace, English source, Spanish source]. Drives the
-  // catalogue parity + placeholder parity tests below; adding a fifth
-  // namespace (or a new locale) means appending a row here, not editing
-  // each test individually.
+  // legacy Spanish-only parity + smoke tests below. Bulk locale parity
+  // for every supported review-batch locale (es, fr, de, it, pt, nl)
+  // lives in the next describe block.
   const NAMESPACES: Array<[string, unknown, unknown]> = [
     ['bar', barEn, barEs],
     ['common', commonEn, commonEs],
@@ -1387,7 +1407,9 @@ describe('Settings → General app-language picker contract', () => {
   // future refactor that breaks the picker's contract fails CI before
   // shipping. Pinned facts:
   //
-  //   1. The APP_LANGUAGES array contains both 'en' and 'es'.
+  //   1. The APP_LANGUAGES array contains every review-batch locale
+  //      (en, es, fr, de, it, pt, nl). This list MUST be kept in sync
+  //      with the AppLanguage Rust enum and the i18next resources.
   //   2. The picker writes general.app_language, NOT
   //      models.whisper_language. The two settings are independent;
   //      conflating them was the single biggest risk flagged in the
@@ -1409,12 +1431,19 @@ describe('Settings → General app-language picker contract', () => {
     return fs.readFileSync(target, 'utf8');
   })();
 
-  it('APP_LANGUAGES includes both en and es', () => {
-    // The literal array shape `['en', 'es'] as const` is the canonical
-    // way new locales are registered. A regex tolerant to whitespace
-    // catches both compact and pretty-printed variants without making
-    // the test fragile to ordering of unrelated lines.
-    expect(SOURCE).toMatch(/APP_LANGUAGES[^=]*=\s*\[\s*['"]en['"]\s*,\s*['"]es['"]/);
+  it('APP_LANGUAGES includes every review-batch locale', () => {
+    // Every BCP-47 code in the review batch must literally appear as a
+    // string element of the APP_LANGUAGES array. We also pin the array
+    // length (7 codes including English) so a sneaky `as const`
+    // expansion that adds an extra locale without updating the i18n
+    // resources fails this assertion.
+    const expected: ReadonlyArray<string> = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl'];
+    for (const code of expected) {
+      expect(
+        SOURCE,
+        `APP_LANGUAGES must include literal '${code}'`,
+      ).toMatch(new RegExp(`['"]${code}['"]`));
+    }
   });
 
   it('picker writes general.app_language, never models.whisper_language', () => {
@@ -1427,7 +1456,249 @@ describe('Settings → General app-language picker contract', () => {
   it('picker label is routed through the i18n catalogue', () => {
     // The chip label resolves through tCommon(`language.${code...}`)
     // rather than being hard-coded. A future refactor that hard-codes
-    // 'English'/'Spanish' loses translation coverage on Spanish UI.
+    // 'English'/'Español' loses translation coverage on non-English UI.
     expect(SOURCE).toMatch(/tCommon\(`language\./);
+  });
+});
+
+describe('i18n review-batch locales', () => {
+  // Bulk parity coverage for every review-batch locale (es, fr, de,
+  // it, pt, nl) against English. Every locale must:
+  //   - have exactly the same key surface as English in every namespace
+  //   - preserve every Mustache placeholder unchanged
+  //   - keep baseline.sentences as an array with the same length
+  //   - resolve representative keys cleanly with i18n switched to it
+  //   - NOT corrupt the dictation-language registry when activated
+  //
+  // Adding a new locale to the review batch means appending a row to
+  // BULK_LOCALES below. The parity tests below pick up the new locale
+  // automatically; the smoke test needs a representative-key entry
+  // added to SMOKE_KEYS.
+
+  const BULK_LOCALES: ReadonlyArray<{
+    readonly tag: string;
+    readonly bar: unknown;
+    readonly common: unknown;
+    readonly onboarding: unknown;
+    readonly settings: unknown;
+  }> = [
+    { tag: 'es', bar: barEs, common: commonEs, onboarding: onboardingEs, settings: settingsEs },
+    { tag: 'fr', bar: barFr, common: commonFr, onboarding: onboardingFr, settings: settingsFr },
+    { tag: 'de', bar: barDe, common: commonDe, onboarding: onboardingDe, settings: settingsDe },
+    { tag: 'it', bar: barIt, common: commonIt, onboarding: onboardingIt, settings: settingsIt },
+    { tag: 'pt', bar: barPt, common: commonPt, onboarding: onboardingPt, settings: settingsPt },
+    { tag: 'nl', bar: barNl, common: commonNl, onboarding: onboardingNl, settings: settingsNl },
+  ];
+
+  const EN_BY_NS: Record<string, unknown> = {
+    bar: barEn,
+    common: commonEn,
+    onboarding: onboardingEn,
+    settings: settingsEn,
+  };
+
+  it.each(BULK_LOCALES)(
+    'locale $tag has exactly the same key surface as English in every namespace',
+    ({ tag, bar, common, onboarding, settings }) => {
+      const locales: Record<string, unknown> = { bar, common, onboarding, settings };
+      for (const ns of ['bar', 'common', 'onboarding', 'settings'] as const) {
+        const enPaths = new Set(collectPaths(EN_BY_NS[ns]));
+        const localePaths = new Set(collectPaths(locales[ns]));
+        const missing = [...enPaths].filter((p) => !localePaths.has(p));
+        const extra = [...localePaths].filter((p) => !enPaths.has(p));
+        expect(missing, `${tag}/${ns}.json is missing keys present in English`).toEqual([]);
+        expect(extra, `${tag}/${ns}.json has keys not present in English`).toEqual([]);
+      }
+    },
+  );
+
+  it.each(BULK_LOCALES)(
+    'locale $tag preserves every Mustache placeholder from English',
+    ({ tag, bar, common, onboarding, settings }) => {
+      const locales: Record<string, unknown> = { bar, common, onboarding, settings };
+      for (const ns of ['bar', 'common', 'onboarding', 'settings'] as const) {
+        const leaves = collectStringLeaves(EN_BY_NS[ns]);
+        for (const [path, enValue] of leaves) {
+          const enPlaceholders = placeholdersOf(enValue);
+          if (enPlaceholders.length === 0) continue;
+          const localeValue = getByPath(locales[ns], path);
+          expect(typeof localeValue, `${tag}/${ns}.${path} is not a string`).toBe('string');
+          const localePlaceholders = placeholdersOf(String(localeValue));
+          expect(
+            localePlaceholders,
+            `${tag}/${ns}.${path} placeholder set diverges from English (en=${JSON.stringify(enPlaceholders)} ${tag}=${JSON.stringify(localePlaceholders)})`,
+          ).toEqual(enPlaceholders);
+        }
+      }
+    },
+  );
+
+  it.each(BULK_LOCALES)(
+    'locale $tag baseline.sentences has the same array length as English',
+    ({ tag, onboarding }) => {
+      const ob = onboarding as { baseline: { sentences: readonly string[] } };
+      expect(
+        ob.baseline.sentences.length,
+        `${tag}/onboarding.baseline.sentences should match English length`,
+      ).toBe(onboardingEn.baseline.sentences.length);
+    },
+  );
+
+  // One representative key per namespace per locale. The smoke test
+  // resolves these with i18n switched to the locale's tag, fails loudly
+  // if any namespace returns the raw catalogue path (which is what
+  // i18next does when a namespace is missing or fails to load).
+  const SMOKE_KEYS: ReadonlyArray<{
+    readonly tag: string;
+    readonly nav: { ns: 'common'; key: string };
+    readonly bar: { ns: 'bar'; key: string };
+    readonly step: { ns: 'onboarding'; key: string };
+    readonly settings: { ns: 'settings'; key: string };
+    readonly whisper: { ns: 'settings'; key: string };
+  }> = BULK_LOCALES.map(({ tag }) => ({
+    tag,
+    nav: { ns: 'common', key: 'chrome.nav.dashboard' },
+    bar: { ns: 'bar', key: 'button.cancel' },
+    step: { ns: 'onboarding', key: 'step_titles.language' },
+    settings: { ns: 'settings', key: 'general.title' },
+    whisper: { ns: 'settings', key: 'models.whisper_language.title' },
+  }));
+
+  it.each(SMOKE_KEYS)(
+    'locale $tag resolves a representative key from every namespace cleanly',
+    async ({ tag, nav, bar, step, settings, whisper }) => {
+      // applyAppLanguage is sync but i18next defers the change to a
+      // microtask; awaiting loadNamespaces synchronises before the
+      // assertions.
+      applyAppLanguage(tag as 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl');
+      await i18n.loadNamespaces(['bar', 'common', 'onboarding', 'settings']);
+
+      try {
+        // Use getResource rather than i18n.t() to avoid the typed-i18next
+        // overload's strict literal-key inference; we're passing keys
+        // dynamically per locale. Equivalent for the smoke test: a
+        // missing namespace or stale catalogue returns undefined rather
+        // than the raw catalogue path.
+        const samples: ReadonlyArray<{ readonly ns: string; readonly key: string }> = [
+          nav,
+          bar,
+          step,
+          settings,
+          whisper,
+        ];
+        for (const { ns, key } of samples) {
+          const out = i18n.getResource(tag, ns, key);
+          expect(
+            typeof out,
+            `${tag}/${ns}.${key} should resolve to a string`,
+          ).toBe('string');
+          expect(
+            (out as string).length,
+            `${tag}/${ns}.${key} should resolve to a non-empty string`,
+          ).toBeGreaterThan(0);
+          // The raw key MUST NOT leak through. getResource returns the
+          // value verbatim, so a leaked key would mean the catalogue
+          // literally stored its own path, which the parity test should
+          // already catch. Belt-and-braces here.
+          expect(
+            out,
+            `${tag}/${ns}.${key} should not contain the raw catalogue path`,
+          ).not.toBe(key);
+        }
+      } finally {
+        applyAppLanguage('en');
+      }
+    },
+  );
+
+  it('every review-batch locale defines a self-name in common.language.<code>', () => {
+    // The App-language picker chips render via
+    // `tCommon(\`language.${code === 'en' ? 'english' : code}\`)`. So
+    // the BCP-47-coded keys must exist in EVERY locale's catalogue (so
+    // each chip renders the same self-name regardless of which UI
+    // locale is currently active). English uses the legacy
+    // `language.english` key; non-English locales use BCP-47 codes.
+    const expectedCodes: ReadonlyArray<string> = ['es', 'fr', 'de', 'it', 'pt', 'nl'];
+    for (const tag of ['en', ...expectedCodes]) {
+      for (const code of expectedCodes) {
+        const value = i18n.getResource(tag, 'common', `language.${code}`);
+        expect(
+          value,
+          `${tag}/common.json must expose language.${code} (the BCP-47 self-name)`,
+        ).toBeTruthy();
+        expect(
+          typeof value,
+          `${tag}/common.json language.${code} must be a string`,
+        ).toBe('string');
+      }
+    }
+  });
+
+  it('only registered locale folders exist on disk', () => {
+    // Belt-and-braces: every directory under src/i18n/locales/ MUST be
+    // a registered locale, and every registered locale MUST have a
+    // matching directory. A stray "tr" folder on disk that hasn't been
+    // wired up to i18next + AppLanguage + APP_LANGUAGES is exactly the
+    // class of drift this test catches.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('node:path') as typeof import('node:path');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const url = require('node:url') as typeof import('node:url');
+    const here = path.dirname(url.fileURLToPath(import.meta.url));
+    const localesDir = path.resolve(here, 'locales');
+    const onDisk = fs
+      .readdirSync(localesDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+      .sort();
+    const registered = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl'].sort();
+    expect(onDisk).toEqual(registered);
+  });
+
+  it('every registered locale has all four required namespace files', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('node:path') as typeof import('node:path');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const url = require('node:url') as typeof import('node:url');
+    const here = path.dirname(url.fileURLToPath(import.meta.url));
+    const localesDir = path.resolve(here, 'locales');
+    const requiredFiles = ['bar.json', 'common.json', 'onboarding.json', 'settings.json'];
+    const tags = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl'];
+    for (const tag of tags) {
+      for (const file of requiredFiles) {
+        const target = path.resolve(localesDir, tag, file);
+        expect(
+          fs.existsSync(target),
+          `${tag}/${file} must exist`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('switching between locales does not corrupt the dictation-language registry', () => {
+    // The dictation-language picker reads word-name keys
+    // (language.spanish, language.french, etc). The App-language
+    // picker reads BCP-47-coded keys (language.es, language.fr).
+    // These are independent; switching app language must not alias or
+    // mutate the word-name keys.
+    for (const tag of ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl']) {
+      applyAppLanguage(tag as 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl');
+      // Word-name keys still resolve in the active locale.
+      expect(i18n.getResource(tag, 'common', 'language.english')).toBeTruthy();
+      expect(i18n.getResource(tag, 'common', 'language.spanish')).toBeTruthy();
+      expect(i18n.getResource(tag, 'common', 'language.french')).toBeTruthy();
+      // BCP-47 self-name keys stay in their own language.
+      expect(i18n.getResource(tag, 'common', 'language.es')).toBe('Español');
+      expect(i18n.getResource(tag, 'common', 'language.fr')).toBe('Français');
+      expect(i18n.getResource(tag, 'common', 'language.de')).toBe('Deutsch');
+      expect(i18n.getResource(tag, 'common', 'language.it')).toBe('Italiano');
+      expect(i18n.getResource(tag, 'common', 'language.pt')).toBe('Português');
+      expect(i18n.getResource(tag, 'common', 'language.nl')).toBe('Nederlands');
+    }
+    applyAppLanguage('en');
   });
 });

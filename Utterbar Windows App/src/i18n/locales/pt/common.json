@@ -1,0 +1,85 @@
+{
+  "language": {
+    "english": "Inglês",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "pt": "Português",
+    "nl": "Nederlands",
+    "auto_detect": "Deteção automática (recomendado)",
+    "spanish": "Espanhol",
+    "french": "Francês",
+    "german": "Alemão",
+    "italian": "Italiano",
+    "portuguese": "Português",
+    "dutch": "Neerlandês",
+    "polish": "Polaco",
+    "turkish": "Turco",
+    "russian": "Russo",
+    "arabic": "Árabe",
+    "hindi": "Hindi",
+    "japanese": "Japonês",
+    "korean": "Coreano",
+    "chinese": "Chinês",
+    "indonesian": "Indonésio",
+    "thai": "Tailandês",
+    "vietnamese": "Vietnamita",
+    "swedish": "Sueco",
+    "norwegian": "Norueguês",
+    "danish": "Dinamarquês",
+    "finnish": "Finlandês",
+    "czech": "Checo",
+    "greek": "Grego",
+    "hebrew": "Hebraico"
+  },
+  "chrome": {
+    "nav": {
+      "dashboard": "Painel",
+      "history": "Histórico",
+      "meetings": "Reuniões",
+      "modes": "Modos",
+      "vocabulary": "Vocabulário",
+      "files": "Ficheiros"
+    },
+    "footer": {
+      "strap": "apenas local"
+    },
+    "tier": {
+      "pro": "Pro",
+      "free_cta": "Atualizar para Pro →"
+    },
+    "update_toast": {
+      "title": "Atualização disponível",
+      "install": "Instalar e reiniciar",
+      "installing": "A instalar…",
+      "later": "Mais tarde",
+      "error_generic": "A atualização falhou. Tente novamente daqui a um momento.",
+      "post_title": "Atualizado para v{{version}}",
+      "post_body": "Está na versão mais recente.",
+      "post_link": "Ver as novidades →",
+      "dismiss_aria": "Fechar"
+    },
+    "upgrade_modal": {
+      "feature_prefix": "é uma",
+      "pro_word": "Pro",
+      "feature_suffix": "funcionalidade",
+      "period": {
+        "one_time": "pagamento único",
+        "monthly": "por mês",
+        "yearly": "por ano"
+      },
+      "not_now": "Agora não",
+      "upgrade": "Atualizar"
+    },
+    "pro_nudge": {
+      "feature_prefix": "é uma",
+      "pro_word": "Pro",
+      "feature_suffix": "funcionalidade.",
+      "learn_more": "Saber mais →"
+    },
+    "managed_hint": {
+      "default": "Desativado pelo seu administrador."
+    }
+  }
+}

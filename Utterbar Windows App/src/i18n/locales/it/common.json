@@ -1,0 +1,85 @@
+{
+  "language": {
+    "english": "Inglese",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "pt": "Português",
+    "nl": "Nederlands",
+    "auto_detect": "Rilevamento automatico (consigliato)",
+    "spanish": "Spagnolo",
+    "french": "Francese",
+    "german": "Tedesco",
+    "italian": "Italiano",
+    "portuguese": "Portoghese",
+    "dutch": "Olandese",
+    "polish": "Polacco",
+    "turkish": "Turco",
+    "russian": "Russo",
+    "arabic": "Arabo",
+    "hindi": "Hindi",
+    "japanese": "Giapponese",
+    "korean": "Coreano",
+    "chinese": "Cinese",
+    "indonesian": "Indonesiano",
+    "thai": "Thailandese",
+    "vietnamese": "Vietnamita",
+    "swedish": "Svedese",
+    "norwegian": "Norvegese",
+    "danish": "Danese",
+    "finnish": "Finlandese",
+    "czech": "Ceco",
+    "greek": "Greco",
+    "hebrew": "Ebraico"
+  },
+  "chrome": {
+    "nav": {
+      "dashboard": "Pannello",
+      "history": "Cronologia",
+      "meetings": "Riunioni",
+      "modes": "Modalità",
+      "vocabulary": "Vocabolario",
+      "files": "File"
+    },
+    "footer": {
+      "strap": "solo locale"
+    },
+    "tier": {
+      "pro": "Pro",
+      "free_cta": "Passa a Pro →"
+    },
+    "update_toast": {
+      "title": "Aggiornamento disponibile",
+      "install": "Installa e riavvia",
+      "installing": "Installazione…",
+      "later": "Più tardi",
+      "error_generic": "Aggiornamento non riuscito. Riprova tra un momento.",
+      "post_title": "Aggiornato a v{{version}}",
+      "post_body": "Sei sull'ultima versione.",
+      "post_link": "Vedi le novità →",
+      "dismiss_aria": "Chiudi"
+    },
+    "upgrade_modal": {
+      "feature_prefix": "è una",
+      "pro_word": "Pro",
+      "feature_suffix": "funzionalità",
+      "period": {
+        "one_time": "pagamento unico",
+        "monthly": "al mese",
+        "yearly": "all'anno"
+      },
+      "not_now": "Non ora",
+      "upgrade": "Aggiorna"
+    },
+    "pro_nudge": {
+      "feature_prefix": "è una",
+      "pro_word": "Pro",
+      "feature_suffix": "funzionalità.",
+      "learn_more": "Scopri di più →"
+    },
+    "managed_hint": {
+      "default": "Disabilitato dal tuo amministratore."
+    }
+  }
+}

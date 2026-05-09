@@ -1,0 +1,220 @@
+{
+  "common": {
+    "back": "Retour",
+    "continue": "Continuer",
+    "start_dictating": "Commencer à dicter",
+    "credit": "App de",
+    "credit_author": "Jay Parry"
+  },
+  "step_titles": {
+    "welcome": "Bienvenue dans Utterbar",
+    "privacy": "Tout en local, toujours",
+    "updates": "Vérification des mises à jour",
+    "theme": "Choisissez un thème",
+    "language": "Choisissez votre langue de dictée",
+    "model": "Choisissez votre modèle d'ASR",
+    "gpu": "Utiliser votre GPU ?",
+    "mic": "Choisissez et testez votre micro",
+    "baseline": "Votre vitesse de frappe",
+    "trigger": "Comment voulez-vous déclencher l'enregistrement ?",
+    "shortcut": "Définir un raccourci d'enregistrement",
+    "bar": "Où vit Utterbar",
+    "ready": "Prêt à dicter"
+  },
+  "welcome": {
+    "heading": "Bienvenue",
+    "body": "Une application de dictée premium pour Windows qui s'exécute entièrement sur votre machine. Tout sera prêt en moins de deux minutes."
+  },
+  "privacy": {
+    "title": "Tout reste sur votre machine",
+    "body": "Aucune transcription dans le cloud. Aucun post-traitement dans le cloud. Aucune télémétrie par défaut. Vos enregistrements, transcriptions et préférences ne sont stockés que sur ce PC."
+  },
+  "updates": {
+    "title": "Vérification des mises à jour",
+    "body_prefix": "Utterbar peut occasionnellement demander à",
+    "body_domain": "utterbar.com",
+    "body_suffix": "si une nouvelle version est disponible. C'est la seule requête sortante que l'app effectue par défaut. Elle envoie uniquement votre version actuelle, sans usage, sans télémétrie, sans identifiants.",
+    "options": {
+      "on_label": "Oui, vérifier les mises à jour",
+      "on_description": "Recevez une petite notification lorsqu'une nouvelle version est disponible. Vous cliquez toujours vous-même sur Installer ; rien ne se télécharge ni ne s'exécute en arrière-plan.",
+      "off_label": "Non, totalement hors-ligne",
+      "off_description": "Utterbar ne contactera jamais Internet. Vous pouvez toujours vérifier manuellement depuis Paramètres → Général → « Vérifier maintenant »."
+    }
+  },
+  "model": {
+    "title": "Choisissez votre modèle d'ASR",
+    "subtitle": "Les modèles s'exécutent entièrement sur cette machine. Modifiable dans Paramètres → Modèles.",
+    "multilingual_lead": "Vous dictez dans une autre langue ?",
+    "multilingual_body": "Choisissez le modèle Whisper ci-dessous, il couvre environ 99 langues dans l'offre gratuite.",
+    "chip": {
+      "recommended": "Recommandé",
+      "installed": "Installé"
+    },
+    "stub": {
+      "label": "Passer pour l'instant",
+      "body": "Transcripteur fictif. Vous pourrez installer un vrai modèle depuis Paramètres → Modèles plus tard."
+    },
+    "button": {
+      "installed": "Installé",
+      "use_placeholder": "Utiliser le fictif",
+      "download_install": "Télécharger et installer",
+      "phase_suffix": "…"
+    },
+    "advance_hint_prefix": "Installez un modèle ou choisissez",
+    "advance_hint_pick": "Passer pour l'instant",
+    "advance_hint_suffix": "pour continuer.",
+    "download": {
+      "connecting": "Connexion…",
+      "downloading": "Téléchargement · {{rate}} · {{eta}}",
+      "rate_unit": "{{size}}/s",
+      "rate_unknown": "—",
+      "eta_known": "{{secs}} restant",
+      "eta_unknown": "calcul en cours…",
+      "verifying": "Vérification de la somme de contrôle…",
+      "extracting": "Extraction · {{elapsed}} / ~{{typical}}",
+      "done": "Terminé.",
+      "error_summary": "Erreur, voir ci-dessous.",
+      "error_generic": "Le téléchargement a échoué. Vérifiez votre connexion et réessayez."
+    }
+  },
+  "gpu": {
+    "title": "Utiliser votre GPU ?",
+    "body_prefix": "Nous avons détecté",
+    "body_unknown_adapter": "une carte graphique",
+    "body_with_memory": " avec {{memoryMb}} Mo de mémoire dédiée",
+    "body_suffix": ". Y exécuter la transcription est généralement 3 à 10 fois plus rapide que sur le CPU. Vous pourrez le modifier dans Paramètres → Avancé.",
+    "options": {
+      "auto_title": "Intelligent (recommandé)",
+      "auto_description": "Utilise votre GPU quand c'est utile, repasse en CPU pour les courts extraits. Sans surprise.",
+      "always_title": "Toujours utiliser le GPU",
+      "always_description": "Transcription la plus rapide. Peut brièvement ralentir les jeux, applis 3D ou onglets navigateur lourds pendant la dictée.",
+      "cpu_title": "CPU uniquement",
+      "cpu_description": "Garde le GPU libre pour d'autres applis. La transcription reste rapide, juste un peu plus lente par énoncé."
+    }
+  },
+  "mic": {
+    "title": "Choisissez et testez votre micro",
+    "body": "Sélectionnez votre périphérique d'entrée, puis enregistrez un court test pour confirmer qu'il fonctionne de bout en bout.",
+    "device": {
+      "system_default": "Par défaut du système",
+      "default_suffix": " · par défaut"
+    },
+    "button": {
+      "live_meter": "Vumètre en direct",
+      "stop_meter": "Arrêter le vumètre",
+      "record_test": "Enregistrer un test",
+      "stop": "Arrêter"
+    },
+    "processing": "Traitement…",
+    "transcript_label": "Transcription",
+    "no_devices": "Aucun périphérique d'entrée détecté. Branchez un micro ou vérifiez les paramètres de confidentialité Windows."
+  },
+  "baseline": {
+    "title": "Votre vitesse de frappe de référence",
+    "body": "Nous l'utilisons pour estimer combien de temps vous gagnez en dictant. Faites un rapide test de frappe, saisissez un nombre que vous connaissez déjà, ou passez et ajustez plus tard.",
+    "choices": {
+      "test_title": "Faire le test",
+      "test_sub": "~20 secondes · le plus précis",
+      "manual_title": "Saisir manuellement",
+      "manual_sub": "Indiquez vos MPM connus",
+      "skip_title": "Passer",
+      "skip_sub": "Utiliser la valeur par défaut de {{wpm}} MPM"
+    },
+    "measure": {
+      "placeholder": "Commencez à taper la phrase ci-dessus…",
+      "timer_idle": "Le minuteur démarre à votre première frappe.",
+      "timer_active": "{{secs}} s écoulées…",
+      "new_sentence": "Nouvelle phrase"
+    },
+    "result": {
+      "label": "Résultat",
+      "wpm_unit": "mots par minute",
+      "try_again": "Réessayer",
+      "manual_instead": "Saisir manuellement à la place"
+    },
+    "manual": {
+      "wpm_suffix": "mpm",
+      "test_instead": "Faire le test à la place"
+    },
+    "skipped": {
+      "body": "Utilisation de la valeur par défaut de {{wpm}} MPM. Vous pourrez l'ajuster plus tard dans Paramètres → Général → Vitesse de frappe.",
+      "change_mind": "Je change d'avis, faire le test"
+    },
+    "sentences": [
+      "La douce lumière du matin s'étendait sur le sol tandis que la bouilloire commençait à siffler doucement dans la cuisine.",
+      "La plupart des gens ne réalisent à quel point ils tapent dans une journée que lorsqu'ils s'arrêtent pour regarder leurs propres mains bouger.",
+      "Un bon outil de dictée devrait ressembler moins à un outil et plus à une seconde paire d'oreilles patientes qui écoutent attentivement.",
+      "Elle prit le carnet, ouvrit une page blanche et écrivit la première phrase qui lui vint à l'esprit.",
+      "Travailler à domicile pendant des années lui avait appris à valoriser les petits rituels plus que les longues réunions ne pourraient jamais le faire."
+    ]
+  },
+  "trigger": {
+    "title": "Comment voulez-vous déclencher l'enregistrement ?",
+    "subtitle": "Modifiable à tout moment dans Paramètres → Raccourcis, et vous pouvez associer différents styles à différentes touches.",
+    "options": {
+      "toggle_label": "Bascule",
+      "toggle_description": "Appuyez sur la touche pour démarrer l'enregistrement. Appuyez à nouveau pour arrêter. La plupart des applis fonctionnent ainsi.",
+      "hold_label": "Maintenir pour parler",
+      "hold_description": "Maintenez la touche enfoncée pendant que vous parlez. Relâchez pour arrêter. Style talkie-walkie, idéal pour de courtes salves.",
+      "push_label": "Appuyer pour parler (hybride)",
+      "push_description": "La même touche fait les deux. Une pression brève bascule ; la maintenir agit comme « maintenir pour parler ». Choisissez ceci si vous voulez une seule touche pour les deux styles."
+    }
+  },
+  "shortcut": {
+    "title": "Définir un raccourci d'enregistrement",
+    "body": "Vous pourrez définir un raccourci global depuis Paramètres → Raccourcis une fois l'introduction terminée. N'importe quelle combinaison de touches fonctionne dans n'importe quelle appli. Ctrl+Espace est défini par défaut."
+  },
+  "theme": {
+    "title": "Choisissez un thème"
+  },
+  "bar": {
+    "title": "Où vit Utterbar",
+    "body": "Une petite barre flottera près du haut de votre écran chaque fois qu'Utterbar est en cours d'exécution. Elle affiche une forme d'onde en direct pendant que vous dictez et permet de démarrer, arrêter ou annuler d'un clic. Vous pouvez la déplacer où vous voulez, et elle se souviendra de la position.",
+    "preview_label": "votre bureau",
+    "tip": "Astuce : saisissez la barre n'importe où sauf sur un bouton pour la déplacer. Survolez pour voir les commandes enregistrer, arrêter, historique et paramètres."
+  },
+  "ready": {
+    "heading": "Tout est prêt",
+    "prompt": {
+      "listening_hold": "Parlez maintenant ; relâchez pour terminer.",
+      "listening_push": "Parlez maintenant ; appuyez à nouveau pour arrêter.",
+      "listening_toggle": "Parlez maintenant ; appuyez à nouveau sur le raccourci pour arrêter.",
+      "processing": "Traitement de votre voix…",
+      "success": "Voilà, vos mots sont dans la zone.",
+      "error": "Quelque chose a mal tourné : {{message}}",
+      "idle": "Appuyez sur le raccourci, parlez, et vos mots apparaîtront dans la zone ci-dessous."
+    },
+    "transcribing": "Transcription…",
+    "waveform_idle": "En attente du raccourci ; la forme d'onde s'animera quand vous parlerez.",
+    "textarea_placeholder": "Votre texte dicté apparaîtra ici…",
+    "shortcut_detected": "Raccourci détecté, la dictée est active.",
+    "click_start_hint": "Ou cliquez sur Commencer à dicter ci-dessous quand vous êtes prêt.",
+    "warmup_lead": "Note :",
+    "warmup_body": "la première dictée charge le modèle et prend quelques secondes. Les suivantes, tant que le modèle reste chaud, sont quasi instantanées. Réglez la durée de chauffe dans Paramètres → Modèles.",
+    "vocab": {
+      "title": "Vous voulez qu'Utterbar écrive correctement votre nom ?",
+      "body": "Ajoutez-le au vocabulaire dès maintenant et la dictée l'orthographiera correctement dès la première fois. Vous pourrez ajouter d'autres mots plus tard depuis Paramètres → Vocabulaire.",
+      "placeholder": "Tapez votre nom…",
+      "save": "Ajouter",
+      "saving": "Enregistrement…",
+      "skip": "Passer",
+      "save_error_generic": "Impossible d'enregistrer. Réessayez plus tard."
+    }
+  },
+  "language": {
+    "title": "Choisissez votre langue de dictée",
+    "subtitle": "C'est la langue qu'Utterbar écoute lorsque vous dictez. La langue de l'interface est distincte ; cette app reste en anglais.",
+    "picker_label": "Langue de dictée",
+    "picker_description": "Modifiable dans Paramètres → Modèles. Choisir ici une langue autre que l'anglais recommandera un modèle multilingue à l'étape suivante.",
+    "warning": {
+      "english_only_title": "Ce modèle ne prend en charge que l'anglais",
+      "english_only_body": "Vous avez choisi une langue de dictée autre que l'anglais, mais {{model}} ne prend en charge que l'anglais. Passez à un modèle multilingue ci-dessous.",
+      "no_multilingual_title": "Aucun modèle multilingue disponible",
+      "no_multilingual_body": "Aucun modèle multilingue n'est encore au catalogue. Installez Whisper depuis Paramètres → Modèles, puis revenez et choisissez à nouveau cette langue."
+    },
+    "switch_to_multilingual": "Passer au modèle multilingue"
+  },
+  "errors": {
+    "unknown": "Erreur inconnue"
+  }
+}

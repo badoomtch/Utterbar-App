@@ -1,0 +1,720 @@
+{
+  "general": {
+    "title": "Generali",
+    "startup": {
+      "title": "Avvio",
+      "launch_on_login": {
+        "label": "Avvia all'accesso",
+        "description": "Avvia Utterbar automaticamente all'accesso a Windows, così la barra fluttuante è sempre presente senza aprirla manualmente."
+      },
+      "start_minimised": {
+        "label": "Avvia ridotto a icona",
+        "description": "Quando attivo, Utterbar parte direttamente nella barra delle applicazioni e nella barra fluttuante, senza finestra principale finché non la richiedi. Quando disattivo, il Pannello si apre all'avvio così vedi subito le statistiche."
+      },
+      "close_to_tray": {
+        "label": "Chiudi nella barra delle applicazioni",
+        "description": "Premere la X di una finestra la nasconde nella barra delle applicazioni invece di chiudere l'app."
+      }
+    },
+    "appearance": {
+      "title": "Aspetto",
+      "theme": {
+        "label": "Tema",
+        "description": "Tavolozza di sfondo per la finestra principale e l'introduzione.",
+        "options": {
+          "obsidian": "Ossidiana",
+          "graphite": "Grafite",
+          "paper": "Carta"
+        }
+      },
+      "accent": {
+        "label": "Accento",
+        "description": "Il colore usato per il pulsante di registrazione, il glifo della pillola, le evidenziazioni e la forma d'onda della barra fluttuante."
+      },
+      "custom_accent": {
+        "title_pro": "Scegli qualsiasi colore (Pro)",
+        "title_free": "L'accento personalizzato è una funzionalità Pro",
+        "aria": "Colore di accento personalizzato"
+      }
+    },
+    "app_language": {
+      "label": "Lingua dell'app",
+      "description": "Lingua dell'interfaccia. La lingua di dettatura è impostata separatamente in Modelli."
+    },
+    "feedback": {
+      "title": "Feedback",
+      "sound_cues": {
+        "label": "Segnali sonori",
+        "description": "Riproduce un breve tono sintetizzato all'inizio, all'arresto, al successo o all'errore della registrazione. I toni sono generati nell'app via WebAudio, quindi nessun file di campione; volume basso di default."
+      },
+      "sound_profile": {
+        "label": "Profilo sonoro",
+        "description": "Quale famiglia di toni usare. Fai clic su un profilo per ascoltare il suo tono di successo.",
+        "options": {
+          "default": {
+            "label": "Predefinito",
+            "description": "Toni triangolari caldi su una quinta musicale — il default soft e soddisfacente."
+          },
+          "classic": {
+            "label": "Tattile",
+            "description": "Click meccanici netti all'avvio / arresto, una campanella morbida al successo."
+          },
+          "subtle": {
+            "label": "Sottile",
+            "description": "Bip silenziosi a tono singolo — minimi, senza melodia."
+          },
+          "chime": {
+            "label": "Carillon",
+            "description": "Terze a onda triangolare calde con decadimento più lungo."
+          }
+        }
+      },
+      "notifications": {
+        "label": "Notifiche di sistema",
+        "description": "Mostra una notifica Windows quando qualcosa richiede davvero la tua attenzione: errori di dettatura, fallimenti di installazione modelli, installazioni riuscite."
+      }
+    },
+    "upgrade": {
+      "custom_accent": {
+        "feature": "Colori d'accento personalizzati",
+        "description": "Scegli qualsiasi colore per la famiglia di accento, il pulsante di registrazione, la forma d'onda della barra fluttuante, il glifo della pillola e ogni evidenziazione. I sei preset sono gratis; il colore libero fa parte di Pro.",
+        "bullets": {
+          "any_hex": "Scegli qualsiasi colore esadecimale con il selettore nativo di Windows",
+          "auto_tint_shade": "Tinte e sfumature derivate automaticamente, i gradienti mantengono profondità",
+          "presets_free": "Tutti e sei i preset di accento restano gratis per tutti"
+        }
+      }
+    }
+  },
+  "nav": {
+    "group": {
+      "workspace": "Area di lavoro",
+      "settings": "Impostazioni"
+    },
+    "search": {
+      "placeholder": "Cerca impostazioni",
+      "clear": "Cancella ricerca",
+      "no_match": "Nessuna impostazione corrisponde a \"{{query}}\""
+    },
+    "general": {
+      "label": "Generali",
+      "matches": {
+        "theme": "Tema",
+        "accent": "Colore d'accento",
+        "launch_at_startup": "Avvia all'avvio del sistema",
+        "start_minimised": "Avvia ridotto a icona",
+        "show_in_tray": "Mostra nella barra delle applicazioni",
+        "notification_sound": "Suono di notifica",
+        "app_language": "Lingua dell'app"
+      }
+    },
+    "bar": {
+      "label": "Utterbar",
+      "matches": {
+        "position": "Posizione barra fluttuante",
+        "auto_hide": "Nascondi automaticamente in inattività",
+        "background": "Comportamento in background"
+      }
+    },
+    "audio": {
+      "label": "Audio",
+      "matches": {
+        "microphone": "Microfono",
+        "input_device": "Dispositivo di input",
+        "noise_gate": "Soglia di rumore",
+        "gain": "Guadagno",
+        "sample_rate": "Frequenza di campionamento",
+        "system_audio": "Audio di sistema"
+      }
+    },
+    "models": {
+      "label": "Modelli",
+      "matches": {
+        "default_dictation_model": "Modello di dettatura predefinito",
+        "meeting_mode_model": "Modello Modalità Riunione",
+        "model_downloads": "Download dei modelli",
+        "keep_model_warm": "Mantieni il modello caldo",
+        "whisper": "Whisper",
+        "parakeet": "Parakeet"
+      }
+    },
+    "shortcuts": {
+      "label": "Scorciatoie",
+      "matches": {
+        "toggle_recording_hotkey": "Hotkey per alternare la registrazione",
+        "cancel_recording_hotkey": "Hotkey per annullare la registrazione"
+      }
+    },
+    "text_output": {
+      "label": "Output testo",
+      "matches": {
+        "paste_automatically": "Incolla automaticamente",
+        "restore_clipboard": "Ripristina appunti",
+        "type_out_if_blocked": "Scrivi se incolla è bloccato",
+        "auto_capitalise": "Maiuscola automatica",
+        "trim_trailing_whitespace": "Taglia spazi finali",
+        "auto_space": "Spazio automatico",
+        "numbers_as_digits": "Numeri come cifre",
+        "smart_rewrite": "Riscrittura intelligente",
+        "hold_shift_auto_send": "Tieni Shift per invio automatico"
+      }
+    },
+    "accessibility": {
+      "label": "Accessibilità",
+      "matches": {
+        "reduce_motion": "Riduci movimento",
+        "high_contrast": "Alto contrasto",
+        "text_size": "Dimensione del testo",
+        "tooltips": "Suggerimenti"
+      }
+    },
+    "privacy": {
+      "label": "Privacy",
+      "matches": {
+        "save_recordings": "Salva registrazioni",
+        "delete_after": "Elimina registrazioni dopo",
+        "active_app_context": "Contesto app attiva",
+        "selection_context": "Contesto della selezione",
+        "clipboard_context": "Contesto degli appunti",
+        "pause_music": "Metti in pausa la musica durante la registrazione",
+        "mute_conferencing_output": "Silenzia output app di videoconferenza",
+        "apps_to_silence": "App da silenziare",
+        "data_locations": "Percorsi dei dati"
+      }
+    },
+    "advanced": {
+      "label": "Avanzate",
+      "matches": {
+        "gpu_acceleration": "Accelerazione GPU",
+        "directml": "DirectML",
+        "cpu_only": "Solo CPU",
+        "mute_mic_teams": "Silenzia mic in Teams (sperimentale)",
+        "mute_mic_discord": "Silenzia mic in Discord (sperimentale)",
+        "diagnostics": "Diagnostica",
+        "export_data": "Esporta dati",
+        "import_backup": "Importa backup",
+        "reset_settings": "Ripristina impostazioni"
+      }
+    },
+    "licence": {
+      "label": "Licenza",
+      "matches": {
+        "activate_pro": "Attiva Pro",
+        "licence_key": "Chiave di licenza",
+        "devices": "Dispositivi",
+        "managed_licence_bin": "licence.bin gestito",
+        "air_gapped_activation": "Attivazione offline"
+      }
+    },
+    "updates": {
+      "label": "Aggiornamenti",
+      "matches": {
+        "update_channel": "Canale di aggiornamento",
+        "check_for_updates": "Cerca aggiornamenti",
+        "beta_channel": "Canale beta",
+        "stable_channel": "Canale stabile",
+        "release_notes": "Note di rilascio"
+      }
+    },
+    "about": {
+      "label": "Informazioni",
+      "matches": {
+        "version": "Versione",
+        "credits": "Crediti",
+        "website_links": "Link al sito"
+      }
+    }
+  },
+  "text_output": {
+    "title": "Output testo",
+    "subtitle": "Come il testo dettato arriva alla tua app attiva.",
+    "delivery": {
+      "title": "Consegna",
+      "paste_automatically": {
+        "label": "Incolla automaticamente",
+        "description": "Dopo la trascrizione, copia il risultato negli appunti e simula Ctrl+V. È il percorso più veloce e affidabile, la maggior parte delle app lo accetta."
+      },
+      "restore_clipboard": {
+        "label": "Ripristina gli appunti precedenti",
+        "description": "Circa 1,5 secondi dopo l'incollaggio, rimette ciò che era negli appunti prima. Mantiene intatto il tuo buffer di copia."
+      },
+      "keystroke_fallback": {
+        "label": "Scrivi se incolla è bloccato",
+        "description": "Alcune app (strumenti di amministrazione, desktop remoto, alcuni giochi) non accettano testo incollato. Quando succede, Utterbar scrive le parole un carattere alla volta. Più lento, ma raggiunge le app che altrimenti scarterebbero l'incollaggio. Lascia attivo se non hai un motivo contrario."
+      }
+    },
+    "formatting": {
+      "title": "Formattazione",
+      "auto_capitalise": {
+        "label": "Maiuscola alla prima lettera",
+        "description": "Assicura che il testo inserito inizi con una maiuscola, indipendentemente da come il modello l'ha trascritto."
+      },
+      "trim_trailing_space": {
+        "label": "Taglia gli spazi finali",
+        "description": "Rimuove spazi, tabulazioni o ritorni a capo alla fine del testo trascritto prima di inserirlo."
+      },
+      "auto_space_on_paste": {
+        "label": "Spazio automatico tra le dettature",
+        "description": "Quando detti due cose una dopo l'altra nella stessa app, aggiunge uno spazio tra di esse se la prima non terminava già con uno spazio. Evita che 'ciao' + 'mondo' si attacchino in 'ciaomondo'."
+      },
+      "numbers_as_digits": {
+        "label": "Numeri come cifre",
+        "description": "Converte i numeri parlati in cifre (&lsquo;ventitré&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;cinque euro&rsquo; &rarr; &lsquo;5 euro&rsquo;). Le espressioni idiomatiche restano in parole (&lsquo;uno di questi giorni&rsquo;). Disattiva se preferisci i numeri scritti."
+      },
+      "smart_rewrite": {
+        "label": "Riscrittura intelligente",
+        "description": "Pulisce intercalari (&lsquo;ehm&rsquo;, &lsquo;mmh&rsquo;, &lsquo;tipo&rsquo;), spaziatura, maiuscole e punteggiatura finale localmente prima dell'inserimento. Solo deterministico &mdash; nessun modello AI, nessun servizio cloud, nessun download di modelli. Aggiunge un po' di tempo di elaborazione. Disattivato di default. Va meglio per chat ed email; disattiva se detti codice (la regola che mette la maiuscola a inizio frase metterà la maiuscola anche a parole chiave come &lsquo;let&rsquo; o &lsquo;fn&rsquo;). La Modalità Riunione non è influenzata (le trascrizioni restano letterali)."
+      },
+      "shift_to_auto_send": {
+        "label": "Tieni Shift per invio automatico",
+        "description": "Se tieni premuto Shift quando arresti la registrazione, Utterbar preme Invio per te subito dopo l'incollaggio, così il messaggio parte in Teams, Slack, Discord, ecc. senza un secondo passaggio."
+      }
+    }
+  },
+  "accessibility": {
+    "title": "Accessibilità",
+    "subtitle": "Rendi la finestra principale di Utterbar più comoda da leggere, ascoltare e percorrere.",
+    "ui_scale": {
+      "title": "Scala dell'interfaccia",
+      "description": "Scala l'intera finestra principale: testo, spaziatura, pulsanti e icone, rispetto alla dimensione predefinita. La barra fluttuante è deliberatamente esclusa per mantenere la stessa dimensione fisica indipendentemente dalla scelta.",
+      "scale": {
+        "label": "Scala",
+        "description": "Scegli un preset o trascina lo slider per il controllo fine."
+      },
+      "fine_tune": {
+        "label": "Regolazione fine"
+      },
+      "value": "{{value}}%"
+    },
+    "motion": {
+      "title": "Movimento",
+      "description": "Per chi trova le animazioni elastiche distraenti o nauseanti.",
+      "reduce_motion": {
+        "label": "Riduci movimento",
+        "description": "Riduce al minimo le animazioni in Utterbar; la barra fluttuante appare comunque, ma le molle elastiche, le transizioni di espansione e il pulse di avvio sono soppressi. Sia Framer Motion che le transizioni CSS lo rispettano."
+      }
+    },
+    "contrast": {
+      "title": "Contrasto e fuoco",
+      "description": "Aumenta la visibilità di testo, bordi e fuoco da tastiera. Utile per utenti ipovedenti e ambienti molto luminosi.",
+      "high_contrast": {
+        "label": "Alto contrasto",
+        "description": "Spinge i grigi tenui verso il bianco puro (o nero puro su Carta), ispessisce i separatori sottili e porta ogni bordo alla variante più forte. Si applica ovunque: finestra principale, barra fluttuante, introduzione."
+      },
+      "larger_focus_rings": {
+        "label": "Anelli di fuoco più grandi",
+        "description": "Ispessisce i contorni di fuoco da tastiera da 2 px a 4 px con un alone più forte, così il fuoco navigato con tab è inconfondibile su qualsiasi sfondo. Il fuoco da mouse non è influenzato."
+      }
+    },
+    "transparency": {
+      "title": "Trasparenza",
+      "description": "Le finestre e gli header fissi usano una sottile sfocatura di sfondo di default. Disattivala se rende il contenuto difficile da leggere o se la GPU è impegnata su altri carichi.",
+      "reduce_transparency": {
+        "label": "Riduci trasparenza",
+        "description": "Solidifica gli sfondi vetro / smerigliati e rimuove la sfocatura di sfondo nell'app. Non cambia il layout, solo l'aspetto visivo di header e overlay."
+      }
+    }
+  },
+  "bar_settings": {
+    "title": "Utterbar",
+    "subtitle": "La pillola fluttuante che vive sopra il desktop. Regola aspetto e quando appare.",
+    "visibility": {
+      "title": "Visibilità",
+      "always": {
+        "label": "Sempre visibile",
+        "description": "Utterbar resta in alto sullo schermo finché l'app è in esecuzione. Comportamento predefinito — la più facile da individuare e da cliccare."
+      },
+      "while_recording": {
+        "label": "Solo durante la registrazione",
+        "description": "La barra resta nascosta finché non avvii la dettatura, poi appare per vedere la forma d'onda e arrestare / annullare. Footprint minimo sullo schermo."
+      },
+      "hidden": {
+        "label": "Non mostrare mai",
+        "description": "Utterbar non appare mai. Gestisci tutto dalla scorciatoia da tastiera e dall'icona della barra delle applicazioni. La configurazione più rapida e silenziosa."
+      }
+    },
+    "appearance": {
+      "title": "Aspetto",
+      "size": {
+        "label": "Dimensione",
+        "description": "Compatto riduce l'ingombro della pillola. Standard dà più spazio ai suoi controlli.",
+        "options": {
+          "compact": "Compatto",
+          "standard": "Standard"
+        }
+      },
+      "outline": {
+        "label": "Bordo d'accento",
+        "description": "Aggiunge un bordo sottile di colore accento attorno alla pillola, così è più facile distinguerla su sfondi luminosi."
+      }
+    },
+    "position": {
+      "title": "Posizione",
+      "reset": {
+        "label": "Ripristina posizione",
+        "description": "Riporta Utterbar in alto al centro del monitor corrente. Usalo se la pillola è finita dietro la barra delle applicazioni, fuori schermo, o su un monitor che hai poi scollegato. Disponibile anche dal menu contestuale dell'icona della barra delle applicazioni.",
+        "button": "Ripristina posizione"
+      }
+    }
+  },
+  "about": {
+    "title": "Informazioni",
+    "tagline": "Dettatura solo locale per Windows. Tutta l'elaborazione audio e di testo avviene su questa macchina. Non vengono contattati servizi cloud per trascrizione o post-elaborazione.",
+    "version_pending": "v…",
+    "footer": {
+      "copyright_prefix": "© {{year}} Utterbar · Costruito da",
+      "attribution_link": "Ddraig Dev",
+      "location_suffix": "· Costruito in Galles",
+      "website_link": "utterbar.com"
+    },
+    "third_party": {
+      "title": "Licenze di terze parti",
+      "description": "Librerie e modelli open-source forniti con Utterbar."
+    }
+  },
+  "shortcuts": {
+    "title": "Scorciatoie",
+    "subtitle": "Combinazioni globali. Premi qualsiasi combinazione in qualsiasi app per attivare.",
+    "capture": {
+      "press_keys": "Premi i tasti…",
+      "unbound": "Non assegnato"
+    },
+    "buttons": {
+      "clear": "Cancella"
+    },
+    "conflict": {
+      "tooltip": "Conflitto con un'altra associazione su {{accelerator}}"
+    },
+    "tip": {
+      "prefix": "Suggerimento: premi",
+      "suffix": "per annullare la cattura."
+    }
+  },
+  "audio": {
+    "title": "Audio",
+    "subtitle": "Dispositivi di input, pre-elaborazione e test del microfono.",
+    "capture_source": {
+      "title": "Sorgente di cattura",
+      "description": "Cosa ascolta Utterbar. Passa ad Audio di sistema per trascrivere una riunione o un video in un'altra app; Misto registra entrambi così una chiamata in cui parli anche tu cattura entrambi i lati.",
+      "options": {
+        "microphone": {
+          "label": "Microfono",
+          "note": "Registra la tua voce dal microfono selezionato. Ideale per dettatura quotidiana."
+        },
+        "system": {
+          "label": "Audio di sistema",
+          "note": "Registra ciò che esce dai tuoi altoparlanti: riunioni, video, note vocali. Loopback WASAPI: nessun cavo virtuale necessario."
+        },
+        "mixed": {
+          "label": "Misto (mic + sistema)",
+          "note": "Entrambi insieme, sommati. Utile per trascrivere chiamate in cui parli anche tu."
+        }
+      }
+    },
+    "meeting_callout": {
+      "title": "Nota: la Modalità Riunione gestisce questo per te",
+      "description": "Quando una modalità è marcata come Riunione, Utterbar usa sempre mic + audio di sistema insieme (non serve impostarlo qui), divide le registrazioni lunghe in frammenti da 30 secondi così non saturano la memoria del recogniser, e salta la post-elaborazione così la trascrizione resta letterale. La modalità 'Riunione' integrata è impostata così di default.",
+      "link": "Apri Modalità →"
+    },
+    "input_device": {
+      "title": "Dispositivo di input",
+      "microphone": {
+        "label": "Microfono",
+        "description": "Da quale dispositivo Utterbar registra. Predefinito di sistema segue ciò che ha impostato Windows."
+      },
+      "system_default": "Predefinito di sistema",
+      "system_default_caption": "predefinito di sistema",
+      "live_meter": {
+        "label": "VU dal vivo",
+        "test": "Prova",
+        "stop": "Arresta"
+      }
+    },
+    "noise_handling": {
+      "title": "Gestione del rumore",
+      "description": "Pulisce la registrazione prima che arrivi a Parakeet. Tutto qui gira localmente in tempo sub-millisecondo, nessun passaggio cloud.",
+      "suppression": {
+        "label": "Forza della soppressione",
+        "description": "Filtro a banda larga che elimina rimbombo, ronzio della ventola e rumore HVAC. Inizia con Bilanciato; passa ad Aggressivo solo se resta molto rumore ambientale.",
+        "preview_tooltip": "{{blurb}} · Fai clic per ascoltare l'anteprima",
+        "preview_hint": "Tocca un livello per ascoltare un campione di ~1 s.",
+        "levels": {
+          "off": {
+            "label": "Disattivato",
+            "blurb": "Nessuna elaborazione. Latenza minima, conserva ogni sfumatura per il modello."
+          },
+          "light": {
+            "label": "Leggero",
+            "blurb": "Taglia il rimbombo della banda subwoofer (sotto i ~60 Hz). Ottimo per stanze silenziose."
+          },
+          "balanced": {
+            "label": "Bilanciato",
+            "blurb": "Taglia ronzio della ventola, HVAC e click di tastiera tra le parole. Ottimo per la maggior parte dei setup."
+          },
+          "aggressive": {
+            "label": "Aggressivo",
+            "blurb": "Filtro passa-alto più duro + soglia più alta. Per bar e stanze rumorose; può tagliare le consonanti morbide."
+          }
+        }
+      },
+      "noise_gate": {
+        "label": "Soglia tra le parole",
+        "description": "Azzera brevi pause silenziose così click di tastiera, click del mouse, schiocchi di labbra e respiri tra le frasi non raggiungono il modello. Complementa la soppressione sopra, sicuro a qualsiasi livello."
+      },
+      "dynamic_normalisation": {
+        "label": "Normalizzazione dinamica",
+        "description": "Spinge le registrazioni basse a un livello costante prima della trascrizione. Aiuta quando il microfono è lontano o l'oratore parla piano."
+      },
+      "silence_removal": {
+        "label": "Rimozione silenzi",
+        "description": "Scarta l'audio silenzioso iniziale / finale prima che il modello lo veda. Trascrizioni più rapide, qualità identica."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Privacy",
+    "subtitle": "Utterbar elabora tutto sul dispositivo. Hai sempre il controllo su cosa viene conservato e cosa è usato come contesto.",
+    "managed_hint": "Alcuni controlli di privacy su questo dispositivo sono gestiti dal tuo amministratore. Riavvia Utterbar per applicare i cambi di policy.",
+    "context": {
+      "title": "Cattura del contesto",
+      "description": "Quali segnali può usare una modalità per adattare il proprio output?",
+      "active_app": {
+        "label": "Permetti contesto app attiva",
+        "description": "Eseguibile dell'app e titolo della finestra."
+      },
+      "selection": {
+        "label": "Permetti contesto della selezione",
+        "description": "Testo attualmente selezionato nell'app in primo piano."
+      },
+      "clipboard": {
+        "label": "Permetti contesto degli appunti",
+        "description": "Ultimo testo copiato."
+      }
+    },
+    "audio_retention": {
+      "title": "Conservazione audio",
+      "save_recordings": {
+        "label": "Salva registrazioni",
+        "description": "Mantiene il WAV di ogni dettatura su disco così puoi riprodurlo o ritrascriverlo più tardi. I file vivono nella cartella Registrazioni e vengono potati automaticamente dopo la finestra di conservazione qui sotto."
+      },
+      "pro_nudge": {
+        "feature": "Conservazione audio",
+        "description": "Mantieni un WAV locale di ogni dettatura per riascoltarla o ritrascriverla più tardi. Salvato solo sul tuo disco, mai caricato."
+      },
+      "delete_after": {
+        "label": "Elimina registrazioni dopo",
+        "description": "I WAV più vecchi vengono ripuliti automaticamente a ogni nuova dettatura, così la cartella registrazioni non si gonfia.",
+        "value": "{{days}} giorni"
+      }
+    },
+    "media": {
+      "title": "Media",
+      "pause_music": {
+        "label": "Metti in pausa la musica durante la registrazione",
+        "description": "Mette in pausa automaticamente Spotify, YouTube, Apple Music e qualsiasi altra app registrata con i controlli media di Windows mentre detti. Solo le sessioni messe in pausa da Utterbar vengono riprese."
+      },
+      "mute_conferencing": {
+        "label": "Silenzia output app di videoconferenza durante la registrazione",
+        "description": "Silenzia ciò che SENTI da Teams, Slack, Discord, Zoom e Webex mentre detti, così l'audio di chiamata e i bip delle notifiche non si infilano nella stanza. Ripristinato appena la dettatura termina. Questo NON silenzia il tuo microfono dentro quelle app, usa il pulsante di silenziamento di ciascuna app per quello."
+      }
+    },
+    "conferencing_apps": {
+      "title": "App da silenziare",
+      "description_prefix": "Nomi di eseguibili confrontati senza distinzione tra maiuscole e minuscole con i processi in esecuzione.",
+      "using_defaults": "In uso i valori predefiniti integrati.",
+      "using_custom": "In uso la tua lista personalizzata.",
+      "edit_locked": "Attiva l'interruttore sopra per modificare questa lista.",
+      "reset_to_defaults": "Ripristina valori predefiniti",
+      "empty": "Nessuna app configurata.",
+      "input_placeholder": "ad es. Teams.exe",
+      "add": "Aggiungi",
+      "remove_aria": "Rimuovi {{name}}",
+      "errors": {
+        "empty": "Inserisci un nome di eseguibile.",
+        "invalid_characters": "Solo lettere, numeri, punto, underscore e trattino. Niente percorsi, lettere di unità, virgolette o caratteri jolly.",
+        "too_long": "Il nome è troppo lungo (massimo 64 caratteri).",
+        "duplicate": "Quell'app è già nella lista.",
+        "defaults_loading": "I valori predefiniti sono ancora in caricamento — riprova tra un momento.",
+        "fallback": "Quel nome non è valido."
+      }
+    },
+    "data_locations": {
+      "title": "Percorsi dei dati",
+      "rows": {
+        "config": "Configurazione",
+        "database": "Database",
+        "models": "Modelli",
+        "recordings": "Registrazioni",
+        "logs": "Log"
+      }
+    }
+  },
+  "updates": {
+    "title": "Aggiornamenti",
+    "subtitle": "Scegli il tuo canale, vedi cosa è cambiato in questa versione e cerca nuove versioni.",
+    "beta_warning": {
+      "heading": "Sei sul canale beta.",
+      "body": "I build beta sono pre-versioni. Possono rompere la tua installazione, perdere dati o introdurre nuovi bug. Passa a Stabile qui sotto se preferisci vedere solo versioni che hanno già maturato in test."
+    },
+    "channel": {
+      "title": "Canale",
+      "description": "Stabile è il canale pubblico. Solo le versioni che hanno maturato in beta atterrano lì. Beta riceve build di pre-versione per i test.",
+      "row_label": "Canale di aggiornamento",
+      "options": {
+        "stable": "Stabile",
+        "beta": "Beta"
+      },
+      "auto_check": {
+        "label": "Cerca aggiornamenti automaticamente",
+        "description": "Controlla il feed di aggiornamenti all'avvio e mostra una notifica se è disponibile una versione più recente. Nessuna installazione automatica, fai sempre tu clic su Installa."
+      },
+      "check_now": {
+        "label": "Controlla ora",
+        "description_idle": "Chiede al server di aggiornamento ora, indipendentemente dal controllo all'avvio.",
+        "description_available": "{{current}} → {{available}}, vedi la notifica per installare.",
+        "description_up_to_date": "Sei aggiornato.",
+        "description_failed": "Impossibile contattare il server di aggiornamento. Controlla la connessione e riprova.",
+        "checking": "Controllo…",
+        "button": "Controlla ora"
+      }
+    },
+    "release_notes": {
+      "title_with_version": "Novità in {{version}}",
+      "title_fallback": "Novità in questa versione",
+      "description": "Note di rilascio per la versione che stai eseguendo. Le note delle versioni precedenti vivono nell'archivio delle release di GitHub.",
+      "empty": "Nessuna nota di rilascio inclusa per questa versione. (Probabilmente un build di sviluppo.)"
+    },
+    "release_email": {
+      "title": "Avvisi di rilascio",
+      "description": "Ricevi una breve email quando esce una nuova versione di Utterbar. Cosa c'è di nuovo, come aggiornare, nient'altro. Annulla l'iscrizione con un clic da qualsiasi email di rilascio.",
+      "row": {
+        "label": "Avvisami quando c'è una nuova versione",
+        "description": "Al massimo una email per versione. Il tuo indirizzo resta solo nella lista del server; non lo condividiamo mai."
+      },
+      "input_placeholder": "tu@esempio.com",
+      "subscribe": "Iscriviti",
+      "sending": "Invio…",
+      "subscribed_as": "Iscritto come {{email}}",
+      "change_email": "Cambia email",
+      "errors": {
+        "empty": "Inserisci la tua email per iscriverti.",
+        "invalid": "Non sembra un indirizzo email, controlla eventuali errori di battitura.",
+        "fallback": "Impossibile contattare il server. Controlla la connessione e riprova."
+      }
+    }
+  },
+  "advanced": {
+    "title": "Avanzate",
+    "subtitle": "Diagnostica, preferenze hardware e interruttori sperimentali.",
+    "gpu": {
+      "title": "Accelerazione GPU",
+      "description": {
+        "checking": "Controllo dell'hardware disponibile…",
+        "no_runtime_ep": "Questo build gira solo su CPU. DirectML e CUDA appaiono qui per preservare la tua preferenza per una futura versione che includa il supporto GPU, ma oggi non hanno effetto.",
+        "detected": "Rilevato {{name}}. Auto esegue Whisper Medium / Large e Parakeet su GPU quando ne è presente una, e mantiene Whisper Small su CPU. Puoi forzare la scelta selezionando un provider specifico qui sotto.",
+        "no_gpu": "L'accelerazione GPU è integrata ma non è stata rilevata alcuna GPU dedicata o integrata su questa macchina. Utterbar girerà su CPU."
+      },
+      "options": {
+        "auto": {
+          "title": "Auto",
+          "hint": "Usa la GPU se rilevata e il runtime la supporta, altrimenti CPU. Consigliato."
+        },
+        "direct_ml": {
+          "title": "DirectML",
+          "hint": "Preferisce DirectML quando il build lo include. Funziona su qualsiasi GPU DX12."
+        },
+        "cuda": {
+          "title": "CUDA",
+          "hint": "Preferisce NVIDIA CUDA quando il build lo include. Più veloce su schede NVIDIA."
+        },
+        "cpu": {
+          "title": "Solo CPU",
+          "hint": "Mantieni la GPU libera per giochi o video. Un po' più lento per enunciato."
+        }
+      },
+      "disabled_suffix": ", non disponibile su questa macchina.",
+      "inactive_notice": "Selezionato, ma attualmente inattivo — questo build non include quel provider di esecuzione. Le trascrizioni stanno girando su CPU.",
+      "detected_adapters": "Adattatori rilevati",
+      "adapter_software_suffix": " (software)",
+      "adapter_vram_suffix": ", {{mb}} MB di VRAM"
+    },
+    "diagnostics": {
+      "title": "Diagnostica",
+      "description": "Tutto qui sotto è letto da questa macchina. Niente viene inviato altrove.",
+      "rows": {
+        "version": "Versione",
+        "os": "Sistema operativo",
+        "cpu_threads": "Thread CPU",
+        "onnx": "Backend ONNX",
+        "llama": "Backend llama.cpp",
+        "logs": "Log",
+        "database": "Database",
+        "models": "Modelli"
+      },
+      "feature_state": {
+        "compiled": "compilato",
+        "disabled": "disattivato"
+      }
+    },
+    "backup": {
+      "title": "Backup e ripristino",
+      "description": "Esporta impostazioni, modalità, vocabolario e cronologia in un singolo file che puoi spostare tra macchine o conservare come rete di sicurezza. I modelli sono esclusi, sono ri-scaricabili dal catalogo.",
+      "include_recordings": {
+        "label": "Includi registrazioni nell'esportazione",
+        "description": "File audio dalla cronologia. Solitamente il grosso dell'archivio, lascia disattivato se vuoi solo spostare le preferenze."
+      },
+      "export": {
+        "label": "Esporta dati",
+        "description_idle": "Scrive un file .tar nella posizione che scegli.",
+        "description_last": "Ultima esportazione: {{size}}, conteneva {{contents}}.",
+        "contents_nothing": "niente",
+        "exporting": "Esportazione…",
+        "button": "Esporta…",
+        "dialog_title": "Esporta dati di Utterbar",
+        "filter_name": "Backup di Utterbar"
+      },
+      "import": {
+        "label": "Importa dati",
+        "description": "Sostituisce impostazioni, modalità, vocabolario e cronologia attuali con il contenuto del backup. Utterbar si riavvia immediatamente dopo.",
+        "importing": "Importazione…",
+        "button": "Importa…",
+        "dialog_title": "Importa backup di Utterbar"
+      },
+      "import_modal": {
+        "eyebrow": "Azione distruttiva",
+        "heading": "Sostituire tutti i dati di Utterbar?",
+        "body_prefix": "Importare",
+        "body_suffix": "sovrascriverà impostazioni, modalità, vocabolario, cronologia attuali e qualsiasi registrazione inclusa nell'archivio. Utterbar si riavvierà immediatamente dopo.",
+        "warning": "Questo non può essere annullato. Se non sei sicuro, annulla ed esporta prima i tuoi dati attuali.",
+        "cancel": "Annulla",
+        "replace": "Sostituisci e riavvia",
+        "replacing": "Importazione e riavvio…"
+      }
+    },
+    "reset": {
+      "title": "Ripristina",
+      "row": {
+        "label": "Ripristina tutte le impostazioni ai valori predefiniti",
+        "description": "Modalità, vocabolario e cronologia sono preservati."
+      },
+      "button": "Ripristina",
+      "confirm": "Ripristinare tutte le impostazioni di Utterbar? Questo non elimina registrazioni o cronologia."
+    }
+  },
+  "models": {
+    "title": "Modelli",
+    "subtitle": "Modelli ASR Parakeet. Scaricati una volta, salvati localmente, mai caricati altrove.",
+    "whisper_language": {
+      "title": "Lingua Whisper",
+      "description": "Usata solo dai modelli Whisper. Il rilevamento automatico sceglie la lingua all'inizio di ogni dettatura; fissarne una specifica è leggermente più rapido ma ti vincola a quella lingua."
+    },
+    "language_warning": {
+      "english_only_title": "Questo modello supporta solo l'inglese",
+      "english_only_body": "La tua lingua di dettatura è impostata su una lingua diversa dall'inglese, ma {{model}} è solo per inglese. Passa a un modello Whisper multilingue per dettare nella lingua scelta.",
+      "no_multilingual_title": "Nessun modello multilingue installato",
+      "no_multilingual_body": "La tua lingua di dettatura è impostata su una lingua diversa dall'inglese, ma non è ancora installato alcun modello Whisper multilingue. Installane uno dalla lista di modelli qui sotto, poi torna qui per impostarlo come predefinito.",
+      "switch_to_multilingual": "Passa al modello multilingue",
+      "install_multilingual_hint": "Sfoglia la lista di modelli qui sotto e installa una variante di Whisper."
+    }
+  }
+}

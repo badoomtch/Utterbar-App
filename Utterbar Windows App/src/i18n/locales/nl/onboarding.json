@@ -1,0 +1,220 @@
+{
+  "common": {
+    "back": "Terug",
+    "continue": "Doorgaan",
+    "start_dictating": "Beginnen met dicteren",
+    "credit": "App van",
+    "credit_author": "Jay Parry"
+  },
+  "step_titles": {
+    "welcome": "Welkom bij Utterbar",
+    "privacy": "Alles lokaal, altijd",
+    "updates": "Updates controleren",
+    "theme": "Kies een thema",
+    "language": "Kies je dicteertaal",
+    "model": "Kies je ASR-model",
+    "gpu": "Je GPU gebruiken?",
+    "mic": "Kies en test je microfoon",
+    "baseline": "Je typsnelheid",
+    "trigger": "Hoe wil je opnemen activeren?",
+    "shortcut": "Een opnamesneltoets toewijzen",
+    "bar": "Waar Utterbar woont",
+    "ready": "Klaar om te dicteren"
+  },
+  "welcome": {
+    "heading": "Welkom",
+    "body": "Een premium dicteer-app voor Windows die volledig op je computer draait. In minder dan twee minuten ben je startklaar."
+  },
+  "privacy": {
+    "title": "Alles blijft op je computer",
+    "body": "Geen cloud-transcriptie. Geen cloud-nabewerking. Standaard geen telemetrie. Je opnames, transcripties en voorkeuren worden alleen op deze pc opgeslagen."
+  },
+  "updates": {
+    "title": "Updates controleren",
+    "body_prefix": "Utterbar kan af en toe vragen aan",
+    "body_domain": "utterbar.com",
+    "body_suffix": "of er een nieuwere versie is. Dit is het enige uitgaande verzoek dat de app standaard doet. Het stuurt alleen je huidige versie, geen gebruik, geen telemetrie, geen identificatoren.",
+    "options": {
+      "on_label": "Ja, controleer op updates",
+      "on_description": "Krijg een kleine melding wanneer er een nieuwe versie beschikbaar is. Jij klikt altijd zelf op Installeren; er wordt niets op de achtergrond gedownload of uitgevoerd.",
+      "off_label": "Nee, volledig offline",
+      "off_description": "Utterbar zal nooit het internet bereiken. Je kunt nog steeds handmatig controleren via Instellingen → Algemeen → \"Nu controleren\"."
+    }
+  },
+  "model": {
+    "title": "Kies je ASR-model",
+    "subtitle": "Modellen draaien volledig op deze computer. Wijzig dit later in Instellingen → Modellen.",
+    "multilingual_lead": "Dicteer je in een andere taal?",
+    "multilingual_body": "Kies hieronder het Whisper-model, het ondersteunt zo'n 99 talen in het gratis abonnement.",
+    "chip": {
+      "recommended": "Aanbevolen",
+      "installed": "Geïnstalleerd"
+    },
+    "stub": {
+      "label": "Voorlopig overslaan",
+      "body": "Tijdelijke transcriber. Je kunt later een echt model installeren via Instellingen → Modellen."
+    },
+    "button": {
+      "installed": "Geïnstalleerd",
+      "use_placeholder": "Tijdelijke gebruiken",
+      "download_install": "Downloaden en installeren",
+      "phase_suffix": "…"
+    },
+    "advance_hint_prefix": "Installeer een model of kies",
+    "advance_hint_pick": "Voorlopig overslaan",
+    "advance_hint_suffix": "om door te gaan.",
+    "download": {
+      "connecting": "Verbinden…",
+      "downloading": "Downloaden · {{rate}} · {{eta}}",
+      "rate_unit": "{{size}}/s",
+      "rate_unknown": "—",
+      "eta_known": "{{secs}} resterend",
+      "eta_unknown": "berekenen…",
+      "verifying": "Controlesom controleren…",
+      "extracting": "Uitpakken · {{elapsed}} / ~{{typical}}",
+      "done": "Klaar.",
+      "error_summary": "Fout, zie hieronder.",
+      "error_generic": "Download mislukt. Controleer je verbinding en probeer het opnieuw."
+    }
+  },
+  "gpu": {
+    "title": "Je GPU gebruiken?",
+    "body_prefix": "We hebben",
+    "body_unknown_adapter": "een grafische kaart",
+    "body_with_memory": " met {{memoryMb}} MB toegewezen geheugen",
+    "body_suffix": " gedetecteerd. Transcriptie hierop is doorgaans 3 tot 10 keer sneller dan op CPU. Je kunt dit later wijzigen via Instellingen → Geavanceerd.",
+    "options": {
+      "auto_title": "Slim (aanbevolen)",
+      "auto_description": "Gebruikt je GPU wanneer dat helpt en valt voor korte clips terug op CPU. Geen verrassingen.",
+      "always_title": "Altijd GPU gebruiken",
+      "always_description": "Snelste transcriptie. Kan games, 3D-apps of zware browsertabbladen kort vertragen tijdens het dicteren.",
+      "cpu_title": "Alleen CPU",
+      "cpu_description": "Houdt de GPU vrij voor andere apps. Transcriptie blijft snel, alleen iets langzamer per uiting."
+    }
+  },
+  "mic": {
+    "title": "Kies en test je microfoon",
+    "body": "Selecteer je invoerapparaat en neem een korte test op om te bevestigen dat het van begin tot eind werkt.",
+    "device": {
+      "system_default": "Systeemstandaard",
+      "default_suffix": " · standaard"
+    },
+    "button": {
+      "live_meter": "Live-meter",
+      "stop_meter": "Meter stoppen",
+      "record_test": "Test opnemen",
+      "stop": "Stoppen"
+    },
+    "processing": "Verwerken…",
+    "transcript_label": "Transcript",
+    "no_devices": "Geen invoerapparaten gedetecteerd. Sluit een microfoon aan of controleer de privacy-instellingen van Windows."
+  },
+  "baseline": {
+    "title": "Je typsnelheid als referentie",
+    "body": "We gebruiken dit om in te schatten hoeveel tijd je bespaart door te dicteren. Doe een snelle typtest, voer een waarde in die je al kent, of sla over en stel later af.",
+    "choices": {
+      "test_title": "Doe de test",
+      "test_sub": "~20 seconden · meest accuraat",
+      "manual_title": "Handmatig invoeren",
+      "manual_sub": "Geef je bekende WPM op",
+      "skip_title": "Overslaan",
+      "skip_sub": "Standaardwaarde {{wpm}} WPM gebruiken"
+    },
+    "measure": {
+      "placeholder": "Begin de bovenstaande zin te typen…",
+      "timer_idle": "De timer start bij je eerste toetsaanslag.",
+      "timer_active": "{{secs}} s verstreken…",
+      "new_sentence": "Nieuwe zin"
+    },
+    "result": {
+      "label": "Resultaat",
+      "wpm_unit": "woorden per minuut",
+      "try_again": "Opnieuw proberen",
+      "manual_instead": "Toch handmatig invoeren"
+    },
+    "manual": {
+      "wpm_suffix": "wpm",
+      "test_instead": "Toch de test doen"
+    },
+    "skipped": {
+      "body": "Standaardwaarde {{wpm}} WPM wordt gebruikt. Later af te stellen via Instellingen → Algemeen → Typsnelheid.",
+      "change_mind": "Bedacht me, doe de test"
+    },
+    "sentences": [
+      "Het rustige ochtendlicht kroop over de vloer terwijl de waterkoker zachtjes begon te fluiten in de keuken.",
+      "De meeste mensen merken pas hoeveel ze op een dag typen wanneer ze even stoppen om hun eigen handen te zien bewegen.",
+      "Een goed dicteerhulpmiddel zou minder als een hulpmiddel moeten aanvoelen en meer als een tweede paar geduldige oren dat aandachtig luistert.",
+      "Ze pakte het notitieboekje, sloeg een nieuwe pagina open en schreef de eerste zin op die in haar hoofd opkwam.",
+      "Jarenlang vanuit huis werken had hem geleerd de kleine rituelen meer te waarderen dan de lange vergaderingen ooit zouden kunnen."
+    ]
+  },
+  "trigger": {
+    "title": "Hoe wil je opnemen activeren?",
+    "subtitle": "Op elk moment te wijzigen via Instellingen → Sneltoetsen, en je kunt verschillende stijlen aan verschillende toetsen koppelen.",
+    "options": {
+      "toggle_label": "Wisselen",
+      "toggle_description": "Druk op de toets om de opname te starten. Druk er nogmaals op om te stoppen. Zo werken de meeste apps.",
+      "hold_label": "Vasthouden om te spreken",
+      "hold_description": "Houd de toets ingedrukt terwijl je spreekt. Laat los om te stoppen. Walkietalkie-stijl, ideaal voor korte stoten.",
+      "push_label": "Indrukken om te spreken (hybride)",
+      "push_description": "Dezelfde toets doet beide. Een snelle tik wisselt; ingedrukt houden werkt als vasthouden om te spreken. Kies dit als je één toets wilt voor beide stijlen."
+    }
+  },
+  "shortcut": {
+    "title": "Een opnamesneltoets toewijzen",
+    "body": "Je kunt een globale sneltoets toewijzen via Instellingen → Sneltoetsen zodra de introductie klaar is. Elke toetsencombinatie werkt in elke app. Ctrl+Spatie is standaard ingesteld."
+  },
+  "theme": {
+    "title": "Kies een thema"
+  },
+  "bar": {
+    "title": "Waar Utterbar woont",
+    "body": "Een kleine balk zweeft bij de bovenkant van je scherm zolang Utterbar draait. Tijdens het dicteren toont hij een live golfvorm en kun je met één klik starten, stoppen of annuleren. Je kunt hem overal naartoe slepen, en hij onthoudt de positie.",
+    "preview_label": "je bureaublad",
+    "tip": "Tip: pak de balk overal vast behalve op een knop om hem te slepen. Beweeg eroverheen om de bedieningselementen voor opnemen, stoppen, geschiedenis en instellingen te zien."
+  },
+  "ready": {
+    "heading": "Je bent klaar",
+    "prompt": {
+      "listening_hold": "Spreek nu, laat los om te beëindigen.",
+      "listening_push": "Spreek nu, druk nogmaals om te stoppen.",
+      "listening_toggle": "Spreek nu, druk nogmaals op de sneltoets om te stoppen.",
+      "processing": "Je spraak wordt verwerkt…",
+      "success": "Klaar, je woorden staan in het vak.",
+      "error": "Er ging iets mis: {{message}}",
+      "idle": "Druk op de sneltoets, spreek, en je woorden landen in het vak hieronder."
+    },
+    "transcribing": "Transcriberen…",
+    "waveform_idle": "Wachten op de sneltoets, de golfvorm komt tot leven wanneer je spreekt.",
+    "textarea_placeholder": "Je gedicteerde tekst verschijnt hier…",
+    "shortcut_detected": "Sneltoets gedetecteerd, dictaat is actief.",
+    "click_start_hint": "Of klik hieronder op Beginnen met dicteren wanneer je klaar bent.",
+    "warmup_lead": "Let op:",
+    "warmup_body": "het eerste dictaat laadt het model en duurt een paar seconden. Volgende dictaten voelen vrijwel onmiddellijk aan zolang het model warm is. Stel in hoe lang het model warm blijft via Instellingen → Modellen.",
+    "vocab": {
+      "title": "Wil je dat Utterbar je naam goed schrijft?",
+      "body": "Voeg hem nu toe aan de woordenschat en het dictaat zal hem vanaf de eerste poging correct spellen. Je kunt later meer woorden toevoegen via Instellingen → Woordenschat.",
+      "placeholder": "Typ je naam…",
+      "save": "Toevoegen",
+      "saving": "Opslaan…",
+      "skip": "Overslaan",
+      "save_error_generic": "Kon niet opslaan. Probeer het later opnieuw."
+    }
+  },
+  "language": {
+    "title": "Kies je dicteertaal",
+    "subtitle": "Dit is de taal waarnaar Utterbar luistert wanneer je dicteert. De interfacetaal is apart; deze app is beschikbaar in het Engels en Spaans.",
+    "picker_label": "Dicteertaal",
+    "picker_description": "Later te wijzigen via Instellingen → Modellen. Hier een andere taal dan Engels kiezen zal in de volgende stap een meertalig model aanbevelen.",
+    "warning": {
+      "english_only_title": "Dit model ondersteunt alleen Engels",
+      "english_only_body": "Je hebt een andere dicteertaal dan Engels gekozen, maar {{model}} is alleen Engels. Schakel hieronder over naar een meertalig model.",
+      "no_multilingual_title": "Geen meertalig model beschikbaar",
+      "no_multilingual_body": "Er staat nog geen meertalig model in de catalogus. Installeer Whisper via Instellingen → Modellen en kom dan terug om deze taal opnieuw te kiezen."
+    },
+    "switch_to_multilingual": "Overschakelen naar meertalig model"
+  },
+  "errors": {
+    "unknown": "Onbekende fout"
+  }
+}
