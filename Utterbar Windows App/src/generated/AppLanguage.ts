@@ -8,4 +8,4 @@
  * "en"`). Adding a new locale means adding a variant here, a matching JSON
  * resource on the frontend, and a row in the App language picker.
  */
-export type AppLanguage = "en";
+export type AppLanguage = "en" | "es";

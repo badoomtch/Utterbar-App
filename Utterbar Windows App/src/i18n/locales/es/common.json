@@ -1,0 +1,80 @@
+{
+  "language": {
+    "english": "Inglés",
+    "es": "Español",
+    "auto_detect": "Detección automática (recomendado)",
+    "spanish": "Español",
+    "french": "Francés",
+    "german": "Alemán",
+    "italian": "Italiano",
+    "portuguese": "Portugués",
+    "dutch": "Neerlandés",
+    "polish": "Polaco",
+    "turkish": "Turco",
+    "russian": "Ruso",
+    "arabic": "Árabe",
+    "hindi": "Hindi",
+    "japanese": "Japonés",
+    "korean": "Coreano",
+    "chinese": "Chino",
+    "indonesian": "Indonesio",
+    "thai": "Tailandés",
+    "vietnamese": "Vietnamita",
+    "swedish": "Sueco",
+    "norwegian": "Noruego",
+    "danish": "Danés",
+    "finnish": "Finés",
+    "czech": "Checo",
+    "greek": "Griego",
+    "hebrew": "Hebreo"
+  },
+  "chrome": {
+    "nav": {
+      "dashboard": "Panel",
+      "history": "Historial",
+      "meetings": "Reuniones",
+      "modes": "Modos",
+      "vocabulary": "Vocabulario",
+      "files": "Archivos"
+    },
+    "footer": {
+      "strap": "solo local"
+    },
+    "tier": {
+      "pro": "Pro",
+      "free_cta": "Mejorar a Pro →"
+    },
+    "update_toast": {
+      "title": "Actualización disponible",
+      "install": "Instalar y reiniciar",
+      "installing": "Instalando…",
+      "later": "Más tarde",
+      "error_generic": "La actualización falló. Inténtalo de nuevo en un momento.",
+      "post_title": "Actualizado a v{{version}}",
+      "post_body": "Estás en la última versión.",
+      "post_link": "Ver novedades →",
+      "dismiss_aria": "Descartar"
+    },
+    "upgrade_modal": {
+      "feature_prefix": "es una",
+      "pro_word": "Pro",
+      "feature_suffix": "función",
+      "period": {
+        "one_time": "pago único",
+        "monthly": "al mes",
+        "yearly": "al año"
+      },
+      "not_now": "Ahora no",
+      "upgrade": "Mejorar"
+    },
+    "pro_nudge": {
+      "feature_prefix": "es una",
+      "pro_word": "Pro",
+      "feature_suffix": "función.",
+      "learn_more": "Saber más →"
+    },
+    "managed_hint": {
+      "default": "Desactivado por tu administrador."
+    }
+  }
+}

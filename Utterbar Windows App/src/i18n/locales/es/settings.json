@@ -1,0 +1,720 @@
+{
+  "general": {
+    "title": "General",
+    "startup": {
+      "title": "Inicio",
+      "launch_on_login": {
+        "label": "Iniciar al iniciar sesión",
+        "description": "Inicia Utterbar automáticamente cuando inicies sesión en Windows, así la barra flotante siempre estará lista sin abrirla manualmente."
+      },
+      "start_minimised": {
+        "label": "Iniciar minimizado",
+        "description": "Cuando está activado, Utterbar arranca directamente en la bandeja y la barra flotante, sin ventana principal hasta que la pidas. Cuando está desactivado, el Panel se abre al iniciar para que veas tus estadísticas de inmediato."
+      },
+      "close_to_tray": {
+        "label": "Cerrar a la bandeja",
+        "description": "Pulsar la X de cualquier ventana la oculta a la bandeja en lugar de cerrar la app."
+      }
+    },
+    "appearance": {
+      "title": "Apariencia",
+      "theme": {
+        "label": "Tema",
+        "description": "Paleta de fondo de la ventana principal y de la incorporación.",
+        "options": {
+          "obsidian": "Obsidiana",
+          "graphite": "Grafito",
+          "paper": "Papel"
+        }
+      },
+      "accent": {
+        "label": "Acento",
+        "description": "El color que se usa para el botón de grabación, el glifo de la pastilla, los resaltes y la onda de audio de la barra flotante."
+      },
+      "custom_accent": {
+        "title_pro": "Elige cualquier color (Pro)",
+        "title_free": "El acento personalizado es una función Pro",
+        "aria": "Color de acento personalizado"
+      }
+    },
+    "app_language": {
+      "label": "Idioma de la app",
+      "description": "Idioma de la interfaz. El idioma de dictado se configura por separado en Modelos."
+    },
+    "feedback": {
+      "title": "Retroalimentación",
+      "sound_cues": {
+        "label": "Tonos de aviso",
+        "description": "Reproduce un tono sintetizado breve cuando la grabación empieza, se detiene, finaliza con éxito o hay un error. Los tonos se generan en la propia app mediante WebAudio, así que no hay archivos de muestra; volumen bajo por defecto."
+      },
+      "sound_profile": {
+        "label": "Perfil de sonido",
+        "description": "Qué familia de tonos de aviso usar. Haz clic en un perfil para oír su tono de éxito.",
+        "options": {
+          "default": {
+            "label": "Predeterminado",
+            "description": "Tonos cálidos de triángulo en una quinta musical: la opción por defecto, suave y satisfactoria."
+          },
+          "classic": {
+            "label": "Táctil",
+            "description": "Clics mecánicos nítidos al iniciar y detener; una campana suave al finalizar con éxito."
+          },
+          "subtle": {
+            "label": "Sutil",
+            "description": "Pitidos quedos de un solo tono: mínimos, sin melodía."
+          },
+          "chime": {
+            "label": "Carillón",
+            "description": "Terceras cálidas en onda triangular con una caída más prolongada."
+          }
+        }
+      },
+      "notifications": {
+        "label": "Notificaciones del sistema",
+        "description": "Lanza una notificación de Windows cuando algo realmente requiere tu atención: errores de dictado, fallos al instalar modelos, instalaciones de modelos correctas."
+      }
+    },
+    "upgrade": {
+      "custom_accent": {
+        "feature": "Colores de acento personalizados",
+        "description": "Elige cualquier color para la familia del acento, el botón de grabación, la onda de audio de la barra flotante, el glifo de la pastilla y todos los resaltes. Los seis preajustes son gratuitos; el color personalizado forma parte de Pro.",
+        "bullets": {
+          "any_hex": "Elige cualquier color hexadecimal con el selector de color nativo de Windows",
+          "auto_tint_shade": "Tintes y sombras derivados automáticamente para que los degradados conserven profundidad",
+          "presets_free": "Los seis acentos preajustados siguen siendo gratis para todos"
+        }
+      }
+    }
+  },
+  "nav": {
+    "group": {
+      "workspace": "Espacio de trabajo",
+      "settings": "Ajustes"
+    },
+    "search": {
+      "placeholder": "Buscar ajustes",
+      "clear": "Borrar búsqueda",
+      "no_match": "Ningún ajuste coincide con \"{{query}}\""
+    },
+    "general": {
+      "label": "General",
+      "matches": {
+        "theme": "Tema",
+        "accent": "Color de acento",
+        "launch_at_startup": "Iniciar con el sistema",
+        "start_minimised": "Iniciar minimizado",
+        "show_in_tray": "Mostrar en la bandeja del sistema",
+        "notification_sound": "Sonido de notificación",
+        "app_language": "Idioma de la app"
+      }
+    },
+    "bar": {
+      "label": "Utterbar",
+      "matches": {
+        "position": "Posición de la barra flotante",
+        "auto_hide": "Ocultar automáticamente cuando esté inactiva",
+        "background": "Comportamiento en segundo plano"
+      }
+    },
+    "audio": {
+      "label": "Audio",
+      "matches": {
+        "microphone": "Micrófono",
+        "input_device": "Dispositivo de entrada",
+        "noise_gate": "Puerta de ruido",
+        "gain": "Ganancia",
+        "sample_rate": "Frecuencia de muestreo",
+        "system_audio": "Audio del sistema"
+      }
+    },
+    "models": {
+      "label": "Modelos",
+      "matches": {
+        "default_dictation_model": "Modelo de dictado predeterminado",
+        "meeting_mode_model": "Modelo del Modo Reunión",
+        "model_downloads": "Descargas de modelos",
+        "keep_model_warm": "Mantener el modelo caliente",
+        "whisper": "Whisper",
+        "parakeet": "Parakeet"
+      }
+    },
+    "shortcuts": {
+      "label": "Atajos",
+      "matches": {
+        "toggle_recording_hotkey": "Atajo para alternar grabación",
+        "cancel_recording_hotkey": "Atajo para cancelar grabación"
+      }
+    },
+    "text_output": {
+      "label": "Salida de texto",
+      "matches": {
+        "paste_automatically": "Pegar automáticamente",
+        "restore_clipboard": "Restaurar el portapapeles",
+        "type_out_if_blocked": "Escribir si pegar está bloqueado",
+        "auto_capitalise": "Mayúscula automática",
+        "trim_trailing_whitespace": "Recortar espacios al final",
+        "auto_space": "Espacio automático",
+        "numbers_as_digits": "Números como dígitos",
+        "smart_rewrite": "Reescritura inteligente",
+        "hold_shift_auto_send": "Mantener Shift para enviar automáticamente"
+      }
+    },
+    "accessibility": {
+      "label": "Accesibilidad",
+      "matches": {
+        "reduce_motion": "Reducir movimiento",
+        "high_contrast": "Alto contraste",
+        "text_size": "Tamaño de texto",
+        "tooltips": "Información contextual"
+      }
+    },
+    "privacy": {
+      "label": "Privacidad",
+      "matches": {
+        "save_recordings": "Guardar grabaciones",
+        "delete_after": "Borrar grabaciones después de",
+        "active_app_context": "Contexto de la app activa",
+        "selection_context": "Contexto de la selección",
+        "clipboard_context": "Contexto del portapapeles",
+        "pause_music": "Pausar la música al grabar",
+        "mute_conferencing_output": "Silenciar la salida de las apps de videoconferencia",
+        "apps_to_silence": "Apps que silenciar",
+        "data_locations": "Ubicaciones de datos"
+      }
+    },
+    "advanced": {
+      "label": "Avanzado",
+      "matches": {
+        "gpu_acceleration": "Aceleración por GPU",
+        "directml": "DirectML",
+        "cpu_only": "Solo CPU",
+        "mute_mic_teams": "Silenciar mic en Teams (experimental)",
+        "mute_mic_discord": "Silenciar mic en Discord (experimental)",
+        "diagnostics": "Diagnóstico",
+        "export_data": "Exportar datos",
+        "import_backup": "Importar copia de seguridad",
+        "reset_settings": "Restablecer ajustes"
+      }
+    },
+    "licence": {
+      "label": "Licencia",
+      "matches": {
+        "activate_pro": "Activar Pro",
+        "licence_key": "Clave de licencia",
+        "devices": "Dispositivos",
+        "managed_licence_bin": "licence.bin gestionado",
+        "air_gapped_activation": "Activación sin conexión"
+      }
+    },
+    "updates": {
+      "label": "Actualizaciones",
+      "matches": {
+        "update_channel": "Canal de actualizaciones",
+        "check_for_updates": "Buscar actualizaciones",
+        "beta_channel": "Canal beta",
+        "stable_channel": "Canal estable",
+        "release_notes": "Notas de la versión"
+      }
+    },
+    "about": {
+      "label": "Acerca de",
+      "matches": {
+        "version": "Versión",
+        "credits": "Créditos",
+        "website_links": "Enlaces del sitio web"
+      }
+    }
+  },
+  "text_output": {
+    "title": "Salida de texto",
+    "subtitle": "Cómo el texto dictado llega a tu app activa.",
+    "delivery": {
+      "title": "Entrega",
+      "paste_automatically": {
+        "label": "Pegar automáticamente",
+        "description": "Después de transcribir, copia el resultado al portapapeles y simula Ctrl+V. Es la ruta más rápida y fiable; la mayoría de las apps lo aceptan."
+      },
+      "restore_clipboard": {
+        "label": "Restaurar el portapapeles anterior",
+        "description": "Aproximadamente 1,5 segundos después de pegar, vuelve a poner lo que tenías antes en el portapapeles. Mantiene intacto tu búfer de copia."
+      },
+      "keystroke_fallback": {
+        "label": "Escribir si pegar está bloqueado",
+        "description": "Algunas apps (herramientas de administración, escritorio remoto, algunos juegos) no aceptan texto pegado. Cuando ocurre, Utterbar escribe las palabras carácter a carácter en su lugar. Más lento, pero llega a apps que de otro modo descartarían el pegado. Déjalo activado salvo que tengas un motivo para no hacerlo."
+      }
+    },
+    "formatting": {
+      "title": "Formato",
+      "auto_capitalise": {
+        "label": "Mayúscula inicial automática",
+        "description": "Asegura que el texto insertado empiece con mayúscula, sin importar cómo lo haya transcrito el modelo."
+      },
+      "trim_trailing_space": {
+        "label": "Recortar espacios al final",
+        "description": "Elimina los espacios, tabulaciones o saltos de línea al final del texto transcrito antes de insertarlo."
+      },
+      "auto_space_on_paste": {
+        "label": "Espacio automático entre dictados",
+        "description": "Cuando dictas dos cosas seguidas en la misma app, añade un espacio entre ellas si la primera no terminaba ya con espacio. Evita que 'hola' + 'mundo' se peguen como 'holamundo'."
+      },
+      "numbers_as_digits": {
+        "label": "Números como dígitos",
+        "description": "Convierte los números hablados en dígitos (&lsquo;veintitrés&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;cinco euros&rsquo; &rarr; &lsquo;5 euros&rsquo;). Las expresiones idiomáticas se mantienen como palabras (&lsquo;uno de estos días&rsquo;). Desactívalo si prefieres ver los números escritos."
+      },
+      "smart_rewrite": {
+        "label": "Reescritura inteligente",
+        "description": "Limpia muletillas (&lsquo;eh&rsquo;, &lsquo;mm&rsquo;, &lsquo;o sea&rsquo;), espaciado, mayúsculas y puntuación final localmente antes de la inserción. Solo determinista &mdash; sin modelo de IA, sin servicio en la nube, sin descarga de modelos. Añade un poco de tiempo de procesado. Desactivado por defecto. Va mejor para chats y correo electrónico; desactívalo si dictas código (la regla que pone mayúscula al inicio de oración también la pondrá a palabras clave como &lsquo;let&rsquo; o &lsquo;fn&rsquo;). El Modo Reunión no se ve afectado (las transcripciones se mantienen literales)."
+      },
+      "shift_to_auto_send": {
+        "label": "Mantener Shift para enviar automáticamente",
+        "description": "Si mantienes pulsado Shift al detener la grabación, Utterbar pulsa Enter por ti justo después de pegar, así el mensaje se envía en Teams, Slack, Discord, etc. sin un segundo paso."
+      }
+    }
+  },
+  "accessibility": {
+    "title": "Accesibilidad",
+    "subtitle": "Haz que la ventana principal de Utterbar sea más cómoda de leer, oír y recorrer.",
+    "ui_scale": {
+      "title": "Escala de la interfaz",
+      "description": "Escala toda la ventana principal: texto, espaciado, botones e iconos, en relación con el tamaño por defecto. La barra flotante se queda deliberadamente al margen para mantener el mismo tamaño físico, elijas lo que elijas aquí.",
+      "scale": {
+        "label": "Escala",
+        "description": "Elige un preajuste o arrastra el control deslizante para ajuste fino."
+      },
+      "fine_tune": {
+        "label": "Ajuste fino"
+      },
+      "value": "{{value}}%"
+    },
+    "motion": {
+      "title": "Movimiento",
+      "description": "Para quien encuentra distractivas o mareantes las animaciones rebotonas.",
+      "reduce_motion": {
+        "label": "Reducir movimiento",
+        "description": "Minimiza las animaciones en Utterbar; la barra flotante seguirá apareciendo, pero se suprimen los muelles rebotones, las transiciones de expansión de la barra y el pulso de inicio. Tanto Framer Motion como las transiciones CSS respetan esta preferencia."
+      }
+    },
+    "contrast": {
+      "title": "Contraste y enfoque",
+      "description": "Aumenta la visibilidad del texto, los bordes y el foco del teclado. Útil para personas con baja visión y para trabajar en habitaciones muy iluminadas.",
+      "high_contrast": {
+        "label": "Alto contraste",
+        "description": "Empuja los grises tenues hacia el blanco puro (o el negro puro en Papel), engruesa los separadores finos y eleva cada borde a su variante más fuerte. Se aplica en todas partes: ventana principal, barra flotante e incorporación."
+      },
+      "larger_focus_rings": {
+        "label": "Anillos de foco más grandes",
+        "description": "Engruesa los contornos de foco de teclado de 2 px a 4 px con un halo más fuerte, para que el foco al navegar con tabulador sea inconfundible sobre cualquier fondo. El foco accionado por ratón no se ve afectado."
+      }
+    },
+    "transparency": {
+      "title": "Transparencia",
+      "description": "Las ventanas y las cabeceras fijas usan por defecto un sutil desenfoque de fondo. Desactívalo si dificulta la lectura o si tu GPU está ocupada con otras tareas.",
+      "reduce_transparency": {
+        "label": "Reducir transparencia",
+        "description": "Solidifica los fondos de cristal o esmerilados y elimina el desenfoque de fondo en toda la app. No cambia la disposición; solo el aspecto visual de cabeceras y superposiciones."
+      }
+    }
+  },
+  "bar_settings": {
+    "title": "Utterbar",
+    "subtitle": "La pastilla flotante que vive sobre tu escritorio. Ajusta su aspecto y cuándo aparece.",
+    "visibility": {
+      "title": "Visibilidad",
+      "always": {
+        "label": "Siempre visible",
+        "description": "La Utterbar se sitúa en la parte superior de tu pantalla siempre que la app esté en marcha. Comportamiento por defecto: la más fácil de localizar y de pulsar."
+      },
+      "while_recording": {
+        "label": "Solo mientras grabas",
+        "description": "La barra permanece oculta hasta que activas el dictado, y entonces aparece para que veas la onda de audio y puedas detener o cancelar. Huella mínima en pantalla."
+      },
+      "hidden": {
+        "label": "Nunca mostrar",
+        "description": "La Utterbar nunca aparece. Maneja todo desde tu atajo de teclado y el icono de la bandeja. La configuración más rápida y discreta."
+      }
+    },
+    "appearance": {
+      "title": "Apariencia",
+      "size": {
+        "label": "Tamaño",
+        "description": "Compacto reduce la huella de la pastilla. Estándar da más aire a sus controles.",
+        "options": {
+          "compact": "Compacto",
+          "standard": "Estándar"
+        }
+      },
+      "outline": {
+        "label": "Borde de acento",
+        "description": "Añade un fino borde con el color de acento alrededor de la pastilla, así es más fácil distinguirla sobre fondos brillantes o claros."
+      }
+    },
+    "position": {
+      "title": "Posición",
+      "reset": {
+        "label": "Restablecer posición",
+        "description": "Vuelve a colocar la Utterbar en la parte superior central de tu monitor actual. Úsalo si la pastilla acabó detrás de la barra de tareas, fuera de la pantalla o en un monitor que ya has desconectado. También está disponible desde el menú contextual del icono de la bandeja.",
+        "button": "Restablecer posición"
+      }
+    }
+  },
+  "about": {
+    "title": "Acerca de",
+    "tagline": "Dictado solo local para Windows. Todo el procesado de audio y de texto se realiza en este equipo. No se contactan servicios en la nube para transcribir ni para posprocesar.",
+    "version_pending": "v…",
+    "footer": {
+      "copyright_prefix": "© {{year}} Utterbar · Creado por",
+      "attribution_link": "Ddraig Dev",
+      "location_suffix": "· Hecho en Gales",
+      "website_link": "utterbar.com"
+    },
+    "third_party": {
+      "title": "Licencias de terceros",
+      "description": "Bibliotecas y modelos de código abierto incluidos con Utterbar."
+    }
+  },
+  "shortcuts": {
+    "title": "Atajos",
+    "subtitle": "Combinaciones globales. Pulsa cualquier combinación en cualquier app para activar.",
+    "capture": {
+      "press_keys": "Pulsa las teclas…",
+      "unbound": "Sin asignar"
+    },
+    "buttons": {
+      "clear": "Borrar"
+    },
+    "conflict": {
+      "tooltip": "Conflicto con otra asignación en {{accelerator}}"
+    },
+    "tip": {
+      "prefix": "Consejo: pulsa",
+      "suffix": "para cancelar la captura."
+    }
+  },
+  "audio": {
+    "title": "Audio",
+    "subtitle": "Dispositivos de entrada, preprocesado y prueba de micrófono.",
+    "capture_source": {
+      "title": "Fuente de captura",
+      "description": "Qué escucha Utterbar. Cambia a Audio del sistema para transcribir una reunión o un vídeo que se reproduce en otra app; Mixto graba ambas, así una llamada en la que también hablas captura ambos lados.",
+      "options": {
+        "microphone": {
+          "label": "Micrófono",
+          "note": "Graba tu voz desde el micrófono seleccionado. Lo mejor para el dictado del día a día."
+        },
+        "system": {
+          "label": "Audio del sistema",
+          "note": "Graba lo que se reproduzca por tus altavoces: reuniones, vídeos, notas de voz. Bucle invertido WASAPI: no hace falta cable virtual."
+        },
+        "mixed": {
+          "label": "Mixto (mic + sistema)",
+          "note": "Ambos a la vez, sumados. Útil para transcribir llamadas en las que también hablas."
+        }
+      }
+    },
+    "meeting_callout": {
+      "title": "Aviso: el Modo Reunión gestiona esto por ti",
+      "description": "Cuando un modo está marcado como Reunión, Utterbar siempre usa mic + audio del sistema a la vez (no hace falta configurarlo aquí), divide las grabaciones largas en fragmentos de 30 segundos para no sobrecargar la memoria del reconocedor y omite el posprocesado para que la transcripción sea literal. El modo 'Reunión' integrado viene así por defecto.",
+      "link": "Abrir Modos →"
+    },
+    "input_device": {
+      "title": "Dispositivo de entrada",
+      "microphone": {
+        "label": "Micrófono",
+        "description": "Desde qué dispositivo graba Utterbar. Predeterminado del sistema sigue lo que Windows tenga configurado."
+      },
+      "system_default": "Predeterminado del sistema",
+      "system_default_caption": "predeterminado del sistema",
+      "live_meter": {
+        "label": "Medidor en vivo",
+        "test": "Probar",
+        "stop": "Detener"
+      }
+    },
+    "noise_handling": {
+      "title": "Tratamiento del ruido",
+      "description": "Limpia la grabación antes de que llegue a Parakeet. Todo lo de aquí se ejecuta localmente en tiempo subliminar; no hay paso por la nube.",
+      "suppression": {
+        "label": "Intensidad de la supresión",
+        "description": "Filtro de banda ancha que elimina retumbo, zumbido de ventiladores y ruido de aire acondicionado. Empieza con Equilibrado; sube a Agresivo solo si sigue habiendo mucho ruido ambiente.",
+        "preview_tooltip": "{{blurb}} · Haz clic para previsualizar",
+        "preview_hint": "Pulsa cualquier nivel para oír una muestra de ~1 s.",
+        "levels": {
+          "off": {
+            "label": "Desactivado",
+            "blurb": "Sin procesado. Latencia mínima; conserva cada matiz para el modelo."
+          },
+          "light": {
+            "label": "Ligero",
+            "blurb": "Recorta el retumbo de la banda del subwoofer (por debajo de ~60 Hz). Bueno para habitaciones silenciosas."
+          },
+          "balanced": {
+            "label": "Equilibrado",
+            "blurb": "Reduce zumbidos de ventilador, aire acondicionado y ruidos del teclado entre palabras. Lo mejor para la mayoría de configuraciones."
+          },
+          "aggressive": {
+            "label": "Agresivo",
+            "blurb": "Filtro paso alto más fuerte y puerta más alta. Para cafeterías y habitaciones ruidosas; puede recortar consonantes suaves."
+          }
+        }
+      },
+      "noise_gate": {
+        "label": "Puerta entre palabras",
+        "description": "Pone a cero los huecos breves de silencio para que clics del teclado, clics del ratón, chasquidos de labios y respiración entre frases no lleguen al modelo. Complementa la supresión anterior; es seguro usarlo en cualquier nivel."
+      },
+      "dynamic_normalisation": {
+        "label": "Normalización dinámica",
+        "description": "Sube las grabaciones bajas a un nivel constante antes de transcribir. Ayuda cuando el micrófono está lejos o quien habla lo hace bajito."
+      },
+      "silence_removal": {
+        "label": "Recorte de silencios",
+        "description": "Descarta el silencio inicial y final antes de que el modelo lo vea. Transcripciones más rápidas con calidad idéntica."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Privacidad",
+    "subtitle": "Utterbar procesa todo en el dispositivo. Siempre tienes el control sobre qué se conserva y qué se utiliza como contexto.",
+    "managed_hint": "Algunos controles de privacidad de este dispositivo los gestiona tu administrador. Reinicia Utterbar para aplicar los cambios de política.",
+    "context": {
+      "title": "Captura de contexto",
+      "description": "¿Qué señales puede usar un modo para adaptar su salida?",
+      "active_app": {
+        "label": "Permitir contexto de la app activa",
+        "description": "Ejecutable de la app y título de la ventana."
+      },
+      "selection": {
+        "label": "Permitir contexto de la selección",
+        "description": "Texto seleccionado actualmente en la app en primer plano."
+      },
+      "clipboard": {
+        "label": "Permitir contexto del portapapeles",
+        "description": "El último texto copiado."
+      }
+    },
+    "audio_retention": {
+      "title": "Retención de audio",
+      "save_recordings": {
+        "label": "Guardar grabaciones",
+        "description": "Conserva el WAV de cada dictado en disco para poder reproducirlo o volver a transcribirlo más tarde. Los archivos viven en tu carpeta de Grabaciones y se podan automáticamente tras la ventana de retención de abajo."
+      },
+      "pro_nudge": {
+        "feature": "Retención de audio",
+        "description": "Conserva un WAV local de cada dictado para poder volver a escucharlo o transcribirlo. Solo se guarda en tu disco; nunca se sube."
+      },
+      "delete_after": {
+        "label": "Borrar grabaciones tras",
+        "description": "Los WAV antiguos se limpian automáticamente con cada nuevo dictado, así la carpeta de grabaciones no crece sin control.",
+        "value": "{{days}} días"
+      }
+    },
+    "media": {
+      "title": "Medios",
+      "pause_music": {
+        "label": "Pausar la música mientras grabas",
+        "description": "Pausa automáticamente Spotify, YouTube, Apple Music y cualquier otra app registrada con los controles de medios de Windows mientras dictas. Solo se reanudan las sesiones que Utterbar pausó."
+      },
+      "mute_conferencing": {
+        "label": "Silenciar la salida de las apps de videoconferencia mientras grabas",
+        "description": "Silencia lo que OYES de Teams, Slack, Discord, Zoom y Webex mientras dictas, así el audio de la llamada y los pitidos de notificaciones no se cuelan en la sala. Se restaura en cuanto termina el dictado. Esto NO silencia tu micrófono dentro de esas apps; usa el botón de silencio de cada app para eso."
+      }
+    },
+    "conferencing_apps": {
+      "title": "Apps que silenciar",
+      "description_prefix": "Nombres de ejecutables comparados sin distinguir mayúsculas y minúsculas con los procesos en ejecución.",
+      "using_defaults": "Usando los valores predeterminados integrados.",
+      "using_custom": "Usando tu lista personalizada.",
+      "edit_locked": "Activa el conmutador de arriba para editar esta lista.",
+      "reset_to_defaults": "Restablecer valores predeterminados",
+      "empty": "No hay apps configuradas.",
+      "input_placeholder": "p. ej. Teams.exe",
+      "add": "Añadir",
+      "remove_aria": "Eliminar {{name}}",
+      "errors": {
+        "empty": "Introduce un nombre de ejecutable.",
+        "invalid_characters": "Solo letras, números, punto, guion bajo y guion. Sin rutas, letras de unidad, comillas ni comodines.",
+        "too_long": "El nombre es demasiado largo (máximo 64 caracteres).",
+        "duplicate": "Esa app ya está en la lista.",
+        "defaults_loading": "Aún se están cargando los valores predeterminados; inténtalo de nuevo en un momento.",
+        "fallback": "Ese nombre no es válido."
+      }
+    },
+    "data_locations": {
+      "title": "Ubicaciones de datos",
+      "rows": {
+        "config": "Configuración",
+        "database": "Base de datos",
+        "models": "Modelos",
+        "recordings": "Grabaciones",
+        "logs": "Registros"
+      }
+    }
+  },
+  "updates": {
+    "title": "Actualizaciones",
+    "subtitle": "Elige tu canal, mira qué cambia en esta versión y comprueba si hay nuevas.",
+    "beta_warning": {
+      "heading": "Estás en el canal beta.",
+      "body": "Las compilaciones beta son pre-versiones. Pueden romper tu instalación, perder datos o introducir nuevos errores. Cambia a Estable abajo si prefieres ver solo versiones que ya hayan pasado por las pruebas."
+    },
+    "channel": {
+      "title": "Canal",
+      "description": "Estable es el canal público. Solo aterrizan ahí versiones que han madurado en beta. Beta recibe compilaciones pre-versión para pruebas.",
+      "row_label": "Canal de actualizaciones",
+      "options": {
+        "stable": "Estable",
+        "beta": "Beta"
+      },
+      "auto_check": {
+        "label": "Buscar actualizaciones automáticamente",
+        "description": "Comprueba el feed de actualizaciones al iniciar y muestra una notificación si hay una versión más reciente. Sin instalación automática; tú siempre haces clic en Instalar."
+      },
+      "check_now": {
+        "label": "Comprobar ahora",
+        "description_idle": "Pregunta al servidor de actualizaciones ahora mismo, independientemente de la comprobación de inicio.",
+        "description_available": "{{current}} → {{available}}, mira la notificación para instalar.",
+        "description_up_to_date": "Estás al día.",
+        "description_failed": "No se pudo contactar con el servidor de actualizaciones. Comprueba tu conexión e inténtalo de nuevo.",
+        "checking": "Comprobando…",
+        "button": "Comprobar ahora"
+      }
+    },
+    "release_notes": {
+      "title_with_version": "Novedades en {{version}}",
+      "title_fallback": "Novedades en esta versión",
+      "description": "Notas de la versión que estás ejecutando. Las notas de versiones anteriores viven en el archivo de releases de GitHub.",
+      "empty": "No hay notas de versión incluidas para esta versión. (Probablemente estás en una compilación de desarrollo.)"
+    },
+    "release_email": {
+      "title": "Avisos de versión",
+      "description": "Recibe un correo breve cuando se publica una nueva versión de Utterbar. Qué hay de nuevo, cómo actualizar; nada más. Date de baja con un clic desde cualquier correo de versión.",
+      "row": {
+        "label": "Avisarme cuando haya una nueva versión",
+        "description": "Como mucho un correo por versión. Tu dirección permanece solo en la lista del servidor; nunca la compartimos."
+      },
+      "input_placeholder": "tu@ejemplo.com",
+      "subscribe": "Suscribirse",
+      "sending": "Enviando…",
+      "subscribed_as": "Suscrito como {{email}}",
+      "change_email": "Cambiar correo",
+      "errors": {
+        "empty": "Introduce tu correo para suscribirte.",
+        "invalid": "Eso no parece un correo electrónico; revisa si hay erratas.",
+        "fallback": "No se pudo contactar con el servidor. Comprueba tu conexión e inténtalo de nuevo."
+      }
+    }
+  },
+  "advanced": {
+    "title": "Avanzado",
+    "subtitle": "Diagnóstico, preferencias de hardware y conmutadores experimentales.",
+    "gpu": {
+      "title": "Aceleración por GPU",
+      "description": {
+        "checking": "Comprobando qué hardware está disponible…",
+        "no_runtime_ep": "Esta compilación se ejecuta solo en CPU. DirectML y CUDA aparecen aquí para conservar tu preferencia para una futura versión que incluya soporte de GPU, pero hoy no tienen efecto.",
+        "detected": "Se ha detectado {{name}}. Auto ejecuta Whisper Medium / Large y Parakeet en la GPU cuando hay una y mantiene Whisper Small en la CPU. Puedes anular la elección eligiendo un proveedor concreto abajo.",
+        "no_gpu": "La aceleración por GPU está incluida, pero no se detectó ninguna GPU dedicada o integrada en este equipo. Utterbar se ejecutará en CPU."
+      },
+      "options": {
+        "auto": {
+          "title": "Auto",
+          "hint": "Usa tu GPU si se detecta y el runtime la admite; en caso contrario, CPU. Recomendado."
+        },
+        "direct_ml": {
+          "title": "DirectML",
+          "hint": "Prefiere DirectML cuando la compilación lo incluya. Funciona en cualquier GPU DX12."
+        },
+        "cuda": {
+          "title": "CUDA",
+          "hint": "Prefiere NVIDIA CUDA cuando la compilación lo incluya. Lo más rápido en tarjetas NVIDIA."
+        },
+        "cpu": {
+          "title": "Solo CPU",
+          "hint": "Mantén la GPU libre para juegos o vídeo. Un poco más lento por enunciado."
+        }
+      },
+      "disabled_suffix": ", no disponible en este equipo.",
+      "inactive_notice": "Seleccionado, pero actualmente inactivo: esta compilación no incluye ese proveedor de ejecución. Las transcripciones se están ejecutando en CPU.",
+      "detected_adapters": "Adaptadores detectados",
+      "adapter_software_suffix": " (software)",
+      "adapter_vram_suffix": ", {{mb}} MB de VRAM"
+    },
+    "diagnostics": {
+      "title": "Diagnóstico",
+      "description": "Todo lo de abajo se lee de este equipo. No se envía nada a ningún sitio.",
+      "rows": {
+        "version": "Versión",
+        "os": "SO",
+        "cpu_threads": "Hilos de CPU",
+        "onnx": "Backend ONNX",
+        "llama": "Backend llama.cpp",
+        "logs": "Registros",
+        "database": "Base de datos",
+        "models": "Modelos"
+      },
+      "feature_state": {
+        "compiled": "compilado",
+        "disabled": "desactivado"
+      }
+    },
+    "backup": {
+      "title": "Copia de seguridad y restauración",
+      "description": "Exporta tus ajustes, modos, vocabulario e historial a un solo archivo que puedes mover entre equipos o conservar como red de seguridad. Los modelos quedan excluidos; se pueden volver a descargar desde el catálogo.",
+      "include_recordings": {
+        "label": "Incluir grabaciones en la exportación",
+        "description": "Archivos de audio del historial. Suelen ser el grueso del archivo; déjalo desactivado cuando solo quieras mover preferencias."
+      },
+      "export": {
+        "label": "Exportar datos",
+        "description_idle": "Escribe un archivo .tar en la ubicación que elijas.",
+        "description_last": "Última exportación: {{size}}, incluyó {{contents}}.",
+        "contents_nothing": "nada",
+        "exporting": "Exportando…",
+        "button": "Exportar…",
+        "dialog_title": "Exportar datos de Utterbar",
+        "filter_name": "Copia de seguridad de Utterbar"
+      },
+      "import": {
+        "label": "Importar datos",
+        "description": "Sustituye los ajustes, modos, vocabulario e historial actuales por el contenido de la copia. Utterbar se reinicia inmediatamente después.",
+        "importing": "Importando…",
+        "button": "Importar…",
+        "dialog_title": "Importar copia de seguridad de Utterbar"
+      },
+      "import_modal": {
+        "eyebrow": "Acción destructiva",
+        "heading": "¿Sustituir todos los datos de Utterbar?",
+        "body_prefix": "Importar",
+        "body_suffix": "sobrescribirá tus ajustes, modos, vocabulario, historial y cualquier grabación incluida en el archivo. Utterbar se reiniciará inmediatamente después.",
+        "warning": "Esto no se puede deshacer. Si no estás seguro, cancela y exporta primero tus datos actuales.",
+        "cancel": "Cancelar",
+        "replace": "Sustituir y reiniciar",
+        "replacing": "Importando y reiniciando…"
+      }
+    },
+    "reset": {
+      "title": "Restablecer",
+      "row": {
+        "label": "Restablecer todos los ajustes a los valores por defecto",
+        "description": "Los modos, el vocabulario y el historial se conservan."
+      },
+      "button": "Restablecer",
+      "confirm": "¿Restablecer todos los ajustes de Utterbar? Esto no borra grabaciones ni historial."
+    }
+  },
+  "models": {
+    "title": "Modelos",
+    "subtitle": "Modelos ASR de Parakeet. Se descargan una vez, se almacenan localmente y nunca se suben a ningún sitio.",
+    "whisper_language": {
+      "title": "Idioma de Whisper",
+      "description": "Lo usan solo los modelos Whisper. La detección automática elige el idioma al inicio de cada dictado; fijar uno concreto es algo más rápido pero te limita a ese idioma."
+    },
+    "language_warning": {
+      "english_only_title": "Este modelo solo admite inglés",
+      "english_only_body": "Tu idioma de dictado está configurado en un idioma distinto del inglés, pero {{model}} solo admite inglés. Cambia a un modelo Whisper multilingüe para dictar en el idioma elegido.",
+      "no_multilingual_title": "No hay un modelo multilingüe instalado",
+      "no_multilingual_body": "Tu idioma de dictado está configurado en un idioma distinto del inglés, pero todavía no hay ningún modelo Whisper multilingüe instalado. Instala uno desde la lista de modelos de abajo y vuelve aquí para establecerlo como predeterminado.",
+      "switch_to_multilingual": "Cambiar a modelo multilingüe",
+      "install_multilingual_hint": "Examina la lista de modelos de abajo e instala una variante de Whisper."
+    }
+  }
+}

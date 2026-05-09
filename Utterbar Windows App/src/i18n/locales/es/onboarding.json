@@ -1,0 +1,220 @@
+{
+  "common": {
+    "back": "Atrás",
+    "continue": "Continuar",
+    "start_dictating": "Empezar a dictar",
+    "credit": "App de",
+    "credit_author": "Jay Parry"
+  },
+  "step_titles": {
+    "welcome": "Te damos la bienvenida a Utterbar",
+    "privacy": "Todo local, siempre",
+    "updates": "Comprobación de actualizaciones",
+    "theme": "Elige un tema",
+    "language": "Elige tu idioma de dictado",
+    "model": "Elige tu modelo de ASR",
+    "gpu": "¿Usar tu GPU?",
+    "mic": "Elige y prueba tu micrófono",
+    "baseline": "Tu velocidad al teclado",
+    "trigger": "¿Cómo quieres activar la grabación?",
+    "shortcut": "Asigna un atajo de grabación",
+    "bar": "Dónde vive Utterbar",
+    "ready": "Listo para dictar"
+  },
+  "welcome": {
+    "heading": "Bienvenida",
+    "body": "Una aplicación de dictado premium para Windows que se ejecuta íntegramente en tu equipo. Te dejaremos lista la configuración en menos de dos minutos."
+  },
+  "privacy": {
+    "title": "Todo se queda en tu equipo",
+    "body": "Sin transcripción en la nube. Sin posprocesado en la nube. Sin telemetría por defecto. Tus grabaciones, transcripciones y preferencias se guardan únicamente en este PC."
+  },
+  "updates": {
+    "title": "Comprobación de actualizaciones",
+    "body_prefix": "Utterbar puede preguntar de vez en cuando a",
+    "body_domain": "utterbar.com",
+    "body_suffix": "si hay una versión más reciente. Es la única solicitud saliente que la app realiza por defecto. Solo envía tu versión actual; sin uso, sin telemetría, sin identificadores.",
+    "options": {
+      "on_label": "Sí, comprobar actualizaciones",
+      "on_description": "Recibe una pequeña notificación cuando haya una versión nueva. Tú siempre haces clic en Instalar; nada se descarga ni se ejecuta en segundo plano.",
+      "off_label": "No, totalmente sin conexión",
+      "off_description": "Utterbar nunca contactará con internet. Aún puedes comprobar manualmente desde Ajustes → General → \"Comprobar ahora\"."
+    }
+  },
+  "model": {
+    "title": "Elige tu modelo de ASR",
+    "subtitle": "Los modelos se ejecutan íntegramente en este equipo. Cámbialo más adelante en Ajustes → Modelos.",
+    "multilingual_lead": "¿Vas a dictar en otro idioma?",
+    "multilingual_body": "Elige el modelo Whisper de abajo; cubre alrededor de 99 idiomas en el plan gratuito.",
+    "chip": {
+      "recommended": "Recomendado",
+      "installed": "Instalado"
+    },
+    "stub": {
+      "label": "Saltar por ahora",
+      "body": "Transcriptor de marcador de posición. Puedes instalar un modelo real más adelante desde Ajustes → Modelos."
+    },
+    "button": {
+      "installed": "Instalado",
+      "use_placeholder": "Usar marcador de posición",
+      "download_install": "Descargar e instalar",
+      "phase_suffix": "…"
+    },
+    "advance_hint_prefix": "Instala un modelo o elige",
+    "advance_hint_pick": "Saltar por ahora",
+    "advance_hint_suffix": "para continuar.",
+    "download": {
+      "connecting": "Conectando…",
+      "downloading": "Descargando · {{rate}} · {{eta}}",
+      "rate_unit": "{{size}}/s",
+      "rate_unknown": "—",
+      "eta_known": "{{secs}} restantes",
+      "eta_unknown": "calculando…",
+      "verifying": "Verificando suma de comprobación…",
+      "extracting": "Extrayendo · {{elapsed}} / ~{{typical}}",
+      "done": "Listo.",
+      "error_summary": "Error, ver más abajo.",
+      "error_generic": "La descarga falló. Comprueba tu conexión e inténtalo de nuevo."
+    }
+  },
+  "gpu": {
+    "title": "¿Usar tu GPU?",
+    "body_prefix": "Hemos detectado",
+    "body_unknown_adapter": "una tarjeta gráfica",
+    "body_with_memory": " con {{memoryMb}} MB de memoria dedicada",
+    "body_suffix": ". Ejecutar la transcripción en ella suele ser entre 3 y 10 veces más rápido que en la CPU. Puedes cambiarlo más adelante en Ajustes → Avanzado.",
+    "options": {
+      "auto_title": "Inteligente (recomendado)",
+      "auto_description": "Usa tu GPU cuando ayude y vuelve a la CPU para clips cortos. Sin sorpresas.",
+      "always_title": "Usar siempre la GPU",
+      "always_description": "La transcripción más rápida. Puede ralentizar brevemente juegos, apps 3D o pestañas pesadas del navegador mientras dictas.",
+      "cpu_title": "Solo CPU",
+      "cpu_description": "Mantén la GPU libre para otras apps. La transcripción sigue siendo rápida, solo un poco más lenta por enunciado."
+    }
+  },
+  "mic": {
+    "title": "Elige y prueba tu micrófono",
+    "body": "Selecciona tu dispositivo de entrada y graba una breve prueba para confirmar que funciona de principio a fin.",
+    "device": {
+      "system_default": "Predeterminado del sistema",
+      "default_suffix": " · predeterminado"
+    },
+    "button": {
+      "live_meter": "Medidor en vivo",
+      "stop_meter": "Detener medidor",
+      "record_test": "Grabar prueba",
+      "stop": "Detener"
+    },
+    "processing": "Procesando…",
+    "transcript_label": "Transcripción",
+    "no_devices": "No se detectaron dispositivos de entrada. Conecta un micrófono o revisa los ajustes de privacidad de Windows."
+  },
+  "baseline": {
+    "title": "Tu velocidad de tecleo de referencia",
+    "body": "La usamos para estimar cuánto tiempo te ahorra dictar. Puedes hacer una prueba rápida de tecleo, introducir un número que ya conozcas o saltarlo por ahora y ajustarlo más tarde.",
+    "choices": {
+      "test_title": "Hacer la prueba",
+      "test_sub": "~20 segundos · lo más preciso",
+      "manual_title": "Introducir manualmente",
+      "manual_sub": "Escribe tus PPM ya conocidas",
+      "skip_title": "Saltar",
+      "skip_sub": "Usar el valor predeterminado de {{wpm}} PPM"
+    },
+    "measure": {
+      "placeholder": "Empieza a escribir la frase de arriba…",
+      "timer_idle": "El temporizador empieza con tu primera pulsación.",
+      "timer_active": "{{secs}} s transcurridos…",
+      "new_sentence": "Frase nueva"
+    },
+    "result": {
+      "label": "Resultado",
+      "wpm_unit": "palabras por minuto",
+      "try_again": "Intentar de nuevo",
+      "manual_instead": "Introducir manualmente"
+    },
+    "manual": {
+      "wpm_suffix": "ppm",
+      "test_instead": "Hacer la prueba"
+    },
+    "skipped": {
+      "body": "Usando el valor predeterminado de {{wpm}} PPM. Puedes ajustarlo más adelante en Ajustes → General → Velocidad de tecleo.",
+      "change_mind": "He cambiado de idea, hacer la prueba"
+    },
+    "sentences": [
+      "La luz tranquila de la mañana se deslizaba por el suelo mientras la tetera empezaba a silbar suavemente en la cocina.",
+      "La mayoría de la gente solo se da cuenta de cuánto teclea en un día cuando se detiene a mirar sus propias manos en movimiento.",
+      "Una buena herramienta de dictado debería sentirse menos como una herramienta y más como un segundo par de oídos pacientes que escuchan con atención.",
+      "Cogió el cuaderno, abrió una página en blanco y escribió la primera frase que le vino a la cabeza.",
+      "Trabajar desde casa durante años le había enseñado a valorar los pequeños rituales más de lo que las largas reuniones podrían lograr."
+    ]
+  },
+  "trigger": {
+    "title": "¿Cómo quieres activar la grabación?",
+    "subtitle": "Puedes cambiarlo cuando quieras en Ajustes → Atajos, y asignar estilos distintos a teclas distintas.",
+    "options": {
+      "toggle_label": "Alternar",
+      "toggle_description": "Pulsa la tecla para empezar a grabar. Vuelve a pulsarla para detener. Así funciona la mayoría de las apps.",
+      "hold_label": "Mantener para hablar",
+      "hold_description": "Mantén la tecla pulsada mientras hablas. Suéltala para detener. Estilo walkie-talkie, ideal para ráfagas cortas.",
+      "push_label": "Pulsar para hablar (híbrido)",
+      "push_description": "La misma tecla hace ambas cosas. Una pulsación rápida alterna; mantenerla pulsada actúa como mantener para hablar. Elige esta opción si quieres una sola tecla para los dos estilos."
+    }
+  },
+  "shortcut": {
+    "title": "Asigna un atajo de grabación",
+    "body": "Podrás asignar un atajo global desde Ajustes → Atajos cuando termine la incorporación. Cualquier combinación de teclas funciona en cualquier app. Ctrl+Espacio está configurado por defecto."
+  },
+  "theme": {
+    "title": "Elige un tema"
+  },
+  "bar": {
+    "title": "Dónde vive Utterbar",
+    "body": "Una pequeña barra flotará cerca de la parte superior de tu pantalla siempre que Utterbar esté en marcha. Muestra una onda de audio en vivo mientras dictas y te permite empezar, detener o cancelar con un clic. Puedes arrastrarla a cualquier sitio y recordará la posición.",
+    "preview_label": "tu escritorio",
+    "tip": "Consejo: agarra la barra por cualquier zona que no sea un botón para arrastrarla. Pasa el ratón por encima para ver los controles de grabar, detener, historial y ajustes."
+  },
+  "ready": {
+    "heading": "Todo listo",
+    "prompt": {
+      "listening_hold": "Habla ahora; suelta para terminar.",
+      "listening_push": "Habla ahora; pulsa de nuevo para detener.",
+      "listening_toggle": "Habla ahora; pulsa de nuevo el atajo para detener.",
+      "processing": "Procesando tu voz…",
+      "success": "Listo, tus palabras están en la caja.",
+      "error": "Algo salió mal: {{message}}",
+      "idle": "Pulsa el atajo, habla y tus palabras aparecerán en la caja de abajo."
+    },
+    "transcribing": "Transcribiendo…",
+    "waveform_idle": "Esperando el atajo; la onda de audio cobrará vida cuando hables.",
+    "textarea_placeholder": "Aquí aparecerá tu texto dictado…",
+    "shortcut_detected": "Atajo detectado, el dictado está activo.",
+    "click_start_hint": "O haz clic en Empezar a dictar abajo cuando estés listo.",
+    "warmup_lead": "Aviso:",
+    "warmup_body": "el primer dictado carga el modelo y tarda unos segundos. Los siguientes, mientras el modelo siga caliente, son casi instantáneos. Ajusta cuánto tiempo permanece caliente el modelo en Ajustes → Modelos.",
+    "vocab": {
+      "title": "¿Quieres que Utterbar acierte con tu nombre?",
+      "body": "Añádelo al vocabulario ahora y el dictado lo escribirá correctamente desde el primer intento. Puedes añadir más palabras más tarde desde Ajustes → Vocabulario.",
+      "placeholder": "Escribe tu nombre…",
+      "save": "Añadir",
+      "saving": "Guardando…",
+      "skip": "Saltar",
+      "save_error_generic": "No se pudo guardar. Inténtalo de nuevo más tarde."
+    }
+  },
+  "language": {
+    "title": "Elige tu idioma de dictado",
+    "subtitle": "Es el idioma que Utterbar escucha cuando dictas. El idioma de la interfaz es independiente; esta app está disponible en inglés y español.",
+    "picker_label": "Idioma de dictado",
+    "picker_description": "Puedes cambiarlo más adelante en Ajustes → Modelos. Si eliges aquí un idioma distinto del inglés, en el siguiente paso se te recomendará un modelo multilingüe.",
+    "warning": {
+      "english_only_title": "Este modelo solo admite inglés",
+      "english_only_body": "Has elegido un idioma de dictado distinto del inglés, pero {{model}} solo admite inglés. Cambia a un modelo multilingüe abajo.",
+      "no_multilingual_title": "No hay modelo multilingüe disponible",
+      "no_multilingual_body": "Aún no hay ningún modelo multilingüe en el catálogo. Instala Whisper desde Ajustes → Modelos y vuelve para elegir este idioma de nuevo."
+    },
+    "switch_to_multilingual": "Cambiar a modelo multilingüe"
+  },
+  "errors": {
+    "unknown": "Error desconocido"
+  }
+}

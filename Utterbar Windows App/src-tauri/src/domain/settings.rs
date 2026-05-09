@@ -153,6 +153,7 @@ pub enum BarSize {
 pub enum AppLanguage {
     #[default]
     En,
+    Es,
 }
 
 /// Cue-sound flavour. All profiles are synthesised on the fly via the frontend's
