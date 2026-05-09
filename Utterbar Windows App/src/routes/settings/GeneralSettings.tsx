@@ -226,11 +226,20 @@ export function GeneralSettings() {
         />
 
         <Card title={tSettings('general.app_language.label')}>
-          <Row
-            label={tSettings('general.app_language.label')}
-            description={tSettings('general.app_language.description')}
-          >
-            <div className="flex flex-wrap items-center gap-2">
+          {/* Stacked layout instead of Row's side-by-side. With seven
+              chips in the picker the Row's label column collapses to
+              single-word width (the chip container is shrink-0 so it
+              wins the flex tug-of-war, leaving the label nowhere to
+              go). Stacking puts the description above the chips so
+              both can use the full Card width. */}
+          <div>
+            <div className="text-[13px] font-medium text-fg-hi">
+              {tSettings('general.app_language.label')}
+            </div>
+            <div className="mt-1 text-[12px] leading-relaxed text-muted">
+              {tSettings('general.app_language.description')}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               {APP_LANGUAGES.map((code) => (
                 <button
                   key={code}
@@ -244,7 +253,7 @@ export function GeneralSettings() {
                 </button>
               ))}
             </div>
-          </Row>
+          </div>
         </Card>
 
         <Card title={tSettings('general.feedback.title')}>
