@@ -12,6 +12,11 @@ pub const EVT_MODEL_PROGRESS: &str = "model:progress";
 pub const EVT_MODEL_CHANGED: &str = "model:changed";
 pub const EVT_SETTINGS_CHANGED: &str = "settings:changed";
 pub const EVT_SHORTCUT_TRIGGERED: &str = "shortcut:triggered";
+/// Key-up for a bound global shortcut. Only the hold-to-record styles
+/// (push-to-talk / hold-to-talk) act on this; every other shortcut is a
+/// one-shot on key-down and ignores it. Emitted for all shortcuts on
+/// release; the frontend filters.
+pub const EVT_SHORTCUT_RELEASED: &str = "shortcut:released";
 pub const EVT_FILE_JOB_PROGRESS: &str = "file-job:progress";
 /// Navigation intent for the main window. Emitted by `show_main_at` so the
 /// floating bar's History / Settings buttons can land the user on the right

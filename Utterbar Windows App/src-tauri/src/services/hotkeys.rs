@@ -17,7 +17,9 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut as GhShortcut, Sh
 use tokio::sync::RwLock;
 
 use crate::app_state::AppState;
-use crate::domain::{Shortcut, ShortcutConflict, ShortcutId, EVT_SHORTCUT_TRIGGERED};
+use crate::domain::{
+    Shortcut, ShortcutConflict, ShortcutId, EVT_SHORTCUT_RELEASED, EVT_SHORTCUT_TRIGGERED,
+};
 
 #[derive(Default)]
 pub struct HotkeyService {
@@ -125,10 +127,14 @@ pub async fn arm_from_settings(handle: &AppHandle, state: &AppState) -> Result<(
         let handle = handle.clone();
         let id_for_handler = id.clone();
         if let Err(e) = shortcuts.on_shortcut(parsed, move |_, _, event| {
-            // Only fire on key-down; key-up will arrive for hold-to-talk flows separately.
-            if event.state == ShortcutState::Pressed {
-                let _ = handle.emit(EVT_SHORTCUT_TRIGGERED, id_for_handler.clone());
-            }
+            // Key-down drives every shortcut; key-up is emitted separately so
+            // the hold-to-record styles (push-to-talk / hold-to-talk) can stop
+            // recording on release. One-shot shortcuts ignore the release event.
+            let evt = match event.state {
+                ShortcutState::Pressed => EVT_SHORTCUT_TRIGGERED,
+                ShortcutState::Released => EVT_SHORTCUT_RELEASED,
+            };
+            let _ = handle.emit(evt, id_for_handler.clone());
         }) {
             tracing::warn!(?e, %accel, "failed to register global shortcut");
         }

@@ -19,6 +19,7 @@ export const EVT = {
   modelChanged: 'model:changed',
   settingsChanged: 'settings:changed',
   shortcutTriggered: 'shortcut:triggered',
+  shortcutReleased: 'shortcut:released',
   fileJobProgress: 'file-job:progress',
   trayStartRecording: 'tray:start-recording',
   trayPauseToggled: 'tray:pause-toggled',

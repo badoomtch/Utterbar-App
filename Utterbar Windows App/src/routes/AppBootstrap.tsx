@@ -4,6 +4,7 @@ import { MotionConfig } from 'framer-motion';
 import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { useDictation, type DictationPhase, type MeterFrame } from '@/state/dictation';
+import { useModes } from '@/state/modes';
 import { useSettings } from '@/state/settings';
 import { attachLicenceListener, useLicence } from '@/state/licence';
 import { usePolicy } from '@/state/policy';
@@ -238,8 +239,52 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
               console.warn('[utterbar] vocab quick-add failed', err);
             });
             break;
+          case 'push_to_talk':
+          case 'hold_to_talk': {
+            // Hold-to-record: key-down starts, key-up (shortcut:released)
+            // stops. Guard against a double-start when we're already
+            // listening (a repeat press, or an overlapping toggle press).
+            if (hotkeyInFlightRef.current) break;
+            if (useDictation.getState().phase.kind === 'listening') break;
+            hotkeyInFlightRef.current = true;
+            try {
+              await invoke('start_recording', { deviceId: null });
+            } catch (err) {
+              console.warn('[utterbar] push/hold-to-talk start failed', err);
+            } finally {
+              hotkeyInFlightRef.current = false;
+            }
+            break;
+          }
+          case 'cycle_mode': {
+            // Switch to the next mode by sort order, wrapping around.
+            const { list, activeId, setActive } = useModes.getState();
+            if (list.length === 0) break;
+            const sorted = [...list].sort((a, b) => a.sort_order - b.sort_order);
+            const idx = sorted.findIndex((m) => m.id === activeId);
+            const next = sorted[(idx + 1) % sorted.length];
+            if (next && next.id !== activeId) {
+              await setActive(next.id).catch((err) =>
+                console.warn('[utterbar] cycle_mode failed', err),
+              );
+            }
+            break;
+          }
           default:
             break;
+        }
+      }),
+      // Key-up for the hold-to-record styles. Only push/hold-to-talk act
+      // on release; every other shortcut is a one-shot on key-down.
+      listen<ShortcutId>(EVT.shortcutReleased, async (e) => {
+        if (!isMain) return;
+        const id = typeof e.payload === 'string' ? e.payload : undefined;
+        if (id !== 'push_to_talk' && id !== 'hold_to_talk') return;
+        if (useDictation.getState().phase.kind !== 'listening') return;
+        try {
+          await invoke('stop_recording');
+        } catch (err) {
+          console.warn('[utterbar] push/hold-to-talk stop failed', err);
         }
       }),
       listen(EVT.trayStartRecording, () => void invoke('start_recording', { deviceId: null })),
