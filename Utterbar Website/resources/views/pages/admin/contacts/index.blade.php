@@ -37,7 +37,7 @@
                                 @foreach ($messages as $m)
                                     <tr style="border-top: 1px solid var(--border);">
                                         <td style="padding: 0.75rem 1rem;">
-                                            <div style="color: var(--fg-hi);">{{ $m->name ?: '—' }}</div>
+                                            <div style="color: var(--fg-hi);">{{ $m->name ?: '-' }}</div>
                                             <div class="text-xs" style="color: var(--muted);">{{ $m->email }}</div>
                                         </td>
                                         <td style="padding: 0.75rem 1rem; color: var(--fg);">{{ $m->subject ?: '(no subject)' }}</td>

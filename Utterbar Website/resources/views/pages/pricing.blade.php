@@ -335,7 +335,7 @@
                                 class="ub-btn ub-btn-cta"
                                 :disabled="busy"
                                 @click="checkout()">
-                            <span x-show="!busy">Buy <span x-text="qty"></span> seats &mdash; &pound;<span x-text="totalGbp()"></span></span>
+                            <span x-show="!busy">Buy <span x-text="qty"></span> seats: &pound;<span x-text="totalGbp()"></span></span>
                             <span x-show="busy">One moment&hellip;</span>
                         </button>
                         <p x-show="err" x-text="err" class="mt-3 text-sm" style="color: var(--danger);"></p>
@@ -346,7 +346,7 @@
                         Need to deploy across a fleet without users pasting the key?
                         Your IT admin can download a signed
                         <code class="font-mono">licence.bin</code> from the admin licence
-                        page after purchase &mdash; see
+                        page after purchase, see
                         <a href="{{ route('docs.it-deployment') }}" style="color: var(--accent);">IT deployment</a>.
                     </p>
                 </div>

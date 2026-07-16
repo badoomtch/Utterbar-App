@@ -60,7 +60,7 @@
                                             @if ($r->announced_at)
                                                 <span style="color: var(--accent);">&check;</span> {{ $r->announced_at->diffForHumans() }}
                                             @else
-                                                &mdash;
+                                                -
                                             @endif
                                         </td>
                                         <td style="padding: 0.85rem 1rem; text-align: right;">

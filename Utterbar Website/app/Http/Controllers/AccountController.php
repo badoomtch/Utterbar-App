@@ -67,7 +67,7 @@ class AccountController extends Controller
             'type' => $deleted ? 'ok' : 'error',
             'text' => $deleted
                 ? 'Device deactivated. The slot is now free.'
-                : 'Device wasn\'t found — probably already deactivated.',
+                : 'Device wasn\'t found. Probably already deactivated.',
         ]);
     }
 

@@ -132,7 +132,7 @@ class LicenceController extends Controller
             } catch (\Throwable $e) {
                 Log::warning('Admin-mint licence email failed', ['licence' => $licence->id, 'err' => $e->getMessage()]);
                 $flash['type'] = 'error';
-                $flash['text'] .= ' BUT email delivery failed — use Resend on the licence page.';
+                $flash['text'] .= ' BUT email delivery failed. Use Resend on the licence page.';
             }
         }
 
@@ -182,7 +182,7 @@ class LicenceController extends Controller
         $licence = Licence::findOrFail($id);
         if ($licence->status !== 'revoked') {
             return redirect()->route('admin.licences.show', $licence->id)->with('flash', [
-                'type' => 'error', 'text' => 'Not revoked — nothing to undo.',
+                'type' => 'error', 'text' => 'Not revoked. Nothing to undo.',
             ]);
         }
 

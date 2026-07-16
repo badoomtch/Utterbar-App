@@ -11,7 +11,7 @@
                             Downloads.
                         </h1>
                         <p class="mt-3 text-sm" style="color: var(--muted);">
-                            Aggregate download stats. Deduped per IP+UA per day, hashed with the app key — raw IPs and User-Agents are never stored.
+                            Aggregate download stats. Deduped per IP+UA per day, hashed with the app key. Raw IPs and User-Agents are never stored.
                         </p>
                     </div>
                 </div>
@@ -45,7 +45,7 @@
                                     <tr style="border-top: 1px solid var(--border);">
                                         <td style="padding: 0.75rem 1rem; color: var(--fg-hi); font-family: var(--font-mono);">v{{ $r->version }}</td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;">{{ $r->channel }}</td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $r->published_at ? \Illuminate\Support\Carbon::parse($r->published_at)->format('d M Y') : '—' }}</td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $r->published_at ? \Illuminate\Support\Carbon::parse($r->published_at)->format('d M Y') : '-' }}</td>
                                         <td style="padding: 0.75rem 1rem; color: var(--fg-hi); font-family: var(--font-mono); text-align: right;">{{ number_format($r->unique_downloaders) }}</td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); text-align: right;">{{ number_format($r->events) }}</td>
                                     </tr>
@@ -59,7 +59,7 @@
                 <p class="ub-eyebrow mb-4">Top countries (unique downloaders)</p>
                 <div class="ub-card mb-12" style="padding: 0; overflow: hidden;">
                     @if ($byCountry->isEmpty())
-                        <p class="text-sm p-6" style="color: var(--muted);">No download events yet — country data appears once people start downloading.</p>
+                        <p class="text-sm p-6" style="color: var(--muted);">No download events yet. Country data appears once people start downloading.</p>
                     @else
                         @php
                             $maxUniques = $byCountry->max('uniques') ?: 1;
@@ -70,7 +70,7 @@
                                     $pct = max(2, round(($row->uniques / $maxUniques) * 100));
                                 @endphp
                                 <li class="flex items-center gap-4 px-4 py-3">
-                                    <span class="font-mono text-xs" style="color: var(--fg-hi); width: 2.5rem;">{{ $row->country === '??' ? '—' : $row->country }}</span>
+                                    <span class="font-mono text-xs" style="color: var(--fg-hi); width: 2.5rem;">{{ $row->country === '??' ? '-' : $row->country }}</span>
                                     <span class="text-xs" style="color: var(--muted); flex: 1;">
                                         {{ $row->country === '??' ? 'Unknown / direct origin' : $row->country }}
                                     </span>
@@ -110,7 +110,7 @@
 
                 <p class="text-xs" style="color: var(--muted); line-height: 1.6;">
                     <strong style="color: var(--fg-hi);">Privacy note.</strong>
-                    Download events are deduplicated per (IP&nbsp;hash, User-Agent&nbsp;hash, day) so reinstalls within a day collapse to one row. Hashes are SHA-256 of (value || app_key) — they're not reversible without the app key. Country comes from Cloudflare's CF-IPCountry header on the request and is stored as the two-letter code only.
+                    Download events are deduplicated per (IP&nbsp;hash, User-Agent&nbsp;hash, day) so reinstalls within a day collapse to one row. Hashes are SHA-256 of (value || app_key). They're not reversible without the app key. Country comes from Cloudflare's CF-IPCountry header on the request and is stored as the two-letter code only.
                 </p>
             </div>
         </div>

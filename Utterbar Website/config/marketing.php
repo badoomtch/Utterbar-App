@@ -17,7 +17,7 @@ return [
 
     'videos' => [
         'hero-pill-loop' => [
-            'title'            => 'Floating bar — idle to inserted loop',
+            'title'            => 'Floating bar: idle to inserted loop',
             'duration_seconds' => 5,
             'width'            => 1600,
             'height'           => 520,
@@ -41,7 +41,7 @@ return [
             'loops'            => false,
         ],
         'feature-modes' => [
-            'title'            => 'Modes — one voice, three shapes',
+            'title'            => 'Modes: one voice, three shapes',
             'duration_seconds' => 7,
             'width'            => 1440,
             'height'           => 900,
@@ -77,7 +77,7 @@ return [
             'duration_seconds' => 8,
             'width'            => 1440,
             'height'           => 900,
-            'alt'              => "A 'Your PC' panel holds Audio, Transcripts, Vocabulary, History — connected by an internal cyan loop. A thin outbound line lights up briefly for each of four small network calls (update check, licence check, pricing, model download).",
+            'alt'              => "A 'Your PC' panel holds Audio, Transcripts, Vocabulary, History, connected by an internal cyan loop. A thin outbound line lights up briefly for each of four small network calls (update check, licence check, pricing, model download).",
             'loops'            => true,
         ],
         'feature-file-transcription' => [
@@ -116,31 +116,31 @@ return [
 
     'stills' => [
         'press-01-floating-bar-idle' => [
-            'title'  => 'Floating bar — idle',
+            'title'  => 'Floating bar: idle',
             'width'  => 2200,
             'height' => 1400,
             'alt'    => "Utterbar's floating pill in its idle Ready state, close-framed on a dark canvas.",
         ],
         'press-02-floating-bar-listening' => [
-            'title'  => 'Floating bar — listening',
+            'title'  => 'Floating bar: listening',
             'width'  => 2200,
             'height' => 1400,
             'alt'    => "Utterbar's floating pill mid-recording: 00:04 timer, seven-bar speech wave.",
         ],
         'press-03-main-shell-dashboard' => [
-            'title'  => 'Main app — Dashboard',
+            'title'  => 'Main app: Dashboard',
             'width'  => 2200,
             'height' => 1080,
             'alt'    => 'The Utterbar Dashboard showing eight tiles of real local-only usage stats: words today, words this week, time saved, average speaking WPM, and all-time totals.',
         ],
         'press-04-vocabulary' => [
-            'title'  => 'Main app — Vocabulary',
+            'title'  => 'Main app: Vocabulary',
             'width'  => 2200,
             'height' => 1280,
             'alt'    => 'Vocabulary and replacements cards from the main Utterbar window.',
         ],
         'press-05-file-transcription' => [
-            'title'  => 'Main app — Files',
+            'title'  => 'Main app: Files',
             'width'  => 2200,
             'height' => 1380,
             'alt'    => 'Files dropzone with a three-job queue.',

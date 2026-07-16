@@ -24,11 +24,11 @@ class LicenceDelivery extends Mailable
         $isVolume = $this->licence->sku === VolumePricing::sku();
         $subject = $isVolume
             ? sprintf(
-                'Your Utterbar Pro volume licence (%d seats) — %s',
+                'Your Utterbar Pro volume licence (%d seats): %s',
                 (int) $this->licence->max_devices,
                 $this->licence->displayKey(),
             )
-            : 'Your Utterbar Pro licence — ' . $this->licence->displayKey();
+            : 'Your Utterbar Pro licence: ' . $this->licence->displayKey();
 
         return new Envelope(subject: $subject);
     }

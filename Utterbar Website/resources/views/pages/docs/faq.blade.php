@@ -29,10 +29,10 @@
             '@id'        => url('/docs/faq#faq'),
             'mainEntity' => collect($items)->map(fn ($f) => [
                 '@type'          => 'Question',
-                'name'           => trim(strip_tags(str_replace(['&rsquo;', '&mdash;'], ["'", '—'], $f['q']))),
+                'name'           => trim(strip_tags(str_replace(['&rsquo;'], ["'"], $f['q']))),
                 'acceptedAnswer' => [
                     '@type' => 'Answer',
-                    'text'  => trim(strip_tags(str_replace(['&rsquo;', '&mdash;', '&rarr;'], ["'", '—', '→'], $f['a']))),
+                    'text'  => trim(strip_tags(str_replace(['&rsquo;', '&rarr;'], ["'", '→'], $f['a']))),
                 ],
             ])->values()->all(),
         ];

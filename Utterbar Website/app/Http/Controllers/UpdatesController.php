@@ -130,7 +130,7 @@ class UpdatesController extends Controller
             return view('pages.updates-status', [
                 'status' => 'ok',
                 'title'  => "You're already on the list.",
-                'body'   => "Nothing to do — we'll email you from hello@ddraig.dev when there's a new release worth installing.",
+                'body'   => "Nothing to do. We'll email you from hello@ddraig.dev when there's a new release worth installing.",
             ]);
         }
         return view('pages.updates-confirm', [

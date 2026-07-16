@@ -106,9 +106,9 @@
                     These come up often in &ldquo;what should I use to dictate?&rdquo; threads. We don&rsquo;t have full pages for them yet; here is the honest one-liner so you know what to look at next.
                 </p>
                 <ul class="space-y-3 text-base" style="color: var(--fg);">
-                    <li><strong style="color: var(--fg-hi);">MacWhisper</strong> &mdash; macOS-only Whisper wrapper, pay-once. The closest spiritual sibling to Utterbar on the Mac side.</li>
-                    <li><strong style="color: var(--fg-hi);">Talon Voice</strong> &mdash; cross-platform voice control framework, free, steep learning curve. For power users who treat voice as a programming surface.</li>
-                    <li><strong style="color: var(--fg-hi);">Aqua Voice</strong> &mdash; cloud, AI-rewriting focused. Adjacent to Wispr Flow rather than to us.</li>
+                    <li><strong style="color: var(--fg-hi);">MacWhisper</strong>: macOS-only Whisper wrapper, pay-once. The closest spiritual sibling to Utterbar on the Mac side.</li>
+                    <li><strong style="color: var(--fg-hi);">Talon Voice</strong>: cross-platform voice control framework, free, steep learning curve. For power users who treat voice as a programming surface.</li>
+                    <li><strong style="color: var(--fg-hi);">Aqua Voice</strong>: cloud, AI-rewriting focused. Adjacent to Wispr Flow rather than to us.</li>
                 </ul>
             </div>
         </div>

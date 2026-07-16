@@ -64,7 +64,7 @@
                                             @endif
                                         </td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $sub->subscribed_at?->format('d M Y H:i') }}</td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $sub->source ?? '—' }}</td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $sub->source ?? '-' }}</td>
                                         <td style="padding: 0.75rem 1rem; text-align: right;">
                                             @if (!$sub->unsubscribed_at)
                                                 <form method="POST" action="{{ route('admin.subscribers.unsubscribe', $sub->id) }}"

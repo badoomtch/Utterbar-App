@@ -39,7 +39,7 @@ class Release extends Model
     public function sizeLabel(): string
     {
         $b = (int) $this->file_size_bytes;
-        if ($b <= 0) return '—';
+        if ($b <= 0) return '-';
         if ($b < 1024)                     return $b . ' B';
         if ($b < 1024 * 1024)              return number_format($b / 1024, 1) . ' KB';
         if ($b < 1024 * 1024 * 1024)       return number_format($b / (1024 * 1024), 1) . ' MB';

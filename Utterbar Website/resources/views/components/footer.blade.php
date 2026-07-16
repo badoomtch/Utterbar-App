@@ -66,7 +66,7 @@
                     Download Utterbar for Windows.
                 </h3>
                 <p class="mt-4 text-sm" style="color: var(--muted);">
-                    Small installer. Windows 10 or 11. Free forever &mdash; Pro is one-time, &pound;39.99, lifetime.
+                    Small installer. Windows 10 or 11. Free forever. Pro is one-time, &pound;39.99, lifetime.
                 </p>
                 <div class="mt-6">
                     <a href="{{ route('download') }}" class="ub-btn ub-btn-cta">

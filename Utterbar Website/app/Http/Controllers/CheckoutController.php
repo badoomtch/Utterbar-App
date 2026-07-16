@@ -166,7 +166,7 @@ class CheckoutController extends Controller
                 'currency'    => $currency,
                 'unit_amount' => $unitPence,
                 'product_data' => [
-                    'name'        => 'Utterbar Pro — Volume licence',
+                    'name'        => 'Utterbar Pro: Volume licence',
                     'description' => sprintf(
                         'One licence covering %d devices. Lifetime, no subscription.',
                         $quantity

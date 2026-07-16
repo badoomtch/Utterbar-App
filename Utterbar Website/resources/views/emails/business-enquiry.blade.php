@@ -46,7 +46,7 @@
                                 </tr>
                                 <tr>
                                     <td style="padding:6px 0; color:#8A8A94;">IP</td>
-                                    <td style="padding:6px 0; color:#E8E8EB;">{{ $enquiry->ip ?: '—' }}</td>
+                                    <td style="padding:6px 0; color:#E8E8EB;">{{ $enquiry->ip ?: '-' }}</td>
                                 </tr>
                             </table>
                         </td>

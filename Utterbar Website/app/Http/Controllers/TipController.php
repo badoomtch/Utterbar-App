@@ -30,7 +30,7 @@ class TipController extends Controller
     {
         if (!config('services.stripe.enabled')) {
             return redirect()->route('home')
-                ->with('error', 'Tipping is not available right now — try again soon.');
+                ->with('error', 'Tipping is not available right now. Try again soon.');
         }
         if (!config('services.stripe.tip_price_id')) {
             // Stripe Price not configured; the buttons should already

@@ -98,7 +98,7 @@
                             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-left:3px solid #22D3EE; padding-left:14px;">
                                 <tr>
                                     <td>
-                                        <p style="margin:0; font-size:16px; color:#ffffff; font-weight:600;">&mdash; Jay</p>
+                                        <p style="margin:0; font-size:16px; color:#ffffff; font-weight:600;">Jay</p>
                                         <p style="margin:2px 0 0 0; font-size:13px; color:#7A8A99;">Building Utterbar</p>
                                     </td>
                                 </tr>
@@ -142,8 +142,8 @@
                         <td style="padding:24px 32px 0 32px;">
                             <p style="margin:0 0 8px 0; font-size:13px; color:#8A8A94;">
                                 Need this again later? Manage your licences and devices at
-                                <a href="https://utterbar.com/account" style="color:#22D3EE; text-decoration:none;">utterbar.com/account</a>
-                                &mdash; we&rsquo;ll email a sign-in link to <span style="color:#E6EEF6;">{{ $email }}</span>.
+                                <a href="https://utterbar.com/account" style="color:#22D3EE; text-decoration:none;">utterbar.com/account</a>.
+                                We&rsquo;ll email a sign-in link to <span style="color:#E6EEF6;">{{ $email }}</span>.
                             </p>
                         </td>
                     </tr>

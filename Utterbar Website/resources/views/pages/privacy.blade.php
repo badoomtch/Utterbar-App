@@ -103,11 +103,11 @@
     <x-section title='What <span class="ub-wm"><span>Utter</span><span class="ub-wm-bar">bar</span></span> sends over the network.'
                lead="The speech model downloads once, from a short allowlist of hosts. Nothing else.">
         <div class="ub-card max-w-3xl font-mono text-sm" style="background: var(--bg-0);">
-            <p style="color: var(--muted);"># network log &mdash; first run</p>
+            <p style="color: var(--muted);"># network log: first run</p>
             <p class="mt-2"><span style="color: var(--accent);">&rarr;</span> GET model-host/&hellip;/speech-model</p>
             <p><span style="color: var(--accent);">&rarr;</span> GET model-host/&hellip;/tokenizer</p>
             <p class="mt-2" style="color: var(--muted);"># every subsequent run</p>
-            <p><span style="color: var(--muted);">&mdash;</span> nothing</p>
+            <p><span style="color: var(--muted);">-</span> nothing</p>
         </div>
     </x-section>
 

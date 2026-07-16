@@ -123,14 +123,14 @@
                                             @if ($w->processed_at)
                                                 {{ \Illuminate\Support\Carbon::parse($w->processed_at)->format('d M H:i:s') }}
                                             @else
-                                                <span style="color: var(--danger);">&mdash;</span>
+                                                <span style="color: var(--danger);">-</span>
                                             @endif
                                         </td>
                                         <td style="padding: 0.75rem 1rem; font-size: 12px;">
                                             @if ($w->error)
                                                 <span style="color: var(--danger);">{{ \Illuminate\Support\Str::limit($w->error, 60) }}</span>
                                             @else
-                                                <span style="color: var(--muted);">&mdash;</span>
+                                                <span style="color: var(--muted);">-</span>
                                             @endif
                                         </td>
                                     </tr>
@@ -159,13 +159,13 @@
                                 @foreach ($recentSignIns as $t)
                                     <tr style="border-top: 1px solid var(--border);">
                                         <td style="padding: 0.75rem 1rem; color: var(--fg);">{{ $t->email }}</td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $t->ip ?? '—' }}</td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $t->ip ?? '-' }}</td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ \Illuminate\Support\Carbon::parse($t->created_at)->format('d M H:i') }}</td>
                                         <td style="padding: 0.75rem 1rem; font-size: 12px;">
                                             @if ($t->used_at)
                                                 <span style="color: var(--accent);">&check;</span>
                                             @else
-                                                <span style="color: var(--muted);">&mdash;</span>
+                                                <span style="color: var(--muted);">-</span>
                                             @endif
                                         </td>
                                     </tr>

@@ -73,10 +73,10 @@
                     '@id'        => url('/#faq'),
                     'mainEntity' => collect($faqs)->map(fn ($f) => [
                         '@type'          => 'Question',
-                        'name'           => strip_tags(str_replace(['\\u2014', '&mdash;', '&rsquo;'], ['—', '—', "'"], $f['q'])),
+                        'name'           => strip_tags(str_replace(['&rsquo;'], ["'"], $f['q'])),
                         'acceptedAnswer' => [
                             '@type' => 'Answer',
-                            'text'  => strip_tags(str_replace(['\\u2014', '&mdash;', '&rsquo;'], ['—', '—', "'"], $f['a'])),
+                            'text'  => strip_tags(str_replace(['&rsquo;'], ["'"], $f['a'])),
                         ],
                     ])->values()->all(),
                 ],

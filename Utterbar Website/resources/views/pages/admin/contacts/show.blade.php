@@ -20,7 +20,7 @@
                         <div>
                             <dt class="ub-eyebrow mb-1">From</dt>
                             <dd style="color: var(--fg-hi);">
-                                {{ $message->name ?: '—' }}
+                                {{ $message->name ?: '-' }}
                                 <span style="color: var(--muted);">&lt;{{ $message->email }}&gt;</span>
                             </dd>
                         </div>

@@ -42,7 +42,7 @@
                                 <tr>
                                     <td style="font-size:13px; color:#8A8A94; vertical-align:top;">IP</td>
                                     <td style="font-size:12px; color:#5A5A64; font-family:'SF Mono', Menlo, monospace;">
-                                        {{ $submission->ip ?: '—' }}
+                                        {{ $submission->ip ?: '-' }}
                                     </td>
                                 </tr>
                             </table>
@@ -64,7 +64,7 @@
                     <tr>
                         <td style="padding:0 32px 28px 32px;">
                             <p style="margin:0; font-family: 'SF Mono', Menlo, monospace; font-size:11px; color:#5A5A64; letter-spacing:0.04em;">
-                                Reply directly to this email &mdash; it goes to {{ $submission->email }}.
+                                Reply directly to this email. It goes to {{ $submission->email }}.
                             </p>
                         </td>
                     </tr>

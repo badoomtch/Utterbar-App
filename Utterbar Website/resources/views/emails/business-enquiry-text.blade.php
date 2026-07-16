@@ -6,7 +6,7 @@ UTTERBAR · BUSINESS ENQUIRY
 From:    {{ $enquiry->name }} <{{ $enquiry->email }}>
 Company: {{ $enquiry->company }}@if($enquiry->role) · {{ $enquiry->role }}@endif
 Sent:    {{ $enquiry->created_at->format('D, j M Y · H:i') }}
-IP:      {{ $enquiry->ip ?: '—' }}
+IP:      {{ $enquiry->ip ?: '-' }}
 
 ---
 

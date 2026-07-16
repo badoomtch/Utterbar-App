@@ -5,7 +5,7 @@ UTTERBAR · CONTACT
 
 From: {{ $submission->name ? $submission->name . ' ' : '' }}<{{ $submission->email }}>
 Sent: {{ $submission->created_at->format('D, j M Y · H:i') }}
-IP:   {{ $submission->ip ?: '—' }}
+IP:   {{ $submission->ip ?: '-' }}
 
 ---
 
@@ -13,4 +13,4 @@ IP:   {{ $submission->ip ?: '—' }}
 
 ---
 
-Reply directly to this email — it goes to {{ $submission->email }}.
+Reply directly to this email. It goes to {{ $submission->email }}.

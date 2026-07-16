@@ -242,12 +242,12 @@
                                         <td style="padding: 0.75rem 1rem; color: var(--fg);">
                                             {{ $a->platform }}
                                             @if ($a->offline)
-                                                <span class="font-mono" title="Activated via /admin/licences/{id}/activations/upload — never heartbeats."
+                                                <span class="font-mono" title="Activated via /admin/licences/{id}/activations/upload. Never heartbeats."
                                                       style="display: inline-flex; align-items: center; margin-left: 0.4rem; padding: 0.1rem 0.45rem; border-radius: 999px; background: color-mix(in oklab, var(--muted) 12%, transparent); color: var(--muted); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;">Offline</span>
                                             @endif
                                         </td>
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $a->app_version }}</td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $a->last_heartbeat?->diffForHumans() ?? '—' }}</td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $a->last_heartbeat?->diffForHumans() ?? '-' }}</td>
                                         <td style="padding: 0.75rem 1rem; text-align: right;">
                                             <form method="POST" action="{{ route('admin.licences.devices.deactivate', ['id' => $licence->id, 'fingerprint' => $a->fingerprint_hash]) }}"
                                                   onsubmit="return confirm('Deactivate this device? The slot becomes free.');" class="inline">

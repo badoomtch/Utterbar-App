@@ -214,19 +214,19 @@
                 <div class="ub-card">
                     <p class="font-semibold" style="color: var(--accent);">Do</p>
                     <ul class="mt-4 space-y-2 text-sm" style="color: var(--fg);">
-                        <li>— Use the dark lockup on dark surfaces, the light lockup on light surfaces.</li>
-                        <li>— Leave clear space around the lockup equal to the height of the hole-punch circle.</li>
-                        <li>— Keep the mark at least 32px wide, the full lockup at least 160px wide.</li>
-                        <li>— Place the logo on a clean background or a brand surface.</li>
+                        <li>- Use the dark lockup on dark surfaces, the light lockup on light surfaces.</li>
+                        <li>- Leave clear space around the lockup equal to the height of the hole-punch circle.</li>
+                        <li>- Keep the mark at least 32px wide, the full lockup at least 160px wide.</li>
+                        <li>- Place the logo on a clean background or a brand surface.</li>
                     </ul>
                 </div>
                 <div class="ub-card">
                     <p class="font-semibold" style="color: var(--danger, #f87171);">Don't</p>
                     <ul class="mt-4 space-y-2 text-sm" style="color: var(--fg);">
-                        <li>— Recolour the glyph, the waveform, or the wordmark.</li>
-                        <li>— Stretch, skew, rotate, or add drop shadows.</li>
-                        <li>— Place the logo on busy imagery without a background plate.</li>
-                        <li>— Recreate the wordmark in another typeface.</li>
+                        <li>- Recolour the glyph, the waveform, or the wordmark.</li>
+                        <li>- Stretch, skew, rotate, or add drop shadows.</li>
+                        <li>- Place the logo on busy imagery without a background plate.</li>
+                        <li>- Recreate the wordmark in another typeface.</li>
                     </ul>
                 </div>
             </div>

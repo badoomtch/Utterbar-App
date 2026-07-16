@@ -66,7 +66,7 @@
                     <tr>
                         <td style="padding:20px 32px 28px 32px;">
                             <p style="margin:0 0 10px 0; font-size:12px; color:#7A8A99;">
-                                Didn&rsquo;t ask for this? Ignore the email &mdash; no subscription happens without the click above.
+                                Didn&rsquo;t ask for this? Ignore the email. No subscription happens without the click above.
                                 Or <a href="{{ $unsubscribeUrl }}" style="color:#22D3EE;">remove {{ $email }} immediately</a>.
                             </p>
                             <p style="margin:0; font-size:12px; color:#7A8A99; font-family:'SF Mono',Menlo,Consolas,monospace; letter-spacing:0.02em;">

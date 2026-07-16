@@ -26,9 +26,9 @@
                 {{-- Top-line stats --}}
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-12">
                     @if ($totalsByCurrency->isEmpty())
-                        <x-admin-stat label="Total raised"  value="—" />
+                        <x-admin-stat label="Total raised"  value="-" />
                         <x-admin-stat label="Tips received" value="0" />
-                        <x-admin-stat label="Average tip"   value="—" />
+                        <x-admin-stat label="Average tip"   value="-" />
                         <x-admin-stat label="Currencies"    value="0" />
                     @else
                         @php $primary = $totalsByCurrency->first(); @endphp
@@ -97,8 +97,8 @@
                                 @foreach ($recent as $tip)
                                     <tr style="border-top: 1px solid var(--border);">
                                         <td style="padding: 0.75rem 1rem; color: var(--muted); font-size: 12px;">{{ $tip->paid_at?->format('d M Y H:i') }}</td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--fg);">{{ $tip->email ?? '—' }}</td>
-                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $tip->country ?? '—' }}</td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--fg);">{{ $tip->email ?? '-' }}</td>
+                                        <td style="padding: 0.75rem 1rem; color: var(--muted); font-family: var(--font-mono); font-size: 12px;">{{ $tip->country ?? '-' }}</td>
                                         <td style="padding: 0.75rem 1rem; color: var(--fg-hi); font-family: var(--font-mono); text-align: right;">{{ $fmtMoney($tip->amount_pence, $tip->currency) }}</td>
                                     </tr>
                                 @endforeach

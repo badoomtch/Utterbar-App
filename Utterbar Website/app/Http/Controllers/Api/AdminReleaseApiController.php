@@ -66,7 +66,7 @@ class AdminReleaseApiController extends Controller
             'updater_signature'  => ['nullable', 'string', 'max:128'],
         ], [
             'version.regex' => 'Version must be three numeric segments, e.g. 0.6.2. Pre-release suffixes (-rc.1, -beta) are not supported; use the beta channel for pre-GA builds.',
-            'sha256.required' => 'SHA-256 is required — releases without a hash cannot be auto-installed by the desktop updater.',
+            'sha256.required' => 'SHA-256 is required. Releases without a hash cannot be auto-installed by the desktop updater.',
             'sha256.regex'  => 'SHA-256 must be 64 hex chars.',
         ]);
 

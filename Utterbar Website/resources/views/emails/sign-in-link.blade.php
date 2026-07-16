@@ -46,7 +46,7 @@
                                 Somebody (probably you) asked for a sign-in link for <strong style="color:#ffffff;">{{ $email }}</strong>.
                             </p>
                             <p style="margin:0 0 14px 0; font-size:15px; color:#8A8A94;">
-                                It&rsquo;s good for {{ $ttl }} minutes and can only be used once. If you didn&rsquo;t ask for it, just ignore this email &mdash; nothing happens until the link is clicked.
+                                It&rsquo;s good for {{ $ttl }} minutes and can only be used once. If you didn&rsquo;t ask for it, just ignore this email. Nothing happens until the link is clicked.
                             </p>
                         </td>
                     </tr>

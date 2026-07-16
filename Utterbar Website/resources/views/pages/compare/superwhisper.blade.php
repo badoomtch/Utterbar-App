@@ -156,7 +156,7 @@
                             <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · one-time · GBP</span>
                         </div>
                         <p class="mt-4" style="color: var(--fg); line-height: 1.55;">
-                            Windows-native, &pound;39.99 one-time, three devices. Strict on-device processing &mdash; the app has nowhere to send your audio. Direct GBP purchase.
+                            Windows-native, &pound;39.99 one-time, three devices. Strict on-device processing. The app has nowhere to send your audio. Direct GBP purchase.
                         </p>
                         <ul class="mt-6 space-y-2.5 text-sm">
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Whisper / Parakeet on-device, no cloud option</span></li>
@@ -224,7 +224,7 @@
                 <div class="mt-12">
                     <h3 class="text-xl mb-4" style="color: var(--fg-hi); letter-spacing: -0.015em;">Pick Utterbar if&hellip;</h3>
                     <ul class="space-y-3 text-base" style="color: var(--fg);">
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re on Windows and you want a Windows-native app, not a cross-platform tool that happens to run there. The floating bar, the WASAPI loopback, the DirectML acceleration, the signed NSIS installer &mdash; those are built on Windows primitives.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re on Windows and you want a Windows-native app, not a cross-platform tool that happens to run there. The floating bar, the WASAPI loopback, the DirectML acceleration, the signed NSIS installer: those are built on Windows primitives.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You want one-time GBP pricing. &pound;39.99 once is &pound;39.99 forever. Even if Superwhisper&rsquo;s lifetime tier is the same total spend, our cap is in your currency, paid once, with no card on file.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You want strict on-device processing as a property of the architecture, not a default that can be flipped. Utterbar has no cloud option. The app cannot send your audio anywhere because the code does not exist.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want LLM rewrites. Some users find them magical; others find them subtly wrong. Our default is honest transcription only.</span></li>
