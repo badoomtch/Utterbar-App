@@ -13,9 +13,14 @@ use super::provider::{LlmProvider, ProcContext};
 
 pub struct DeterministicProvider;
 
-const FILLERS: &[&str] = &[
-    "um", "uh", "erm", "like", "you know", "i mean", "sort of", "kind of",
-];
+// True non-word disfluencies only. "like", "sort of", "kind of", "you know",
+// and "i mean" are real English words/phrases that carry meaning in normal
+// sentences ("I'd like to go", "looks like a cat", "I sort of agree", "you
+// know the place"). Stripping them blanket on word-boundary regex made
+// whole sentences unsayable — see v0.20.4 release notes. If a user wants
+// "like"-as-filler removed, that's a future toggle; the default must not
+// silently delete real words.
+const FILLERS: &[&str] = &["um", "uh", "erm"];
 
 #[async_trait]
 impl LlmProvider for DeterministicProvider {
@@ -188,9 +193,29 @@ mod tests {
 
     #[test]
     fn strips_fillers() {
-        let cleaned = strip_fillers("Hello, um, this is a, like, test.");
+        let cleaned = strip_fillers("Hello, um, this is a test.");
         assert!(!cleaned.to_lowercase().contains(" um"));
-        assert!(!cleaned.to_lowercase().contains("like"));
+    }
+
+    /// "like" is a real English word; previous versions stripped it as a
+    /// filler, which made any sentence containing it ("I'd like to go",
+    /// "looks like a cat") lose the word. Pin that it now survives.
+    #[test]
+    fn does_not_strip_like_or_other_real_words() {
+        let cleaned = strip_fillers("I'd like to go, sort of, you know.");
+        let lower = cleaned.to_lowercase();
+        assert!(
+            lower.contains("like"),
+            "expected 'like' to survive: {cleaned}"
+        );
+        assert!(
+            lower.contains("sort of"),
+            "expected 'sort of' to survive: {cleaned}"
+        );
+        assert!(
+            lower.contains("you know"),
+            "expected 'you know' to survive: {cleaned}"
+        );
     }
 
     #[test]
@@ -252,13 +277,12 @@ mod tests {
     /// pure-ASCII inputs (the most common case).
     #[test]
     fn strip_fillers_ascii_baseline_still_works() {
-        let out = strip_fillers("Hello, um, this is a, like, test.");
+        let out = strip_fillers("Hello, um, this is a test.");
         let lower = out.to_lowercase();
-        // Word-bounded "um" and "like" should be gone; "this is a"
-        // and "test" should remain. We don't pin exact whitespace
-        // because the comma-gobble behaviour is part of the design.
+        // Word-bounded "um" should be gone. We don't pin exact
+        // whitespace because the comma-gobble behaviour is part of
+        // the design.
         assert!(!lower.contains(" um "));
-        assert!(!lower.contains("like,"));
         assert!(out.contains("Hello"));
         assert!(out.contains("test"));
     }
