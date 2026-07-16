@@ -638,6 +638,49 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 2,
             requires_pro: true,
         },
+        // Whisper large-v3 turbo — Pro tier, multilingual. A pruned
+        // large-v3 (decoder trimmed 32 -> 4 layers) that keeps close to
+        // large-v3 accuracy at roughly 5x the speed. Ships int8
+        // encoder/decoder/tokens only and loads through the same
+        // SherpaWhisper path as the other Whisper checkpoints. Being a
+        // non-Small Whisper model it uses DirectML on Auto (unlike
+        // Whisper Small, which the resolver keeps on CPU), so it is the
+        // natural "Whisper accuracy without the wait" pick on a GPU.
+        //
+        // Long-audio note: like every offline Whisper, sherpa truncates
+        // a single decode at ~30s, so turbo relies on the same 29s
+        // chunking the provider added in v0.20.5 for dictations past
+        // half a minute.
+        //
+        // Pinned 2026-07-16 against the live k2-fsa release asset:
+        // downloaded sherpa-onnx-whisper-turbo.tar.bz2, verified the
+        // asset size + SHA-256 below, and confirmed the archive ships
+        // turbo-encoder.int8.onnx / turbo-decoder.int8.onnx /
+        // turbo-tokens.txt (the suffixes resolve_files matches). Smoke
+        // load through SherpaWhisper::ensure_loaded is still pending on
+        // Jay's machine.
+        ModelInfo {
+            id: "sherpa-whisper-turbo".into(),
+            kind: ModelKind::Asr,
+            display_name: "Whisper Turbo (multilingual, fast)".into(),
+            description: "Close to Whisper Large v3 accuracy but much faster, and it uses your GPU on Auto. Multilingual, around 99 languages. A strong all-round pick when you want Whisper quality without waiting as long as Large v3.".into(),
+            version: "turbo".into(),
+            size_bytes: 563_790_207,
+            backend: ModelBackend::Onnx,
+            engine: ModelEngine::Whisper,
+            languages: vec!["multi".into()],
+            installed: false,
+            path: None,
+            sha256: "b11acbbcd660b44a8e0df33724feb5aaa709cf65668f2823d59f656312544f22".into(),
+            download_url: Some(
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-turbo.tar.bz2"
+                    .into(),
+            ),
+            recommended: false,
+            accuracy_score: 9,
+            speed_score: 7,
+            requires_pro: true,
+        },
         // Offline Zipformer was retired in v0.14.2: Parakeet covers the
         // English fast-path comprehensively, and shipping two
         // English-only fast models was creating decision fatigue in the
