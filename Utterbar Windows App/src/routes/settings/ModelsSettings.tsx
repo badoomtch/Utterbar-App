@@ -367,19 +367,32 @@ export function ModelsSettings() {
                         model list further down — bar + bytes counter.
                         Visible inside the meeting card so the user
                         doesn't have to scroll to find their download. */}
-                    {downloading && (
-                      <div className="mt-3 flex items-center gap-3">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-2">
-                          <div
-                            className="h-full bg-accent transition-[width] duration-200"
-                            style={{ width: `${pct}%` }}
-                          />
+                    {downloading &&
+                      (prog!.phase === 'downloading' || prog!.phase === 'starting' ? (
+                        <div className="mt-3 flex items-center gap-3">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-2">
+                            <div
+                              className="h-full bg-accent transition-[width] duration-200"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="w-28 text-right font-mono text-[11px] tabular-nums text-muted">
+                            {formatBytes(prog!.bytes_done)} / {formatBytes(prog!.bytes_total)}
+                          </span>
                         </div>
-                        <span className="w-28 text-right font-mono text-[11px] tabular-nums text-muted">
-                          {formatBytes(prog!.bytes_done)} / {formatBytes(prog!.bytes_total)}
-                        </span>
-                      </div>
-                    )}
+                      ) : (
+                        // Post-download: honest label instead of a frozen counter.
+                        <div className="mt-3 flex items-center gap-3">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-2">
+                            <div className="h-full w-full animate-pulse rounded-full bg-accent/70" />
+                          </div>
+                          <span className="whitespace-nowrap text-[11px] text-muted">
+                            {prog!.phase === 'verifying'
+                              ? 'Checking the download…'
+                              : 'Unzipping, this can take a minute…'}
+                          </span>
+                        </div>
+                      ))}
                   </div>
                   <div className="ml-2 shrink-0 self-center">
                     {installed ? (
@@ -635,19 +648,37 @@ export function ModelsSettings() {
                     </button>
                   )}
                 </div>
-                {downloading && (
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-2">
-                      <div
-                        className="h-full bg-accent transition-[width] duration-200"
-                        style={{ width: `${pct}%` }}
-                      />
+                {downloading &&
+                  (prog!.phase === 'downloading' || prog!.phase === 'starting' ? (
+                    // While bytes are arriving, show real progress + counter.
+                    <div className="mt-3 flex items-center gap-3">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-2">
+                        <div
+                          className="h-full bg-accent transition-[width] duration-200"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-28 text-right font-mono text-[11px] tabular-nums text-muted">
+                        {formatBytes(prog.bytes_done)} / {formatBytes(prog.bytes_total)}
+                      </span>
                     </div>
-                    <span className="w-28 text-right font-mono text-[11px] tabular-nums text-muted">
-                      {formatBytes(prog.bytes_done)} / {formatBytes(prog.bytes_total)}
-                    </span>
-                  </div>
-                )}
+                  ) : (
+                    // After the download, the byte counter is meaningless and
+                    // stays frozen at 100%, which reads as a hang. Show an
+                    // animated bar + an honest label for what's actually
+                    // happening (verify / unzip), which can take a while on
+                    // large models.
+                    <div className="mt-3 flex items-center gap-3">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-2">
+                        <div className="h-full w-full animate-pulse rounded-full bg-accent/70" />
+                      </div>
+                      <span className="whitespace-nowrap text-[11px] text-muted">
+                        {prog!.phase === 'verifying'
+                          ? 'Checking the download…'
+                          : 'Unzipping, this can take a minute…'}
+                      </span>
+                    </div>
+                  ))}
               </li>
             );
           })}
