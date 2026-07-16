@@ -259,11 +259,11 @@
       },
       "numbers_as_digits": {
         "label": "Números como dígitos",
-        "description": "Convierte los números hablados en dígitos (&lsquo;veintitrés&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;cinco euros&rsquo; &rarr; &lsquo;5 euros&rsquo;). Las expresiones idiomáticas se mantienen como palabras (&lsquo;uno de estos días&rsquo;). Desactívalo si prefieres ver los números escritos."
+        "description": "Convierte los números hablados en dígitos (‘veintitrés’ → ‘23’, ‘cinco euros’ → ‘5 euros’). Las expresiones idiomáticas se mantienen como palabras (‘uno de estos días’). Desactívalo si prefieres ver los números escritos."
       },
       "smart_rewrite": {
         "label": "Reescritura inteligente",
-        "description": "Limpia muletillas (&lsquo;eh&rsquo;, &lsquo;mm&rsquo;, &lsquo;o sea&rsquo;), espaciado, mayúsculas y puntuación final localmente antes de la inserción. Solo determinista &mdash; sin modelo de IA, sin servicio en la nube, sin descarga de modelos. Añade un poco de tiempo de procesado. Desactivado por defecto. Va mejor para chats y correo electrónico; desactívalo si dictas código (la regla que pone mayúscula al inicio de oración también la pondrá a palabras clave como &lsquo;let&rsquo; o &lsquo;fn&rsquo;). El Modo Reunión no se ve afectado (las transcripciones se mantienen literales)."
+        "description": "Limpia muletillas (‘eh’, ‘mm’, ‘o sea’), espaciado, mayúsculas y puntuación final localmente antes de la inserción. Solo determinista, sin modelo de IA, sin servicio en la nube, sin descarga de modelos. Añade un poco de tiempo de procesado. Desactivado por defecto. Va mejor para chats y correo electrónico; desactívalo si dictas código (la regla que pone mayúscula al inicio de oración también la pondrá a palabras clave como ‘let’ o ‘fn’). El Modo Reunión no se ve afectado (las transcripciones se mantienen literales)."
       },
       "shift_to_auto_send": {
         "label": "Mantener Shift para enviar automáticamente",

@@ -119,7 +119,7 @@ export function Dashboard() {
           label="Avg speaking WPM"
           tone="neutral"
           icon={Gauge}
-          value={summary ? summary.avg_wpm.toFixed(0) : '—'}
+          value={summary ? summary.avg_wpm.toFixed(0) : '-'}
           caption="7-day average"
         />
       </div>

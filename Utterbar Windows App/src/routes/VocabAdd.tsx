@@ -148,7 +148,7 @@ export function VocabAdd() {
         />
         <div className="mt-2 min-h-[32px] text-[11px] leading-snug text-muted">
           {hint === 'rejected'
-            ? "That selection was too long for a vocabulary entry — pick a shorter word or short phrase."
+            ? "That selection was too long for a vocabulary entry. Pick a shorter word or short phrase."
             : hint === 'empty-capture' && !word
               ? 'Select a word in any app, then trigger the shortcut. Or type one here.'
               : 'Press Enter to save. Esc to close.'}

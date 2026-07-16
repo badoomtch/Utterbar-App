@@ -53,7 +53,7 @@
         "options": {
           "default": {
             "label": "Standard",
-            "description": "Warme Dreieckstöne in einer Quinte — der weiche, befriedigende Standard."
+            "description": "Warme Dreieckstöne in einer Quinte, der weiche, befriedigende Standard."
           },
           "classic": {
             "label": "Taktil",
@@ -61,7 +61,7 @@
           },
           "subtle": {
             "label": "Dezent",
-            "description": "Leise Einzelton-Pieper — minimal, ohne Melodie."
+            "description": "Leise Einzelton-Pieper, minimal, ohne Melodie."
           },
           "chime": {
             "label": "Klangspiel",
@@ -259,11 +259,11 @@
       },
       "numbers_as_digits": {
         "label": "Zahlen als Ziffern",
-        "description": "Wandelt gesprochene Zahlen in Ziffern um (&lsquo;dreiundzwanzig&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;fünf Euro&rsquo; &rarr; &lsquo;5 Euro&rsquo;). Idiome bleiben Wörter (&lsquo;einer dieser Tage&rsquo;). Deaktivieren, wenn du Zahlen lieber ausgeschrieben hast."
+        "description": "Wandelt gesprochene Zahlen in Ziffern um (‘dreiundzwanzig’ → ‘23’, ‘fünf Euro’ → ‘5 Euro’). Idiome bleiben Wörter (‘einer dieser Tage’). Deaktivieren, wenn du Zahlen lieber ausgeschrieben hast."
       },
       "smart_rewrite": {
         "label": "Smart Rewrite",
-        "description": "Bereinigt Füllwörter (&lsquo;äh&rsquo;, &lsquo;hm&rsquo;, &lsquo;sozusagen&rsquo;), Abstände, Großschreibung und Satzzeichen am Ende lokal vor dem Einfügen. Nur deterministisch &mdash; kein KI-Modell, kein Cloud-Service, kein Modell-Download. Fügt etwas Verarbeitungszeit hinzu. Standardmäßig aus. Am besten für Chat- und E-Mail-Diktate; deaktiviere es, wenn du Code diktierst (die Regel zur Großschreibung von Satzanfängen wird auch Schlüsselwörter wie &lsquo;let&rsquo; oder &lsquo;fn&rsquo; großschreiben). Meeting-Modus ist nicht betroffen (Transkripte bleiben wortgetreu)."
+        "description": "Bereinigt Füllwörter (‘äh’, ‘hm’, ‘sozusagen’), Abstände, Großschreibung und Satzzeichen am Ende lokal vor dem Einfügen. Nur deterministisch, kein KI-Modell, kein Cloud-Service, kein Modell-Download. Fügt etwas Verarbeitungszeit hinzu. Standardmäßig aus. Am besten für Chat- und E-Mail-Diktate; deaktiviere es, wenn du Code diktierst (die Regel zur Großschreibung von Satzanfängen wird auch Schlüsselwörter wie ‘let’ oder ‘fn’ großschreiben). Meeting-Modus ist nicht betroffen (Transkripte bleiben wortgetreu)."
       },
       "shift_to_auto_send": {
         "label": "Shift halten, um automatisch zu senden",
@@ -322,7 +322,7 @@
       "title": "Sichtbarkeit",
       "always": {
         "label": "Immer sichtbar",
-        "description": "Die Utterbar sitzt oben am Bildschirmrand, solange die App läuft. Standardverhalten — am leichtesten zu finden und anzuklicken."
+        "description": "Die Utterbar sitzt oben am Bildschirmrand, solange die App läuft. Standardverhalten, am leichtesten zu finden und anzuklicken."
       },
       "while_recording": {
         "label": "Nur beim Aufnehmen",
@@ -534,7 +534,7 @@
         "invalid_characters": "Nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich. Keine Pfade, Laufwerksbuchstaben, Anführungszeichen oder Wildcards.",
         "too_long": "Name ist zu lang (max. 64 Zeichen).",
         "duplicate": "Diese App ist bereits in der Liste.",
-        "defaults_loading": "Standardwerte werden noch geladen — versuche es gleich noch einmal.",
+        "defaults_loading": "Standardwerte werden noch geladen, versuche es gleich noch einmal.",
         "fallback": "Dieser Name ist nicht gültig."
       }
     },
@@ -633,7 +633,7 @@
         }
       },
       "disabled_suffix": ", auf diesem Rechner nicht verfügbar.",
-      "inactive_notice": "Ausgewählt, aber derzeit inaktiv — dieser Build enthält diesen Execution Provider nicht. Transkriptionen laufen auf CPU.",
+      "inactive_notice": "Ausgewählt, aber derzeit inaktiv, dieser Build enthält diesen Execution Provider nicht. Transkriptionen laufen auf CPU.",
       "detected_adapters": "Erkannte Adapter",
       "adapter_software_suffix": " (Software)",
       "adapter_vram_suffix": ", {{mb}} MB VRAM"

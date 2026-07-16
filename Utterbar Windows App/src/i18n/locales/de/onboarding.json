@@ -67,7 +67,7 @@
       "connecting": "Verbinden…",
       "downloading": "Wird geladen · {{rate}} · {{eta}}",
       "rate_unit": "{{size}}/s",
-      "rate_unknown": "—",
+      "rate_unknown": "-",
       "eta_known": "noch {{secs}}",
       "eta_unknown": "wird berechnet…",
       "verifying": "Prüfsumme wird verifiziert…",

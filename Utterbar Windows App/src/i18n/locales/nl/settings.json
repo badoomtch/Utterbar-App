@@ -53,7 +53,7 @@
         "options": {
           "default": {
             "label": "Standaard",
-            "description": "Warme driehoekstonen op een muzikale kwint — de zachte, bevredigende standaard."
+            "description": "Warme driehoekstonen op een muzikale kwint, de zachte, bevredigende standaard."
           },
           "classic": {
             "label": "Tactiel",
@@ -61,7 +61,7 @@
           },
           "subtle": {
             "label": "Subtiel",
-            "description": "Stille piepjes met één toon — minimaal, zonder melodie."
+            "description": "Stille piepjes met één toon, minimaal, zonder melodie."
           },
           "chime": {
             "label": "Klokkenspel",
@@ -259,11 +259,11 @@
       },
       "numbers_as_digits": {
         "label": "Getallen als cijfers",
-        "description": "Converteert gesproken getallen naar cijfers (&lsquo;drieëntwintig&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;vijf euro&rsquo; &rarr; &lsquo;5 euro&rsquo;). Idiomatische uitdrukkingen blijven woorden (&lsquo;een dezer dagen&rsquo;). Schakel uit als je liever uitgeschreven getallen hebt."
+        "description": "Converteert gesproken getallen naar cijfers (‘drieëntwintig’ → ‘23’, ‘vijf euro’ → ‘5 euro’). Idiomatische uitdrukkingen blijven woorden (‘een dezer dagen’). Schakel uit als je liever uitgeschreven getallen hebt."
       },
       "smart_rewrite": {
         "label": "Slim herschrijven",
-        "description": "Ruimt stopwoorden op (&lsquo;eh&rsquo;, &lsquo;hmm&rsquo;, &lsquo;zeg maar&rsquo;), spatiëring, hoofdletters en eindleestekens lokaal voor invoegen. Alleen deterministisch &mdash; geen AI-model, geen clouddienst, geen modeldownload. Voegt wat verwerkingstijd toe. Standaard uit. Het beste voor chat- en e-maildictaat; schakel uit als je code dicteert (de regel die zinsbegin met hoofdletter zet, zal ook trefwoorden als &lsquo;let&rsquo; of &lsquo;fn&rsquo; met hoofdletter zetten). Vergadermodus wordt niet beïnvloed (transcripties blijven letterlijk)."
+        "description": "Ruimt stopwoorden op (‘eh’, ‘hmm’, ‘zeg maar’), spatiëring, hoofdletters en eindleestekens lokaal voor invoegen. Alleen deterministisch, geen AI-model, geen clouddienst, geen modeldownload. Voegt wat verwerkingstijd toe. Standaard uit. Het beste voor chat- en e-maildictaat; schakel uit als je code dicteert (de regel die zinsbegin met hoofdletter zet, zal ook trefwoorden als ‘let’ of ‘fn’ met hoofdletter zetten). Vergadermodus wordt niet beïnvloed (transcripties blijven letterlijk)."
       },
       "shift_to_auto_send": {
         "label": "Shift vasthouden om automatisch te verzenden",
@@ -322,7 +322,7 @@
       "title": "Zichtbaarheid",
       "always": {
         "label": "Altijd zichtbaar",
-        "description": "Utterbar zit aan de bovenkant van je scherm zolang de app draait. Standaardgedrag — het makkelijkst te vinden, het makkelijkst aan te klikken."
+        "description": "Utterbar zit aan de bovenkant van je scherm zolang de app draait. Standaardgedrag, het makkelijkst te vinden, het makkelijkst aan te klikken."
       },
       "while_recording": {
         "label": "Alleen tijdens opnemen",
@@ -534,7 +534,7 @@
         "invalid_characters": "Alleen letters, cijfers, punt, underscore en streepje. Geen paden, stationsletters, aanhalingstekens of jokertekens.",
         "too_long": "Naam is te lang (max 64 tekens).",
         "duplicate": "Die app staat al in de lijst.",
-        "defaults_loading": "Standaardwaarden worden nog geladen — probeer het zo opnieuw.",
+        "defaults_loading": "Standaardwaarden worden nog geladen, probeer het zo opnieuw.",
         "fallback": "Die naam is niet geldig."
       }
     },
@@ -633,7 +633,7 @@
         }
       },
       "disabled_suffix": ", niet beschikbaar op deze machine.",
-      "inactive_notice": "Geselecteerd, maar momenteel inactief — deze build bevat die uitvoeringsprovider niet. Transcripties draaien op CPU.",
+      "inactive_notice": "Geselecteerd, maar momenteel inactief, deze build bevat die uitvoeringsprovider niet. Transcripties draaien op CPU.",
       "detected_adapters": "Gedetecteerde adapters",
       "adapter_software_suffix": " (software)",
       "adapter_vram_suffix": ", {{mb}} MB VRAM"

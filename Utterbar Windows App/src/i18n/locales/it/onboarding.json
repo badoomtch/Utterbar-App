@@ -67,7 +67,7 @@
       "connecting": "Connessione…",
       "downloading": "Download · {{rate}} · {{eta}}",
       "rate_unit": "{{size}}/s",
-      "rate_unknown": "—",
+      "rate_unknown": "-",
       "eta_known": "{{secs}} rimanenti",
       "eta_unknown": "calcolo in corso…",
       "verifying": "Verifica del checksum…",

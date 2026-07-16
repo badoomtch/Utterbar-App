@@ -53,7 +53,7 @@
         "options": {
           "default": {
             "label": "Par défaut",
-            "description": "Tons triangulaires chaleureux sur une quinte musicale — la valeur par défaut, douce et satisfaisante."
+            "description": "Tons triangulaires chaleureux sur une quinte musicale, la valeur par défaut, douce et satisfaisante."
           },
           "classic": {
             "label": "Tactile",
@@ -61,7 +61,7 @@
           },
           "subtle": {
             "label": "Discret",
-            "description": "Bips simples et discrets — minimaux, sans mélodie."
+            "description": "Bips simples et discrets, minimaux, sans mélodie."
           },
           "chime": {
             "label": "Carillon",
@@ -259,11 +259,11 @@
       },
       "numbers_as_digits": {
         "label": "Nombres en chiffres",
-        "description": "Convertit les nombres parlés en chiffres (&lsquo;vingt-trois&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;cinq euros&rsquo; &rarr; &lsquo;5 euros&rsquo;). Les expressions idiomatiques restent en mots (&lsquo;un de ces jours&rsquo;). Désactivez si vous préférez les nombres en lettres."
+        "description": "Convertit les nombres parlés en chiffres (‘vingt-trois’ → ‘23’, ‘cinq euros’ → ‘5 euros’). Les expressions idiomatiques restent en mots (‘un de ces jours’). Désactivez si vous préférez les nombres en lettres."
       },
       "smart_rewrite": {
         "label": "Réécriture intelligente",
-        "description": "Nettoie les hésitations (&lsquo;euh&rsquo;, &lsquo;hum&rsquo;, &lsquo;genre&rsquo;), les espaces, les majuscules et la ponctuation finale localement avant insertion. Déterministe uniquement &mdash; pas de modèle d'IA, pas de service cloud, pas de téléchargement de modèle. Ajoute un peu de temps de traitement. Désactivé par défaut. Idéal pour le chat et l'e-mail ; désactivez si vous dictez du code (la règle qui met une majuscule en début de phrase capitalisera aussi des mots-clés comme &lsquo;let&rsquo; ou &lsquo;fn&rsquo;). Le Mode Réunion n'est pas affecté (les transcriptions restent verbatim)."
+        "description": "Nettoie les hésitations (‘euh’, ‘hum’, ‘genre’), les espaces, les majuscules et la ponctuation finale localement avant insertion. Déterministe uniquement, pas de modèle d'IA, pas de service cloud, pas de téléchargement de modèle. Ajoute un peu de temps de traitement. Désactivé par défaut. Idéal pour le chat et l'e-mail ; désactivez si vous dictez du code (la règle qui met une majuscule en début de phrase capitalisera aussi des mots-clés comme ‘let’ ou ‘fn’). Le Mode Réunion n'est pas affecté (les transcriptions restent verbatim)."
       },
       "shift_to_auto_send": {
         "label": "Maintenir Shift pour envoi auto",
@@ -322,7 +322,7 @@
       "title": "Visibilité",
       "always": {
         "label": "Toujours visible",
-        "description": "L'Utterbar reste en haut de votre écran pendant que l'app fonctionne. Comportement par défaut — la plus facile à repérer et à cliquer."
+        "description": "L'Utterbar reste en haut de votre écran pendant que l'app fonctionne. Comportement par défaut, la plus facile à repérer et à cliquer."
       },
       "while_recording": {
         "label": "Uniquement pendant l'enregistrement",
@@ -534,7 +534,7 @@
         "invalid_characters": "Lettres, chiffres, point, tiret bas et tiret uniquement. Pas de chemin, lettre de lecteur, guillemets ou jokers.",
         "too_long": "Le nom est trop long (max 64 caractères).",
         "duplicate": "Cette app est déjà dans la liste.",
-        "defaults_loading": "Les valeurs par défaut sont encore en cours de chargement — réessayez dans un instant.",
+        "defaults_loading": "Les valeurs par défaut sont encore en cours de chargement, réessayez dans un instant.",
         "fallback": "Ce nom n'est pas valide."
       }
     },
@@ -633,7 +633,7 @@
         }
       },
       "disabled_suffix": ", non disponible sur cette machine.",
-      "inactive_notice": "Sélectionné, mais actuellement inactif — cette build n'inclut pas ce fournisseur d'exécution. Les transcriptions s'exécutent sur CPU.",
+      "inactive_notice": "Sélectionné, mais actuellement inactif, cette build n'inclut pas ce fournisseur d'exécution. Les transcriptions s'exécutent sur CPU.",
       "detected_adapters": "Adaptateurs détectés",
       "adapter_software_suffix": " (logiciel)",
       "adapter_vram_suffix": ", {{mb}} Mo de VRAM"

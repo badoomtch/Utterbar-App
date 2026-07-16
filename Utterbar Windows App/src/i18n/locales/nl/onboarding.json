@@ -67,7 +67,7 @@
       "connecting": "Verbinden…",
       "downloading": "Downloaden · {{rate}} · {{eta}}",
       "rate_unit": "{{size}}/s",
-      "rate_unknown": "—",
+      "rate_unknown": "-",
       "eta_known": "{{secs}} resterend",
       "eta_unknown": "berekenen…",
       "verifying": "Controlesom controleren…",

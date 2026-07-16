@@ -53,7 +53,7 @@
         "options": {
           "default": {
             "label": "Predefinito",
-            "description": "Toni triangolari caldi su una quinta musicale — il default soft e soddisfacente."
+            "description": "Toni triangolari caldi su una quinta musicale, il default soft e soddisfacente."
           },
           "classic": {
             "label": "Tattile",
@@ -61,7 +61,7 @@
           },
           "subtle": {
             "label": "Sottile",
-            "description": "Bip silenziosi a tono singolo — minimi, senza melodia."
+            "description": "Bip silenziosi a tono singolo, minimi, senza melodia."
           },
           "chime": {
             "label": "Carillon",
@@ -259,11 +259,11 @@
       },
       "numbers_as_digits": {
         "label": "Numeri come cifre",
-        "description": "Converte i numeri parlati in cifre (&lsquo;ventitré&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;cinque euro&rsquo; &rarr; &lsquo;5 euro&rsquo;). Le espressioni idiomatiche restano in parole (&lsquo;uno di questi giorni&rsquo;). Disattiva se preferisci i numeri scritti."
+        "description": "Converte i numeri parlati in cifre (‘ventitré’ → ‘23’, ‘cinque euro’ → ‘5 euro’). Le espressioni idiomatiche restano in parole (‘uno di questi giorni’). Disattiva se preferisci i numeri scritti."
       },
       "smart_rewrite": {
         "label": "Riscrittura intelligente",
-        "description": "Pulisce intercalari (&lsquo;ehm&rsquo;, &lsquo;mmh&rsquo;, &lsquo;tipo&rsquo;), spaziatura, maiuscole e punteggiatura finale localmente prima dell'inserimento. Solo deterministico &mdash; nessun modello AI, nessun servizio cloud, nessun download di modelli. Aggiunge un po' di tempo di elaborazione. Disattivato di default. Va meglio per chat ed email; disattiva se detti codice (la regola che mette la maiuscola a inizio frase metterà la maiuscola anche a parole chiave come &lsquo;let&rsquo; o &lsquo;fn&rsquo;). La Modalità Riunione non è influenzata (le trascrizioni restano letterali)."
+        "description": "Pulisce intercalari (‘ehm’, ‘mmh’, ‘tipo’), spaziatura, maiuscole e punteggiatura finale localmente prima dell'inserimento. Solo deterministico, nessun modello AI, nessun servizio cloud, nessun download di modelli. Aggiunge un po' di tempo di elaborazione. Disattivato di default. Va meglio per chat ed email; disattiva se detti codice (la regola che mette la maiuscola a inizio frase metterà la maiuscola anche a parole chiave come ‘let’ o ‘fn’). La Modalità Riunione non è influenzata (le trascrizioni restano letterali)."
       },
       "shift_to_auto_send": {
         "label": "Tieni Shift per invio automatico",
@@ -322,7 +322,7 @@
       "title": "Visibilità",
       "always": {
         "label": "Sempre visibile",
-        "description": "Utterbar resta in alto sullo schermo finché l'app è in esecuzione. Comportamento predefinito — la più facile da individuare e da cliccare."
+        "description": "Utterbar resta in alto sullo schermo finché l'app è in esecuzione. Comportamento predefinito, la più facile da individuare e da cliccare."
       },
       "while_recording": {
         "label": "Solo durante la registrazione",
@@ -534,7 +534,7 @@
         "invalid_characters": "Solo lettere, numeri, punto, underscore e trattino. Niente percorsi, lettere di unità, virgolette o caratteri jolly.",
         "too_long": "Il nome è troppo lungo (massimo 64 caratteri).",
         "duplicate": "Quell'app è già nella lista.",
-        "defaults_loading": "I valori predefiniti sono ancora in caricamento — riprova tra un momento.",
+        "defaults_loading": "I valori predefiniti sono ancora in caricamento, riprova tra un momento.",
         "fallback": "Quel nome non è valido."
       }
     },
@@ -633,7 +633,7 @@
         }
       },
       "disabled_suffix": ", non disponibile su questa macchina.",
-      "inactive_notice": "Selezionato, ma attualmente inattivo — questo build non include quel provider di esecuzione. Le trascrizioni stanno girando su CPU.",
+      "inactive_notice": "Selezionato, ma attualmente inattivo, questo build non include quel provider di esecuzione. Le trascrizioni stanno girando su CPU.",
       "detected_adapters": "Adattatori rilevati",
       "adapter_software_suffix": " (software)",
       "adapter_vram_suffix": ", {{mb}} MB di VRAM"

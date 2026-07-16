@@ -1837,7 +1837,7 @@ function NameVocabularyCard() {
 }
 
 function formatSize(bytes: number): string {
-  if (!bytes) return '—';
+  if (!bytes) return '-';
   const units = ['B', 'KB', 'MB', 'GB'];
   let i = 0;
   let v = bytes;

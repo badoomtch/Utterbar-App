@@ -53,7 +53,7 @@
         "options": {
           "default": {
             "label": "Default",
-            "description": "Warm triangle tones on a musical fifth — the soft, satisfying default."
+            "description": "Warm triangle tones on a musical fifth. The soft, satisfying default."
           },
           "classic": {
             "label": "Tactile",
@@ -61,7 +61,7 @@
           },
           "subtle": {
             "label": "Subtle",
-            "description": "Quiet single-tone blips — minimal, no melody."
+            "description": "Quiet single-tone blips. Minimal, no melody."
           },
           "chime": {
             "label": "Chime",
@@ -259,11 +259,11 @@
       },
       "numbers_as_digits": {
         "label": "Numbers as digits",
-        "description": "Convert spoken numbers into digits (&lsquo;twenty three&rsquo; &rarr; &lsquo;23&rsquo;, &lsquo;five pounds&rsquo; &rarr; &lsquo;5 pounds&rsquo;). Idioms stay as words (&lsquo;one of these days&rsquo;). Turn off if you prefer numbers spelled out."
+        "description": "Convert spoken numbers into digits (‘twenty three’ → ‘23’, ‘five pounds’ → ‘5 pounds’). Idioms stay as words (‘one of these days’). Turn off if you prefer numbers spelled out."
       },
       "smart_rewrite": {
         "label": "Smart rewrite",
-        "description": "Clean up fillers (&lsquo;um&rsquo;, &lsquo;uh&rsquo;, &lsquo;like&rsquo;), spacing, capitalisation, and terminal punctuation locally before insertion. Deterministic only &mdash; no AI model, no cloud service, no model download. Adds a small amount of processing time. Off by default. Best for chat and email-style dictation; turn off if you dictate code (the rule that capitalises sentence starts will also capitalise keywords like &lsquo;let&rsquo; or &lsquo;fn&rsquo;). Meeting Mode is unaffected (transcripts stay verbatim)."
+        "description": "Clean up fillers (‘um’, ‘uh’, ‘like’), spacing, capitalisation, and terminal punctuation locally before insertion. Deterministic only: no AI model, no cloud service, no model download. Adds a small amount of processing time. Off by default. Best for chat and email-style dictation; turn off if you dictate code (the rule that capitalises sentence starts will also capitalise keywords like ‘let’ or ‘fn’). Meeting Mode is unaffected (transcripts stay verbatim)."
       },
       "shift_to_auto_send": {
         "label": "Hold Shift to auto-send",
@@ -322,7 +322,7 @@
       "title": "Visibility",
       "always": {
         "label": "Always visible",
-        "description": "The Utterbar sits at the top of your screen whenever the app is running. Default behaviour — easiest to spot, easiest to click."
+        "description": "The Utterbar sits at the top of your screen whenever the app is running. Default behaviour, easiest to spot and easiest to click."
       },
       "while_recording": {
         "label": "Only while recording",
@@ -534,7 +534,7 @@
         "invalid_characters": "Only letters, numbers, dot, underscore, and dash. No paths, drive letters, quotes, or wildcards.",
         "too_long": "Name is too long (max 64 characters).",
         "duplicate": "That app is already in the list.",
-        "defaults_loading": "Defaults are still loading — try again in a moment.",
+        "defaults_loading": "Defaults are still loading. Try again in a moment.",
         "fallback": "That name isn’t valid."
       }
     },
@@ -633,7 +633,7 @@
         }
       },
       "disabled_suffix": ", not available on this machine.",
-      "inactive_notice": "Selected, but currently inactive — this build does not include that execution provider. Transcribes are running on CPU.",
+      "inactive_notice": "Selected, but currently inactive. This build does not include that execution provider. Transcribes are running on CPU.",
       "detected_adapters": "Detected adapters",
       "adapter_software_suffix": " (software)",
       "adapter_vram_suffix": ", {{mb}} MB VRAM"

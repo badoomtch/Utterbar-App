@@ -201,19 +201,19 @@ export function ModelsSettings() {
   }> = [
     {
       id: 'sherpa-whisper-small',
-      label: 'Fast — Whisper Small',
+      label: 'Fast: Whisper Small',
       subtitle:
         'Fastest Meeting Mode option. Acceptable for clear speech; proper nouns and unusual words are weaker than Medium or Large.',
     },
     {
       id: 'sherpa-whisper-medium',
-      label: 'Balanced — Whisper Medium',
+      label: 'Balanced: Whisper Medium',
       subtitle:
         'Slower than Small with slightly higher quality, especially on proper nouns and unusual words.',
     },
     {
       id: 'sherpa-whisper-large-v3',
-      label: 'Best accuracy — Whisper Large v3',
+      label: 'Best accuracy: Whisper Large v3',
       subtitle:
         "Highest accuracy, slowest. Best for very noisy or multi-speaker audio when you don't mind a long wait.",
     },
@@ -311,7 +311,7 @@ export function ModelsSettings() {
             const requiresPro = !!entry?.requires_pro;
             const locked = requiresPro && !pro;
             const checked = meetingAsrModelId === opt.id;
-            const sizeLabel = entry ? formatBytes(entry.size_bytes) : '—';
+            const sizeLabel = entry ? formatBytes(entry.size_bytes) : '-';
             // v0.15.3 round-3 fix: read the same progress map the main
             // model list uses, so an install kicked off from the
             // Meeting card shows phase + bytes + bar in this row, the

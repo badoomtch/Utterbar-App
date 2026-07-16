@@ -423,7 +423,7 @@ function SpeakerRenameRow({
     return (
       <div className="flex items-center gap-3 text-[13px]">
         <span className="w-24 shrink-0 text-muted">Speaker {speakerId}</span>
-        <span className="flex-1 truncate text-fg">{value || `(default — Speaker ${speakerId})`}</span>
+        <span className="flex-1 truncate text-fg">{value || `(default: Speaker ${speakerId})`}</span>
         <button
           type="button"
           onClick={() => setEditing(true)}
