@@ -561,10 +561,13 @@ impl CaptureHandle {
     ///     nothing ever drains — the handle drops immediately after this call so
     ///     that allocation is freed within microseconds anyway.
     pub async fn stop(&self) -> CaptureFinal {
-        // Grace tail — keep capturing for a beat past the user's stop gesture. 220 ms
-        // covers typical WASAPI period + the user's end-of-word tail on the vast
-        // majority of hardware without making the UI feel laggy.
-        const TAIL_PAD_MS: u64 = 220;
+        // Grace tail — keep capturing for a beat past the user's stop gesture.
+        // 500 ms covers the WASAPI capture period, hotkey-release → stop-call
+        // latency, and the typical trailing-syllable / mouth-closing audio a
+        // user expects to be captured after they hit stop. Users reported the
+        // previous 220 ms still dropping the last word on natural sentence
+        // endings; 500 ms removes that without making the stop feel sluggish.
+        const TAIL_PAD_MS: u64 = 500;
         tokio::time::sleep(std::time::Duration::from_millis(TAIL_PAD_MS)).await;
 
         // Flip stop, then give the capture thread time to drop the cpal stream and
