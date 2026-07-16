@@ -285,15 +285,55 @@ fn scan_number_run(tokens: &[(Tok, &str)], start: usize) -> (usize, u64, &'stati
     let mut i = start;
     let mut last_useful = start;
 
+    // Grammar of the current additive group (the sub-hundred part being
+    // assembled). Without this, ANY run of number-words was summed —
+    // "twenty thirty" became "50", "five six" became "11" — but those are
+    // two separate numbers spoken back to back, not one composed number.
+    // Only genuine compositions ("twenty three" = 23) should merge.
+    //   • `group_has_tens` — a tens word (20..90) is in the group; it may
+    //     still accept ONE trailing unit ("twenty" + "three" = 23).
+    //   • `group_has_ones` — a units/teens word (1..19) fills the ones
+    //     place; the group is complete, nothing more can be added.
+    // A hundred/thousand/million multiplier closes the group and clears
+    // both flags so a fresh sub-hundred group can follow
+    // ("one hundred twenty three").
+    let mut group_has_tens = false;
+    let mut group_has_ones = false;
+
     while i < tokens.len() {
         match tokens[i].0 {
-            Tok::NumWord(NumKind::Unit(v)) | Tok::NumWord(NumKind::Teen(v)) => {
+            Tok::NumWord(NumKind::Unit(v)) => {
+                // A unit only extends the group right after a bare tens
+                // word ("twenty three"). After a unit or teen already
+                // placed, it's the start of a NEW number — end the run.
+                if group_has_ones {
+                    break;
+                }
                 current += v;
+                group_has_ones = true;
+                last_useful = i + 1;
+                i += 1;
+            }
+            Tok::NumWord(NumKind::Teen(v)) => {
+                // Teens occupy both the tens and ones place, so they can't
+                // follow another additive word in the same group
+                // ("thirteen fourteen" is two numbers).
+                if group_has_tens || group_has_ones {
+                    break;
+                }
+                current += v;
+                group_has_ones = true;
                 last_useful = i + 1;
                 i += 1;
             }
             Tok::NumWord(NumKind::Ten(v)) => {
+                // A tens word can't follow another tens/ones word in the
+                // same group ("twenty thirty", "five sixty").
+                if group_has_tens || group_has_ones {
+                    break;
+                }
                 current += v;
+                group_has_tens = true;
                 last_useful = i + 1;
                 i += 1;
             }
@@ -303,6 +343,8 @@ fn scan_number_run(tokens: &[(Tok, &str)], start: usize) -> (usize, u64, &'stati
                 } else {
                     current *= 100;
                 }
+                group_has_tens = false;
+                group_has_ones = false;
                 last_useful = i + 1;
                 i += 1;
             }
@@ -314,14 +356,23 @@ fn scan_number_run(tokens: &[(Tok, &str)], start: usize) -> (usize, u64, &'stati
                 }
                 total += current;
                 current = 0;
+                group_has_tens = false;
+                group_has_ones = false;
                 last_useful = i + 1;
                 i += 1;
             }
             Tok::NumWord(NumKind::And) => {
-                // "and" is only a number-token when it sits between
-                // two number-words ("three hundred and forty-seven").
-                // Verify that by peeking ahead — the next non-Other
-                // token must be a NumWord that's not And.
+                // "and" is only a number-token when it joins the
+                // hundreds/thousands part of a single number to its
+                // tens-and-units tail ("one hundred and forty-seven",
+                // "one thousand and one"). A bare "one and two" is a
+                // list, not a number — the previous guard
+                // (`current > 0 || total > 0`) was too loose and made
+                // the converter sum the operands into "3". Only allow
+                // the conjunction when the run has already crossed a
+                // hundred-or-bigger boundary: either `current >= 100`
+                // (saw a Hundred) or `total > 0` (saw a Big multiplier
+                // which always rolls current into total at >= 1000).
                 let mut k = i + 1;
                 while k < tokens.len() {
                     if matches!(tokens[k].0, Tok::Other) {
@@ -332,7 +383,7 @@ fn scan_number_run(tokens: &[(Tok, &str)], start: usize) -> (usize, u64, &'stati
                 }
                 let next_is_num = k < tokens.len()
                     && matches!(tokens[k].0, Tok::NumWord(n) if !matches!(n, NumKind::And));
-                if next_is_num && (current > 0 || total > 0) {
+                if next_is_num && (current >= 100 || total > 0) {
                     i += 1; // consume the "and", carry on.
                 } else {
                     break;
@@ -542,5 +593,50 @@ mod tests {
     fn empty_passthrough() {
         assert_eq!(t(""), "");
         assert_eq!(t("hello world"), "hello world");
+    }
+
+    /// Regression: two separate numbers spoken back to back must NOT be
+    /// summed into one. Before the grammar-aware scanner, any contiguous
+    /// run of number-words was added together — "twenty thirty" → "50",
+    /// "five six" → "11" — which is wrong. Only genuine compositions
+    /// ("twenty three" = 23) merge; anything that isn't a valid single
+    /// number breaks into separate tokens.
+    #[test]
+    fn back_to_back_numbers_do_not_sum() {
+        // Two tens words: two numbers, not their sum.
+        assert_eq!(t("twenty thirty"), "20 30");
+        assert_eq!(t("fifty sixty"), "50 60");
+        // Tens then unit IS a valid composition and still merges.
+        assert_eq!(t("twenty three"), "23");
+        assert_eq!(t("forty five"), "45");
+        // Two teens: two numbers.
+        assert_eq!(t("thirteen fourteen"), "13 14");
+        // Ten then teen: not composable.
+        assert_eq!(t("twenty thirteen"), "20 13");
+        // Low units back to back stay as words (idiom-safe) and are never
+        // summed.
+        assert_eq!(t("five six"), "five six");
+        // Composed hundreds still work after the group-reset on the
+        // multiplier.
+        assert_eq!(t("one hundred twenty three"), "123");
+        assert_eq!(t("three hundred forty"), "340");
+    }
+
+    /// Regression: "one and two" must NOT collapse to "3". "and" is only
+    /// a number-conjunction once the run has crossed a hundred-or-bigger
+    /// boundary; below that it's an English connective between two
+    /// separate things. "one hundred and forty seven" (covered above)
+    /// must keep working.
+    #[test]
+    fn bare_and_between_low_numbers_does_not_sum() {
+        assert_eq!(t("one and two"), "one and two");
+        assert_eq!(t("three and four"), "three and four");
+        assert_eq!(t("twenty and thirty"), "20 and 30");
+        // Mixed: the second number still digit-ises via its own anchor
+        // or context, the "and" stays literal.
+        assert_eq!(t("page one and page two"), "page 1 and page 2");
+        // Hundreds-and form still works.
+        assert_eq!(t("one hundred and two"), "102");
+        assert_eq!(t("one thousand and one"), "1001");
     }
 }
