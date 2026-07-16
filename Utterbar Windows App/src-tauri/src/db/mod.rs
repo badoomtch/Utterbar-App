@@ -56,7 +56,10 @@ impl Db {
                 // Surface but proceed — letting r2d2 try its luck is
                 // strictly better than refusing to launch. If r2d2 also
                 // fails, the existing panic path runs.
-                tracing::warn!(?e, "db: corruption check failed; proceeding without recovery");
+                tracing::warn!(
+                    ?e,
+                    "db: corruption check failed; proceeding without recovery"
+                );
             }
         }
         let manager = SqliteConnectionManager::file(&path).with_init(|c| {
@@ -256,10 +259,8 @@ mod recovery_tests {
     fn fresh_dir(label: &str) -> std::path::PathBuf {
         static N: AtomicU64 = AtomicU64::new(0);
         let n = N.fetch_add(1, Ordering::SeqCst);
-        let d = std::env::temp_dir().join(format!(
-            "ut-db-recovery-{label}-{}-{n}",
-            std::process::id()
-        ));
+        let d =
+            std::env::temp_dir().join(format!("ut-db-recovery-{label}-{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
