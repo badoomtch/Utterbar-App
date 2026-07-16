@@ -3156,7 +3156,9 @@ pub(crate) async fn stop_recording_inner(
         } else {
             crate::services::text_inject::Strategy::Keystrokes
         };
-        let _ = state.text_inject.deliver(&processed, strategy);
+        if let Err(e) = state.text_inject.deliver(&processed, strategy) {
+            tracing::warn!(?e, chars = processed.len(), "text_inject.deliver failed");
+        }
 
         if auto_send {
             // Small pause so the host has time to accept the paste before we fire Enter —
