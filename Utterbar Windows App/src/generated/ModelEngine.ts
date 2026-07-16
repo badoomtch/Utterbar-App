@@ -5,4 +5,4 @@
  * load time. New engines land here once the inference dispatch knows
  * how to spin them up.
  */
-export type ModelEngine = "parakeet-tdt" | "whisper" | "zipformer" | "punct";
+export type ModelEngine = "parakeet-tdt" | "whisper" | "zipformer";

@@ -101,7 +101,6 @@ impl ModelRegistry {
                     id: row.get(0)?,
                     kind: match kind.as_str() {
                         "llm" => ModelKind::Llm,
-                        "punct" => ModelKind::Punct,
                         _ => ModelKind::Asr,
                     },
                     display_name: row.get(2)?,
@@ -276,7 +275,7 @@ impl ModelRegistry {
                 "INSERT OR REPLACE INTO models(id,kind,display_name,version,size_bytes,path,backend,languages,installed_at,last_used_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL)",
                 params![
                     entry.id,
-                    match entry.kind { ModelKind::Asr => "asr", ModelKind::Llm => "llm", ModelKind::Punct => "punct" },
+                    match entry.kind { ModelKind::Asr => "asr", ModelKind::Llm => "llm" },
                     entry.display_name,
                     entry.version,
                     done as i64,
@@ -681,38 +680,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             accuracy_score: 9,
             speed_score: 7,
             requires_pro: true,
-        },
-        // Punctuation restoration (sherpa CT-Transformer, zh-en, int8).
-        // ModelKind::Punct keeps it out of the dictation-model pickers;
-        // the Text Output "Restore punctuation" toggle uses it to add
-        // commas / full stops / question marks to a raw transcript via a
-        // token classifier (not an LLM rewrite). The zh-en vocab covers
-        // English; Chinese tokens are harmless for English dictation.
-        // accuracy_score / speed_score are unused for a non-ASR model.
-        //
-        // Pinned 2026-07-16 against the live k2-fsa punctuation-models
-        // release: downloaded and hashed the int8 tarball.
-        ModelInfo {
-            id: "sherpa-punct-ct-transformer".into(),
-            kind: ModelKind::Punct,
-            display_name: "Punctuation restoration".into(),
-            description: "Adds punctuation to your dictation (commas, full stops, question marks). A small on-device model, not an AI rewrite. Turn it on under Text Output once installed.".into(),
-            version: "ct-transformer-2024-04-12".into(),
-            size_bytes: 64_717_756,
-            backend: ModelBackend::Onnx,
-            engine: ModelEngine::Punct,
-            languages: vec!["multi".into()],
-            installed: false,
-            path: None,
-            sha256: "c0d5aa5f8eeb686032345e180bedf39319dc2e0556781c6264bcadba8328a6e1".into(),
-            download_url: Some(
-                "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8.tar.bz2"
-                    .into(),
-            ),
-            recommended: false,
-            accuracy_score: 0,
-            speed_score: 0,
-            requires_pro: false,
         },
         // Offline Zipformer was retired in v0.14.2: Parakeet covers the
         // English fast-path comprehensively, and shipping two

@@ -86,15 +86,6 @@ export function TextOutputSettings() {
             />
           </Row>
           <Row
-            label={t('text_output.formatting.restore_punctuation.label')}
-            description={t('text_output.formatting.restore_punctuation.description')}
-          >
-            <Toggle
-              checked={to.restore_punctuation ?? false}
-              onChange={(v) => void update('restore_punctuation', v)}
-            />
-          </Row>
-          <Row
             label={t('text_output.formatting.shift_to_auto_send.label')}
             description={t('text_output.formatting.shift_to_auto_send.description')}
           >

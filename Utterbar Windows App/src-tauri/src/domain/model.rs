@@ -57,10 +57,6 @@ pub struct ModelInfo {
 pub enum ModelKind {
     Asr,
     Llm,
-    /// Offline punctuation + casing restoration (sherpa CT-Transformer).
-    /// Not an ASR model — kept out of the dictation-model pickers; drives
-    /// the optional "Restore punctuation" text-output pass.
-    Punct,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -89,9 +85,4 @@ pub enum ModelEngine {
     /// Zipformer streaming via sherpa_rs::zipformer::ZipFormer.
     /// English, fast cold start. Wired in v0.8.2 onwards.
     Zipformer,
-    /// Offline punctuation restoration via sherpa_rs::punctuate.
-    /// Never built as an ASR provider; the punctuation service loads it
-    /// directly. Present only so `ModelKind::Punct` catalogue entries
-    /// have a non-lying engine value.
-    Punct,
 }

@@ -43,9 +43,6 @@ pub struct AppState {
     pub hotkeys: Arc<HotkeyService>,
     pub context: Arc<ContextService>,
     pub inference: Arc<InferenceOrchestrator>,
-    /// Optional punctuation restoration (off by default; only active when
-    /// the punct model is installed and the text-output toggle is on).
-    pub punctuation: Arc<crate::services::punctuation::PunctuationService>,
     pub text_inject: Arc<TextInjectService>,
     pub media: Arc<MediaService>,
     pub licence: Arc<LicenceService>,
@@ -405,7 +402,6 @@ impl AppState {
             hotkeys,
             context,
             inference,
-            punctuation: Arc::new(crate::services::punctuation::PunctuationService::new()),
             text_inject,
             media,
             licence,

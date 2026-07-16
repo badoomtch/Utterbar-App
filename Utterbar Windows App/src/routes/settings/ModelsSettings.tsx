@@ -28,7 +28,6 @@ const FOREVER = 4_294_967_295; // u32::MAX
 
 type ModelInfo = {
   id: string;
-  kind: 'asr' | 'llm' | 'punct';
   display_name: string;
   description: string;
   version: string;
@@ -220,13 +219,7 @@ export function ModelsSettings() {
     },
   ];
 
-  // Only ASR models can be a dictation default / recommendation. The
-  // punctuation model (kind 'punct') is installable in the list below
-  // but must never appear in the model pickers.
-  const installedModels = useMemo(
-    () => items.filter((m) => m.installed && m.kind === 'asr'),
-    [items],
-  );
+  const installedModels = useMemo(() => items.filter((m) => m.installed), [items]);
   const licenceStatus = useLicence((s) => s.status);
   const pro = isPro(licenceStatus);
 

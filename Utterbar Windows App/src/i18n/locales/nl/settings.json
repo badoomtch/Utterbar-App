@@ -156,8 +156,7 @@
         "auto_space": "Automatische spatie",
         "numbers_as_digits": "Getallen als cijfers",
         "smart_rewrite": "Slim herschrijven",
-        "hold_shift_auto_send": "Shift vasthouden om automatisch te verzenden",
-        "restore_punctuation": "Restore punctuation"
+        "hold_shift_auto_send": "Shift vasthouden om automatisch te verzenden"
       }
     },
     "accessibility": {
@@ -269,10 +268,6 @@
       "shift_to_auto_send": {
         "label": "Shift vasthouden om automatisch te verzenden",
         "description": "Als je Shift vasthoudt wanneer je de opname stopt, drukt Utterbar Enter voor je in direct na het plakken, zodat het bericht in Teams, Slack, Discord, enz. de deur uitgaat zonder een tweede actie."
-      },
-      "restore_punctuation": {
-        "label": "Restore punctuation",
-        "description": "Add punctuation to your dictation (commas, full stops, question marks) with a small on-device model. Not an AI rewrite. Requires the Punctuation restoration model, which you can install in Settings, Models. Off by default; Meeting Mode is unaffected."
       }
     }
   },

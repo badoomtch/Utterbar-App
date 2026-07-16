@@ -644,12 +644,6 @@ async fn build_provider(
             model_dir,
             provider_string.to_string(),
         ))),
-        // A punctuation model is never an ASR provider. It's loaded
-        // directly by the punctuation service; reaching here means a
-        // caller tried to route dictation through it, which is a bug.
-        ModelEngine::Punct => Err(anyhow!(
-            "model {model_id} is a punctuation model and cannot transcribe audio"
-        )),
     }
 }
 

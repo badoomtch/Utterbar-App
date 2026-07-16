@@ -2926,18 +2926,6 @@ pub(crate) async fn stop_recording_inner(
     let mut processed = if mode.is_meeting_mode {
         crate::services::dialect::normalise(&raw, mode.english_variant)
     } else {
-        // Optional punctuation restoration on the raw transcript, applied
-        // BEFORE any other post-processing so the rest of the pipeline
-        // (smart rewrite, dialect, numbers, casing) runs on punctuated
-        // text. Off by default; only runs when the punct model is
-        // installed; failure returns the text unchanged so it can never
-        // drop content. Gated to non-meeting mode, same as smart_rewrite
-        // (pinned by `restore_punctuation_is_gated_to_non_meeting_mode`).
-        let base = if settings.text_output.restore_punctuation {
-            maybe_restore_punctuation(state, &raw).await
-        } else {
-            raw.clone()
-        };
         let llm = crate::services::llm::best_available().await;
         // Global "Smart rewrite" toggle (Settings → Text Output).
         // When enabled, the deterministic rewrite (filler removal,
@@ -2959,18 +2947,18 @@ pub(crate) async fn stop_recording_inner(
         let post = match &mode.post_processing {
             crate::domain::PostProcessing::None => {
                 if global_smart_rewrite {
-                    crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&base)
+                    crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
                 } else {
-                    base.clone()
+                    raw.clone()
                 }
             }
             crate::domain::PostProcessing::Deterministic { .. } => {
-                crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&base)
+                crate::services::llm::deterministic::DeterministicProvider.rewrite_sync(&raw)
             }
             crate::domain::PostProcessing::Llm { prompt, .. } => llm
-                .rewrite(&base, prompt, &ctx_snapshot)
+                .rewrite(&raw, prompt, &ctx_snapshot)
                 .await
-                .unwrap_or(base.clone()),
+                .unwrap_or(raw.clone()),
         };
 
         // English dialect normalisation. Parakeet is a monolingual English model trained
@@ -3427,40 +3415,6 @@ async fn set_phase(handle: &AppHandle, phase: DictationPhase) {
 fn emit_busy(handle: &AppHandle) {
     use crate::domain::EVT_DICTATION_BUSY;
     let _ = handle.emit(EVT_DICTATION_BUSY, ());
-}
-
-/// Look up the installed punctuation model and, if present, restore
-/// punctuation on `raw` off the async runtime (`spawn_blocking`, like the
-/// ASR path). Returns `raw` unchanged when the model isn't installed or
-/// the pass fails, so enabling the toggle without the model is a safe
-/// no-op rather than an error.
-async fn maybe_restore_punctuation(state: &Arc<AppState>, raw: &str) -> String {
-    if raw.trim().is_empty() {
-        return raw.to_string();
-    }
-    let dir = {
-        let available = state.models.list_available().await;
-        available
-            .iter()
-            .find(|m| m.id == "sherpa-punct-ct-transformer" && m.installed)
-            .and_then(|m| m.path.clone())
-            .map(|p| state.models.models_root().join(p))
-    };
-    let Some(dir) = dir else {
-        tracing::info!(
-            "restore_punctuation is on but the punctuation model is not installed; skipping"
-        );
-        return raw.to_string();
-    };
-    let punct = state.punctuation.clone();
-    let text = raw.to_string();
-    match tokio::task::spawn_blocking(move || punct.restore(&dir, &text)).await {
-        Ok(out) => out,
-        Err(e) => {
-            tracing::warn!(?e, "punctuation task join failed; returning text unchanged");
-            raw.to_string()
-        }
-    }
 }
 
 /// Capitalise the first alphabetic character of `s`, leaving everything else alone.
