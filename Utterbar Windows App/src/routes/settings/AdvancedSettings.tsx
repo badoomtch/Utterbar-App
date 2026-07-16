@@ -47,6 +47,21 @@ type RuntimeCapabilities = {
   has_cuda_ep: boolean;
 };
 
+/**
+ * Which execution provider will ACTUALLY run for the current model +
+ * GPU preference, computed by the same model-aware resolver the
+ * inference layer uses at dictation time. Lets the UI tell the user
+ * the truth (e.g. Whisper Small stays on CPU even on Auto) instead of
+ * just echoing their pick.
+ */
+type ProviderResolution = {
+  requested: string;
+  used: 'cpu' | 'directml' | 'cuda';
+  fallback_used: boolean;
+  fallback_reason: string;
+  policy_reason: string;
+};
+
 type GpuAcceleration = 'auto' | 'direct_ml' | 'cuda' | 'cpu';
 
 // Stable id registry. ids match the `gpu_acceleration` field's
@@ -87,6 +102,8 @@ export function AdvancedSettings() {
   // inactive" notice on DML/CUDA rows when the loaded ORT can't
   // serve the requested provider.
   const [runtimeCaps, setRuntimeCaps] = useState<RuntimeCapabilities | null>(null);
+  // What provider will actually run for the current model + GPU pref.
+  const [activeProvider, setActiveProvider] = useState<ProviderResolution | null>(null);
 
   // Backup / restore state. We keep it local (not persisted), the "last
   // export" hint is a session courtesy, not a durable record, and resetting
@@ -105,6 +122,27 @@ export function AdvancedSettings() {
       .then(setRuntimeCaps)
       .catch(() => undefined);
   }, []);
+
+  // Resolve the actual provider for the current model + GPU pref, and
+  // re-resolve whenever either changes. Derived reads are null-safe so
+  // the hook order stays stable before the `if (!s)` guard below.
+  const resolveGpuPref =
+    (s?.advanced as { gpu_acceleration?: GpuAcceleration } | undefined)?.gpu_acceleration ?? 'auto';
+  const resolveModelId =
+    (s?.models as { default_asr_model_id?: string | null } | undefined)?.default_asr_model_id ??
+    null;
+  useEffect(() => {
+    if (!resolveModelId) {
+      setActiveProvider(null);
+      return;
+    }
+    void invoke<ProviderResolution>('resolve_active_provider', {
+      pref: resolveGpuPref,
+      modelId: resolveModelId,
+    })
+      .then(setActiveProvider)
+      .catch(() => setActiveProvider(null));
+  }, [resolveGpuPref, resolveModelId]);
 
   if (!s) return null;
 
@@ -210,8 +248,15 @@ export function AdvancedSettings() {
               // is reserved for the genuine "no hardware GPU" case so
               // a non-GPU machine doesn't show a tickable DML/CUDA row
               // that can never make sense.
+              // CUDA has never been bundled (the shipping ONNX Runtime
+              // is the DirectML build), so its EP is never available.
+              // Disable the row and say so plainly rather than letting
+              // the user pick an option that silently runs on CPU.
+              const cudaUnavailable =
+                opt === 'cuda' && !!runtimeCaps && !runtimeCaps.has_cuda_ep;
               const disabled =
-                !gpu?.has_hardware_gpu && (opt === 'direct_ml' || opt === 'cuda');
+                (!gpu?.has_hardware_gpu && (opt === 'direct_ml' || opt === 'cuda')) ||
+                cudaUnavailable;
               const selected = current === opt;
               // The "currently inactive" notice fires when the user
               // has selected DML/CUDA but the loaded runtime can't
@@ -260,7 +305,11 @@ export function AdvancedSettings() {
                     </span>
                     <span className="mt-0.5 block text-muted leading-relaxed">
                       {t(`advanced.gpu.options.${opt}.hint` as const)}
-                      {disabled && t('advanced.gpu.disabled_suffix')}
+                      {cudaUnavailable
+                        ? ` ${t('advanced.gpu.options.cuda.unavailable')}`
+                        : disabled
+                          ? ` ${t('advanced.gpu.disabled_suffix')}`
+                          : ''}
                     </span>
                     {showInactiveNotice && (
                       <span className="mt-1.5 block rounded-input bg-bg-2/60 px-2 py-1 text-[11px] text-muted">
@@ -272,6 +321,34 @@ export function AdvancedSettings() {
               );
             })}
           </div>
+          {activeProvider && (
+            <div className="mt-3 rounded-input border border-border-soft/50 bg-bg-2/60 px-3 py-2 text-[12px]">
+              <span className="text-muted">{t('advanced.gpu.active.prefix')} </span>
+              <span className="font-medium text-fg-hi">
+                {activeProvider.used === 'cpu'
+                  ? t('advanced.gpu.active.on_cpu')
+                  : t('advanced.gpu.active.on_gpu')}
+              </span>
+              {(() => {
+                // Literal t() keys keep the typed-i18n contract; a note
+                // only shows when the resolver's reason isn't already
+                // obvious from the provider line above.
+                const r = activeProvider.policy_reason;
+                let note: string | null = null;
+                if (r === 'auto_small_prefers_cpu_short_clip')
+                  note = t('advanced.gpu.active.note.small_cpu');
+                else if (r === 'auto_cpu_no_hardware_gpu')
+                  note = t('advanced.gpu.active.note.no_gpu_hw');
+                else if (r === 'auto_cpu_no_dml_runtime' || r === 'dml_ep_unavailable')
+                  note = t('advanced.gpu.active.note.no_gpu_build');
+                else if (r === 'cuda_ep_unavailable')
+                  note = t('advanced.gpu.active.note.cuda_fallback');
+                return note ? (
+                  <span className="mt-1 block leading-relaxed text-muted">{note}</span>
+                ) : null;
+              })()}
+            </div>
+          )}
           {gpu && gpu.adapters.length > 0 && (
             <div className="mt-3 border-t border-border-soft/50 pt-3 text-[11px] text-muted">
               <div className="ub-eyebrow mb-1.5">{t('advanced.gpu.detected_adapters')}</div>

@@ -60,6 +60,33 @@ pub async fn runtime_capabilities() -> CmdResult<RuntimeCapabilities> {
     Ok(gpu::runtime_capabilities())
 }
 
+/// Which execution provider will ACTUALLY run for a given GPU
+/// preference + model. Runs the exact same model-aware policy the
+/// inference layer applies at dictation time (`resolve_provider`), so
+/// Settings → Advanced can show the user the real provider rather than
+/// just echoing what they picked. The prime case this exposes: on
+/// Auto, Whisper Small stays on CPU even on a DirectML-capable machine
+/// (short-clip GPU was slower), so a user with a good GPU is told,
+/// honestly, that their default model is running on the CPU.
+///
+/// Args come from the frontend's already-loaded settings store (GPU
+/// pref + the non-meeting `default_asr_model_id`), so this stays a
+/// pure function of its inputs plus the live hardware/runtime probe.
+#[tauri::command]
+pub async fn resolve_active_provider(
+    pref: crate::domain::GpuAcceleration,
+    model_id: String,
+) -> CmdResult<crate::services::inference::ProviderResolution> {
+    let probe = gpu::probe();
+    let caps = gpu::runtime_capabilities();
+    Ok(crate::services::inference::resolve_provider(
+        pref,
+        probe.has_hardware_gpu,
+        &caps,
+        &model_id,
+    ))
+}
+
 /// Open a directory or file in the OS's native file explorer.
 ///
 /// Reachable from any front-end webview via Tauri IPC. Pre-fix this

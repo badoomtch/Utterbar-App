@@ -192,6 +192,7 @@ fn main() {
             commands::diagnostics::get_diagnostics,
             commands::diagnostics::probe_gpu,
             commands::diagnostics::runtime_capabilities,
+            commands::diagnostics::resolve_active_provider,
             commands::diagnostics::open_path,
             // backup
             commands::backup::export_user_data,

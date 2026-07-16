@@ -444,7 +444,8 @@ impl InferenceOrchestrator {
 ///     test reverses this.
 ///   * `"auto_cpu_no_dml_runtime"` — auto + GPU but runtime lacks DML
 ///   * `"auto_cpu_no_hardware_gpu"` — auto + no hardware GPU
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, ts_rs::TS)]
+#[ts(export, export_to = "../../src/generated/")]
 pub struct ProviderResolution {
     pub requested: String,
     pub used: String,

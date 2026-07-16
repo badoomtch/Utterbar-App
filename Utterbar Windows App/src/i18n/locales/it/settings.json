@@ -625,7 +625,8 @@
         },
         "cuda": {
           "title": "CUDA",
-          "hint": "Preferisce NVIDIA CUDA quando il build lo include. Più veloce su schede NVIDIA."
+          "hint": "Preferisce NVIDIA CUDA quando il build lo include. Più veloce su schede NVIDIA.",
+          "unavailable": "Not available in this build."
         },
         "cpu": {
           "title": "Solo CPU",
@@ -636,7 +637,18 @@
       "inactive_notice": "Selezionato, ma attualmente inattivo, questo build non include quel provider di esecuzione. Le trascrizioni stanno girando su CPU.",
       "detected_adapters": "Adattatori rilevati",
       "adapter_software_suffix": " (software)",
-      "adapter_vram_suffix": ", {{mb}} MB di VRAM"
+      "adapter_vram_suffix": ", {{mb}} MB di VRAM",
+      "active": {
+        "prefix": "For your current model, dictation will run on",
+        "on_cpu": "your CPU.",
+        "on_gpu": "your GPU, via DirectML.",
+        "note": {
+          "small_cpu": "Whisper Small stays on CPU here because it is faster than the GPU for short clips. Choose Whisper Medium, Whisper Large, or Parakeet to use your GPU.",
+          "no_gpu_hw": "No GPU was detected on this machine.",
+          "no_gpu_build": "This build does not include GPU acceleration.",
+          "cuda_fallback": "CUDA is not included in this build, so dictation runs on CPU."
+        }
+      }
     },
     "diagnostics": {
       "title": "Diagnostica",
