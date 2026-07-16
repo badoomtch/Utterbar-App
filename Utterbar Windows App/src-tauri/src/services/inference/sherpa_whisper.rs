@@ -294,46 +294,107 @@ impl AsrProvider for SherpaWhisper {
                 return Ok((String::new(), None));
             }
 
-            tracing::info!(%model_id, samples = samples.len(), sample_rate, rms, "whisper: calling recognizer.transcribe (native)");
-            let result = recognizer.transcribe(sample_rate, &samples);
-            tracing::info!(%model_id, "whisper: recognizer.transcribe returned");
-
-            // Whisper hallucination filter. Whisper's training data
-            // included captioned video where silence/non-speech audio
-            // is annotated with bracketed tags like [Music], [Applause],
-            // [Background noise], (laughter), etc. When fed quiet or
-            // ambiguous audio, the model confabulates the same tags as
-            // the most likely "transcription" — they were in the
-            // training distribution. None of them are ever a real
-            // dictation result.
+            // sherpa-onnx's offline Whisper decoder silently truncates any
+            // input >= 30 seconds ("Only waves less than 30 seconds are
+            // supported"): it decodes a single 30s mel window and drops the
+            // rest. Meeting Mode works around this by slicing at the
+            // dictation layer, but regular single-shot dictation handed the
+            // whole buffer straight in — so a 3-minute dictation kept only
+            // ~the first 30 s and silently lost everything after, with no
+            // error and no indication.
             //
-            // The pre-recogniser RMS gate above catches obvious silence;
-            // this post-recogniser filter catches the marginal cases
-            // where audio cleared the gate (room tone with brief
-            // movement, breath) but the model still produced a tag-
-            // shaped output. Drops the whole result rather than
-            // pasting [Music] into the user's app.
-            let trimmed = result.text.trim();
-            if is_whisper_hallucination(trimmed) {
-                tracing::info!(
-                    %model_id,
-                    rms,
-                    returned = %trimmed,
-                    "whisper: dropping hallucinated bracketed-tag output"
-                );
-                return Ok((String::new(), None));
+            // Chunk here, inside the provider that actually has the limit,
+            // so every caller is correct without needing to know. Windows
+            // are 29 s with 2 s overlap — the same values Meeting Mode uses.
+            // Audio that fits in one window takes the single-shot fast path
+            // and is byte-identical to before; Meeting Mode always passes
+            // <= 29 s chunks, so it hits that path and is unaffected.
+            const CHUNK_SECS: usize = 29;
+            const OVERLAP_SECS: usize = 2;
+            let chunk_samples = CHUNK_SECS * sample_rate.max(1) as usize;
+
+            // Single-window fast path — unchanged behaviour.
+            if samples.len() <= chunk_samples {
+                tracing::info!(%model_id, samples = samples.len(), sample_rate, rms, "whisper: calling recognizer.transcribe (native)");
+                let result = recognizer.transcribe(sample_rate, &samples);
+                tracing::info!(%model_id, "whisper: recognizer.transcribe returned");
+
+                // Whisper hallucination filter. Whisper's training data
+                // included captioned video where silence/non-speech audio
+                // is annotated with bracketed tags like [Music], [Applause],
+                // (laughter), etc. Fed quiet or ambiguous audio, the model
+                // confabulates the same tags — they were in the training
+                // distribution but are never a real dictation result. The
+                // pre-recogniser RMS gate catches obvious silence; this
+                // catches marginal audio that cleared the gate but produced
+                // a tag-shaped output. Drops the whole result rather than
+                // pasting [Music] into the user's app.
+                let trimmed = result.text.trim();
+                if is_whisper_hallucination(trimmed) {
+                    tracing::info!(%model_id, rms, returned = %trimmed, "whisper: dropping hallucinated bracketed-tag output");
+                    return Ok((String::new(), None));
+                }
+                // sherpa_rs' WhisperRecognizerResult exposes the detected
+                // language when running in auto mode. Surfaced on AsrResult
+                // so downstream (history, mode picker) can record it.
+                let detected = if !result.lang.is_empty() {
+                    Some(result.lang)
+                } else {
+                    None
+                };
+                return Ok((result.text, detected));
             }
 
-            // sherpa_rs' WhisperRecognizerResult exposes the detected
-            // language when running in auto mode. We surface it on the
-            // AsrResult so downstream code (history, mode picker) can
-            // record what was actually transcribed.
-            let detected = if !result.lang.is_empty() {
-                Some(result.lang)
-            } else {
-                None
-            };
-            Ok((result.text, detected))
+            // Chunked path for long single-shot dictation.
+            let overlap_samples = OVERLAP_SECS * sample_rate.max(1) as usize;
+            let stride = chunk_samples.saturating_sub(overlap_samples).max(1);
+            let total = samples.len();
+            tracing::info!(%model_id, total_samples = total, chunk_samples, "whisper: input exceeds one 30s window; transcribing in chunks");
+
+            let mut start = 0usize;
+            let mut chunk_index = 0usize;
+            let mut stitched = String::new();
+            let mut first_lang: Option<String> = None;
+
+            while start < total {
+                let end = (start + chunk_samples).min(total);
+                let result = recognizer.transcribe(sample_rate, &samples[start..end]);
+                let trimmed = result.text.trim();
+
+                if is_whisper_hallucination(trimmed) {
+                    tracing::info!(%model_id, chunk_index, returned = %trimmed, "whisper: dropping hallucinated chunk output");
+                } else {
+                    // Drop the leading overlap region on every chunk after
+                    // the first. No word timings offline, so drop the
+                    // OVERLAP/CHUNK leading fraction of words — conservative,
+                    // better a dropped duplicate at a boundary than a
+                    // repeated word. Same rule Meeting Mode's stitch uses.
+                    let chunk_text = if chunk_index == 0 {
+                        trimmed.to_string()
+                    } else {
+                        let words: Vec<&str> = trimmed.split_whitespace().collect();
+                        let drop_count = (words.len() * OVERLAP_SECS / CHUNK_SECS).min(words.len());
+                        words[drop_count..].join(" ")
+                    };
+                    if !chunk_text.is_empty() {
+                        if !stitched.is_empty() {
+                            stitched.push(' ');
+                        }
+                        stitched.push_str(&chunk_text);
+                    }
+                    if first_lang.is_none() && !result.lang.is_empty() {
+                        first_lang = Some(result.lang);
+                    }
+                }
+
+                if end == total {
+                    break;
+                }
+                start += stride;
+                chunk_index += 1;
+            }
+            tracing::info!(%model_id, chunks = chunk_index + 1, chars = stitched.len(), "whisper: chunked transcribe complete");
+            Ok((stitched, first_lang))
         })
         .await
         .context("whisper transcribe spawn_blocking failed")?;
