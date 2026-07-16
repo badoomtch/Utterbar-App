@@ -113,15 +113,79 @@ fn paste_via_clipboard(text: &str, restore: bool, _detect_failure: bool) -> Resu
     send_ctrl_v()?;
 
     if let Some(prev) = prior {
-        // Restore off-thread so we can wait long enough for slow paste handlers
-        // (Office, heavy Electron apps) without pinning the dictation flow. The
-        // old 160ms on-thread delay was the source of the "pastes old clipboard
-        // contents" bug: apps whose WM_PASTE handler hadn't fired yet would read
-        // the clipboard *after* we'd already restored the prior value. 500ms is
-        // generous enough that every app we've measured has consumed the paste,
-        // and because it's async the user doesn't feel the wait.
+        // Restore off-thread, but only after we have evidence the host has
+        // consumed the paste. The previous fixed-500ms timer caused the
+        // "pastes the thing I already had copied" bug when the host's
+        // WM_PASTE handler ran later than 500ms (Office cold start, slow
+        // Electron apps, modal pump): we'd write `prev` back to the
+        // clipboard before the host read it, and the host then pasted the
+        // old value.
+        //
+        // The honest signal we have is the clipboard itself. After Ctrl+V
+        // the host either (a) reads the clipboard and moves on, leaving
+        // our transcript in place, or (b) replaces it (some apps do
+        // copy-on-paste tricks), or (c) the user explicitly copies
+        // something else. Cases (b) and (c) mean we MUST NOT restore —
+        // the clipboard no longer contains our transcript, so writing
+        // `prev` would clobber whatever's there now. Case (a) is the only
+        // one where restoring is safe.
+        //
+        // We poll every 50ms up to 900ms. As soon as the clipboard
+        // contents differ from our transcript, the host has consumed the
+        // paste (or the user moved on) — stop polling and bail without
+        // restoring. If we hit the ceiling with our transcript still on
+        // the clipboard, the host most likely already pasted but didn't
+        // disturb the clipboard (the common case for Office, most
+        // browsers, terminals); it's then safe to write `prev` back.
+        //
+        // The ceiling used to be 2000ms — picked when "Office cold start"
+        // was the worst observed paste-handler latency at ~500ms. Users
+        // reported the original clipboard staying gone for far too long
+        // after every dictation; 2000 → 900 → 600ms in stages. 600ms
+        // gives ~100ms margin over the observed ~500ms cold-start window
+        // while returning the prior clipboard sooner on the typical-host
+        // path (a plain host that doesn't touch the clipboard on paste
+        // holds our transcript for this whole window before we restore).
+        // POLL_MS stays at 50 so an overwrite during the wait is caught
+        // fast. This is the single dial: raise it if a slow host starts
+        // pasting the OLD clipboard; lower it to return the prior
+        // clipboard even faster at the cost of that margin.
+        let our_text = text.to_string();
         std::thread::spawn(move || {
-            sleep(Duration::from_millis(500));
+            const POLL_MS: u64 = 50;
+            const MAX_MS: u64 = 600;
+            let mut elapsed = 0u64;
+            // Initial settle — the host's paste handler almost always
+            // fires inside this window. Skipping this and polling
+            // immediately can race against fast hosts that consume the
+            // paste in <10ms.
+            sleep(Duration::from_millis(POLL_MS));
+            elapsed += POLL_MS;
+            while elapsed < MAX_MS {
+                match read_clipboard_text() {
+                    Ok(current) if current == our_text => {
+                        // Host hasn't touched the clipboard yet. Wait longer.
+                        sleep(Duration::from_millis(POLL_MS));
+                        elapsed += POLL_MS;
+                    }
+                    Ok(_) => {
+                        // Clipboard changed — host (or user) overwrote our
+                        // transcript. Restoring now would clobber that. Bail.
+                        tracing::info!(
+                            "clipboard restore: skipped, clipboard no longer contains our transcript"
+                        );
+                        return;
+                    }
+                    Err(_) => {
+                        // Couldn't read (another app holding the clipboard,
+                        // transient OpenClipboard failure). Retry next tick.
+                        sleep(Duration::from_millis(POLL_MS));
+                        elapsed += POLL_MS;
+                    }
+                }
+            }
+            // Hit the ceiling with our transcript still on the clipboard.
+            // Host probably pasted without disturbing it. Safe to restore.
             if let Err(e) = set_clipboard_text(&prev) {
                 tracing::warn!(?e, "failed to restore clipboard");
             }
