@@ -459,6 +459,15 @@ pub struct TextOutputSettings {
     /// field existed deserialise cleanly with `false`.
     #[serde(default)]
     pub smart_rewrite: bool,
+
+    /// Restore punctuation on the raw transcript with the offline
+    /// CT-Transformer punctuation model (a token classifier, not an LLM
+    /// rewrite). Off by default, and only takes effect when the punct
+    /// model is installed. Meeting Mode is out of scope, same as
+    /// `smart_rewrite`. `serde(default)` for back-compat with older
+    /// settings.json.
+    #[serde(default)]
+    pub restore_punctuation: bool,
 }
 
 fn default_auto_space_on_paste() -> bool {
@@ -481,6 +490,7 @@ impl Default for TextOutputSettings {
             auto_space_on_paste: true,
             numbers_as_digits: true,
             smart_rewrite: false,
+            restore_punctuation: false,
         }
     }
 }

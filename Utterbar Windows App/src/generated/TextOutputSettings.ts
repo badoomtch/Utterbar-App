@@ -35,4 +35,13 @@ numbers_as_digits: boolean,
  * `serde(default)` so settings.json files written before this
  * field existed deserialise cleanly with `false`.
  */
-smart_rewrite: boolean, };
+smart_rewrite: boolean, 
+/**
+ * Restore punctuation on the raw transcript with the offline
+ * CT-Transformer punctuation model (a token classifier, not an LLM
+ * rewrite). Off by default, and only takes effect when the punct
+ * model is installed. Meeting Mode is out of scope, same as
+ * `smart_rewrite`. `serde(default)` for back-compat with older
+ * settings.json.
+ */
+restore_punctuation: boolean, };

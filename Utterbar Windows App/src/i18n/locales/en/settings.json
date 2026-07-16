@@ -156,7 +156,8 @@
         "auto_space": "Auto-space",
         "numbers_as_digits": "Numbers as digits",
         "smart_rewrite": "Smart rewrite",
-        "hold_shift_auto_send": "Hold Shift to auto-send"
+        "hold_shift_auto_send": "Hold Shift to auto-send",
+        "restore_punctuation": "Restore punctuation"
       }
     },
     "accessibility": {
@@ -268,6 +269,10 @@
       "shift_to_auto_send": {
         "label": "Hold Shift to auto-send",
         "description": "If you're holding Shift when you stop recording, Utterbar presses Enter for you right after pasting, so the message goes out in Teams, Slack, Discord, etc. without a second hand-off."
+      },
+      "restore_punctuation": {
+        "label": "Restore punctuation",
+        "description": "Add punctuation to your dictation (commas, full stops, question marks) with a small on-device model. Not an AI rewrite. Requires the Punctuation restoration model, which you can install in Settings, Models. Off by default; Meeting Mode is unaffected."
       }
     }
   },

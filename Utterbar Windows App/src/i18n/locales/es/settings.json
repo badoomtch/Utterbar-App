@@ -156,7 +156,8 @@
         "auto_space": "Espacio automático",
         "numbers_as_digits": "Números como dígitos",
         "smart_rewrite": "Reescritura inteligente",
-        "hold_shift_auto_send": "Mantener Shift para enviar automáticamente"
+        "hold_shift_auto_send": "Mantener Shift para enviar automáticamente",
+        "restore_punctuation": "Restore punctuation"
       }
     },
     "accessibility": {
@@ -268,6 +269,10 @@
       "shift_to_auto_send": {
         "label": "Mantener Shift para enviar automáticamente",
         "description": "Si mantienes pulsado Shift al detener la grabación, Utterbar pulsa Enter por ti justo después de pegar, así el mensaje se envía en Teams, Slack, Discord, etc. sin un segundo paso."
+      },
+      "restore_punctuation": {
+        "label": "Restore punctuation",
+        "description": "Add punctuation to your dictation (commas, full stops, question marks) with a small on-device model. Not an AI rewrite. Requires the Punctuation restoration model, which you can install in Settings, Models. Off by default; Meeting Mode is unaffected."
       }
     }
   },

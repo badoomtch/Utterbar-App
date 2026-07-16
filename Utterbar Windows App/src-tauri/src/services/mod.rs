@@ -18,6 +18,7 @@ pub mod modes;
 pub mod numbers;
 pub mod output_validation;
 pub mod policy;
+pub mod punctuation;
 pub mod settings;
 pub mod subtitles;
 pub mod text_inject;
