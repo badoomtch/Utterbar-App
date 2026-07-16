@@ -105,6 +105,12 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   // enough to swallow any physical or software bounce we've seen in the wild.
   const lastHotkeyAtRef = useRef<number>(0);
   const hotkeyInFlightRef = useRef<boolean>(false);
+  // Hold-to-record (push/hold-to-talk) state, tracked independently of
+  // `phase` so a release that arrives while the cold first `start_recording`
+  // is still arming (phase not yet 'listening') still stops the recording.
+  const holdActiveRef = useRef<boolean>(false);
+  const holdStartingRef = useRef<boolean>(false);
+  const releaseRequestedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const unlisteners: Array<Promise<() => void>> = [
@@ -242,17 +248,31 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
           case 'push_to_talk':
           case 'hold_to_talk': {
             // Hold-to-record: key-down starts, key-up (shortcut:released)
-            // stops. Guard against a double-start when we're already
-            // listening (a repeat press, or an overlapping toggle press).
-            if (hotkeyInFlightRef.current) break;
+            // stops. Track the hold explicitly so a release that lands
+            // while the cold first start is still arming still stops it.
+            if (holdActiveRef.current) break;
             if (useDictation.getState().phase.kind === 'listening') break;
-            hotkeyInFlightRef.current = true;
+            holdActiveRef.current = true;
+            holdStartingRef.current = true;
+            releaseRequestedRef.current = false;
             try {
               await invoke('start_recording', { deviceId: null });
             } catch (err) {
               console.warn('[utterbar] push/hold-to-talk start failed', err);
-            } finally {
-              hotkeyInFlightRef.current = false;
+              holdActiveRef.current = false;
+              holdStartingRef.current = false;
+              releaseRequestedRef.current = false;
+              break;
+            }
+            holdStartingRef.current = false;
+            // The key may have been released while we were still starting;
+            // honour that deferred release now.
+            if (releaseRequestedRef.current) {
+              releaseRequestedRef.current = false;
+              holdActiveRef.current = false;
+              await invoke('stop_recording').catch((err) =>
+                console.warn('[utterbar] push/hold-to-talk deferred stop failed', err),
+              );
             }
             break;
           }
@@ -280,7 +300,16 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
         if (!isMain) return;
         const id = typeof e.payload === 'string' ? e.payload : undefined;
         if (id !== 'push_to_talk' && id !== 'hold_to_talk') return;
-        if (useDictation.getState().phase.kind !== 'listening') return;
+        if (!holdActiveRef.current) return;
+        // If the start is still arming (cold first press), defer the stop to
+        // when start_recording resolves — otherwise we'd try to stop a
+        // recording that hasn't finished starting, and the release would be
+        // dropped (the bug this fixes).
+        if (holdStartingRef.current) {
+          releaseRequestedRef.current = true;
+          return;
+        }
+        holdActiveRef.current = false;
         try {
           await invoke('stop_recording');
         } catch (err) {
