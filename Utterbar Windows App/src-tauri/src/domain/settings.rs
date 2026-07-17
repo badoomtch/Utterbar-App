@@ -569,19 +569,22 @@ impl Default for AdvancedSettings {
 }
 
 /// User-facing GPU acceleration preference. Resolved to a concrete ONNX Runtime
-/// provider string (`"cpu"` / `"directml"` / `"cuda"`) by the inference layer,
+/// provider string (`"cpu"` / `"directml"`) by the inference layer,
 /// taking the detected GPU hardware into account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
 #[serde(rename_all = "snake_case")]
 pub enum GpuAcceleration {
     /// Use the GPU if one is present, otherwise CPU. Recommended default.
+    /// `alias = "cuda"` migrates any settings.json that still holds the
+    /// removed CUDA choice back to Auto rather than failing to load. CUDA
+    /// was never bundled (the shipping ONNX Runtime is the DirectML build)
+    /// and the option was removed in v0.20.9.
     #[default]
+    #[serde(alias = "cuda")]
     Auto,
     /// Force DirectML (Windows, any DX12 GPU).
     DirectMl,
-    /// Force NVIDIA CUDA.
-    Cuda,
     /// Force CPU — useful when the user wants to keep the GPU free for other apps.
     Cpu,
 }

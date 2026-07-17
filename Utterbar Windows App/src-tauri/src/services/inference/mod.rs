@@ -9,6 +9,7 @@ pub mod sherpa_parakeet;
 pub mod sherpa_whisper;
 pub mod sherpa_zipformer;
 pub mod stub;
+pub mod vad;
 
 // v0.15.6 DirectML smoke regression suite. All tests are
 // `#[ignore]` and gated on `UTTERBAR_STEP2_WAV` env var pointing at
@@ -71,7 +72,7 @@ impl InferenceOrchestrator {
     pub async fn ensure_loaded(&self, model_id: &str) -> Result<Arc<dyn AsrProvider>> {
         // v0.15.6: resolver is now model-aware (auto-Small stays CPU).
         // Pass model_id through so the auto policy can decide per
-        // engine. CPU/DML/CUDA explicit prefs and non-Small auto
+        // engine. CPU/DML explicit prefs and non-Small auto
         // behaviour are unaffected.
         let resolution = resolve_provider_for_settings(&self.settings, model_id).await;
         let desired = resolution.used.clone();
@@ -411,16 +412,16 @@ impl InferenceOrchestrator {
 /// 1.43×).
 ///
 /// `requested` strings — UI-derived:
-///   * `"cpu"` / `"directml"` / `"cuda"` — user explicitly chose
+///   * `"cpu"` / `"directml"` — user explicitly chose
 ///   * `"auto-cpu"` — Auto resolved to CPU
 ///   * `"auto-directml"` — Auto resolved to DirectML
 ///
-/// `used` is one of `"cpu"` / `"directml"` / `"cuda"` — the actual
-/// engine input. With the v0.15.6 DML bundle in place, `"directml"`
-/// is now reachable for users on hardware that supports it.
+/// `used` is one of `"cpu"` / `"directml"` — the actual engine input.
+/// With the v0.15.6 DML bundle in place, `"directml"` is reachable for
+/// users on hardware that supports it.
 ///
 /// `fallback_used` semantics (preserved from v0.15.5):
-///   * `true` only when the user EXPLICITLY requested DML/CUDA and
+///   * `true` only when the user EXPLICITLY requested DML and
 ///     the runtime can't serve it.
 ///   * `false` for auto-policy CPU choices — auto picking CPU isn't
 ///     a "fallback", it's the policy's chosen path.
@@ -428,15 +429,12 @@ impl InferenceOrchestrator {
 /// `fallback_reason` enum (pinned by test):
 ///   * `""` — no downgrade
 ///   * `"dml_ep_unavailable"` — explicit DML, runtime lacks DML EP
-///   * `"cuda_ep_unavailable"` — explicit CUDA, runtime lacks CUDA EP
 ///
 /// `policy_reason` (v0.15.6+, pinned by test) — explains the resolver
 /// decision when the auto policy or model-aware logic was non-trivial:
 ///   * `"user_explicit_cpu"` — user picked CPU
 ///   * `"user_explicit_directml"` — user picked DML, available
-///   * `"user_explicit_cuda"` — user picked CUDA, available
 ///   * `"dml_ep_unavailable"` — same string as `fallback_reason` here
-///   * `"cuda_ep_unavailable"` — same
 ///   * `"auto_dml_speedup"` — auto + DML available + model benefits
 ///   * `"auto_small_prefers_cpu_short_clip"` — auto + DML available
 ///     but the model is Whisper Small, where Step 2 evidence shows
@@ -453,7 +451,7 @@ pub struct ProviderResolution {
     pub fallback_reason: String,
     /// v0.15.6+. Explains every resolver decision; the `fallback_*`
     /// fields cover the subset where the user explicitly asked for
-    /// DML/CUDA and we couldn't deliver, but auto-policy choices
+    /// DML and we couldn't deliver, but auto-policy choices
     /// (e.g. auto-Small staying on CPU on a DML-capable build) need
     /// their own slot.
     pub policy_reason: String,
@@ -502,26 +500,6 @@ pub(crate) fn resolve_provider(
                     fallback_used: true,
                     fallback_reason: "dml_ep_unavailable".into(),
                     policy_reason: "dml_ep_unavailable".into(),
-                }
-            }
-        }
-
-        GpuAcceleration::Cuda => {
-            if caps.has_cuda_ep {
-                ProviderResolution {
-                    requested: "cuda".into(),
-                    used: "cuda".into(),
-                    fallback_used: false,
-                    fallback_reason: String::new(),
-                    policy_reason: "user_explicit_cuda".into(),
-                }
-            } else {
-                ProviderResolution {
-                    requested: "cuda".into(),
-                    used: "cpu".into(),
-                    fallback_used: true,
-                    fallback_reason: "cuda_ep_unavailable".into(),
-                    policy_reason: "cuda_ep_unavailable".into(),
                 }
             }
         }
@@ -671,24 +649,11 @@ mod resolver_tests {
     const PARAKEET: &str = "sherpa-parakeet-tdt-0.6b-v3-int8";
 
     fn cpu_only_runtime() -> RuntimeCapabilities {
-        RuntimeCapabilities {
-            has_dml_ep: false,
-            has_cuda_ep: false,
-        }
+        RuntimeCapabilities { has_dml_ep: false }
     }
 
     fn dml_capable_runtime() -> RuntimeCapabilities {
-        RuntimeCapabilities {
-            has_dml_ep: true,
-            has_cuda_ep: false,
-        }
-    }
-
-    fn cuda_capable_runtime() -> RuntimeCapabilities {
-        RuntimeCapabilities {
-            has_dml_ep: false,
-            has_cuda_ep: true,
-        }
+        RuntimeCapabilities { has_dml_ep: true }
     }
 
     // ── explicit CPU ──────────────────────────────────────────────────
@@ -758,29 +723,6 @@ mod resolver_tests {
             );
             assert_eq!(r.policy_reason, "user_explicit_directml");
         }
-    }
-
-    // ── explicit CUDA ─────────────────────────────────────────────────
-
-    #[test]
-    fn cuda_requested_cuda_unavailable_downgrades_to_cpu() {
-        let r = resolve_provider(GpuAcceleration::Cuda, true, &cpu_only_runtime(), MEDIUM);
-        assert_eq!(r.requested, "cuda");
-        assert_eq!(r.used, "cpu");
-        assert!(r.fallback_used);
-        assert_eq!(r.fallback_reason, "cuda_ep_unavailable");
-        assert_eq!(r.policy_reason, "cuda_ep_unavailable");
-    }
-
-    #[test]
-    fn cuda_requested_cuda_available_uses_cuda() {
-        let r = resolve_provider(GpuAcceleration::Cuda, true, &cuda_capable_runtime(), MEDIUM);
-        assert_eq!(r.used, "cuda");
-        assert!(!r.fallback_used);
-        // v0.15.6 fix: policy_reason was incorrectly
-        // "user_explicit_directml" for the CUDA-available branch.
-        // Pin the correct value.
-        assert_eq!(r.policy_reason, "user_explicit_cuda");
     }
 
     // ── Auto, no DML available ────────────────────────────────────────
@@ -856,9 +798,6 @@ mod resolver_tests {
         let dml = resolve_provider(GpuAcceleration::DirectMl, true, &cpu_only_runtime(), MEDIUM);
         assert_eq!(dml.fallback_reason, "dml_ep_unavailable");
 
-        let cuda = resolve_provider(GpuAcceleration::Cuda, true, &cpu_only_runtime(), MEDIUM);
-        assert_eq!(cuda.fallback_reason, "cuda_ep_unavailable");
-
         let cpu = resolve_provider(GpuAcceleration::Cpu, false, &cpu_only_runtime(), MEDIUM);
         assert_eq!(cpu.fallback_reason, "");
     }
@@ -880,18 +819,9 @@ mod resolver_tests {
         );
         assert_eq!(r.policy_reason, "user_explicit_directml");
 
-        // user_explicit_cuda (v0.15.6 fix: was incorrectly
-        // "user_explicit_directml" before)
-        let r = resolve_provider(GpuAcceleration::Cuda, true, &cuda_capable_runtime(), MEDIUM);
-        assert_eq!(r.policy_reason, "user_explicit_cuda");
-
         // dml_ep_unavailable
         let r = resolve_provider(GpuAcceleration::DirectMl, true, &cpu_only_runtime(), MEDIUM);
         assert_eq!(r.policy_reason, "dml_ep_unavailable");
-
-        // cuda_ep_unavailable
-        let r = resolve_provider(GpuAcceleration::Cuda, true, &cpu_only_runtime(), MEDIUM);
-        assert_eq!(r.policy_reason, "cuda_ep_unavailable");
 
         // auto_cpu_no_hardware_gpu
         let r = resolve_provider(GpuAcceleration::Auto, false, &cpu_only_runtime(), MEDIUM);

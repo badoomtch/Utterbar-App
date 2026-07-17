@@ -917,8 +917,6 @@ describe('i18n English foundation', () => {
       'advanced.gpu.options.auto.hint',
       'advanced.gpu.options.direct_ml.title',
       'advanced.gpu.options.direct_ml.hint',
-      'advanced.gpu.options.cuda.title',
-      'advanced.gpu.options.cuda.hint',
       'advanced.gpu.options.cpu.title',
       'advanced.gpu.options.cpu.hint',
       'advanced.gpu.disabled_suffix',

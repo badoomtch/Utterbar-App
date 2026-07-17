@@ -97,9 +97,6 @@ pub struct GpuProbe {
 pub struct RuntimeCapabilities {
     /// Whether the loaded ORT can serve the DirectML execution provider.
     pub has_dml_ep: bool,
-    /// Whether the loaded ORT can serve the CUDA execution provider.
-    /// We have never bundled CUDA; `false` until that changes.
-    pub has_cuda_ep: bool,
 }
 
 /// Process-lifetime cache for the result of
@@ -132,7 +129,7 @@ static RUNTIME_CAPS_CACHE: std::sync::OnceLock<RuntimeCapabilities> = std::sync:
 /// runtime DLL set is fixed for the process lifetime, so this is
 /// safe. See `RUNTIME_CAPS_CACHE` for the rationale.
 ///
-/// Falls back to `false / false` if the exe path can't be resolved.
+/// Falls back to `has_dml_ep: false` if the exe path can't be resolved.
 /// Conservative default — at worst a user with a working DML setup
 /// gets told it's inactive. The fallback is also cached, on the same
 /// process-lifetime reasoning: `current_exe()` doesn't realistically
@@ -153,10 +150,7 @@ fn compute_runtime_capabilities() -> RuntimeCapabilities {
     };
     match exe_dir {
         Some(dir) => probe_runtime_dir(&dir),
-        None => RuntimeCapabilities {
-            has_dml_ep: false,
-            has_cuda_ep: false,
-        },
+        None => RuntimeCapabilities { has_dml_ep: false },
     }
 }
 
@@ -183,14 +177,7 @@ pub fn probe_runtime_dir(dir: &std::path::Path) -> RuntimeCapabilities {
 
     let has_dml_ep = has_directml_dll && (has_legacy_satellite || has_embedded_dml_ep);
 
-    // CUDA EP requires the satellite providers DLL. We have never
-    // bundled CUDA; this stays `false` until a future build does.
-    let has_cuda_ep = dir.join("onnxruntime_providers_cuda.dll").is_file();
-
-    RuntimeCapabilities {
-        has_dml_ep,
-        has_cuda_ep,
-    }
+    RuntimeCapabilities { has_dml_ep }
 }
 
 /// Substring-scan `onnxruntime.dll` for the DML EP C-API export name.
@@ -340,10 +327,6 @@ mod tests {
             caps.has_dml_ep,
             "shipping runtime/ must contain a DirectML EP — v0.15.6 vendors the DML-enabled bundle"
         );
-        assert!(
-            !caps.has_cuda_ep,
-            "shipping runtime/ must NOT contain a CUDA EP; we have never bundled CUDA"
-        );
     }
 
     /// Convention used elsewhere in this crate (see app_state.rs,
@@ -462,18 +445,6 @@ mod tests {
         let caps = probe_runtime_dir(&tmp);
         let _ = std::fs::remove_dir_all(&tmp);
         assert!(!caps.has_dml_ep);
-        assert!(!caps.has_cuda_ep);
-    }
-
-    #[test]
-    fn runtime_capabilities_cuda_present_when_dll_exists() {
-        let tmp = unique_tmp("cuda");
-        std::fs::create_dir_all(&tmp).unwrap();
-        std::fs::write(tmp.join("onnxruntime_providers_cuda.dll"), b"").unwrap();
-        let caps = probe_runtime_dir(&tmp);
-        let _ = std::fs::remove_dir_all(&tmp);
-        assert!(caps.has_cuda_ep);
-        assert!(!caps.has_dml_ep);
     }
 
     /// **Cache contract.** `runtime_capabilities()` must return the
@@ -493,9 +464,7 @@ mod tests {
         let b = runtime_capabilities();
         let c = runtime_capabilities();
         assert_eq!(a.has_dml_ep, b.has_dml_ep);
-        assert_eq!(a.has_cuda_ep, b.has_cuda_ep);
         assert_eq!(b.has_dml_ep, c.has_dml_ep);
-        assert_eq!(b.has_cuda_ep, c.has_cuda_ep);
     }
 
     /// **Source-grep contract pin.** Companion to the equal-results

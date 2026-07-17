@@ -55,7 +55,7 @@ const FIXTURES: SettingsSearchItem[] = [
     label: 'Advanced',
     keywords: ['experimental'],
     matches: [
-      { label: 'GPU acceleration', aliases: ['gpu', 'acceleration', 'directml', 'cuda'] },
+      { label: 'GPU acceleration', aliases: ['gpu', 'acceleration', 'directml'] },
       { label: 'DirectML', aliases: ['directml', 'dml'] },
       { label: 'CPU only', aliases: ['cpu'] },
     ],

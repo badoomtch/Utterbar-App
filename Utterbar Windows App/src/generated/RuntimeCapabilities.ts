@@ -39,9 +39,4 @@ export type RuntimeCapabilities = {
 /**
  * Whether the loaded ORT can serve the DirectML execution provider.
  */
-has_dml_ep: boolean, 
-/**
- * Whether the loaded ORT can serve the CUDA execution provider.
- * We have never bundled CUDA; `false` until that changes.
- */
-has_cuda_ep: boolean, };
+has_dml_ep: boolean, };

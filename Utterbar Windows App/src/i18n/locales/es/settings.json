@@ -610,7 +610,7 @@
       "title": "Aceleración por GPU",
       "description": {
         "checking": "Comprobando qué hardware está disponible…",
-        "no_runtime_ep": "Esta compilación se ejecuta solo en CPU. DirectML y CUDA aparecen aquí para conservar tu preferencia para una futura versión que incluya soporte de GPU, pero hoy no tienen efecto.",
+        "no_runtime_ep": "Esta compilación se ejecuta solo en CPU. DirectML aparece aquí para conservar tu preferencia para una futura versión que incluya soporte de GPU, pero hoy no tiene efecto.",
         "detected": "Se ha detectado {{name}}. Auto ejecuta Whisper Medium / Large y Parakeet en la GPU cuando hay una y mantiene Whisper Small en la CPU. Puedes anular la elección eligiendo un proveedor concreto abajo.",
         "no_gpu": "La aceleración por GPU está incluida, pero no se detectó ninguna GPU dedicada o integrada en este equipo. Utterbar se ejecutará en CPU."
       },
@@ -622,11 +622,6 @@
         "direct_ml": {
           "title": "DirectML",
           "hint": "Prefiere DirectML cuando la compilación lo incluya. Funciona en cualquier GPU DX12."
-        },
-        "cuda": {
-          "title": "CUDA",
-          "hint": "Prefiere NVIDIA CUDA cuando la compilación lo incluya. Lo más rápido en tarjetas NVIDIA.",
-          "unavailable": "Not available in this build."
         },
         "cpu": {
           "title": "Solo CPU",
@@ -645,8 +640,7 @@
         "note": {
           "small_cpu": "Whisper Small stays on CPU here because it is faster than the GPU for short clips. Choose Whisper Medium, Whisper Large, or Parakeet to use your GPU.",
           "no_gpu_hw": "No GPU was detected on this machine.",
-          "no_gpu_build": "This build does not include GPU acceleration.",
-          "cuda_fallback": "CUDA is not included in this build, so dictation runs on CPU."
+          "no_gpu_build": "This build does not include GPU acceleration."
         }
       }
     },

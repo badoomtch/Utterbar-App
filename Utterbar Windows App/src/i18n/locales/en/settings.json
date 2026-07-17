@@ -413,7 +413,7 @@
     },
     "meeting_callout": {
       "title": "Heads up: Meeting Mode handles this for you",
-      "description": "When a mode is flagged as a Meeting, Utterbar always uses mic + system audio together (no need to set it here), splits long recordings into 30-second chunks so they don't OOM the recogniser, and skips post-processing so the transcript stays verbatim. The built-in 'Meeting' mode is set up that way out of the box.",
+      "description": "When a mode is flagged as a Meeting, Utterbar always records your microphone and the system audio together (no need to set it here). It transcribes the two sides separately and labels them, so the transcript shows who said what, and you can rename the speakers afterwards on the Meetings page. For the cleanest result, wear headphones so your microphone does not also pick up the other people through your speakers. The built-in 'Meeting' mode is set up this way out of the box.",
       "link": "Open Modes →"
     },
     "input_device": {
@@ -610,7 +610,7 @@
       "title": "GPU acceleration",
       "description": {
         "checking": "Checking what hardware is available…",
-        "no_runtime_ep": "This build runs on CPU only. DirectML and CUDA appear here so your preference is preserved for a future release that ships GPU support, but they have no effect today.",
+        "no_runtime_ep": "This build runs on CPU only. DirectML appears here so your preference is preserved for a future release that ships GPU support, but it has no effect today.",
         "detected": "Detected {{name}}. Auto runs Whisper Medium / Large and Parakeet on the GPU when one is present, and keeps Whisper Small on CPU. You can override the choice by picking a specific provider below.",
         "no_gpu": "GPU acceleration is built in but no dedicated or integrated GPU was detected on this machine. Utterbar will run on CPU."
       },
@@ -622,11 +622,6 @@
         "direct_ml": {
           "title": "DirectML",
           "hint": "Prefer DirectML when the build includes it. Runs on any DX12 GPU."
-        },
-        "cuda": {
-          "title": "CUDA",
-          "hint": "Prefer NVIDIA CUDA when the build includes it. Fastest on NVIDIA cards.",
-          "unavailable": "Not available in this build."
         },
         "cpu": {
           "title": "CPU only",
@@ -645,8 +640,7 @@
         "note": {
           "small_cpu": "Whisper Small stays on CPU here because it is faster than the GPU for short clips. Choose Whisper Medium, Whisper Large, or Parakeet to use your GPU.",
           "no_gpu_hw": "No GPU was detected on this machine.",
-          "no_gpu_build": "This build does not include GPU acceleration.",
-          "cuda_fallback": "CUDA is not included in this build, so dictation runs on CPU."
+          "no_gpu_build": "This build does not include GPU acceleration."
         }
       }
     },

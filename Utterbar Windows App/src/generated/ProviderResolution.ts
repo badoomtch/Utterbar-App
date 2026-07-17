@@ -11,16 +11,16 @@
  * 1.43×).
  *
  * `requested` strings — UI-derived:
- *   * `"cpu"` / `"directml"` / `"cuda"` — user explicitly chose
+ *   * `"cpu"` / `"directml"` — user explicitly chose
  *   * `"auto-cpu"` — Auto resolved to CPU
  *   * `"auto-directml"` — Auto resolved to DirectML
  *
- * `used` is one of `"cpu"` / `"directml"` / `"cuda"` — the actual
- * engine input. With the v0.15.6 DML bundle in place, `"directml"`
- * is now reachable for users on hardware that supports it.
+ * `used` is one of `"cpu"` / `"directml"` — the actual engine input.
+ * With the v0.15.6 DML bundle in place, `"directml"` is reachable for
+ * users on hardware that supports it.
  *
  * `fallback_used` semantics (preserved from v0.15.5):
- *   * `true` only when the user EXPLICITLY requested DML/CUDA and
+ *   * `true` only when the user EXPLICITLY requested DML and
  *     the runtime can't serve it.
  *   * `false` for auto-policy CPU choices — auto picking CPU isn't
  *     a "fallback", it's the policy's chosen path.
@@ -28,15 +28,12 @@
  * `fallback_reason` enum (pinned by test):
  *   * `""` — no downgrade
  *   * `"dml_ep_unavailable"` — explicit DML, runtime lacks DML EP
- *   * `"cuda_ep_unavailable"` — explicit CUDA, runtime lacks CUDA EP
  *
  * `policy_reason` (v0.15.6+, pinned by test) — explains the resolver
  * decision when the auto policy or model-aware logic was non-trivial:
  *   * `"user_explicit_cpu"` — user picked CPU
  *   * `"user_explicit_directml"` — user picked DML, available
- *   * `"user_explicit_cuda"` — user picked CUDA, available
  *   * `"dml_ep_unavailable"` — same string as `fallback_reason` here
- *   * `"cuda_ep_unavailable"` — same
  *   * `"auto_dml_speedup"` — auto + DML available + model benefits
  *   * `"auto_small_prefers_cpu_short_clip"` — auto + DML available
  *     but the model is Whisper Small, where Step 2 evidence shows
@@ -49,7 +46,7 @@ export type ProviderResolution = { requested: string, used: string, fallback_use
 /**
  * v0.15.6+. Explains every resolver decision; the `fallback_*`
  * fields cover the subset where the user explicitly asked for
- * DML/CUDA and we couldn't deliver, but auto-policy choices
+ * DML and we couldn't deliver, but auto-policy choices
  * (e.g. auto-Small staying on CPU on a DML-capable build) need
  * their own slot.
  */
