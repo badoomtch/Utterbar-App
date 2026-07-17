@@ -22,6 +22,7 @@ import {
 import { UtterbarLogoMark } from '@/components/bar/UtterbarLogoMark';
 import { UtterbarWordmark } from '@/components/bar/UtterbarWordmark';
 import { PostUpdateToast, UpdateToast } from '@/components/common/UpdateToast';
+import { LiveMeetingTranscript } from '@/components/common/LiveMeetingTranscript';
 import { cn } from '@/lib/cn';
 import { filterSettingsByQuery, settingsSearchMatchSummary } from '@/routes/settings_search';
 import { buildSettingsNav } from '@/routes/settings_nav';
@@ -310,6 +311,7 @@ export function MainShell() {
       </main>
       <UpdateToast />
       <PostUpdateToast />
+      <LiveMeetingTranscript />
     </div>
   );
 }

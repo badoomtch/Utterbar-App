@@ -70,6 +70,34 @@ impl AudioService {
         Ok(handle)
     }
 
+    /// Snapshot newly-buffered samples from the mic and loopback capture
+    /// buffers, from the given per-channel sample offsets to the current
+    /// end. Non-destructive (the full `mem::take` still happens at stop).
+    /// Either side is empty if that source isn't active. Used by the live
+    /// meeting transcriber to poll growing audio without the caller ever
+    /// touching the Windows-only loopback handle type.
+    pub async fn snapshot_channels(
+        &self,
+        mic_offset: usize,
+        loop_offset: usize,
+    ) -> (Vec<i16>, Vec<i16>) {
+        let mic = match self.inner.read().await.as_ref() {
+            Some(h) => h.snapshot_from(mic_offset),
+            None => Vec::new(),
+        };
+        #[cfg(windows)]
+        let lo = match self.loopback_inner.read().await.as_ref() {
+            Some(h) => h.snapshot_from(loop_offset),
+            None => Vec::new(),
+        };
+        #[cfg(not(windows))]
+        let lo = {
+            let _ = loop_offset;
+            Vec::new()
+        };
+        (mic, lo)
+    }
+
     pub async fn stop_capture(&self) -> Option<capture::CaptureFinal> {
         let mic_final = if let Some(h) = self.inner.write().await.take() {
             Some(h.stop().await)

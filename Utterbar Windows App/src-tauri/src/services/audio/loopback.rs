@@ -66,6 +66,15 @@ impl Drop for LoopbackHandle {
 }
 
 impl LoopbackHandle {
+    /// Copy buffered samples from `offset` to the current end. See
+    /// `CaptureHandle::snapshot_from`.
+    pub fn snapshot_from(&self, offset: usize) -> Vec<i16> {
+        match self.buffer.lock() {
+            Ok(b) if offset < b.len() => b[offset..].to_vec(),
+            _ => Vec::new(),
+        }
+    }
+
     pub async fn stop(&self) -> super::capture::CaptureFinal {
         self.stop_flag.store(true, Ordering::Relaxed);
         tokio::time::sleep(Duration::from_millis(100)).await;

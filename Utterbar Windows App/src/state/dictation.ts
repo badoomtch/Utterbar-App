@@ -57,11 +57,30 @@ export type MeterFrame = { rms: number; peak: number; ts_ms: number };
 // no meeting is currently being transcribed (the common case).
 export type MeetingProgress = { chunkIndex: number; totalChunks: number };
 
+// One live-transcribed meeting segment. Populated from
+// `meeting:live-segment` events as each speech span is recognised
+// during a live meeting. `speakerId` is 0-based (0 = you / mic,
+// 1 = others / system audio). Reset on `meeting:live-reset`.
+export type LiveMeetingSegment = {
+  id: number;
+  speakerId: number;
+  startSecs: number;
+  text: string;
+};
+
 export type DictationState = {
   phase: DictationPhase;
   meter: MeterFrame;
   elapsedMs: number;
   meetingProgress: MeetingProgress | null;
+  // Live meeting transcript segments, in arrival order. Empty when no
+  // live meeting is in progress. The view sorts by `startSecs` for
+  // display.
+  liveMeeting: LiveMeetingSegment[];
+  // True from the moment a live meeting starts (its reset event) until
+  // the recording winds down to idle. Lets the live panel show a
+  // "listening…" state before the first segment lands.
+  liveMeetingActive: boolean;
   // Last successfully-delivered dictation text. Populated from the
   // `dictation:result` event in AppBootstrap so any window (floating bar
   // especially) can surface "copy last message" without re-querying SQLite.
@@ -71,6 +90,9 @@ export type DictationState = {
   setPhase(phase: DictationPhase): void;
   setMeter(frame: MeterFrame): void;
   setMeetingProgress(progress: MeetingProgress | null): void;
+  resetLiveMeeting(): void;
+  addLiveSegment(segment: LiveMeetingSegment): void;
+  dismissLiveMeeting(): void;
   setLastText(text: string | null): void;
   tickElapsed(): void;
 };
@@ -80,6 +102,8 @@ export const useDictation = create<DictationState>((set, get) => ({
   meter: { rms: 0, peak: 0, ts_ms: 0 },
   elapsedMs: 0,
   meetingProgress: null,
+  liveMeeting: [],
+  liveMeetingActive: false,
   lastText: null,
   setPhase(phase) {
     // Clear meeting progress whenever we leave the
@@ -98,11 +122,17 @@ export const useDictation = create<DictationState>((set, get) => ({
     // "react to detected audio" point of the meter-driven waveform.
     const meter =
       phase.kind === 'listening' ? { rms: 0, peak: 0, ts_ms: 0 } : get().meter;
+    // A live meeting stops being "active" once the recording winds all
+    // the way down to idle. Its segments are kept (so the finished
+    // transcript stays on screen to review) until the user dismisses it
+    // or the next meeting resets it.
+    const liveMeetingActive = phase.kind === 'idle' ? false : get().liveMeetingActive;
     set({
       phase,
       elapsedMs: phase.kind === 'listening' ? 0 : get().elapsedMs,
       meetingProgress,
       meter,
+      liveMeetingActive,
     });
   },
   setMeter(frame) {
@@ -110,6 +140,21 @@ export const useDictation = create<DictationState>((set, get) => ({
   },
   setMeetingProgress(progress) {
     set({ meetingProgress: progress });
+  },
+  resetLiveMeeting() {
+    // Fires at the start of a live meeting: clear the prior transcript
+    // and mark the session active so the panel shows immediately.
+    set({ liveMeeting: [], liveMeetingActive: true });
+  },
+  addLiveSegment(segment) {
+    // De-dupe on id (Tauri can double-deliver during window focus
+    // changes) and keep arrival order; the view sorts by startSecs.
+    const existing = get().liveMeeting;
+    if (existing.some((s) => s.id === segment.id)) return;
+    set({ liveMeeting: [...existing, segment] });
+  },
+  dismissLiveMeeting() {
+    set({ liveMeeting: [], liveMeetingActive: false });
   },
   setLastText(text) {
     set({ lastText: text });

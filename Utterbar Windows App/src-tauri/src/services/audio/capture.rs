@@ -529,6 +529,17 @@ impl Drop for CaptureHandle {
 }
 
 impl CaptureHandle {
+    /// Copy buffered samples from `offset` to the current end (empty if
+    /// `offset` is already at/past the end). Lets the live transcriber
+    /// pull just the new audio each poll without disturbing the buffer —
+    /// the full `mem::take` still happens once at `stop`.
+    pub fn snapshot_from(&self, offset: usize) -> Vec<i16> {
+        match self.buffer.lock() {
+            Ok(b) if offset < b.len() => b[offset..].to_vec(),
+            _ => Vec::new(),
+        }
+    }
+
     /// Stop capture and hand back everything we buffered — including the tail.
     ///
     /// We used to just flip the stop flag, sleep 80 ms, and snapshot the buffer. That

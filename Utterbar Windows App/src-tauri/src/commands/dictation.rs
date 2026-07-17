@@ -869,6 +869,13 @@ pub async fn start_recording(
                 .unwrap_or_else(|| "voice-to-text".into())
         });
     let context_started_at_ms = now_ms();
+    // Clones for the live meeting worker (spawned after capture arms).
+    // Captured here because `meeting_model_id_for_context` is moved into
+    // the recording context just below.
+    let live_meeting_model_id = meeting_model_id_for_context.clone();
+    let live_target_language = active_mode_for_capture
+        .as_ref()
+        .and_then(|m| m.target_language.clone());
     {
         let mut ctx_lock = state.active_recording_context.write().await;
         *ctx_lock = Some(crate::app_state::ActiveRecordingContext {
@@ -1109,6 +1116,36 @@ pub async fn start_recording(
         },
     )
     .await;
+
+    // Live Meeting Mode (v0.21.x). For a two-channel meeting (mic +
+    // system audio, which is what Meeting Mode forces), spawn a
+    // background worker that transcribes speech spans live as they close
+    // during the recording, streaming them to the UI. Stopping then just
+    // drains the tail instead of transcribing the whole thing. Gated on
+    // the VAD model resolving; if it doesn't, we simply don't go live and
+    // `stop_recording` falls back to the batch two-channel path.
+    if is_meeting && matches!(source, CaptureSource::Mixed) {
+        match (
+            &live_meeting_model_id,
+            crate::services::inference::vad::resolve_model_path(),
+        ) {
+            (Some(model_id), Ok(vad_model)) => {
+                let live = spawn_live_meeting(
+                    (*state).clone(),
+                    handle.clone(),
+                    model_id.clone(),
+                    live_target_language.clone(),
+                    vad_model,
+                );
+                *state.live_meeting.lock().await = Some(live);
+                tracing::info!("live meeting: worker spawned");
+            }
+            (_, Err(e)) => {
+                tracing::warn!(error = %e, "live meeting: VAD model unavailable — will use batch transcribe at stop");
+            }
+            _ => {}
+        }
+    }
 
     // Schedule the single-shot auto-stop timer for non-meeting
     // recordings. The transcribe layer in `services/inference` rejects
@@ -1935,6 +1972,287 @@ fn mix_channels(a: &[i16], b: &[i16]) -> Vec<i16> {
         out.push((av + bv).clamp(i16::MIN as i32, i16::MAX as i32) as i16);
     }
     out
+}
+
+// ── Live Meeting Mode transcription (v0.21.x) ─────────────────────────
+//
+// The batch `transcribe_meeting_split` above runs after you stop. That
+// made a multi-minute meeting sit in "Processing" for minutes with the
+// app locked. The live path moves that work INTO the recording: a
+// background worker polls both capture buffers every couple of seconds,
+// feeds each channel's growing audio through a persistent Silero VAD,
+// and transcribes every speech span the moment it closes — tagged by
+// channel and streamed to the UI. By the time you stop, only the last
+// span or two remain, so finishing is near-instant. This is the model
+// screenpipe / meetily use.
+
+/// How often the live worker polls the capture buffers for new audio.
+/// 2 s balances UI latency (a line appears within ~2 s + transcribe
+/// time of being spoken) against re-poll overhead.
+const LIVE_POLL_INTERVAL_MS: u64 = 2_000;
+
+/// Sample rate of the capture buffers the live worker polls. Both the
+/// mic and the loopback path resample to 16 kHz before buffering.
+const LIVE_SAMPLE_RATE: u32 = 16_000;
+
+/// Handle to a running live-meeting worker, stored on `AppState` for the
+/// duration of a meeting recording. `stop_recording` calls `finish` to
+/// drain the tail and collect the complete transcript.
+pub struct LiveMeetingHandle {
+    finish_tx: tokio::sync::oneshot::Sender<(Vec<i16>, Vec<i16>)>,
+    result_rx: tokio::sync::oneshot::Receiver<anyhow::Result<AsrResult>>,
+}
+
+impl LiveMeetingHandle {
+    /// Signal the worker to finish: hand it the full final per-channel
+    /// buffers (from `stop_capture_split`) so it can transcribe any tail
+    /// the live polls didn't reach and flush the VADs, then await the
+    /// complete merged transcript.
+    pub async fn finish(
+        self,
+        mic_full: Vec<i16>,
+        loop_full: Vec<i16>,
+    ) -> anyhow::Result<AsrResult> {
+        self.finish_tx
+            .send((mic_full, loop_full))
+            .map_err(|_| anyhow::anyhow!("live meeting worker is gone"))?;
+        self.result_rx
+            .await
+            .map_err(|_| anyhow::anyhow!("live meeting worker dropped its result"))?
+    }
+}
+
+/// Mutable state owned by the live-meeting worker task: one streaming
+/// VAD per channel, the processed-sample offset per channel, and the
+/// accumulating attributed turns.
+struct LiveMeetingWorker {
+    mic_vad: crate::services::inference::vad::StreamingVad,
+    loop_vad: crate::services::inference::vad::StreamingVad,
+    mic_offset: usize,
+    loop_offset: usize,
+    turns: Vec<MeetingTurn>,
+    next_id: u32,
+    first_lang: Option<String>,
+    model_version: String,
+    model_id: String,
+    target_language: Option<String>,
+}
+
+impl LiveMeetingWorker {
+    /// Feed one channel's newly-arrived audio to its VAD and transcribe
+    /// whatever spans close. `is_mic` picks the channel (true = mic /
+    /// Speaker 1 "You", false = system / Speaker 2 "Others").
+    async fn process_channel(
+        &mut self,
+        state: &Arc<AppState>,
+        handle: &AppHandle,
+        new: Vec<i16>,
+        is_mic: bool,
+    ) {
+        let spans = if is_mic {
+            self.mic_vad.accept(&new)
+        } else {
+            self.loop_vad.accept(&new)
+        };
+        if is_mic {
+            self.mic_offset += new.len();
+        } else {
+            self.loop_offset += new.len();
+        }
+        let speaker_id = if is_mic { 0 } else { 1 };
+        for span in spans {
+            self.transcribe_span(state, handle, span, speaker_id).await;
+        }
+    }
+
+    /// Transcribe a single closed speech span, validate it, emit it live
+    /// to the UI, and record it for the final merged transcript.
+    async fn transcribe_span(
+        &mut self,
+        state: &Arc<AppState>,
+        handle: &AppHandle,
+        span: crate::services::inference::vad::SpeechSpan,
+        speaker_id: i32,
+    ) {
+        use crate::services::output_validation::{validate_meeting_chunk, MeetingChunkVerdict};
+        let start_secs = span.start_secs();
+        let result = match state
+            .inference
+            .transcribe(
+                &self.model_id,
+                AudioBuffer {
+                    pcm: span.pcm,
+                    sample_rate: LIVE_SAMPLE_RATE,
+                    channels: 1,
+                },
+                AsrOptions {
+                    language_hint: self.target_language.clone(),
+                    want_word_timings: false,
+                },
+            )
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(error = %e, speaker_id, start_secs, "live meeting: span transcribe failed");
+                return;
+            }
+        };
+        if self.first_lang.is_none() {
+            self.first_lang = result.language.clone();
+        }
+        if self.model_version.is_empty() {
+            self.model_version = result.model_version.clone();
+        }
+        if matches!(
+            validate_meeting_chunk(&result.text),
+            MeetingChunkVerdict::Drop { .. }
+        ) {
+            return;
+        }
+        let text = result.text.trim().to_string();
+        if text.is_empty() {
+            return;
+        }
+        let id = self.next_id;
+        self.next_id += 1;
+        let _ = handle.emit(
+            crate::domain::EVT_MEETING_LIVE_SEGMENT,
+            crate::domain::MeetingLiveSegment {
+                id,
+                speaker_id,
+                start_secs,
+                text: text.clone(),
+            },
+        );
+        self.turns.push(MeetingTurn {
+            start_secs,
+            speaker_id,
+            text,
+        });
+    }
+}
+
+/// Spawn a live-meeting worker and return a handle. The worker polls the
+/// mic + loopback buffers via `state.audio.snapshot_channels` (so it
+/// never touches the Windows-only loopback type directly), transcribing
+/// spans live until `finish` is called.
+fn spawn_live_meeting(
+    state: Arc<AppState>,
+    handle: AppHandle,
+    model_id: String,
+    target_language: Option<String>,
+    vad_model: std::path::PathBuf,
+) -> LiveMeetingHandle {
+    let (finish_tx, finish_rx) = tokio::sync::oneshot::channel();
+    let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(run_live_meeting(
+        state,
+        handle,
+        model_id,
+        target_language,
+        vad_model,
+        finish_rx,
+        result_tx,
+    ));
+    LiveMeetingHandle {
+        finish_tx,
+        result_rx,
+    }
+}
+
+async fn run_live_meeting(
+    state: Arc<AppState>,
+    handle: AppHandle,
+    model_id: String,
+    target_language: Option<String>,
+    vad_model: std::path::PathBuf,
+    mut finish_rx: tokio::sync::oneshot::Receiver<(Vec<i16>, Vec<i16>)>,
+    result_tx: tokio::sync::oneshot::Sender<anyhow::Result<AsrResult>>,
+) {
+    use crate::services::inference::vad::StreamingVad;
+    let (mic_vad, loop_vad) = match (StreamingVad::new(&vad_model), StreamingVad::new(&vad_model)) {
+        (Ok(m), Ok(l)) => (m, l),
+        _ => {
+            let _ = result_tx.send(Err(anyhow::anyhow!(
+                "live meeting: failed to initialise Silero VAD"
+            )));
+            return;
+        }
+    };
+    // Tell the UI to clear any prior live transcript before segments stream.
+    let _ = handle.emit(crate::domain::EVT_MEETING_LIVE_RESET, ());
+
+    let mut w = LiveMeetingWorker {
+        mic_vad,
+        loop_vad,
+        mic_offset: 0,
+        loop_offset: 0,
+        turns: Vec::new(),
+        next_id: 0,
+        first_lang: None,
+        model_version: String::new(),
+        model_id,
+        target_language,
+    };
+
+    let mut ticker = tokio::time::interval(std::time::Duration::from_millis(LIVE_POLL_INTERVAL_MS));
+    ticker.tick().await; // consume the immediate first tick
+
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                let (mic_new, loop_new) =
+                    state.audio.snapshot_channels(w.mic_offset, w.loop_offset).await;
+                if !mic_new.is_empty() {
+                    w.process_channel(&state, &handle, mic_new, true).await;
+                }
+                if !loop_new.is_empty() {
+                    w.process_channel(&state, &handle, loop_new, false).await;
+                }
+            }
+            msg = &mut finish_rx => {
+                // Final drain: transcribe whatever tail the polls hadn't
+                // reached (from the full buffers stop handed us), then
+                // flush both VADs for any final open utterance.
+                let (mic_full, loop_full) = msg.unwrap_or_default();
+                let mic_tail = mic_full.get(w.mic_offset..).map(<[i16]>::to_vec).unwrap_or_default();
+                let loop_tail = loop_full.get(w.loop_offset..).map(<[i16]>::to_vec).unwrap_or_default();
+                if !mic_tail.is_empty() {
+                    w.process_channel(&state, &handle, mic_tail, true).await;
+                }
+                if !loop_tail.is_empty() {
+                    w.process_channel(&state, &handle, loop_tail, false).await;
+                }
+                for span in w.mic_vad.flush() {
+                    w.transcribe_span(&state, &handle, span, 0).await;
+                }
+                for span in w.loop_vad.flush() {
+                    w.transcribe_span(&state, &handle, span, 1).await;
+                }
+
+                let duration_ms = (mic_full.len().max(loop_full.len()) as u64 * 1000
+                    / LIVE_SAMPLE_RATE as u64) as u32;
+                let merged = merge_meeting_turns(std::mem::take(&mut w.turns));
+                let text = render_meeting_turns(&merged);
+                tracing::info!(
+                    turns = merged.len(),
+                    chars = text.len(),
+                    duration_ms,
+                    "live meeting: finished"
+                );
+                let _ = result_tx.send(Ok(AsrResult {
+                    text,
+                    words: None,
+                    language: w.first_lang.clone(),
+                    confidence: None,
+                    model_version: w.model_version.clone(),
+                    duration_ms,
+                }));
+                return;
+            }
+        }
+    }
 }
 
 /// Meeting Mode two-channel transcribe (v0.21.0).
@@ -2956,29 +3274,41 @@ pub(crate) async fn stop_recording_inner(
         // path (`diarize` / `diarize_assets` remain as dormant plumbing);
         // it over-fragmented into dozens of fake speakers and is
         // deliberately not used.
-        match (mic_final, loop_final) {
-            (Some(mic), Some(lo)) => {
-                transcribe_meeting_split(
-                    &handle,
-                    state,
-                    &model_id,
-                    mic.pcm,
-                    lo.pcm,
-                    final_.sample_rate,
-                    mode.target_language.clone(),
-                )
-                .await
-            }
-            _ => {
-                transcribe_chunked(
-                    &handle,
-                    state,
-                    &model_id,
-                    final_.pcm,
-                    final_.sample_rate,
-                    mode.target_language.clone(),
-                )
-                .await
+        // If a live worker transcribed this meeting during recording,
+        // finishing it just drains the tail and returns the complete
+        // transcript — near-instant. Otherwise fall back to batch:
+        // two-channel VAD split when both sides are present, or the
+        // single-stream chunked path when only one is.
+        let live = state.live_meeting.lock().await.take();
+        if let Some(live) = live {
+            let mic_pcm = mic_final.map(|f| f.pcm).unwrap_or_default();
+            let loop_pcm = loop_final.map(|f| f.pcm).unwrap_or_default();
+            live.finish(mic_pcm, loop_pcm).await
+        } else {
+            match (mic_final, loop_final) {
+                (Some(mic), Some(lo)) => {
+                    transcribe_meeting_split(
+                        &handle,
+                        state,
+                        &model_id,
+                        mic.pcm,
+                        lo.pcm,
+                        final_.sample_rate,
+                        mode.target_language.clone(),
+                    )
+                    .await
+                }
+                _ => {
+                    transcribe_chunked(
+                        &handle,
+                        state,
+                        &model_id,
+                        final_.pcm,
+                        final_.sample_rate,
+                        mode.target_language.clone(),
+                    )
+                    .await
+                }
             }
         }
     } else {
@@ -3593,6 +3923,10 @@ fn chunk_count_for_duration(duration_ms: u32) -> u32 {
 #[tauri::command]
 pub async fn cancel_recording(handle: AppHandle, state: State<'_, Arc<AppState>>) -> CmdResult<()> {
     let _ = state.audio.stop_capture().await;
+    // Discard any live meeting worker without finishing it — cancel
+    // throws the recording away. Dropping the handle closes its finish
+    // channel, so the worker sees the drop and exits on its own.
+    let _ = state.live_meeting.lock().await.take();
     // Always release the re-entry guard — cancel is the user's "get me
     // out of whatever state I'm in" command, and if we stranded the
     // flag high they'd lose the ability to start the next recording
@@ -5967,6 +6301,9 @@ mod diarised_helpers_tests {
         let meeting_fn_markers = [
             "async fn transcribe_chunked(",
             "async fn transcribe_meeting_split(",
+            // Live Meeting Mode worker (v0.21.x): transcribes each VAD
+            // span as it closes during recording.
+            "async fn transcribe_span(",
         ];
         let next_top_level_marker = "async fn ";
 

@@ -15,6 +15,14 @@ export const EVT = {
   // a long meeting is being stitched. Single-chunk fast path doesn't
   // emit; non-meeting recordings never enter the chunked path.
   dictationChunkProgress: 'dictation:chunk-progress',
+  // Live Meeting Mode (v0.21.x). `meetingLiveReset` fires once at the
+  // start of a live-transcribed meeting so the UI clears the prior
+  // transcript; `meetingLiveSegment` fires per recognised speech span
+  // (payload `MeetingLiveSegment`) so the live transcript builds up as
+  // people talk. Listened to in AppBootstrap; stored in
+  // `useDictation.liveMeeting`.
+  meetingLiveReset: 'meeting:live-reset',
+  meetingLiveSegment: 'meeting:live-segment',
   modelProgress: 'model:progress',
   modelChanged: 'model:changed',
   settingsChanged: 'settings:changed',

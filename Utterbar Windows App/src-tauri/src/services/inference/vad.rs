@@ -119,29 +119,7 @@ pub fn segment_speech(pcm: &[i16], model_path: &Path) -> Result<Vec<SpeechSpan>>
     if pcm.len() < VAD_WINDOW {
         return Ok(Vec::new());
     }
-    let model = model_path
-        .to_str()
-        .ok_or_else(|| anyhow!("VAD model path is not valid UTF-8"))?;
-
-    let config = SileroVadConfig {
-        model: model.to_string(),
-        min_silence_duration: MIN_SILENCE_SECS,
-        min_speech_duration: MIN_SPEECH_SECS,
-        max_speech_duration: MAX_SPEECH_SECS,
-        threshold: 0.5,
-        sample_rate: VAD_SAMPLE_RATE,
-        window_size: VAD_WINDOW as i32,
-        // The VAD model is tiny; CPU is the right (and only sensible)
-        // provider. Pin it so a DirectML-capable build doesn't try to
-        // route a 629 KB model through the GPU.
-        provider: Some("cpu".to_string()),
-        num_threads: Some(1),
-        debug: false,
-    };
-
-    // `buffer_size_in_seconds` is the detector's internal ring; 30 s is
-    // ample for our frame-at-a-time feed loop.
-    let mut vad = SileroVad::new(config, 30.0).map_err(|e| anyhow!("create Silero VAD: {e}"))?;
+    let mut vad = open_vad(model_path)?;
 
     // The VAD consumes f32 windows in [-1, 1]; convert once up front.
     let samples: Vec<f32> = pcm.iter().map(|s| *s as f32 / 32768.0).collect();
@@ -159,6 +137,88 @@ pub fn segment_speech(pcm: &[i16], model_path: &Path) -> Result<Vec<SpeechSpan>>
     drain_segments(&mut vad, &mut spans);
 
     Ok(spans)
+}
+
+/// Construct a Silero VAD from the model on disk, with Meeting Mode's
+/// tuning. Shared by the one-shot `segment_speech` and the incremental
+/// `StreamingVad` so both segment audio identically.
+fn open_vad(model_path: &Path) -> Result<SileroVad> {
+    let model = model_path
+        .to_str()
+        .ok_or_else(|| anyhow!("VAD model path is not valid UTF-8"))?;
+    let config = SileroVadConfig {
+        model: model.to_string(),
+        min_silence_duration: MIN_SILENCE_SECS,
+        min_speech_duration: MIN_SPEECH_SECS,
+        max_speech_duration: MAX_SPEECH_SECS,
+        threshold: 0.5,
+        sample_rate: VAD_SAMPLE_RATE,
+        window_size: VAD_WINDOW as i32,
+        // The VAD model is tiny; CPU is the right (and only sensible)
+        // provider. Pin it so a DirectML-capable build doesn't try to
+        // route a 629 KB model through the GPU.
+        provider: Some("cpu".to_string()),
+        num_threads: Some(1),
+        debug: false,
+    };
+    // `buffer_size_in_seconds` is the detector's internal ring; 30 s is
+    // ample for our window-at-a-time feed loop.
+    SileroVad::new(config, 30.0).map_err(|e| anyhow!("create Silero VAD: {e}"))
+}
+
+/// A persistent, incrementally-fed Silero VAD for live Meeting Mode.
+///
+/// Unlike `segment_speech` (one-shot over a whole buffer), this keeps
+/// the detector alive across many `accept` calls, so a channel can be
+/// segmented as its audio arrives. `start_sample` on returned spans is
+/// absolute from the first sample fed, so timestamps line up with the
+/// meeting timeline no matter how the audio was chunked into calls.
+pub struct StreamingVad {
+    vad: SileroVad,
+    /// Samples received but not yet fed as a full 512-sample window.
+    residual: Vec<f32>,
+}
+
+impl StreamingVad {
+    pub fn new(model_path: &Path) -> Result<Self> {
+        Ok(Self {
+            vad: open_vad(model_path)?,
+            residual: Vec::new(),
+        })
+    }
+
+    /// Feed newly-captured i16 samples; return any speech spans that
+    /// closed as a result. Feeds the detector in exact 512-sample
+    /// windows (the size Silero expects), carrying any remainder to the
+    /// next call.
+    pub fn accept(&mut self, pcm: &[i16]) -> Vec<SpeechSpan> {
+        self.residual
+            .extend(pcm.iter().map(|s| *s as f32 / 32768.0));
+        let mut spans = Vec::new();
+        let mut i = 0;
+        while i + VAD_WINDOW <= self.residual.len() {
+            self.vad
+                .accept_waveform(self.residual[i..i + VAD_WINDOW].to_vec());
+            drain_segments(&mut self.vad, &mut spans);
+            i += VAD_WINDOW;
+        }
+        self.residual.drain(0..i);
+        spans
+    }
+
+    /// End of stream: feed any remainder and flush the detector so a
+    /// final utterance not followed by silence still surfaces.
+    pub fn flush(&mut self) -> Vec<SpeechSpan> {
+        let mut spans = Vec::new();
+        if !self.residual.is_empty() {
+            let tail = std::mem::take(&mut self.residual);
+            self.vad.accept_waveform(tail);
+            drain_segments(&mut self.vad, &mut spans);
+        }
+        self.vad.flush();
+        drain_segments(&mut self.vad, &mut spans);
+        spans
+    }
 }
 
 #[cfg(test)]
@@ -237,11 +297,27 @@ mod tests {
             assert!(!spans.is_empty(), "real speech must yield >= 1 speech span");
             let total: usize = spans.iter().map(|s| s.pcm.len()).sum();
             eprintln!(
-                "VAD: {} spans, {:.1}s speech, first span starts at {}s",
+                "VAD (batch): {} spans, {:.1}s speech, first span starts at {}s",
                 spans.len(),
                 total as f32 / VAD_SAMPLE_RATE as f32,
                 spans[0].start_secs()
             );
+
+            // (3) Streaming: feed the same audio in small chunks through
+            // StreamingVad (the live path) and confirm it also detects
+            // speech. It won't be span-for-span identical to the batch
+            // pass (boundary timing differs), but it must find speech.
+            let mut sv = StreamingVad::new(&model).expect("streaming VAD");
+            let mut stream_spans = Vec::new();
+            for chunk in pcm.chunks(4000) {
+                stream_spans.extend(sv.accept(chunk));
+            }
+            stream_spans.extend(sv.flush());
+            assert!(
+                !stream_spans.is_empty(),
+                "streaming VAD must also detect speech"
+            );
+            eprintln!("VAD (streaming): {} spans", stream_spans.len());
         }
     }
 }

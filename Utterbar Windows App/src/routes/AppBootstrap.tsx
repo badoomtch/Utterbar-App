@@ -34,6 +34,8 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   const setPhase = useDictation((s) => s.setPhase);
   const setMeter = useDictation((s) => s.setMeter);
   const setMeetingProgress = useDictation((s) => s.setMeetingProgress);
+  const resetLiveMeeting = useDictation((s) => s.resetLiveMeeting);
+  const addLiveSegment = useDictation((s) => s.addLiveSegment);
   const setLastText = useDictation((s) => s.setLastText);
   const loadLicence = useLicence((s) => s.load);
   const loadPolicy = usePolicy((s) => s.load);
@@ -135,6 +137,21 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
           setMeetingProgress({
             chunkIndex: e.payload.chunk_index,
             totalChunks: e.payload.total_chunks,
+          });
+        },
+      ),
+      // Live Meeting Mode (v0.21.x). Reset clears the transcript at the
+      // start of a live meeting; each segment event appends a recognised
+      // speech span as it closes during the recording.
+      listen(EVT.meetingLiveReset, () => resetLiveMeeting()),
+      listen<{ id: number; speaker_id: number; start_secs: number; text: string }>(
+        EVT.meetingLiveSegment,
+        (e) => {
+          addLiveSegment({
+            id: e.payload.id,
+            speakerId: e.payload.speaker_id,
+            startSecs: e.payload.start_secs,
+            text: e.payload.text,
           });
         },
       ),
@@ -321,7 +338,15 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
     return () => {
       for (const p of unlisteners) void p.then((u) => u()).catch(() => undefined);
     };
-  }, [setPhase, setMeter, setMeetingProgress, setLastText, isMain]);
+  }, [
+    setPhase,
+    setMeter,
+    setMeetingProgress,
+    resetLiveMeeting,
+    addLiveSegment,
+    setLastText,
+    isMain,
+  ]);
 
   return (
     <MotionConfig reducedMotion={reduceMotion ? 'always' : 'never'}>{children}</MotionConfig>

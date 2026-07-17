@@ -39,6 +39,15 @@ pub const EVT_DICTATION_BUSY: &str = "dictation:busy";
 /// covers the case. Regular dictation never enters this code path so
 /// non-meeting recordings never see chunk-progress events.
 pub const EVT_DICTATION_CHUNK_PROGRESS: &str = "dictation:chunk-progress";
+
+/// Emitted once at the start of a live-transcribed meeting so the UI
+/// clears any prior live transcript before new segments stream in.
+pub const EVT_MEETING_LIVE_RESET: &str = "meeting:live-reset";
+
+/// Emitted for each speech segment as it is recognised live during a
+/// meeting (v0.21.x). The UI appends these in timestamp order to build
+/// the transcript up as people talk.
+pub const EVT_MEETING_LIVE_SEGMENT: &str = "meeting:live-segment";
 /// Experimental Teams + Discord mic-mute status event. Emitted at four
 /// load-bearing moments: when the start-time mute keystroke is
 /// attempted, when the stop-time restore keystroke succeeds, when the
@@ -161,6 +170,24 @@ pub struct MeetingChunkProgress {
     /// up front in `transcribe_chunked` via `projected_chunk_count`,
     /// matches the eventual `DictationSuccessSummary::chunks` count.
     pub total_chunks: u32,
+}
+
+/// One speech segment recognised live during a meeting. Streamed via
+/// `EVT_MEETING_LIVE_SEGMENT` as each span closes; the UI appends them
+/// in `start_secs` order to render the transcript building up in real
+/// time. `speaker_id` is 0-based (0 = you / microphone, 1 = others /
+/// system audio), matching the final transcript's `**Speaker N:**`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/generated/")]
+pub struct MeetingLiveSegment {
+    /// Monotonic id within a meeting, so the UI can dedupe / key rows.
+    pub id: u32,
+    /// 0-based speaker: 0 = you (mic), 1 = others (system audio).
+    pub speaker_id: i32,
+    /// Start of this segment in whole seconds from the meeting start.
+    pub start_secs: u32,
+    /// The recognised text for this segment.
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
