@@ -1885,6 +1885,261 @@ fn append_meeting_chunk(
     stitched.push_str(chunk_text);
 }
 
+/// A single attributed turn in a two-channel meeting transcript.
+/// `speaker_id` is 0-based — 0 = microphone ("You" / Speaker 1),
+/// 1 = system loopback ("Others" / Speaker 2) — matching
+/// `format_speaker_turn`'s 0-based-to-1-based convention and the
+/// `**Speaker N:**` tokens the rename map keys against.
+#[derive(Debug, Clone, PartialEq)]
+struct MeetingTurn {
+    start_secs: u32,
+    speaker_id: i32,
+    text: String,
+}
+
+/// Interleave both channels' turns into reading order: stable sort by
+/// start second, and on a tie the microphone (id 0, "You") comes first
+/// so a turn you began on the same second reads before the far end's.
+fn merge_meeting_turns(mut turns: Vec<MeetingTurn>) -> Vec<MeetingTurn> {
+    turns.sort_by(|a, b| {
+        a.start_secs
+            .cmp(&b.start_secs)
+            .then(a.speaker_id.cmp(&b.speaker_id))
+    });
+    turns
+}
+
+/// Render merged turns to the `[mm:ss] **Speaker N:** text` shape the
+/// Meetings page renders and the speaker-rename map keys against.
+/// Reuses `format_speaker_turn` (the same formatter the diarised path
+/// used) so the output contract is identical.
+fn render_meeting_turns(turns: &[MeetingTurn]) -> String {
+    let mut out = String::new();
+    for t in turns {
+        out.push_str(&format_speaker_turn(t.start_secs, t.speaker_id, &t.text));
+    }
+    out.trim_end().to_string()
+}
+
+/// Sum two 16 kHz mono i16 streams sample-by-sample with hard clipping,
+/// zero-padding the shorter to the longer's length. Used only by the
+/// VAD-unavailable fallback in `transcribe_meeting_split`; the normal
+/// two-channel path never mixes. Mirrors `services::audio::mix_two`
+/// but operates on raw slices rather than `CaptureFinal`.
+fn mix_channels(a: &[i16], b: &[i16]) -> Vec<i16> {
+    let len = a.len().max(b.len());
+    let mut out = Vec::with_capacity(len);
+    for i in 0..len {
+        let av = *a.get(i).unwrap_or(&0) as i32;
+        let bv = *b.get(i).unwrap_or(&0) as i32;
+        out.push((av + bv).clamp(i16::MIN as i32, i16::MAX as i32) as i16);
+    }
+    out
+}
+
+/// Meeting Mode two-channel transcribe (v0.21.0).
+///
+/// The microphone and the system loopback are captured as two separate
+/// streams and never mixed for ASR. Each is run through Silero VAD to
+/// extract speech-only spans; each span is transcribed, tagged by
+/// channel (mic = Speaker 1 / "You", system = Speaker 2 / "Others"),
+/// and the two channels are merged back together by timestamp.
+///
+/// Why this shape (see the meeting-mode review, v0.20.9-era):
+///   * The two capture clocks are never sample-aligned or summed, so
+///     they cannot drift into a growing echo the way the old
+///     `mix_two` path did.
+///   * VAD gating means the recogniser never sees the long silent
+///     stretches where the *other* side is talking — the exact
+///     non-speech input that made v0.15.0 hallucinate foreign-language
+///     "ghost words". This replaces the fixed-window chunker and its
+///     proportional overlap-dedup entirely; VAD spans never overlap.
+///   * Channel attribution is a robust 2-speaker proxy that reconnects
+///     the Meetings speaker-rename UI, without the embedding-clustering
+///     diariser that over-fragmented into dozens of fake speakers.
+async fn transcribe_meeting_split(
+    handle: &AppHandle,
+    state: &Arc<AppState>,
+    model_id: &str,
+    mic_pcm: Vec<i16>,
+    loop_pcm: Vec<i16>,
+    sample_rate: u32,
+    target_language: Option<String>,
+) -> anyhow::Result<AsrResult> {
+    let longest = mic_pcm.len().max(loop_pcm.len());
+    if longest == 0 {
+        return Err(anyhow::anyhow!("empty PCM buffers"));
+    }
+
+    // Same length-based cap as the single-stream path: refuse before any
+    // work if the recording is longer than we support. Gauged on the
+    // longer channel (a proxy for wall-clock length).
+    let projected = projected_chunk_count(longest, sample_rate);
+    if projected > MAX_MEETING_CHUNKS {
+        let projected_secs = longest / sample_rate.max(1) as usize;
+        tracing::warn!(
+            projected,
+            projected_secs,
+            max_chunks = MAX_MEETING_CHUNKS,
+            "meeting mode (split): refusing to transcribe — too long"
+        );
+        return Err(anyhow::anyhow!(
+            "meeting too long ({} minutes) — split into shorter recordings (cap is {} minutes per recording)",
+            projected_secs / 60,
+            max_meeting_audio_minutes()
+        ));
+    }
+
+    // Resolve the bundled VAD model. If it is somehow missing (a
+    // corrupted install), don't lose the meeting — fall back to the
+    // single-stream mixed chunked path. It loses the speaker labels but
+    // still produces a transcript, which for an unrepeatable recording
+    // matters more than the attribution.
+    let vad_model = match crate::services::inference::vad::resolve_model_path() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "meeting mode (split): VAD model unavailable — falling back to mixed chunked transcribe"
+            );
+            let mixed = mix_channels(&mic_pcm, &loop_pcm);
+            return transcribe_chunked(
+                handle,
+                state,
+                model_id,
+                mixed,
+                sample_rate,
+                target_language,
+            )
+            .await;
+        }
+    };
+
+    // VAD both channels off the async workers (ONNX inference is
+    // CPU-bound). Run them concurrently — two independent buffers.
+    let (mic_spans, loop_spans) = {
+        let m = vad_model.clone();
+        let mic_job = tokio::task::spawn_blocking(move || {
+            crate::services::inference::vad::segment_speech(&mic_pcm, &m)
+        });
+        let loop_job = tokio::task::spawn_blocking(move || {
+            crate::services::inference::vad::segment_speech(&loop_pcm, &vad_model)
+        });
+        (mic_job.await??, loop_job.await??)
+    };
+
+    tracing::info!(
+        mic_spans = mic_spans.len(),
+        loop_spans = loop_spans.len(),
+        "meeting mode (split): VAD segmentation complete"
+    );
+
+    let total_spans = (mic_spans.len() + loop_spans.len()) as u32;
+    let duration_ms = (longest as u64 * 1000 / sample_rate.max(1) as u64) as u32;
+    if total_spans == 0 {
+        // No speech on either channel — a silent recording. Return an
+        // empty-but-valid result; the caller handles empty transcripts
+        // (drops the row / shows the "nothing captured" path).
+        return Ok(AsrResult {
+            text: String::new(),
+            words: None,
+            language: None,
+            confidence: None,
+            model_version: String::new(),
+            duration_ms,
+        });
+    }
+
+    let mut turns: Vec<MeetingTurn> = Vec::new();
+    let mut first_lang: Option<String> = None;
+    let mut model_version = String::new();
+    let mut done: u32 = 0;
+
+    use crate::services::output_validation::{validate_meeting_chunk, MeetingChunkVerdict};
+    // speaker_id 0 = microphone ("You"), 1 = system loopback ("Others").
+    for (speaker_id, spans) in [(0i32, mic_spans), (1i32, loop_spans)] {
+        for span in spans {
+            let _ = handle.emit(
+                crate::domain::EVT_DICTATION_CHUNK_PROGRESS,
+                crate::domain::MeetingChunkProgress {
+                    chunk_index: done,
+                    total_chunks: total_spans,
+                },
+            );
+            done += 1;
+
+            let start_secs = span.start_secs();
+            let result = state
+                .inference
+                .transcribe(
+                    model_id,
+                    AudioBuffer {
+                        pcm: span.pcm,
+                        sample_rate,
+                        channels: 1,
+                    },
+                    AsrOptions {
+                        language_hint: target_language.clone(),
+                        want_word_timings: false,
+                    },
+                )
+                .await?;
+
+            if first_lang.is_none() {
+                first_lang = result.language.clone();
+            }
+            if model_version.is_empty() {
+                model_version = result.model_version.clone();
+            }
+
+            // Same conservative validation the single-stream chunker
+            // uses: drop empty / whitespace / punctuation-only spans;
+            // keep everything else (Observe is telemetry-only). The
+            // VAD already gates non-speech, so this mostly catches the
+            // rare empty decode.
+            match validate_meeting_chunk(&result.text) {
+                MeetingChunkVerdict::Drop { reason } => {
+                    tracing::info!(
+                        reason = %reason.as_str(),
+                        speaker_id,
+                        start_secs,
+                        "meeting_chunk_validation: dropped span"
+                    );
+                }
+                MeetingChunkVerdict::Observe { .. } | MeetingChunkVerdict::Accept => {
+                    let text = result.text.trim().to_string();
+                    if !text.is_empty() {
+                        turns.push(MeetingTurn {
+                            start_secs,
+                            speaker_id,
+                            text,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    let merged = merge_meeting_turns(turns);
+    let text = render_meeting_turns(&merged);
+
+    tracing::info!(
+        turns = merged.len(),
+        chars = text.len(),
+        duration_ms,
+        "meeting mode (split): merge complete"
+    );
+
+    Ok(AsrResult {
+        text,
+        words: None,
+        language: first_lang,
+        confidence: None,
+        model_version,
+        duration_ms,
+    })
+}
+
 /// Meeting-mode chunk size. Carried forward from v0.13.x — v0.14.x;
 /// tightened from 30 → 29 in v0.15.3.
 ///
@@ -2675,56 +2930,57 @@ pub(crate) async fn stop_recording_inner(
             sample_rate = final_.sample_rate,
             mic_present = mic_final.is_some(),
             loop_present = loop_final.is_some(),
-            "stop_recording: meeting mode — chunked transcript (diarisation disabled in v0.15.1)"
+            "stop_recording: meeting mode transcribe"
         );
 
-        // v0.15.1 hotfix: speaker diarisation is DISABLED by default.
+        // v0.21.0: two-channel, VAD-gated meeting transcribe.
         //
-        // Real-meeting v0.15.0 output proved the diarised path is not
-        // production-safe as designed:
-        //   * Threshold-based clustering over-fragmented a 5-min meeting
-        //     into 91 fake "speakers" (every short utterance with
-        //     slightly different acoustics became a new cluster).
-        //   * Whisper Large running on those tiny diariser segments
-        //     hallucinated content in random languages (Hindi,
-        //     Vietnamese, Japanese, Arabic) for slices that were
-        //     music / silence / cross-talk — a known Whisper failure
-        //     mode on short non-speech audio.
-        //   * Per-segment Whisper calls (N = diariser segment count)
-        //     made runtime O(N) where N can be tens-to-hundreds; on
-        //     CPU Whisper Large that's many minutes for a five-minute
-        //     meeting.
+        // When BOTH the microphone and the system loopback were
+        // captured, they are transcribed as SEPARATE streams and merged
+        // by timestamp (`transcribe_meeting_split`): each stream is
+        // segmented with Silero VAD, every speech span is transcribed
+        // and tagged by channel (mic = Speaker 1 / "You", system =
+        // Speaker 2 / "Others"), and the two are interleaved into one
+        // `[mm:ss] **Speaker N:**` transcript. This retires three
+        // problems the old mixed path had (see the v0.20.9 meeting-mode
+        // review): capture-clock drift (the streams are never summed),
+        // Whisper ghost-words on silence (VAD gates non-speech — the
+        // v0.15.0 failure mode), and the missing speaker labels (channel
+        // attribution reconnects the Meetings rename UI).
         //
-        // The asset/download/extract code from v0.15.0 stays in tree
-        // (`services::inference::diarize_assets` + `diarize`) — we'll
-        // need it for the v0.15.2 architectural rework — but the
-        // call site does NOT reach for it. Meeting mode falls through
-        // to `transcribe_chunked` (30s chunks, 2s overlap, no
-        // **Speaker N:** labels, no RMS heuristic, no per-segment
-        // diariser calls) — the same bounded path that was already
-        // the v0.15.0 fallback when the diariser couldn't be loaded.
+        // When only ONE side is present (mic-only or system-only), there
+        // is nothing to attribute, so we fall back to the single-stream
+        // chunked path — the same bounded, no-labels behaviour as before.
         //
-        // Workaround for the cross-language hallucination problem:
-        // the user's Settings → Models → Whisper language picker
-        // already pins the language at recognizer construction time
-        // (see `sherpa_whisper.rs::ensure_loaded`). Setting it to
-        // "en" (or whatever the meeting language actually is) and
-        // restarting the app stops Whisper from inventing
-        // foreign-language content on quiet/ambiguous audio.
-        // Documented in releases/0.15.1.md.
-        tracing::info!(
-            "meeting mode diarisation disabled in v0.15.1 beta hotfix; using chunked transcript without speaker labels"
-        );
-
-        transcribe_chunked(
-            &handle,
-            state,
-            &model_id,
-            final_.pcm,
-            final_.sample_rate,
-            mode.target_language.clone(),
-        )
-        .await
+        // The v0.15.0 embedding-clustering diariser stays OUT of the hot
+        // path (`diarize` / `diarize_assets` remain as dormant plumbing);
+        // it over-fragmented into dozens of fake speakers and is
+        // deliberately not used.
+        match (mic_final, loop_final) {
+            (Some(mic), Some(lo)) => {
+                transcribe_meeting_split(
+                    &handle,
+                    state,
+                    &model_id,
+                    mic.pcm,
+                    lo.pcm,
+                    final_.sample_rate,
+                    mode.target_language.clone(),
+                )
+                .await
+            }
+            _ => {
+                transcribe_chunked(
+                    &handle,
+                    state,
+                    &model_id,
+                    final_.pcm,
+                    final_.sample_rate,
+                    mode.target_language.clone(),
+                )
+                .await
+            }
+        }
     } else {
         state
             .inference
@@ -3700,6 +3956,77 @@ mod diarised_helpers_tests {
         assert_eq!(out, "[12:34] **Speaker 1:** Welcome to the call.\n\n");
         let out = format_speaker_turn(0, 1, "Hi.");
         assert_eq!(out, "[00:00] **Speaker 2:** Hi.\n\n");
+    }
+
+    fn turn(start_secs: u32, speaker_id: i32, text: &str) -> MeetingTurn {
+        MeetingTurn {
+            start_secs,
+            speaker_id,
+            text: text.into(),
+        }
+    }
+
+    /// **Two-channel merge (v0.21.0).** The mic ("You", id 0) and system
+    /// ("Others", id 1) turns must interleave into wall-clock order.
+    #[test]
+    fn merge_meeting_turns_interleaves_by_timestamp() {
+        let merged = merge_meeting_turns(vec![
+            turn(0, 0, "hello"),       // You @0
+            turn(8, 0, "still me"),    // You @8
+            turn(3, 1, "their reply"), // Others @3
+        ]);
+        let order: Vec<(u32, i32)> = merged
+            .iter()
+            .map(|t| (t.start_secs, t.speaker_id))
+            .collect();
+        assert_eq!(order, vec![(0, 0), (3, 1), (8, 0)]);
+    }
+
+    /// On a same-second tie, the microphone (id 0, "You") sorts first so
+    /// a turn you began on the same second reads before the far end's.
+    #[test]
+    fn merge_meeting_turns_breaks_ties_with_mic_first() {
+        let merged = merge_meeting_turns(vec![turn(5, 1, "them"), turn(5, 0, "you")]);
+        assert_eq!(merged[0].speaker_id, 0);
+        assert_eq!(merged[1].speaker_id, 1);
+    }
+
+    #[test]
+    fn merge_meeting_turns_empty_stays_empty() {
+        assert!(merge_meeting_turns(vec![]).is_empty());
+    }
+
+    /// The merged transcript renders in the canonical
+    /// `[mm:ss] **Speaker N:** text` shape (so the rename UI keys work),
+    /// with no trailing blank lines.
+    #[test]
+    fn render_meeting_turns_uses_canonical_speaker_shape() {
+        let merged = merge_meeting_turns(vec![
+            turn(0, 0, "Morning."),
+            turn(4, 1, "Morning to you too."),
+        ]);
+        let out = render_meeting_turns(&merged);
+        assert_eq!(
+            out,
+            "[00:00] **Speaker 1:** Morning.\n\n[00:04] **Speaker 2:** Morning to you too."
+        );
+        assert!(!out.ends_with('\n'), "no trailing newlines");
+    }
+
+    #[test]
+    fn render_meeting_turns_empty_is_empty_string() {
+        assert_eq!(render_meeting_turns(&[]), "");
+    }
+
+    #[test]
+    fn mix_channels_sums_clamps_and_zero_pads() {
+        // Equal length: sample-wise sum.
+        assert_eq!(mix_channels(&[100, -50], &[20, -50]), vec![120, -100]);
+        // Clamps to i16 range rather than wrapping.
+        assert_eq!(mix_channels(&[30000], &[10000]), vec![i16::MAX]);
+        assert_eq!(mix_channels(&[-30000], &[-10000]), vec![i16::MIN]);
+        // Shorter channel is zero-padded to the longer length.
+        assert_eq!(mix_channels(&[5], &[1, 2, 3]), vec![6, 2, 3]);
     }
 
     /// Word-overlap dedup at segment boundaries. Adjacent
@@ -4994,7 +5321,7 @@ mod diarised_helpers_tests {
 
     /// **v0.15.5 inactive-notice contract.** AdvancedSettings.tsx
     /// must surface the "Selected, but currently inactive" notice
-    /// for DML/CUDA when the runtime can't serve them. Source-grep
+    /// for DML when the runtime can't serve it. Source-grep
     /// pin so a future refactor can't drop the user-facing message.
     #[test]
     fn advanced_settings_shows_inactive_notice_for_unavailable_ep() {
@@ -5607,8 +5934,10 @@ mod diarised_helpers_tests {
         );
     }
 
-    /// Meeting Mode chunk validator must only be called inside
-    /// `transcribe_chunked`.
+    /// Meeting Mode chunk validator must only be called inside the
+    /// Meeting Mode transcribe functions (`transcribe_chunked`, the
+    /// single-stream path, or `transcribe_meeting_split`, the v0.21.0
+    /// two-channel VAD path).
     ///
     /// `validate_meeting_chunk` has a different rule set from the
     /// regular `validate`: it observes (does not drop) repeated-token
@@ -5616,26 +5945,29 @@ mod diarised_helpers_tests {
     /// verdict rather than a whole-transcript verdict. Calling it
     /// from the regular dictation/file path would silently weaken
     /// those callsites' rules. This guard pins the call to the
-    /// chunked-transcribe function.
+    /// meeting-transcribe functions.
     ///
     /// Same source-grep technique as `validate_call_is_gated_to_non_meeting_mode`:
     /// scan the production region (split on `#[cfg(test)]`), find
     /// every call site of the meeting-chunk helper, and assert each
-    /// one sits below an `async fn transcribe_chunked(` line within
-    /// a reasonable lookback window. Fewer than one call site means
-    /// the wiring went missing; any call site outside the chunked
-    /// function fails the assertion.
+    /// one sits below one of the meeting-transcribe `async fn` lines
+    /// within a reasonable lookback window. Fewer than one call site
+    /// means the wiring went missing; any call site outside those
+    /// functions fails the assertion.
     ///
     /// Obfuscation: the needle is assembled at runtime so this
     /// doc-comment does not itself contain `validate_meeting_chunk(`.
     #[test]
-    fn validate_meeting_chunk_call_is_only_inside_transcribe_chunked() {
+    fn validate_meeting_chunk_call_is_only_inside_meeting_transcribe() {
         let src = include_str!("dictation.rs");
         let test_mod_marker = "#[cfg(test)]";
         let production_src = src.split(test_mod_marker).next().unwrap_or(src);
         let lines: Vec<&str> = production_src.lines().collect();
         let needle = format!("{}{}", "validate_meeting_", "chunk(");
-        let chunked_fn_marker = "async fn transcribe_chunked(";
+        let meeting_fn_markers = [
+            "async fn transcribe_chunked(",
+            "async fn transcribe_meeting_split(",
+        ];
         let next_top_level_marker = "async fn ";
 
         let mut found = 0usize;
@@ -5668,11 +6000,14 @@ mod diarised_helpers_tests {
             let enclosing_line =
                 enclosing.expect("validate_meeting_chunk call has no async fn ancestor");
             assert!(
-                enclosing_line.starts_with(chunked_fn_marker),
+                meeting_fn_markers
+                    .iter()
+                    .any(|m| enclosing_line.starts_with(m)),
                 "validate_meeting_chunk call at line {} is inside `{}` but must only be \
-                 inside `async fn transcribe_chunked(...)`. Meeting Mode chunk validation \
-                 has a different rule set from regular dictation/file validation; calling \
-                 it from any other function would silently weaken those callsites.",
+                 inside a Meeting Mode transcribe function (`transcribe_chunked` or \
+                 `transcribe_meeting_split`). Meeting Mode chunk validation has a different \
+                 rule set from regular dictation/file validation; calling it from any other \
+                 function would silently weaken those callsites.",
                 i + 1,
                 enclosing_line.split('(').next().unwrap_or(enclosing_line)
             );
