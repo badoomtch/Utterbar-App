@@ -1,6 +1,6 @@
 {
   "name": "utterbar",
-  "version": "0.20.11",
+  "version": "0.21.0",
   "private": true,
   "description": "Utterbar — premium local-only dictation for Windows",
   "type": "module",
