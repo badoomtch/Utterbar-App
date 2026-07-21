@@ -2,7 +2,7 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-07-22** (release state reconciled after v0.21.0 stable)
+**Last updated: 2026-07-22** (v0.21.1 reliability beta cut)
 
 ---
 
@@ -11,8 +11,9 @@ Active working list. Keep short. When something ships, move it out of Next actio
 ### Canonical release state
 
 - **Stable channel:** `v0.21.0`, published 2026-07-21. It adds live, two-track Meeting Mode transcription, speaker-side labelling, silence-aware meeting chunks, Parakeet v2, and a simplified graphics-provider picker. SHA-256 `0032462b3642c31a2968747a00d77b321d041f84ebad60ccf9f95dad36dad568`; installer `https://dl.utterbar.com/releases/0.21.0/Utterbar-Setup-0.21.0.exe`, 20,573,793 bytes.
-- **Beta channel:** `v0.20.11`, retained as the latest beta row. It carries the live Meeting Mode beta line. SHA-256 `fab8be47eaf499d663269ffd8d5bb1eb9974cbdd1c4d94546e22d822200ca9a4`; installer `https://dl.utterbar.com/releases/0.20.11/Utterbar-Setup-0.20.11.exe`, 20,572,025 bytes.
-- **In-tree app version:** `v0.21.0` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
+- **Beta channel:** `v0.21.1` (admin row 97), published 2026-07-22. It improves text-insertion failure reporting, clipboard restoration, and final-audio capture. SHA-256 `0ca63bf1117f0ac09ef512e543e73bb86dbbaf3bc063c67d4292d345564995aa`; installer `https://dl.utterbar.com/releases/0.21.1/Utterbar-Setup-0.21.1.exe`, 20,570,760 bytes. Beta-only, with no announcement and no `latest` tag.
+- **Previous beta row:** `v0.20.11` remains as the completed Meeting Mode beta-line record.
+- **In-tree app version:** `v0.21.1` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
 
 The bullets below preserve the historical release trail. They are not the current release state.
 
