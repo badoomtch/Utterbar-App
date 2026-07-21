@@ -716,7 +716,16 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 
 ---
 
-## 12. Current state (2026-05-07, post-v0.19.5 beta)
+## 12. Current state (2026-07-22, post-v0.21.0 stable)
+
+### Superseding release snapshot
+
+- **Last publicly-shipped stable:** `v0.21.0` (2026-07-21). It ships live local Meeting Mode transcription with separate microphone and system-audio tracks, speaker-side labelling, silence-aware chunks, Parakeet v2, and a simplified graphics-provider picker. The stable updater feed serves installer `https://dl.utterbar.com/releases/0.21.0/Utterbar-Setup-0.21.0.exe`, SHA-256 `0032462b3642c31a2968747a00d77b321d041f84ebad60ccf9f95dad36dad568`, 20,573,793 bytes.
+- **Beta channel:** `v0.20.11` remains the latest beta row. Its installer is `https://dl.utterbar.com/releases/0.20.11/Utterbar-Setup-0.20.11.exe`, SHA-256 `fab8be47eaf499d663269ffd8d5bb1eb9974cbdd1c4d94546e22d822200ca9a4`, 20,572,025 bytes.
+- **In-tree version:** `v0.21.0` across the desktop package, Rust crate, lockfile, and Tauri configuration. Tag `v0.21.0` points at the release commit.
+- **Distribution:** `/download` presents `v0.21.0`; beta-channel clients remain on the beta feed until they select the stable channel or a newer beta is published.
+
+The historical desktop-app notes below predate this snapshot. Use the four bullets above for current release state.
 
 ### Desktop app
 - **Last publicly-shipped stable:** `v0.19.0` (admin release row id=78, 2026-05-06). Shown on `/download` with the `latest` pill. Stable chain: v0.7.0 → v0.8.7 → v0.10.0 → v0.12.0 → v0.15.6 → v0.16.0 → v0.17.0 → v0.18.0 → v0.19.0. v0.19.0 bundles the soaked v0.18.1 → v0.18.4 beta line on top of v0.18.0: Settings search v2 (sidebar + per-pane drill-down with help-text matching) plus the experimental Teams + Discord microphone-mute toggles (off by default, hidden under Settings → Advanced → Experimental). Stable build produced with `npx tauri build --features experimental_mic_mute` so users on stable can flip the toggle after upgrade; the Cargo feature stays off in `default = []`.

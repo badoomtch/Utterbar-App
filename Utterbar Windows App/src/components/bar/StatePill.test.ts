@@ -59,4 +59,8 @@ describe('StatePill source-grep guard', () => {
     expect(SOURCE).not.toMatch(/`Transcribing meeting · \$\{/);
     expect(SOURCE).toMatch(/phase\.transcribing_meeting_with_progress/);
   });
+
+  it('surfaces a backend delivery error instead of replacing it with generic copy', () => {
+    expect(SOURCE).toMatch(/case 'error':[\s\S]*phase\.message \|\| t\('phase\.error'\)/);
+  });
 });

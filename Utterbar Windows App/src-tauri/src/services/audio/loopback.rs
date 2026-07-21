@@ -76,9 +76,19 @@ impl LoopbackHandle {
     }
 
     pub async fn stop(&self) -> super::capture::CaptureFinal {
+        // Keep collecting briefly after the user stops. The microphone path
+        // has the same grace window; without it a final system-audio frame can
+        // be lost before WASAPI delivers it to this callback.
+        const TAIL_PAD_MS: u64 = 500;
+        tokio::time::sleep(Duration::from_millis(TAIL_PAD_MS)).await;
         self.stop_flag.store(true, Ordering::Relaxed);
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        let pcm = self.buffer.lock().unwrap().clone();
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        // Move the populated allocation into the final capture. Meeting Mode
+        // can run for hours, so cloning here creates an avoidable second PCM
+        // buffer at exactly the point memory pressure is highest.
+        let pcm = std::mem::take(&mut *self.buffer.lock().unwrap());
         let duration_ms = (pcm.len() as u64 * 1000) / TARGET_RATE as u64;
         super::capture::CaptureFinal {
             pcm,

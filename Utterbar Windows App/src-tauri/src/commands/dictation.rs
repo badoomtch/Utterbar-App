@@ -3733,6 +3733,7 @@ pub(crate) async fn stop_recording_inner(
     // the `record_delivery` bookkeeping because there's no delivery to
     // remember — the auto-space-on-paste heuristic only applies to
     // dictation continuations.
+    let mut delivery_failure: Option<String> = None;
     if !mode.is_meeting_mode {
         let strategy = if settings.text_output.paste_automatically {
             crate::services::text_inject::Strategy::Paste {
@@ -3742,22 +3743,27 @@ pub(crate) async fn stop_recording_inner(
         } else {
             crate::services::text_inject::Strategy::Keystrokes
         };
-        if let Err(e) = state.text_inject.deliver(&processed, strategy) {
-            tracing::warn!(?e, chars = processed.len(), "text_inject.deliver failed");
-        }
+        match state.text_inject.deliver(&processed, strategy) {
+            Ok(()) => {
+                if auto_send {
+                    // Small pause so the host has time to accept the paste before we fire Enter —
+                    // some apps (Teams, specifically) briefly freeze on receiving a paste and would
+                    // drop the Enter if we fired it synchronously.
+                    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+                    if let Err(e) = state.text_inject.send_enter() {
+                        tracing::warn!(?e, "auto-send Enter failed");
+                    }
+                }
 
-        if auto_send {
-            // Small pause so the host has time to accept the paste before we fire Enter —
-            // some apps (Teams, specifically) briefly freeze on receiving a paste and would
-            // drop the Enter if we fired it synchronously.
-            tokio::time::sleep(std::time::Duration::from_millis(80)).await;
-            if let Err(e) = state.text_inject.send_enter() {
-                tracing::warn!(?e, "auto-send Enter failed");
+                // Remember only confirmed input delivery so a failed paste cannot
+                // make the next dictation look like a continuation.
+                record_delivery(now_ms(), ctx_snapshot.app_exe.as_deref(), &processed);
+            }
+            Err(e) => {
+                tracing::warn!(?e, chars = processed.len(), "text_inject.deliver failed");
+                delivery_failure = Some("Text not inserted. Copy it from History.".to_string());
             }
         }
-
-        // Remember this delivery so the next dictation can decide whether to prepend a space.
-        record_delivery(now_ms(), ctx_snapshot.app_exe.as_deref(), &processed);
     } else {
         tracing::info!(
             chars = processed.len(),
@@ -3860,30 +3866,42 @@ pub(crate) async fn stop_recording_inner(
     } else {
         None
     };
-    // When the auto-stop timer fired this stop, attach a user-facing
-    // notice to the Success phase so the bar can render a clear,
-    // non-error explanation instead of the bare "Inserted" pill.
-    // Manual stops (the user's hotkey) carry None here and render
-    // unchanged.
-    let success_notice = match reason {
-        StopReason::Manual => None,
-        StopReason::AutoStoppedAtCap => {
-            Some("Auto-stopped at 5 min. Use Meeting Mode for longer recordings.".to_string())
+    let idle_delay = if let Some(message) = delivery_failure {
+        // The transcript is safely in history and the Copy-last-message
+        // control, but pretending it was inserted makes a failed delivery
+        // indistinguishable from success. Do not auto-send after this path.
+        set_phase(&handle, DictationPhase::Error { message }).await;
+        2_400
+    } else {
+        // When the auto-stop timer fired this stop, attach a user-facing
+        // notice to the Success phase so the bar can render a clear,
+        // non-error explanation instead of the bare "Inserted" pill.
+        // Manual stops (the user's hotkey) carry None here and render
+        // unchanged.
+        let success_notice = match reason {
+            StopReason::Manual => None,
+            StopReason::AutoStoppedAtCap => {
+                Some("Auto-stopped at 5 min. Use Meeting Mode for longer recordings.".to_string())
+            }
+        };
+        set_phase(
+            &handle,
+            DictationPhase::Success {
+                summary: success_summary,
+                notice: success_notice,
+            },
+        )
+        .await;
+        // Meeting mode lingers a beat longer (3 s instead of the dictation
+        // 1.2 s) so the user has time to read the duration + chunk pill
+        // before it decays. The pill is the only visible "your meeting was
+        // saved" signal until the v0.14 Meetings page lands.
+        if mode.is_meeting_mode {
+            3000
+        } else {
+            1200
         }
     };
-    set_phase(
-        &handle,
-        DictationPhase::Success {
-            summary: success_summary,
-            notice: success_notice,
-        },
-    )
-    .await;
-    // Meeting mode lingers a beat longer (3 s instead of the dictation
-    // 1.2 s) so the user has time to read the duration + chunk pill
-    // before it decays. The pill is the only visible "your meeting was
-    // saved" signal until the v0.14 Meetings page lands.
-    let idle_delay = if mode.is_meeting_mode { 3000 } else { 1200 };
     schedule_idle(&handle, idle_delay);
 
     // Recording session is fully done. Clear the bound context so the

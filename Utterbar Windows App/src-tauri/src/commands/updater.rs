@@ -18,12 +18,12 @@
 //! app but adds a new signing workflow Jay has to remember on every release
 //! (generate/protect the minisign key, sign each bundle), and the
 //! integration is load-bearing enough that a botched signing break locks
-//! every user out of updates. Our release pipeline already signs nothing
-//! beyond Windows code-signing (NSIS .exe); by doing our own SHA-256 verify
-//! against the admin API's canonical hash we get "the right bits reached
-//! the user" without a second signing flow. If we ever want Apple-style
-//! background auto-apply, we can swap in the plugin later — the command
-//! surface here matches the one the frontend already speaks.
+//! every user out of updates. The current release pipeline signs updater
+//! metadata with its own Ed25519 key. This command verifies that signed
+//! metadata and the installer SHA-256 before invoking NSIS, without adding a
+//! second bundle-signing workflow. If we ever want Apple-style background
+//! auto-apply, we can swap in the plugin later; the command surface here
+//! matches the one the frontend already speaks.
 //!
 //! ## Server endpoint contract (to implement on utterbar.com)
 //!

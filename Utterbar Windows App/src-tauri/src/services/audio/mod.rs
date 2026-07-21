@@ -99,25 +99,33 @@ impl AudioService {
     }
 
     pub async fn stop_capture(&self) -> Option<capture::CaptureFinal> {
-        let mic_final = if let Some(h) = self.inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
-        };
+        let mic = self.inner.write().await.take();
         #[cfg(windows)]
-        let loop_final = if let Some(h) = self.loopback_inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
-        };
-        #[cfg(not(windows))]
-        let loop_final: Option<capture::CaptureFinal> = None;
+        {
+            let loopback = self.loopback_inner.write().await.take();
+            let (mic_final, loop_final) = match (mic, loopback) {
+                (Some(mic), Some(loopback)) => {
+                    let (mic, loopback) = tokio::join!(mic.stop(), loopback.stop());
+                    (Some(mic), Some(loopback))
+                }
+                (Some(mic), None) => (Some(mic.stop().await), None),
+                (None, Some(loopback)) => (None, Some(loopback.stop().await)),
+                (None, None) => (None, None),
+            };
 
-        match (mic_final, loop_final) {
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (Some(a), Some(b)) => Some(mix_two(a, b)),
-            (None, None) => None,
+            match (mic_final, loop_final) {
+                (Some(a), None) => Some(a),
+                (None, Some(b)) => Some(b),
+                (Some(a), Some(b)) => Some(mix_two(a, b)),
+                (None, None) => None,
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            match mic {
+                Some(handle) => Some(handle.stop().await),
+                None => None,
+            }
         }
     }
 
@@ -136,20 +144,27 @@ impl AudioService {
     pub async fn stop_capture_split(
         &self,
     ) -> (Option<capture::CaptureFinal>, Option<capture::CaptureFinal>) {
-        let mic_final = if let Some(h) = self.inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
-        };
+        let mic = self.inner.write().await.take();
         #[cfg(windows)]
-        let loop_final = if let Some(h) = self.loopback_inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
-        };
+        {
+            let loopback = self.loopback_inner.write().await.take();
+            match (mic, loopback) {
+                (Some(mic), Some(loopback)) => {
+                    let (mic, loopback) = tokio::join!(mic.stop(), loopback.stop());
+                    (Some(mic), Some(loopback))
+                }
+                (Some(mic), None) => (Some(mic.stop().await), None),
+                (None, Some(loopback)) => (None, Some(loopback.stop().await)),
+                (None, None) => (None, None),
+            }
+        }
         #[cfg(not(windows))]
-        let loop_final: Option<capture::CaptureFinal> = None;
-        (mic_final, loop_final)
+        {
+            match mic {
+                Some(handle) => (Some(handle.stop().await), None),
+                None => (None, None),
+            }
+        }
     }
 
     /// Read the currently-active primary capture handle. Unused today — dictation and

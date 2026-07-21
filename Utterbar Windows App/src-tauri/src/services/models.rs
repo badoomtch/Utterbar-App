@@ -9,7 +9,7 @@
 //! Crashes or cancels mid-flight leave the `.partial` file behind, which is cleaned up
 //! on the next install attempt.
 
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -404,15 +404,72 @@ fn emit(handle: &AppHandle, model_id: &str, done: u64, total: u64, phase: ModelP
     );
 }
 
-/// Stream-decompress and un-archive a `.tar.bz2` into `dest`. Blocking; call inside
-/// `spawn_blocking`.
-fn extract_tar_bz2(archive_path: &std::path::Path, dest: &std::path::Path) -> Result<()> {
+/// Stream-decompress and safely un-archive a `.tar.bz2` into `dest`. Blocking; call
+/// inside `spawn_blocking`. Model downloads are SHA-pinned, but archive structure is
+/// still treated as untrusted defence in depth.
+fn extract_tar_bz2(archive_path: &Path, dest: &Path) -> Result<()> {
+    const MAX_ARCHIVE_ENTRIES: usize = 10_000;
+    const MAX_UNPACKED_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
     std::fs::create_dir_all(dest)?;
     let file = std::fs::File::open(archive_path)?;
     let bz = BzDecoder::new(std::io::BufReader::new(file));
-    let mut tar = Archive::new(bz);
-    tar.unpack(dest)?;
+    let mut archive = Archive::new(bz);
+    let mut unpacked_bytes = 0u64;
+
+    for (index, entry) in archive.entries()?.enumerate() {
+        if index >= MAX_ARCHIVE_ENTRIES {
+            return Err(anyhow!(
+                "model archive has more than {MAX_ARCHIVE_ENTRIES} entries"
+            ));
+        }
+        let mut entry = entry?;
+        let entry_type = entry.header().entry_type();
+        if !entry_type.is_file() && !entry_type.is_dir() {
+            return Err(anyhow!(
+                "model archive contains disallowed entry type {entry_type:?}"
+            ));
+        }
+
+        let path_in_archive = entry.path()?.into_owned();
+        if !safe_archive_path(&path_in_archive) {
+            return Err(anyhow!(
+                "model archive contains unsafe path: {}",
+                path_in_archive.display()
+            ));
+        }
+
+        let entry_size = entry.header().size()?;
+        unpacked_bytes = unpacked_bytes.saturating_add(entry_size);
+        if unpacked_bytes > MAX_UNPACKED_BYTES {
+            return Err(anyhow!(
+                "model archive expands beyond the {} GiB safety limit",
+                MAX_UNPACKED_BYTES / 1024 / 1024 / 1024
+            ));
+        }
+
+        let resolved = dest.join(&path_in_archive);
+        if entry_type.is_dir() {
+            std::fs::create_dir_all(&resolved)?;
+        } else {
+            let parent = resolved
+                .parent()
+                .ok_or_else(|| anyhow!("model archive entry has no parent"))?;
+            std::fs::create_dir_all(parent)?;
+            crate::util::paths::assert_within(dest, parent)?;
+            entry.unpack(&resolved)?;
+        }
+        crate::util::paths::assert_within(dest, &resolved)?;
+    }
     Ok(())
+}
+
+fn safe_archive_path(path: &Path) -> bool {
+    !path.as_os_str().is_empty()
+        && !path.is_absolute()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
 /// If `dir` contains exactly one child that is itself a directory, move every entry
@@ -687,6 +744,23 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
         // get the entry pruned via the AppState bootstrap migration in
         // app_state.rs (same shape as the v0.8.0 Parakeet v2 cleanup).
     ]
+}
+
+#[cfg(test)]
+mod archive_tests {
+    use std::path::Path;
+
+    use super::safe_archive_path;
+
+    #[test]
+    fn model_archive_paths_must_stay_relative_and_traversal_free() {
+        assert!(safe_archive_path(Path::new("model/encoder.onnx")));
+        assert!(safe_archive_path(Path::new("tokens.txt")));
+        assert!(!safe_archive_path(Path::new("")));
+        assert!(!safe_archive_path(Path::new("../escape.onnx")));
+        assert!(!safe_archive_path(Path::new("model/../../escape.onnx")));
+        assert!(!safe_archive_path(Path::new("C:\\escape.onnx")));
+    }
 }
 
 #[cfg(test)]

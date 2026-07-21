@@ -572,14 +572,23 @@ impl CaptureHandle {
     ///     nothing ever drains — the handle drops immediately after this call so
     ///     that allocation is freed within microseconds anyway.
     pub async fn stop(&self) -> CaptureFinal {
-        // Grace tail — keep capturing for a beat past the user's stop gesture.
-        // 500 ms covers the WASAPI capture period, hotkey-release → stop-call
-        // latency, and the typical trailing-syllable / mouth-closing audio a
-        // user expects to be captured after they hit stop. Users reported the
-        // previous 220 ms still dropping the last word on natural sentence
-        // endings; 500 ms removes that without making the stop feel sluggish.
-        const TAIL_PAD_MS: u64 = 500;
-        tokio::time::sleep(std::time::Duration::from_millis(TAIL_PAD_MS)).await;
+        // Keep the capture stream live after the stop gesture. A fixed 500 ms
+        // covers normal WASAPI delivery latency, but a user can still be
+        // finishing a word when that window ends. After the minimum grace,
+        // extend in short steps while the recent PCM tail still contains
+        // speech. The hard cap keeps stop responsive on a noisy microphone.
+        const MIN_TAIL_PAD_MS: u64 = 500;
+        const MAX_TAIL_PAD_MS: u64 = 1_500;
+        const TAIL_CHECK_MS: u64 = 100;
+        const ACTIVE_WINDOW_MS: u64 = 250;
+
+        tokio::time::sleep(std::time::Duration::from_millis(MIN_TAIL_PAD_MS)).await;
+        let mut tail_pad_ms = MIN_TAIL_PAD_MS;
+        while tail_pad_ms < MAX_TAIL_PAD_MS && self.recent_tail_has_speech(ACTIVE_WINDOW_MS) {
+            tokio::time::sleep(std::time::Duration::from_millis(TAIL_CHECK_MS)).await;
+            tail_pad_ms += TAIL_CHECK_MS;
+        }
+        tracing::debug!(tail_pad_ms, "capture stop grace tail complete");
 
         // Flip stop, then give the capture thread time to drop the cpal stream and
         // flush any last-callback frames. 120 ms is empirically enough on WASAPI;
@@ -602,9 +611,44 @@ impl CaptureHandle {
             duration_ms,
         }
     }
+
+    /// True when the most recent PCM window still contains enough energy to
+    /// plausibly be speech. This deliberately inspects the shared buffer in
+    /// place rather than cloning it: `stop` can run after a long recording.
+    fn recent_tail_has_speech(&self, window_ms: u64) -> bool {
+        const SPEECH_RMS_THRESHOLD: f64 = 0.006;
+
+        let Ok(buffer) = self.buffer.lock() else {
+            return false;
+        };
+        let sample_count = ((TARGET_RATE as u64 * window_ms) / 1_000) as usize;
+        let start = buffer.len().saturating_sub(sample_count);
+        let samples = &buffer[start..];
+        if samples.is_empty() {
+            return false;
+        }
+
+        tail_has_speech(samples, SPEECH_RMS_THRESHOLD)
+    }
 }
 
 // --- helpers ---
+
+fn tail_has_speech(samples: &[i16], threshold: f64) -> bool {
+    if samples.is_empty() {
+        return false;
+    }
+
+    let mean_square = samples
+        .iter()
+        .map(|sample| {
+            let normalised = *sample as f64 / i16::MAX as f64;
+            normalised * normalised
+        })
+        .sum::<f64>()
+        / samples.len() as f64;
+    mean_square.sqrt() >= threshold
+}
 
 fn downmix_and_resample_f32(data: &[f32], channels: usize, src_rate: u32) -> Vec<i16> {
     let mono: Vec<f32> = if channels == 1 {
@@ -709,6 +753,16 @@ mod tests {
             peak > 0.2,
             "resampled peak collapsed to {peak} (expected > 0.2)"
         );
+    }
+
+    #[test]
+    fn tail_speech_gate_distinguishes_quiet_from_speech_level_audio() {
+        let quiet = vec![100_i16; 4_000];
+        let speech = vec![1_000_i16; 4_000];
+
+        assert!(!tail_has_speech(&quiet, 0.006));
+        assert!(tail_has_speech(&speech, 0.006));
+        assert!(!tail_has_speech(&[], 0.006));
     }
 
     fn pairs(devs: &[&str]) -> Vec<(String, String)> {
