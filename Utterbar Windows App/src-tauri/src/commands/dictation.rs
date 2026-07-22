@@ -2960,6 +2960,13 @@ pub(crate) async fn stop_recording_inner(
         "audio captured"
     );
 
+    // Audio is already stopped at this point. Report that immediately,
+    // before any settings, mode, or inference-lock read can await behind a
+    // background model warm-up. Otherwise the bar remains on "Recording"
+    // even though a stop request succeeded, making a slow model load look
+    // like an unresponsive hotkey.
+    set_phase(&handle, DictationPhase::Processing).await;
+
     // Resolve the target model id ONCE, before the cold-load probe, so
     // every downstream consumer (early Warming label, ensure_loaded
     // call, final transcribe, history row) reads the same value.
@@ -3105,8 +3112,6 @@ pub(crate) async fn stop_recording_inner(
             },
         )
         .await;
-    } else {
-        set_phase(&handle, DictationPhase::Processing).await;
     }
 
     // Optional pre-ASR conditioning. All three passes are cheap (~O(n)) so we apply them
@@ -6613,6 +6618,33 @@ mod diarised_helpers_tests {
             "CaptureHandle::stop must set the stop flag BEFORE the mem::take \
              extraction; otherwise the capture thread could append between \
              extraction and our return"
+        );
+    }
+
+    /// A successful audio stop must update the pill before reading the
+    /// inference cache. `loaded_model_id()` takes the orchestrator read lock,
+    /// which can wait behind a background warm-up; putting Processing after it
+    /// leaves the user looking at "Recording" after their stop hotkey worked.
+    #[test]
+    fn stop_reports_processing_before_waiting_for_inference_state() {
+        let src = read_source("src-tauri/src/commands/dictation.rs");
+        let stop_start = src
+            .find("pub(crate) async fn stop_recording_inner(")
+            .expect("stop_recording_inner must exist");
+        let stop_src = &src[stop_start..];
+        let captured_idx = stop_src
+            .find("\"audio captured\"")
+            .expect("stop path must log captured audio");
+        let processing_idx = stop_src[captured_idx..]
+            .find("set_phase(&handle, DictationPhase::Processing).await;")
+            .map(|offset| captured_idx + offset)
+            .expect("stop path must report Processing after capture");
+        let loaded_model_idx = stop_src
+            .find("state.inference.loaded_model_id().await")
+            .expect("stop path must inspect the loaded model");
+        assert!(
+            processing_idx < loaded_model_idx,
+            "Processing must be emitted before loaded_model_id can wait behind a prewarm write lock"
         );
     }
 

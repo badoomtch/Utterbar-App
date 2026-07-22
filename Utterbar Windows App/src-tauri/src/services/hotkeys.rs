@@ -18,7 +18,8 @@ use tokio::sync::RwLock;
 
 use crate::app_state::AppState;
 use crate::domain::{
-    Shortcut, ShortcutConflict, ShortcutId, EVT_SHORTCUT_RELEASED, EVT_SHORTCUT_TRIGGERED,
+    Shortcut, ShortcutConflict, ShortcutId, EVT_HOTKEY_REGISTRATION_ERROR, EVT_SHORTCUT_RELEASED,
+    EVT_SHORTCUT_TRIGGERED,
 };
 
 #[derive(Default)]
@@ -124,7 +125,7 @@ pub async fn arm_from_settings(handle: &AppHandle, state: &AppState) -> Result<(
                 continue;
             }
         };
-        let handle = handle.clone();
+        let handle_for_handler = handle.clone();
         let id_for_handler = id.clone();
         if let Err(e) = shortcuts.on_shortcut(parsed, move |_, _, event| {
             // Key-down drives every shortcut; key-up is emitted separately so
@@ -134,10 +135,40 @@ pub async fn arm_from_settings(handle: &AppHandle, state: &AppState) -> Result<(
                 ShortcutState::Pressed => EVT_SHORTCUT_TRIGGERED,
                 ShortcutState::Released => EVT_SHORTCUT_RELEASED,
             };
-            let _ = handle.emit(evt, id_for_handler.clone());
+            let _ = handle_for_handler.emit(evt, id_for_handler.clone());
         }) {
             tracing::warn!(?e, %accel, "failed to register global shortcut");
+            if is_recording_shortcut(&id) {
+                let message = format!(
+                    "{accel} is already used by another app. Choose a different recording shortcut in Settings > Shortcuts."
+                );
+                let _ = handle.emit(EVT_HOTKEY_REGISTRATION_ERROR, message);
+            }
         }
     }
     Ok(())
+}
+
+fn is_recording_shortcut(id: &ShortcutId) -> bool {
+    matches!(
+        id,
+        ShortcutId::ToggleRecording
+            | ShortcutId::PushToTalk
+            | ShortcutId::HoldToTalk
+            | ShortcutId::CancelRecording
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recording_shortcuts_are_reported_when_registration_fails() {
+        assert!(is_recording_shortcut(&ShortcutId::ToggleRecording));
+        assert!(is_recording_shortcut(&ShortcutId::PushToTalk));
+        assert!(is_recording_shortcut(&ShortcutId::HoldToTalk));
+        assert!(is_recording_shortcut(&ShortcutId::CancelRecording));
+        assert!(!is_recording_shortcut(&ShortcutId::OpenSettings));
+    }
 }

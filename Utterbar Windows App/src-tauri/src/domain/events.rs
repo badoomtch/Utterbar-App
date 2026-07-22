@@ -17,6 +17,11 @@ pub const EVT_SHORTCUT_TRIGGERED: &str = "shortcut:triggered";
 /// one-shot on key-down and ignores it. Emitted for all shortcuts on
 /// release; the frontend filters.
 pub const EVT_SHORTCUT_RELEASED: &str = "shortcut:released";
+/// A configured recording shortcut could not be registered with Windows,
+/// usually because another app has already claimed it. The frontend turns
+/// this into a visible notification rather than leaving the user to infer
+/// the problem from an unresponsive hotkey.
+pub const EVT_HOTKEY_REGISTRATION_ERROR: &str = "shortcut:registration-error";
 pub const EVT_FILE_JOB_PROGRESS: &str = "file-job:progress";
 /// Navigation intent for the main window. Emitted by `show_main_at` so the
 /// floating bar's History / Settings buttons can land the user on the right

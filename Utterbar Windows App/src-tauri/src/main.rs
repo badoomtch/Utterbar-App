@@ -434,7 +434,11 @@ fn main() {
                 if let Some(model_id) =
                     services::inference::prewarm::should_prewarm_default(&prewarm_snap)
                 {
-                    services::inference::prewarm::spawn(state_bg.inference.clone(), model_id);
+                    services::inference::prewarm::spawn(
+                        state_bg.clone(),
+                        state_bg.inference.clone(),
+                        model_id,
+                    );
                 } else {
                     tracing::info!(
                         warm_duration_secs = prewarm_snap.models.warm_duration_secs,

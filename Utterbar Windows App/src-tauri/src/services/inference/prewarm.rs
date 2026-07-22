@@ -41,13 +41,10 @@
 //!   * Failure-tolerant — warm errors are logged at warn level
 //!     and swallowed. The first dictation will still attempt
 //!     load through the same path and surface its own error.
-//!   * Race-free with active dictation — reuses
-//!     `InferenceOrchestrator::ensure_loaded`, which holds the
-//!     write lock around build+warm. If a dictation arrives
-//!     mid-prewarm, the orchestrator's existing TOCTOU defence
-//!     handles it. If a dictation has already loaded the model
-//!     before the prewarm task runs, `ensure_loaded` returns
-//!     the cached provider in microseconds.
+//!   * User-first at launch — waits through a short startup grace
+//!     period, then skips the warm-up if dictation has begun. This
+//!     prevents a first hotkey press from queuing behind a background
+//!     native model construction task.
 //!   * Meeting-mode model NOT prewarmed — meeting mode is
 //!     opt-in per dictation; prewarming a separate Whisper
 //!     Medium for users who never invoke it would double the
@@ -58,8 +55,13 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::app_state::AppState;
 use crate::domain::Settings;
 use crate::services::inference::InferenceOrchestrator;
+
+/// Give the user a chance to dictate immediately after launch before the
+/// background warm-up claims the inference construction lock.
+const STARTUP_PREWARM_DELAY_SECS: u64 = 15;
 
 /// Pure decision: should the app prewarm a default ASR model on
 /// launch, and if so which model id?
@@ -94,7 +96,9 @@ pub fn should_prewarm_default(settings: &Settings) -> Option<String> {
 }
 
 /// Spawn a fire-and-forget tokio task that prewarms `model_id`
-/// against the given orchestrator. Always returns immediately.
+/// against the given orchestrator. Always returns immediately. The task
+/// waits through the startup grace period before it can claim inference
+/// resources, so an immediate dictation remains user-priority work.
 ///
 /// Logs:
 ///   * `asr_prewarm: skipped` — info, with reason — when the
@@ -106,8 +110,16 @@ pub fn should_prewarm_default(settings: &Settings) -> Option<String> {
 ///   * `asr_prewarm: failed` — warn, with error and elapsed_ms.
 ///     Failure is non-fatal: the next dictation will retry via
 ///     the same `ensure_loaded` path.
-pub fn spawn(orchestrator: Arc<InferenceOrchestrator>, model_id: String) {
+pub fn spawn(state: Arc<AppState>, orchestrator: Arc<InferenceOrchestrator>, model_id: String) {
     tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(STARTUP_PREWARM_DELAY_SECS)).await;
+        if state
+            .recording_in_progress
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            tracing::info!(%model_id, "asr_prewarm: skipped because dictation started during startup grace");
+            return;
+        }
         tracing::info!(%model_id, "asr_prewarm: starting");
         let started = Instant::now();
         match orchestrator.ensure_loaded(&model_id).await {
