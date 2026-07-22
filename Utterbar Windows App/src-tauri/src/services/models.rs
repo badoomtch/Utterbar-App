@@ -9,7 +9,7 @@
 //! Crashes or cancels mid-flight leave the `.partial` file behind, which is cleaned up
 //! on the next install attempt.
 
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -404,15 +404,72 @@ fn emit(handle: &AppHandle, model_id: &str, done: u64, total: u64, phase: ModelP
     );
 }
 
-/// Stream-decompress and un-archive a `.tar.bz2` into `dest`. Blocking; call inside
-/// `spawn_blocking`.
-fn extract_tar_bz2(archive_path: &std::path::Path, dest: &std::path::Path) -> Result<()> {
+/// Stream-decompress and safely un-archive a `.tar.bz2` into `dest`. Blocking; call
+/// inside `spawn_blocking`. Model downloads are SHA-pinned, but archive structure is
+/// still treated as untrusted defence in depth.
+fn extract_tar_bz2(archive_path: &Path, dest: &Path) -> Result<()> {
+    const MAX_ARCHIVE_ENTRIES: usize = 10_000;
+    const MAX_UNPACKED_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
     std::fs::create_dir_all(dest)?;
     let file = std::fs::File::open(archive_path)?;
     let bz = BzDecoder::new(std::io::BufReader::new(file));
-    let mut tar = Archive::new(bz);
-    tar.unpack(dest)?;
+    let mut archive = Archive::new(bz);
+    let mut unpacked_bytes = 0u64;
+
+    for (index, entry) in archive.entries()?.enumerate() {
+        if index >= MAX_ARCHIVE_ENTRIES {
+            return Err(anyhow!(
+                "model archive has more than {MAX_ARCHIVE_ENTRIES} entries"
+            ));
+        }
+        let mut entry = entry?;
+        let entry_type = entry.header().entry_type();
+        if !entry_type.is_file() && !entry_type.is_dir() {
+            return Err(anyhow!(
+                "model archive contains disallowed entry type {entry_type:?}"
+            ));
+        }
+
+        let path_in_archive = entry.path()?.into_owned();
+        if !safe_archive_path(&path_in_archive) {
+            return Err(anyhow!(
+                "model archive contains unsafe path: {}",
+                path_in_archive.display()
+            ));
+        }
+
+        let entry_size = entry.header().size()?;
+        unpacked_bytes = unpacked_bytes.saturating_add(entry_size);
+        if unpacked_bytes > MAX_UNPACKED_BYTES {
+            return Err(anyhow!(
+                "model archive expands beyond the {} GiB safety limit",
+                MAX_UNPACKED_BYTES / 1024 / 1024 / 1024
+            ));
+        }
+
+        let resolved = dest.join(&path_in_archive);
+        if entry_type.is_dir() {
+            std::fs::create_dir_all(&resolved)?;
+        } else {
+            let parent = resolved
+                .parent()
+                .ok_or_else(|| anyhow!("model archive entry has no parent"))?;
+            std::fs::create_dir_all(parent)?;
+            crate::util::paths::assert_within(dest, parent)?;
+            entry.unpack(&resolved)?;
+        }
+        crate::util::paths::assert_within(dest, &resolved)?;
+    }
     Ok(())
+}
+
+fn safe_archive_path(path: &Path) -> bool {
+    !path.as_os_str().is_empty()
+        && !path.is_absolute()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
 /// If `dir` contains exactly one child that is itself a directory, move every entry
@@ -495,6 +552,46 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             recommended: true,
             accuracy_score: 9,
             speed_score: 10,
+            requires_pro: false,
+        },
+        // Parakeet v2 int8 — the previous NeMo generation, English only.
+        // Same 0.6B TDT architecture and int8 CPU path as v3, so it is
+        // just as fast. The v2 English-only checkpoint topped the open
+        // speech-recognition leaderboard on release and still edges v3
+        // on some read-English benchmarks (v3 is the newer, broader
+        // model and holds a small edge on conversational English). We
+        // keep v3 as the recommended default because it is newer;
+        // v2 is here for people who dictate English only and want to
+        // try the leaderboard-topping checkpoint. Utterbar shipped v2 as
+        // the default before v0.8.0, so this load path is well-worn.
+        //
+        // Pinned 2026-07-17 against the live k2-fsa release asset:
+        // downloaded sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2,
+        // verified the 482,468,385-byte size and the SHA-256 below, and
+        // confirmed the archive ships encoder.int8.onnx /
+        // decoder.int8.onnx / joiner.int8.onnx / tokens.txt (the
+        // prefixes first_matching resolves). install_model fails closed
+        // on any hash mismatch.
+        ModelInfo {
+            id: "sherpa-parakeet-tdt-0.6b-v2-int8".into(),
+            kind: ModelKind::Asr,
+            display_name: "Parakeet v2 (English, compact)".into(),
+            description: "English only, tuned purely for English. In everyday dictation it is very close to Parakeet v3. Pick it if you dictate in English only and want to try the model that topped the open speech benchmarks.".into(),
+            version: "2".into(),
+            size_bytes: 482_468_385,
+            backend: ModelBackend::Onnx,
+            engine: ModelEngine::ParakeetTdt,
+            languages: vec!["en".into()],
+            installed: false,
+            path: None,
+            sha256: "157c157bc51155e03e37d2466522a3a737dd9c72bb25f36eb18912964161e1ad".into(),
+            download_url: Some(
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2"
+                    .into(),
+            ),
+            recommended: false,
+            accuracy_score: 9,
+            speed_score: 9,
             requires_pro: false,
         },
         // Whisper base — multilingual, free tier. ~99 languages via
@@ -638,49 +735,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             speed_score: 2,
             requires_pro: true,
         },
-        // Whisper large-v3 turbo — Pro tier, multilingual. A pruned
-        // large-v3 (decoder trimmed 32 -> 4 layers) that keeps close to
-        // large-v3 accuracy at roughly 5x the speed. Ships int8
-        // encoder/decoder/tokens only and loads through the same
-        // SherpaWhisper path as the other Whisper checkpoints. Being a
-        // non-Small Whisper model it uses DirectML on Auto (unlike
-        // Whisper Small, which the resolver keeps on CPU), so it is the
-        // natural "Whisper accuracy without the wait" pick on a GPU.
-        //
-        // Long-audio note: like every offline Whisper, sherpa truncates
-        // a single decode at ~30s, so turbo relies on the same 29s
-        // chunking the provider added in v0.20.5 for dictations past
-        // half a minute.
-        //
-        // Pinned 2026-07-16 against the live k2-fsa release asset:
-        // downloaded sherpa-onnx-whisper-turbo.tar.bz2, verified the
-        // asset size + SHA-256 below, and confirmed the archive ships
-        // turbo-encoder.int8.onnx / turbo-decoder.int8.onnx /
-        // turbo-tokens.txt (the suffixes resolve_files matches). Smoke
-        // load through SherpaWhisper::ensure_loaded is still pending on
-        // Jay's machine.
-        ModelInfo {
-            id: "sherpa-whisper-turbo".into(),
-            kind: ModelKind::Asr,
-            display_name: "Whisper Turbo (multilingual, fast)".into(),
-            description: "Close to Whisper Large v3 accuracy but much faster, and it uses your GPU on Auto. Multilingual, around 99 languages. A strong all-round pick when you want Whisper quality without waiting as long as Large v3.".into(),
-            version: "turbo".into(),
-            size_bytes: 563_790_207,
-            backend: ModelBackend::Onnx,
-            engine: ModelEngine::Whisper,
-            languages: vec!["multi".into()],
-            installed: false,
-            path: None,
-            sha256: "b11acbbcd660b44a8e0df33724feb5aaa709cf65668f2823d59f656312544f22".into(),
-            download_url: Some(
-                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-turbo.tar.bz2"
-                    .into(),
-            ),
-            recommended: false,
-            accuracy_score: 9,
-            speed_score: 7,
-            requires_pro: true,
-        },
         // Offline Zipformer was retired in v0.14.2: Parakeet covers the
         // English fast-path comprehensively, and shipping two
         // English-only fast models was creating decision fatigue in the
@@ -690,6 +744,23 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
         // get the entry pruned via the AppState bootstrap migration in
         // app_state.rs (same shape as the v0.8.0 Parakeet v2 cleanup).
     ]
+}
+
+#[cfg(test)]
+mod archive_tests {
+    use std::path::Path;
+
+    use super::safe_archive_path;
+
+    #[test]
+    fn model_archive_paths_must_stay_relative_and_traversal_free() {
+        assert!(safe_archive_path(Path::new("model/encoder.onnx")));
+        assert!(safe_archive_path(Path::new("tokens.txt")));
+        assert!(!safe_archive_path(Path::new("")));
+        assert!(!safe_archive_path(Path::new("../escape.onnx")));
+        assert!(!safe_archive_path(Path::new("model/../../escape.onnx")));
+        assert!(!safe_archive_path(Path::new("C:\\escape.onnx")));
+    }
 }
 
 #[cfg(test)]

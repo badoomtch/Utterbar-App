@@ -54,6 +54,7 @@ pub struct LoopbackHandle {
     #[allow(dead_code)]
     pub meter_rx: tokio::sync::Mutex<mpsc::Receiver<(f32, f32)>>,
     buffer: Arc<Mutex<Vec<i16>>>,
+    tail_pad_ms: u64,
 }
 
 /// Same safety net as `CaptureHandle::Drop` — if the handle gets dropped without an
@@ -66,10 +67,28 @@ impl Drop for LoopbackHandle {
 }
 
 impl LoopbackHandle {
+    /// Copy buffered samples from `offset` to the current end. See
+    /// `CaptureHandle::snapshot_from`.
+    pub fn snapshot_from(&self, offset: usize) -> Vec<i16> {
+        match self.buffer.lock() {
+            Ok(b) if offset < b.len() => b[offset..].to_vec(),
+            _ => Vec::new(),
+        }
+    }
+
     pub async fn stop(&self) -> super::capture::CaptureFinal {
+        // Keep collecting briefly after the user stops. The microphone path
+        // has the same grace window; without it a final system-audio frame can
+        // be lost before WASAPI delivers it to this callback.
+        tokio::time::sleep(Duration::from_millis(self.tail_pad_ms)).await;
         self.stop_flag.store(true, Ordering::Relaxed);
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        let pcm = self.buffer.lock().unwrap().clone();
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        // Move the populated allocation into the final capture. Meeting Mode
+        // can run for hours, so cloning here creates an avoidable second PCM
+        // buffer at exactly the point memory pressure is highest.
+        let pcm = std::mem::take(&mut *self.buffer.lock().unwrap());
         let duration_ms = (pcm.len() as u64 * 1000) / TARGET_RATE as u64;
         super::capture::CaptureFinal {
             pcm,
@@ -79,7 +98,7 @@ impl LoopbackHandle {
     }
 }
 
-pub fn start() -> Result<LoopbackHandle> {
+pub fn start(tail_pad_ms: u32) -> Result<LoopbackHandle> {
     let (frames_tx, frames_rx) = mpsc::channel::<Vec<i16>>(64);
     let (meter_tx, meter_rx) = mpsc::channel::<(f32, f32)>(64);
     let buffer = Arc::new(Mutex::new(Vec::<i16>::with_capacity(
@@ -110,6 +129,7 @@ pub fn start() -> Result<LoopbackHandle> {
         frames_rx: tokio::sync::Mutex::new(frames_rx),
         meter_rx: tokio::sync::Mutex::new(meter_rx),
         buffer,
+        tail_pad_ms: super::capture::clamp_tail_pad_ms(tail_pad_ms),
     })
 }
 

@@ -44,6 +44,7 @@ impl AudioService {
     pub async fn start_capture(
         &self,
         device_id: Option<String>,
+        tail_pad_ms: u32,
     ) -> Result<(Arc<CaptureHandle>, capture::CaptureMeta)> {
         // Stop any existing capture first so the cpal stream + audio thread terminate and
         // release the PCM buffer. `.stop()` is idempotent at the thread level.
@@ -51,7 +52,7 @@ impl AudioService {
             tracing::warn!("start_capture: previous capture still active — stopping it first");
             let _ = prev.stop().await;
         }
-        let (handle, meta) = capture::start(device_id.as_deref())?;
+        let (handle, meta) = capture::start(device_id.as_deref(), tail_pad_ms)?;
         let handle = Arc::new(handle);
         *self.inner.write().await = Some(handle.clone());
         Ok((handle, meta))
@@ -60,36 +61,72 @@ impl AudioService {
     /// Start a WASAPI loopback capture (system audio). Windows-only. Same zombie-thread
     /// problem as `start_capture` — we stop any previous loopback before starting a new one.
     #[cfg(windows)]
-    pub async fn start_loopback(&self) -> Result<Arc<loopback::LoopbackHandle>> {
+    pub async fn start_loopback(&self, tail_pad_ms: u32) -> Result<Arc<loopback::LoopbackHandle>> {
         if let Some(prev) = self.loopback_inner.write().await.take() {
             tracing::warn!("start_loopback: previous loopback still active — stopping it first");
             let _ = prev.stop().await;
         }
-        let handle = Arc::new(loopback::start()?);
+        let handle = Arc::new(loopback::start(tail_pad_ms)?);
         *self.loopback_inner.write().await = Some(handle.clone());
         Ok(handle)
     }
 
-    pub async fn stop_capture(&self) -> Option<capture::CaptureFinal> {
-        let mic_final = if let Some(h) = self.inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
+    /// Snapshot newly-buffered samples from the mic and loopback capture
+    /// buffers, from the given per-channel sample offsets to the current
+    /// end. Non-destructive (the full `mem::take` still happens at stop).
+    /// Either side is empty if that source isn't active. Used by the live
+    /// meeting transcriber to poll growing audio without the caller ever
+    /// touching the Windows-only loopback handle type.
+    pub async fn snapshot_channels(
+        &self,
+        mic_offset: usize,
+        loop_offset: usize,
+    ) -> (Vec<i16>, Vec<i16>) {
+        let mic = match self.inner.read().await.as_ref() {
+            Some(h) => h.snapshot_from(mic_offset),
+            None => Vec::new(),
         };
         #[cfg(windows)]
-        let loop_final = if let Some(h) = self.loopback_inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
+        let lo = match self.loopback_inner.read().await.as_ref() {
+            Some(h) => h.snapshot_from(loop_offset),
+            None => Vec::new(),
         };
         #[cfg(not(windows))]
-        let loop_final: Option<capture::CaptureFinal> = None;
+        let lo = {
+            let _ = loop_offset;
+            Vec::new()
+        };
+        (mic, lo)
+    }
 
-        match (mic_final, loop_final) {
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (Some(a), Some(b)) => Some(mix_two(a, b)),
-            (None, None) => None,
+    pub async fn stop_capture(&self) -> Option<capture::CaptureFinal> {
+        let mic = self.inner.write().await.take();
+        #[cfg(windows)]
+        {
+            let loopback = self.loopback_inner.write().await.take();
+            let (mic_final, loop_final) = match (mic, loopback) {
+                (Some(mic), Some(loopback)) => {
+                    let (mic, loopback) = tokio::join!(mic.stop(), loopback.stop());
+                    (Some(mic), Some(loopback))
+                }
+                (Some(mic), None) => (Some(mic.stop().await), None),
+                (None, Some(loopback)) => (None, Some(loopback.stop().await)),
+                (None, None) => (None, None),
+            };
+
+            match (mic_final, loop_final) {
+                (Some(a), None) => Some(a),
+                (None, Some(b)) => Some(b),
+                (Some(a), Some(b)) => Some(mix_two(a, b)),
+                (None, None) => None,
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            match mic {
+                Some(handle) => Some(handle.stop().await),
+                None => None,
+            }
         }
     }
 
@@ -108,20 +145,27 @@ impl AudioService {
     pub async fn stop_capture_split(
         &self,
     ) -> (Option<capture::CaptureFinal>, Option<capture::CaptureFinal>) {
-        let mic_final = if let Some(h) = self.inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
-        };
+        let mic = self.inner.write().await.take();
         #[cfg(windows)]
-        let loop_final = if let Some(h) = self.loopback_inner.write().await.take() {
-            Some(h.stop().await)
-        } else {
-            None
-        };
+        {
+            let loopback = self.loopback_inner.write().await.take();
+            match (mic, loopback) {
+                (Some(mic), Some(loopback)) => {
+                    let (mic, loopback) = tokio::join!(mic.stop(), loopback.stop());
+                    (Some(mic), Some(loopback))
+                }
+                (Some(mic), None) => (Some(mic.stop().await), None),
+                (None, Some(loopback)) => (None, Some(loopback.stop().await)),
+                (None, None) => (None, None),
+            }
+        }
         #[cfg(not(windows))]
-        let loop_final: Option<capture::CaptureFinal> = None;
-        (mic_final, loop_final)
+        {
+            match mic {
+                Some(handle) => (Some(handle.stop().await), None),
+                None => (None, None),
+            }
+        }
     }
 
     /// Read the currently-active primary capture handle. Unused today — dictation and

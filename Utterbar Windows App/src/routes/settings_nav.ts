@@ -228,7 +228,7 @@ const SECTIONS: readonly SectionSpec[] = [
     icon: SlidersHorizontal,
     keywords: ['experimental'],
     matches: {
-      gpu_acceleration: ['gpu', 'acceleration', 'directml', 'cuda', 'graphics card'],
+      gpu_acceleration: ['gpu', 'acceleration', 'directml', 'graphics card'],
       directml: ['directml', 'dml'],
       cpu_only: ['cpu', 'cpu only', 'no gpu'],
       mute_mic_teams: [

@@ -35,7 +35,7 @@ pub struct SherpaWhisper {
     /// `en`, `fr`, `de`. Passed verbatim to sherpa-onnx; an unknown code
     /// falls back to auto on the native side.
     language: String,
-    /// CPU / cuda / directml — same provider string the orchestrator
+    /// cpu / directml — same provider string the orchestrator
     /// resolves for Parakeet.
     provider: String,
     inner: Arc<Mutex<Recognizer>>,
@@ -146,8 +146,8 @@ impl SherpaWhisper {
         //     the new bundle.
         //
         // The CPU-force is lifted. The orchestrator's `resolve_provider`
-        // already routes DirectML/CUDA -> CPU when the runtime can't
-        // serve them (v0.15.5 fallback contract preserved) and applies
+        // already routes DirectML -> CPU when the runtime can't
+        // serve it (v0.15.5 fallback contract preserved) and applies
         // the auto-Small CPU policy (v0.15.6 model-aware path). The
         // engine trusts the resolved string.
         //

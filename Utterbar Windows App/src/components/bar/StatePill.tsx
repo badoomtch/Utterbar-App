@@ -169,7 +169,7 @@ function describe(
       }
       return { label: t('phase.inserted'), tone: 'success' as const };
     case 'error':
-      return { label: t('phase.error'), tone: 'error' as const };
+      return { label: phase.message || t('phase.error'), tone: 'error' as const };
     case 'cancelled':
       return { label: t('phase.cancelled'), tone: 'muted' as const };
     case 'no_audio':

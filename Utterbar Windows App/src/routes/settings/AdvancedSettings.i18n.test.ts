@@ -8,7 +8,7 @@ const RAW = readFileSync(resolve(HERE, 'AdvancedSettings.tsx'), 'utf8');
 
 // Strip line + block comments before grepping so prose commentary in
 // AdvancedSettings.tsx (which legitimately mentions things like
-// "DirectML", "CUDA", "Whisper Small", or "Reset") doesn't
+// "DirectML", "Whisper Small", or "Reset") doesn't
 // false-trigger the guard.
 function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -37,11 +37,9 @@ describe('AdvancedSettings i18n source-grep guard', () => {
       // and hint pairs that lived inline in the const at module scope.
       "title: 'Auto'",
       "title: 'DirectML'",
-      "title: 'CUDA'",
       "title: 'CPU only'",
       "hint: 'Use your GPU if one is detected",
       "hint: 'Prefer DirectML",
-      "hint: 'Prefer NVIDIA CUDA",
       "hint: 'Keep the GPU free for games or video.",
       // The four pre-localisation card description literals.
       "'Checking what hardware is available…'",
@@ -249,7 +247,7 @@ describe('AdvancedSettings i18n source-grep guard', () => {
       "AdvancedSettings.tsx must keep the settings field name 'gpu_acceleration' intact",
     ).toBe(true);
     expect(SOURCE).toMatch(
-      /GPU_OPTION_IDS:\s*GpuAcceleration\[\]\s*=\s*\[\s*'auto',\s*'direct_ml',\s*'cuda',\s*'cpu'\s*\]/,
+      /GPU_OPTION_IDS:\s*GpuAcceleration\[\]\s*=\s*\[\s*'auto',\s*'direct_ml',\s*'cpu'\s*\]/,
     );
   });
 });

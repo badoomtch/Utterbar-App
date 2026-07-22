@@ -169,6 +169,14 @@ pub struct AppState {
     /// dictation module needs to read/write it but no other code
     /// should touch it.
     pub(crate) active_recording_context: RwLock<Option<ActiveRecordingContext>>,
+    /// Live Meeting Mode transcriber handle (v0.21.x). Present only
+    /// while a two-channel meeting is recording with live transcription
+    /// active. `start_recording` spawns the worker and stashes the
+    /// handle here; `stop_recording` takes it and calls `finish` to
+    /// drain the tail and collect the complete transcript. `pub(crate)`
+    /// for the same reason as `active_recording_context`.
+    pub(crate) live_meeting:
+        tokio::sync::Mutex<Option<crate::commands::dictation::LiveMeetingHandle>>,
     /// Updater install/restart intent flag (v0.19.4+).
     ///
     /// `commands::updater::install_update` flips this to `true`
@@ -412,6 +420,7 @@ impl AppState {
             start_recording_pending: AtomicBool::new(false),
             meeting_preflight_in_progress: AtomicBool::new(false),
             active_recording_context: RwLock::new(None),
+            live_meeting: tokio::sync::Mutex::new(None),
             updater_install_in_progress: AtomicBool::new(false),
             handle: RwLock::new(None),
         })

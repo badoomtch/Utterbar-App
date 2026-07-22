@@ -44,7 +44,6 @@ type GpuProbe = {
  */
 type RuntimeCapabilities = {
   has_dml_ep: boolean;
-  has_cuda_ep: boolean;
 };
 
 /**
@@ -56,19 +55,19 @@ type RuntimeCapabilities = {
  */
 type ProviderResolution = {
   requested: string;
-  used: 'cpu' | 'directml' | 'cuda';
+  used: 'cpu' | 'directml';
   fallback_used: boolean;
   fallback_reason: string;
   policy_reason: string;
 };
 
-type GpuAcceleration = 'auto' | 'direct_ml' | 'cuda' | 'cpu';
+type GpuAcceleration = 'auto' | 'direct_ml' | 'cpu';
 
 // Stable id registry. ids match the `gpu_acceleration` field's
 // serialised values on the Rust side, so the patch wiring continues
-// to write `'auto' | 'direct_ml' | 'cuda' | 'cpu'`. Visible title
+// to write `'auto' | 'direct_ml' | 'cpu'`. Visible title
 // and hint resolve via t() at render time.
-const GPU_OPTION_IDS: GpuAcceleration[] = ['auto', 'direct_ml', 'cuda', 'cpu'];
+const GPU_OPTION_IDS: GpuAcceleration[] = ['auto', 'direct_ml', 'cpu'];
 
 type ExportSummary = {
   path: string;
@@ -99,7 +98,7 @@ export function AdvancedSettings() {
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [gpu, setGpu] = useState<GpuProbe | null>(null);
   // v0.15.5: shipping-runtime EP capability. Drives the "currently
-  // inactive" notice on DML/CUDA rows when the loaded ORT can't
+  // inactive" notice on the DML row when the loaded ORT can't
   // serve the requested provider.
   const [runtimeCaps, setRuntimeCaps] = useState<RuntimeCapabilities | null>(null);
   // What provider will actually run for the current model + GPU pref.
@@ -213,7 +212,7 @@ export function AdvancedSettings() {
   // `has_dml_ep` is now true on most Windows installs. The card copy
   // and per-row notices key off this so the UI never lies about GPU
   // activation.
-  const runtimeHasAnyGpuEp = !!runtimeCaps?.has_dml_ep || !!runtimeCaps?.has_cuda_ep;
+  const runtimeHasAnyGpuEp = !!runtimeCaps?.has_dml_ep;
   const cardDescription = (() => {
     if (!gpu || !runtimeCaps) return t('advanced.gpu.description.checking');
     // Runtime can't serve any GPU EP (e.g. CPU-only build, or DML
@@ -246,24 +245,15 @@ export function AdvancedSettings() {
               // lacks the EP — the user's preference is preserved for
               // when v0.15.6 (Phase B) actually ships DirectML. Disable
               // is reserved for the genuine "no hardware GPU" case so
-              // a non-GPU machine doesn't show a tickable DML/CUDA row
+              // a non-GPU machine doesn't show a tickable DirectML row
               // that can never make sense.
-              // CUDA has never been bundled (the shipping ONNX Runtime
-              // is the DirectML build), so its EP is never available.
-              // Disable the row and say so plainly rather than letting
-              // the user pick an option that silently runs on CPU.
-              const cudaUnavailable =
-                opt === 'cuda' && !!runtimeCaps && !runtimeCaps.has_cuda_ep;
-              const disabled =
-                (!gpu?.has_hardware_gpu && (opt === 'direct_ml' || opt === 'cuda')) ||
-                cudaUnavailable;
+              const disabled = !gpu?.has_hardware_gpu && opt === 'direct_ml';
               const selected = current === opt;
               // The "currently inactive" notice fires when the user
-              // has selected DML/CUDA but the loaded runtime can't
+              // has selected DirectML but the loaded runtime can't
               // serve it.
               const epUnavailable =
-                (opt === 'direct_ml' && runtimeCaps && !runtimeCaps.has_dml_ep) ||
-                (opt === 'cuda' && runtimeCaps && !runtimeCaps.has_cuda_ep);
+                opt === 'direct_ml' && runtimeCaps && !runtimeCaps.has_dml_ep;
               const showInactiveNotice = selected && !!epUnavailable;
               // Spec wording — the user-facing render goes through
               // t('advanced.gpu.inactive_notice'), but the canonical
@@ -305,11 +295,7 @@ export function AdvancedSettings() {
                     </span>
                     <span className="mt-0.5 block text-muted leading-relaxed">
                       {t(`advanced.gpu.options.${opt}.hint` as const)}
-                      {cudaUnavailable
-                        ? ` ${t('advanced.gpu.options.cuda.unavailable')}`
-                        : disabled
-                          ? ` ${t('advanced.gpu.disabled_suffix')}`
-                          : ''}
+                      {disabled ? ` ${t('advanced.gpu.disabled_suffix')}` : ''}
                     </span>
                     {showInactiveNotice && (
                       <span className="mt-1.5 block rounded-input bg-bg-2/60 px-2 py-1 text-[11px] text-muted">
@@ -341,8 +327,6 @@ export function AdvancedSettings() {
                   note = t('advanced.gpu.active.note.no_gpu_hw');
                 else if (r === 'auto_cpu_no_dml_runtime' || r === 'dml_ep_unavailable')
                   note = t('advanced.gpu.active.note.no_gpu_build');
-                else if (r === 'cuda_ep_unavailable')
-                  note = t('advanced.gpu.active.note.cuda_fallback');
                 return note ? (
                   <span className="mt-1 block leading-relaxed text-muted">{note}</span>
                 ) : null;

@@ -238,6 +238,11 @@
         "label": "Vorherige Zwischenablage wiederherstellen",
         "description": "Etwa 1,5 Sekunden nach dem Einfügen wird wieder hergestellt, was zuvor in der Zwischenablage war. Bewahrt deinen Kopierpuffer."
       },
+      "clipboard_restore_delay": {
+        "label": "Verzögerung für die Zwischenablagen-Wiederherstellung",
+        "description": "Warte nach dem Einfügen {{milliseconds}} ms, bevor deine vorherige Zwischenablage wiederhergestellt wird. Eine kürzere Verzögerung ist schneller, aber langsame Apps können das Einfügen verpassen.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Tippen, wenn Einfügen blockiert",
         "description": "Manche Apps (Admin-Tools, Remote-Desktop, einige Spiele) akzeptieren keinen eingefügten Text. Wenn das passiert, tippt Utterbar die Wörter Zeichen für Zeichen ein. Langsamer, erreicht aber Apps, die das Einfügen sonst verwerfen würden. Lass das aktiviert, sofern du keinen Grund dagegen hast."
@@ -430,6 +435,15 @@
         "stop": "Stopp"
       }
     },
+    "capture_tail": {
+      "title": "Aufnahme am Satzende",
+      "description": "Hält die Audioaufnahme nach dem Stoppen kurz geöffnet, damit das letzte Wort nicht abgeschnitten wird.",
+      "delay": {
+        "label": "Verzögerung am Satzende",
+        "description": "Nach dem Stoppen der Aufnahme wird noch {{milliseconds}} ms weiter aufgenommen. Wenn weiter Sprache erkannt wird, kann Utterbar bis zu 1.500 ms weiter aufnehmen, um dein Satzende zu schützen.",
+        "value": "{{milliseconds}} ms"
+      }
+    },
     "noise_handling": {
       "title": "Rauschbehandlung",
       "description": "Bereinigt die Aufnahme, bevor sie zu Parakeet gelangt. Alles hier läuft lokal in unter einer Millisekunde, kein Cloud-Durchgang.",
@@ -610,7 +624,7 @@
       "title": "GPU-Beschleunigung",
       "description": {
         "checking": "Prüfe verfügbare Hardware…",
-        "no_runtime_ep": "Dieser Build läuft nur auf CPU. DirectML und CUDA erscheinen hier, um deine Präferenz für ein zukünftiges Release mit GPU-Unterstützung zu erhalten, haben heute aber keinen Effekt.",
+        "no_runtime_ep": "Dieser Build läuft nur auf CPU. DirectML erscheint hier, um deine Präferenz für ein zukünftiges Release mit GPU-Unterstützung zu erhalten, hat heute aber keinen Effekt.",
         "detected": "{{name}} erkannt. Auto führt Whisper Medium / Large und Parakeet auf der GPU aus, wenn eine vorhanden ist, und behält Whisper Small auf der CPU. Du kannst die Wahl überschreiben, indem du unten einen bestimmten Provider wählst.",
         "no_gpu": "GPU-Beschleunigung ist eingebaut, aber auf diesem Rechner wurde keine dedizierte oder integrierte GPU erkannt. Utterbar läuft auf CPU."
       },
@@ -622,11 +636,6 @@
         "direct_ml": {
           "title": "DirectML",
           "hint": "Bevorzugt DirectML, wenn der Build es enthält. Läuft auf jeder DX12-GPU."
-        },
-        "cuda": {
-          "title": "CUDA",
-          "hint": "Bevorzugt NVIDIA CUDA, wenn der Build es enthält. Am schnellsten auf NVIDIA-Karten.",
-          "unavailable": "Not available in this build."
         },
         "cpu": {
           "title": "Nur CPU",
@@ -645,8 +654,7 @@
         "note": {
           "small_cpu": "Whisper Small stays on CPU here because it is faster than the GPU for short clips. Choose Whisper Medium, Whisper Large, or Parakeet to use your GPU.",
           "no_gpu_hw": "No GPU was detected on this machine.",
-          "no_gpu_build": "This build does not include GPU acceleration.",
-          "cuda_fallback": "CUDA is not included in this build, so dictation runs on CPU."
+          "no_gpu_build": "This build does not include GPU acceleration."
         }
       }
     },

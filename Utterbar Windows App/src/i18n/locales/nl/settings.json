@@ -238,6 +238,11 @@
         "label": "Vorig klembord herstellen",
         "description": "Ongeveer 1,5 seconde na het plakken wordt teruggezet wat eerder op je klembord stond. Houdt je kopieerbuffer intact."
       },
+      "clipboard_restore_delay": {
+        "label": "Vertraging voor klembordherstel",
+        "description": "Wacht {{milliseconds}} ms na het plakken voordat je vorige klembord wordt hersteld. Een kortere vertraging is sneller, maar trage apps kunnen het plakken missen.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Typen als plakken geblokkeerd is",
         "description": "Sommige apps (admintools, extern bureaublad, enkele games) accepteren geen geplakte tekst. Wanneer dat gebeurt, typt Utterbar de woorden teken voor teken. Langzamer, maar bereikt apps die het plakken anders zouden negeren. Laat aan tenzij je een reden hebt om dat niet te doen."
@@ -430,6 +435,15 @@
         "stop": "Stoppen"
       }
     },
+    "capture_tail": {
+      "title": "Opname aan het einde van een zin",
+      "description": "Houdt de audio-opname na het stoppen kort open, zodat het laatste woord niet wordt afgekapt.",
+      "delay": {
+        "label": "Vertraging aan het einde van een zin",
+        "description": "Na het stoppen met opnemen blijft Utterbar {{milliseconds}} ms opnemen. Als er nog spraak wordt gedetecteerd, kan Utterbar tot 1.500 ms doorgaan om het einde van je zin te beschermen.",
+        "value": "{{milliseconds}} ms"
+      }
+    },
     "noise_handling": {
       "title": "Ruisbehandeling",
       "description": "Maakt de opname schoon voordat hij Parakeet bereikt. Alles hier draait lokaal in sub-milliseconde tijd, geen cloud-passage.",
@@ -610,7 +624,7 @@
       "title": "GPU-versnelling",
       "description": {
         "checking": "Controleren welke hardware beschikbaar is…",
-        "no_runtime_ep": "Deze build draait alleen op CPU. DirectML en CUDA verschijnen hier zodat je voorkeur bewaard blijft voor een toekomstige versie die GPU-ondersteuning bevat, maar ze hebben vandaag geen effect.",
+        "no_runtime_ep": "Deze build draait alleen op CPU. DirectML verschijnt hier zodat je voorkeur bewaard blijft voor een toekomstige versie die GPU-ondersteuning bevat, maar het heeft vandaag geen effect.",
         "detected": "{{name}} gedetecteerd. Auto draait Whisper Medium / Large en Parakeet op de GPU wanneer er een aanwezig is, en houdt Whisper Small op CPU. Je kunt de keuze overrulen door hieronder een specifieke provider te kiezen.",
         "no_gpu": "GPU-versnelling is ingebouwd, maar er is op deze machine geen toegewijde of geïntegreerde GPU gedetecteerd. Utterbar draait op CPU."
       },
@@ -622,11 +636,6 @@
         "direct_ml": {
           "title": "DirectML",
           "hint": "Geeft de voorkeur aan DirectML wanneer de build het bevat. Werkt op elke DX12-GPU."
-        },
-        "cuda": {
-          "title": "CUDA",
-          "hint": "Geeft de voorkeur aan NVIDIA CUDA wanneer de build het bevat. Het snelst op NVIDIA-kaarten.",
-          "unavailable": "Not available in this build."
         },
         "cpu": {
           "title": "Alleen CPU",
@@ -645,8 +654,7 @@
         "note": {
           "small_cpu": "Whisper Small stays on CPU here because it is faster than the GPU for short clips. Choose Whisper Medium, Whisper Large, or Parakeet to use your GPU.",
           "no_gpu_hw": "No GPU was detected on this machine.",
-          "no_gpu_build": "This build does not include GPU acceleration.",
-          "cuda_fallback": "CUDA is not included in this build, so dictation runs on CPU."
+          "no_gpu_build": "This build does not include GPU acceleration."
         }
       }
     },

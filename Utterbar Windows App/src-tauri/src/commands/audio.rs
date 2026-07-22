@@ -4,6 +4,7 @@ use tauri::{AppHandle, State};
 use tokio::time::{sleep, Duration};
 
 use crate::app_state::AppState;
+use crate::domain::settings::DEFAULT_CAPTURE_TAIL_PAD_MS;
 use crate::services::audio::{meter, InputDevice};
 use crate::util::result::{CmdResult, OrliqError};
 
@@ -20,14 +21,13 @@ pub async fn start_meter(
     state: State<'_, Arc<AppState>>,
     device_id: Option<String>,
 ) -> CmdResult<()> {
-    let (capture, meta) =
-        state
-            .audio
-            .start_capture(device_id)
-            .await
-            .map_err(|e| OrliqError::Device {
-                message: e.to_string(),
-            })?;
+    let (capture, meta) = state
+        .audio
+        .start_capture(device_id, DEFAULT_CAPTURE_TAIL_PAD_MS)
+        .await
+        .map_err(|e| OrliqError::Device {
+            message: e.to_string(),
+        })?;
     if meta.fallback_reason.is_some() {
         tracing::warn!(
             resolved_device_name = %meta.resolved_device_name,
@@ -53,7 +53,7 @@ pub async fn record_test_clip(
 ) -> CmdResult<TestClip> {
     let _ = state
         .audio
-        .start_capture(device_id)
+        .start_capture(device_id, DEFAULT_CAPTURE_TAIL_PAD_MS)
         .await
         .map_err(|e| OrliqError::Device {
             message: e.to_string(),

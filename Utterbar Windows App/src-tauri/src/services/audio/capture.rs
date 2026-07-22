@@ -13,6 +13,8 @@ use tokio::sync::mpsc;
 use super::InputDevice;
 
 pub const TARGET_RATE: u32 = 16_000;
+pub const MIN_TAIL_PAD_MS: u64 = 250;
+pub const MAX_TAIL_PAD_MS: u64 = 1_500;
 
 /// Safety cap on the in-thread PCM buffer. The cap exists as a leak backstop:
 /// if `stop()` is somehow never called, the buffer must not grow unbounded.
@@ -79,6 +81,7 @@ pub struct CaptureHandle {
     pub frames_rx: tokio::sync::Mutex<mpsc::Receiver<Vec<i16>>>,
     pub meter_rx: tokio::sync::Mutex<mpsc::Receiver<(f32, f32)>>,
     buffer: Arc<Mutex<Vec<i16>>>,
+    tail_pad_ms: u64,
 }
 
 #[derive(Clone)]
@@ -216,7 +219,7 @@ pub fn list_input_devices() -> Result<Vec<InputDevice>> {
     Ok(out)
 }
 
-pub fn start(device_id: Option<&str>) -> Result<(CaptureHandle, CaptureMeta)> {
+pub fn start(device_id: Option<&str>, tail_pad_ms: u32) -> Result<(CaptureHandle, CaptureMeta)> {
     let (frames_tx, frames_rx) = mpsc::channel::<Vec<i16>>(64);
     let (meter_tx, meter_rx) = mpsc::channel::<(f32, f32)>(64);
     let buffer = Arc::new(Mutex::new(Vec::<i16>::with_capacity(
@@ -262,6 +265,7 @@ pub fn start(device_id: Option<&str>) -> Result<(CaptureHandle, CaptureMeta)> {
             frames_rx: tokio::sync::Mutex::new(frames_rx),
             meter_rx: tokio::sync::Mutex::new(meter_rx),
             buffer,
+            tail_pad_ms: clamp_tail_pad_ms(tail_pad_ms),
         },
         meta,
     ))
@@ -529,6 +533,17 @@ impl Drop for CaptureHandle {
 }
 
 impl CaptureHandle {
+    /// Copy buffered samples from `offset` to the current end (empty if
+    /// `offset` is already at/past the end). Lets the live transcriber
+    /// pull just the new audio each poll without disturbing the buffer —
+    /// the full `mem::take` still happens once at `stop`.
+    pub fn snapshot_from(&self, offset: usize) -> Vec<i16> {
+        match self.buffer.lock() {
+            Ok(b) if offset < b.len() => b[offset..].to_vec(),
+            _ => Vec::new(),
+        }
+    }
+
     /// Stop capture and hand back everything we buffered — including the tail.
     ///
     /// We used to just flip the stop flag, sleep 80 ms, and snapshot the buffer. That
@@ -561,14 +576,21 @@ impl CaptureHandle {
     ///     nothing ever drains — the handle drops immediately after this call so
     ///     that allocation is freed within microseconds anyway.
     pub async fn stop(&self) -> CaptureFinal {
-        // Grace tail — keep capturing for a beat past the user's stop gesture.
-        // 500 ms covers the WASAPI capture period, hotkey-release → stop-call
-        // latency, and the typical trailing-syllable / mouth-closing audio a
-        // user expects to be captured after they hit stop. Users reported the
-        // previous 220 ms still dropping the last word on natural sentence
-        // endings; 500 ms removes that without making the stop feel sluggish.
-        const TAIL_PAD_MS: u64 = 500;
-        tokio::time::sleep(std::time::Duration::from_millis(TAIL_PAD_MS)).await;
+        // Keep the capture stream live after the stop gesture. A fixed 500 ms
+        // covers normal WASAPI delivery latency, but a user can still be
+        // finishing a word when that window ends. After the minimum grace,
+        // extend in short steps while the recent PCM tail still contains
+        // speech. The hard cap keeps stop responsive on a noisy microphone.
+        const TAIL_CHECK_MS: u64 = 100;
+        const ACTIVE_WINDOW_MS: u64 = 250;
+
+        tokio::time::sleep(std::time::Duration::from_millis(self.tail_pad_ms)).await;
+        let mut tail_pad_ms = self.tail_pad_ms;
+        while tail_pad_ms < MAX_TAIL_PAD_MS && self.recent_tail_has_speech(ACTIVE_WINDOW_MS) {
+            tokio::time::sleep(std::time::Duration::from_millis(TAIL_CHECK_MS)).await;
+            tail_pad_ms += TAIL_CHECK_MS;
+        }
+        tracing::debug!(tail_pad_ms, "capture stop grace tail complete");
 
         // Flip stop, then give the capture thread time to drop the cpal stream and
         // flush any last-callback frames. 120 ms is empirically enough on WASAPI;
@@ -591,9 +613,48 @@ impl CaptureHandle {
             duration_ms,
         }
     }
+
+    /// True when the most recent PCM window still contains enough energy to
+    /// plausibly be speech. This deliberately inspects the shared buffer in
+    /// place rather than cloning it: `stop` can run after a long recording.
+    fn recent_tail_has_speech(&self, window_ms: u64) -> bool {
+        const SPEECH_RMS_THRESHOLD: f64 = 0.006;
+
+        let Ok(buffer) = self.buffer.lock() else {
+            return false;
+        };
+        let sample_count = ((TARGET_RATE as u64 * window_ms) / 1_000) as usize;
+        let start = buffer.len().saturating_sub(sample_count);
+        let samples = &buffer[start..];
+        if samples.is_empty() {
+            return false;
+        }
+
+        tail_has_speech(samples, SPEECH_RMS_THRESHOLD)
+    }
+}
+
+pub fn clamp_tail_pad_ms(tail_pad_ms: u32) -> u64 {
+    u64::from(tail_pad_ms).clamp(MIN_TAIL_PAD_MS, MAX_TAIL_PAD_MS)
 }
 
 // --- helpers ---
+
+fn tail_has_speech(samples: &[i16], threshold: f64) -> bool {
+    if samples.is_empty() {
+        return false;
+    }
+
+    let mean_square = samples
+        .iter()
+        .map(|sample| {
+            let normalised = *sample as f64 / i16::MAX as f64;
+            normalised * normalised
+        })
+        .sum::<f64>()
+        / samples.len() as f64;
+    mean_square.sqrt() >= threshold
+}
 
 fn downmix_and_resample_f32(data: &[f32], channels: usize, src_rate: u32) -> Vec<i16> {
     let mono: Vec<f32> = if channels == 1 {
@@ -698,6 +759,25 @@ mod tests {
             peak > 0.2,
             "resampled peak collapsed to {peak} (expected > 0.2)"
         );
+    }
+
+    #[test]
+    fn tail_speech_gate_distinguishes_quiet_from_speech_level_audio() {
+        let quiet = vec![100_i16; 4_000];
+        let speech = vec![1_000_i16; 4_000];
+
+        assert!(!tail_has_speech(&quiet, 0.006));
+        assert!(tail_has_speech(&speech, 0.006));
+        assert!(!tail_has_speech(&[], 0.006));
+    }
+
+    #[test]
+    fn tail_pad_clamps_to_the_supported_capture_range() {
+        assert_eq!(clamp_tail_pad_ms(0), MIN_TAIL_PAD_MS);
+        assert_eq!(clamp_tail_pad_ms(250), 250);
+        assert_eq!(clamp_tail_pad_ms(500), 500);
+        assert_eq!(clamp_tail_pad_ms(1_500), 1_500);
+        assert_eq!(clamp_tail_pad_ms(u32::MAX), MAX_TAIL_PAD_MS);
     }
 
     fn pairs(devs: &[&str]) -> Vec<(String, String)> {

@@ -1437,9 +1437,7 @@ function ThemeStep() {
 /**
  * GPU acceleration pick. Only shown when the native probe reports a hardware adapter.
  * Three choices: `auto` (recommended default), `direct_ml` (force GPU), `cpu` (force CPU).
- * CUDA is intentionally hidden here, the catch-all DirectML path works on NVIDIA too
- * and avoids shipping a separate CUDA runtime in v1. Power users can pick CUDA from
- * Settings → Advanced if they want.
+ * DirectML is the only GPU path we ship; it works on any DX12 GPU, NVIDIA included.
  */
 function GpuStep({ gpu }: { gpu: GpuProbeResult | null }) {
   const { t } = useTranslation('onboarding');

@@ -1,4 +1,10 @@
 {
+  "meeting_live": {
+    "title": "Transcripción en vivo",
+    "you": "Tú",
+    "others": "Otros",
+    "waiting": "Escuchando…"
+  },
   "language": {
     "english": "Inglés",
     "es": "Español",

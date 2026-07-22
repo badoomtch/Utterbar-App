@@ -238,6 +238,11 @@
         "label": "Restaurar área de transferência anterior",
         "description": "Cerca de 1,5 segundos depois de colar, repõe o que estava na sua área de transferência antes. Mantém o seu buffer de cópia intacto."
       },
+      "clipboard_restore_delay": {
+        "label": "Atraso para restaurar a área de transferência",
+        "description": "Aguarde {{milliseconds}} ms depois de colar antes de restaurar a área de transferência anterior. Um atraso menor é mais rápido, mas as apps lentas podem não receber a colagem.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Escrever se colar estiver bloqueado",
         "description": "Algumas apps (ferramentas de administração, ambiente de trabalho remoto, alguns jogos) não aceitam texto colado. Quando isso acontece, o Utterbar escreve as palavras um caractere de cada vez. Mais lento, mas chega a apps que de outra forma descartariam o colar. Deixe ativo a menos que tenha uma razão para não o fazer."
@@ -430,6 +435,15 @@
         "stop": "Parar"
       }
     },
+    "capture_tail": {
+      "title": "Captura no fim da frase",
+      "description": "Mantém a captura de áudio aberta brevemente depois de parar, para não cortar a última palavra.",
+      "delay": {
+        "label": "Atraso no fim da frase",
+        "description": "Depois de parar a gravação, continua a captar durante {{milliseconds}} ms. Se ainda for detetada fala, o Utterbar pode continuar até 1.500 ms para proteger o fim da frase.",
+        "value": "{{milliseconds}} ms"
+      }
+    },
     "noise_handling": {
       "title": "Tratamento de ruído",
       "description": "Limpa a gravação antes que chegue ao Parakeet. Tudo aqui corre localmente em tempo abaixo do milissegundo; sem passagem pela nuvem.",
@@ -610,7 +624,7 @@
       "title": "Aceleração GPU",
       "description": {
         "checking": "A verificar o hardware disponível…",
-        "no_runtime_ep": "Este build corre apenas em CPU. DirectML e CUDA aparecem aqui para preservar a sua preferência para uma futura versão com suporte GPU, mas hoje não têm efeito.",
+        "no_runtime_ep": "Este build corre apenas em CPU. DirectML aparece aqui para preservar a sua preferência para uma futura versão com suporte GPU, mas hoje não tem efeito.",
         "detected": "Detetado {{name}}. Auto executa Whisper Medium / Large e Parakeet na GPU quando há uma e mantém Whisper Small na CPU. Pode forçar a escolha selecionando um fornecedor específico abaixo.",
         "no_gpu": "A aceleração GPU está integrada mas não foi detetada nenhuma GPU dedicada ou integrada nesta máquina. O Utterbar correrá em CPU."
       },
@@ -622,11 +636,6 @@
         "direct_ml": {
           "title": "DirectML",
           "hint": "Prefere DirectML quando o build o inclui. Funciona em qualquer GPU DX12."
-        },
-        "cuda": {
-          "title": "CUDA",
-          "hint": "Prefere NVIDIA CUDA quando o build o inclui. Mais rápido em placas NVIDIA.",
-          "unavailable": "Not available in this build."
         },
         "cpu": {
           "title": "Apenas CPU",
@@ -645,8 +654,7 @@
         "note": {
           "small_cpu": "Whisper Small stays on CPU here because it is faster than the GPU for short clips. Choose Whisper Medium, Whisper Large, or Parakeet to use your GPU.",
           "no_gpu_hw": "No GPU was detected on this machine.",
-          "no_gpu_build": "This build does not include GPU acceleration.",
-          "cuda_fallback": "CUDA is not included in this build, so dictation runs on CPU."
+          "no_gpu_build": "This build does not include GPU acceleration."
         }
       }
     },

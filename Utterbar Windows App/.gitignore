@@ -30,6 +30,11 @@ Thumbs.db
 models/
 *.onnx
 *.gguf
+# Exception: the ~629 KB Silero VAD model is a bundled runtime asset
+# (Meeting Mode speech segmentation), shipped in the installer next to
+# the executable. It is committed on purpose, unlike the large
+# downloaded ASR models above.
+!src-tauri/vendor/silero_vad.onnx
 
 # Test / coverage
 coverage/

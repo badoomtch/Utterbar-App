@@ -1,4 +1,10 @@
 {
+  "meeting_live": {
+    "title": "Live transcriptie",
+    "you": "Jij",
+    "others": "Anderen",
+    "waiting": "Aan het luisteren…"
+  },
   "language": {
     "english": "Engels",
     "es": "Español",

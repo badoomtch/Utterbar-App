@@ -2,7 +2,7 @@
 
 /**
  * User-facing GPU acceleration preference. Resolved to a concrete ONNX Runtime
- * provider string (`"cpu"` / `"directml"` / `"cuda"`) by the inference layer,
+ * provider string (`"cpu"` / `"directml"`) by the inference layer,
  * taking the detected GPU hardware into account.
  */
-export type GpuAcceleration = "auto" | "direct_ml" | "cuda" | "cpu";
+export type GpuAcceleration = "auto" | "direct_ml" | "cpu";

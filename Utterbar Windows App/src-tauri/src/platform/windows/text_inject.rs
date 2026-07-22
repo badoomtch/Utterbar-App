@@ -8,12 +8,14 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
-use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND};
+use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND};
 use windows::Win32::System::DataExchange::{
-    CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
-    SetClipboardData,
+    CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData,
+    GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard, SetClipboardData,
 };
-use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+use windows::Win32::System::Memory::{
+    GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
+};
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
@@ -25,6 +27,21 @@ use crate::services::text_inject::Strategy;
 
 // CF_UNICODETEXT from winuser.h — reproduced here so we don't need the Ole feature flag.
 const CF_UNICODETEXT: u32 = 13;
+const MAX_CLIPBOARD_FORMATS: usize = 64;
+const MAX_CLIPBOARD_BYTES: usize = 128 * 1024 * 1024;
+const MIN_CLIPBOARD_RESTORE_DELAY_MS: u64 = 250;
+const MAX_CLIPBOARD_RESTORE_DELAY_MS: u64 = 1_500;
+
+#[derive(Debug)]
+struct ClipboardEntry {
+    format: u32,
+    bytes: Vec<u8>,
+}
+
+#[derive(Debug)]
+struct ClipboardSnapshot {
+    entries: Vec<ClipboardEntry>,
+}
 
 pub fn deliver(text: &str, strategy: Strategy) -> Result<()> {
     if text.is_empty() {
@@ -43,8 +60,9 @@ pub fn deliver(text: &str, strategy: Strategy) -> Result<()> {
     match strategy {
         Strategy::Paste {
             restore_clipboard,
+            clipboard_restore_delay_ms,
             fallback_to_keystrokes,
-        } => match paste_via_clipboard(text, restore_clipboard, fallback_to_keystrokes) {
+        } => match paste_via_clipboard(text, restore_clipboard, clipboard_restore_delay_ms) {
             Ok(()) => Ok(()),
             Err(e) if fallback_to_keystrokes => {
                 tracing::warn!(?e, "paste failed, falling back to keystrokes");
@@ -69,10 +87,7 @@ pub fn shift_is_held() -> bool {
 pub fn send_enter() -> Result<()> {
     let inputs = [vk_event(VK_RETURN, false), vk_event(VK_RETURN, true)];
     let sent = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
-    if sent == 0 {
-        return Err(anyhow!("SendInput(Enter) returned 0"));
-    }
-    Ok(())
+    ensure_all_inputs_sent(sent, inputs.len(), "Enter")
 }
 
 /// Returns `true` when the OS-level foreground window belongs to our own process.
@@ -90,14 +105,15 @@ fn foreground_is_self() -> bool {
     }
 }
 
-fn paste_via_clipboard(text: &str, restore: bool, _detect_failure: bool) -> Result<()> {
+fn paste_via_clipboard(text: &str, restore: bool, restore_delay_ms: u32) -> Result<()> {
     let prior = if restore {
-        read_clipboard_text().ok()
+        snapshot_clipboard_with_retry().ok()
     } else {
         None
     };
 
     set_clipboard_text(text)?;
+    let transcript_sequence = unsafe { GetClipboardSequenceNumber() };
     // Give the OS a beat to let SetClipboardData propagate to listeners before the
     // paste event reads it. 40ms is safe across every app we've tested; 15ms wasn't
     // enough for heavier Electron clients (Discord, VS Code, Slack) on a slow tick,
@@ -113,85 +129,37 @@ fn paste_via_clipboard(text: &str, restore: bool, _detect_failure: bool) -> Resu
     send_ctrl_v()?;
 
     if let Some(prev) = prior {
-        // Restore off-thread, but only after we have evidence the host has
-        // consumed the paste. The previous fixed-500ms timer caused the
-        // "pastes the thing I already had copied" bug when the host's
-        // WM_PASTE handler ran later than 500ms (Office cold start, slow
-        // Electron apps, modal pump): we'd write `prev` back to the
-        // clipboard before the host read it, and the host then pasted the
-        // old value.
-        //
-        // The honest signal we have is the clipboard itself. After Ctrl+V
-        // the host either (a) reads the clipboard and moves on, leaving
-        // our transcript in place, or (b) replaces it (some apps do
-        // copy-on-paste tricks), or (c) the user explicitly copies
-        // something else. Cases (b) and (c) mean we MUST NOT restore —
-        // the clipboard no longer contains our transcript, so writing
-        // `prev` would clobber whatever's there now. Case (a) is the only
-        // one where restoring is safe.
-        //
-        // We poll every 50ms up to 900ms. As soon as the clipboard
-        // contents differ from our transcript, the host has consumed the
-        // paste (or the user moved on) — stop polling and bail without
-        // restoring. If we hit the ceiling with our transcript still on
-        // the clipboard, the host most likely already pasted but didn't
-        // disturb the clipboard (the common case for Office, most
-        // browsers, terminals); it's then safe to write `prev` back.
-        //
-        // The ceiling used to be 2000ms — picked when "Office cold start"
-        // was the worst observed paste-handler latency at ~500ms. Users
-        // reported the original clipboard staying gone for far too long
-        // after every dictation; 2000 → 900 → 600ms in stages. 600ms
-        // gives ~100ms margin over the observed ~500ms cold-start window
-        // while returning the prior clipboard sooner on the typical-host
-        // path (a plain host that doesn't touch the clipboard on paste
-        // holds our transcript for this whole window before we restore).
-        // POLL_MS stays at 50 so an overwrite during the wait is caught
-        // fast. This is the single dial: raise it if a slow host starts
-        // pasting the OLD clipboard; lower it to return the prior
-        // clipboard even faster at the cost of that margin.
-        let our_text = text.to_string();
+        // A paste does not normally mutate the clipboard, so comparing its
+        // text cannot tell us whether the target consumed Ctrl+V. Instead,
+        // wait long enough for slow hosts, then restore only when the
+        // clipboard sequence number still matches the value created for this
+        // transcript. Any new user or application copy, including a non-text
+        // clipboard payload, changes that number and is left alone.
+        let restore_delay_ms = clamp_restore_delay_ms(restore_delay_ms);
         std::thread::spawn(move || {
-            const POLL_MS: u64 = 50;
-            const MAX_MS: u64 = 600;
-            let mut elapsed = 0u64;
-            // Initial settle — the host's paste handler almost always
-            // fires inside this window. Skipping this and polling
-            // immediately can race against fast hosts that consume the
-            // paste in <10ms.
-            sleep(Duration::from_millis(POLL_MS));
-            elapsed += POLL_MS;
-            while elapsed < MAX_MS {
-                match read_clipboard_text() {
-                    Ok(current) if current == our_text => {
-                        // Host hasn't touched the clipboard yet. Wait longer.
-                        sleep(Duration::from_millis(POLL_MS));
-                        elapsed += POLL_MS;
-                    }
-                    Ok(_) => {
-                        // Clipboard changed — host (or user) overwrote our
-                        // transcript. Restoring now would clobber that. Bail.
-                        tracing::info!(
-                            "clipboard restore: skipped, clipboard no longer contains our transcript"
-                        );
-                        return;
-                    }
-                    Err(_) => {
-                        // Couldn't read (another app holding the clipboard,
-                        // transient OpenClipboard failure). Retry next tick.
-                        sleep(Duration::from_millis(POLL_MS));
-                        elapsed += POLL_MS;
-                    }
+            sleep(Duration::from_millis(restore_delay_ms));
+            let current_sequence = unsafe { GetClipboardSequenceNumber() };
+            if should_restore_clipboard(transcript_sequence, current_sequence) {
+                if let Err(e) = restore_clipboard_snapshot(&prev) {
+                    tracing::warn!(?e, "failed to restore clipboard");
                 }
-            }
-            // Hit the ceiling with our transcript still on the clipboard.
-            // Host probably pasted without disturbing it. Safe to restore.
-            if let Err(e) = set_clipboard_text(&prev) {
-                tracing::warn!(?e, "failed to restore clipboard");
+            } else {
+                tracing::info!(
+                    transcript_sequence,
+                    current_sequence,
+                    "clipboard restore skipped because clipboard changed"
+                );
             }
         });
     }
     Ok(())
+}
+
+fn clamp_restore_delay_ms(delay_ms: u32) -> u64 {
+    u64::from(delay_ms).clamp(
+        MIN_CLIPBOARD_RESTORE_DELAY_MS,
+        MAX_CLIPBOARD_RESTORE_DELAY_MS,
+    )
 }
 
 fn send_keystrokes(text: &str) -> Result<()> {
@@ -204,9 +172,7 @@ fn send_keystrokes(text: &str) -> Result<()> {
 
     for chunk in inputs.chunks(64) {
         let sent = unsafe { SendInput(chunk, std::mem::size_of::<INPUT>() as i32) };
-        if sent == 0 {
-            return Err(anyhow!("SendInput returned 0"));
-        }
+        ensure_all_inputs_sent(sent, chunk.len(), "Unicode text")?;
         sleep(Duration::from_millis(1));
     }
     Ok(())
@@ -239,10 +205,21 @@ fn send_ctrl_v() -> Result<()> {
         vk_event(VK_CONTROL, true),
     ];
     let sent = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
-    if sent == 0 {
-        return Err(anyhow!("SendInput(Ctrl+V) returned 0"));
+    ensure_all_inputs_sent(sent, inputs.len(), "Ctrl+V")
+}
+
+fn ensure_all_inputs_sent(sent: u32, expected: usize, operation: &str) -> Result<()> {
+    if sent as usize == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "SendInput({operation}) sent {sent} of {expected} expected events"
+        ))
     }
-    Ok(())
+}
+
+fn should_restore_clipboard(transcript_sequence: u32, current_sequence: u32) -> bool {
+    transcript_sequence != 0 && transcript_sequence == current_sequence
 }
 
 fn vk_event(vk: VIRTUAL_KEY, key_up: bool) -> INPUT {
@@ -313,6 +290,132 @@ pub fn read_clipboard_text() -> Result<String> {
     }
 }
 
+/// Snapshot global-memory clipboard formats so ordinary image copies (DIB,
+/// DIBV5, PNG) can be restored after a transcript paste. Formats backed by
+/// non-global handles are intentionally skipped: copying those handles would
+/// create invalid ownership and can corrupt the source application's data.
+fn snapshot_clipboard_with_retry() -> Result<ClipboardSnapshot> {
+    const ATTEMPTS: usize = 6;
+    const RETRY_DELAY_MS: u64 = 25;
+
+    let mut last_error = None;
+    for attempt in 0..ATTEMPTS {
+        match snapshot_clipboard() {
+            Ok(snapshot) => return Ok(snapshot),
+            Err(error) => {
+                last_error = Some(error);
+                if attempt + 1 < ATTEMPTS {
+                    sleep(Duration::from_millis(RETRY_DELAY_MS));
+                }
+            }
+        }
+    }
+    Err(last_error.expect("clipboard retry has at least one attempt"))
+}
+
+fn snapshot_clipboard() -> Result<ClipboardSnapshot> {
+    let _guard = ClipGuard::open()?;
+    let mut entries = Vec::new();
+    let mut total_bytes = 0usize;
+    let mut format = 0u32;
+
+    loop {
+        format = unsafe { EnumClipboardFormats(format) };
+        if format == 0 {
+            break;
+        }
+        if entries.len() >= MAX_CLIPBOARD_FORMATS {
+            return Err(anyhow!(
+                "clipboard has more than {MAX_CLIPBOARD_FORMATS} formats"
+            ));
+        }
+
+        let handle = match unsafe { GetClipboardData(format) } {
+            Ok(handle) => handle,
+            Err(error) => {
+                tracing::debug!(
+                    format,
+                    ?error,
+                    "clipboard format unavailable during snapshot"
+                );
+                continue;
+            }
+        };
+        let size = unsafe { GlobalSize(HGLOBAL(handle.0)) };
+        if size == 0 {
+            // Bitmap, palette, metafile and delayed-rendering formats are not
+            // HGLOBAL payloads. Common image copies also provide DIB/DIBV5 or
+            // PNG, which are copied below.
+            continue;
+        }
+        total_bytes = total_bytes.saturating_add(size);
+        if total_bytes > MAX_CLIPBOARD_BYTES {
+            return Err(anyhow!(
+                "clipboard exceeds the {} MiB snapshot limit",
+                MAX_CLIPBOARD_BYTES / 1024 / 1024
+            ));
+        }
+
+        let source = unsafe { GlobalLock(HGLOBAL(handle.0)) } as *const u8;
+        if source.is_null() {
+            return Err(anyhow!(
+                "GlobalLock returned null for clipboard format {format}"
+            ));
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(source, size) }.to_vec();
+        let _ = unsafe { GlobalUnlock(HGLOBAL(handle.0)) };
+        entries.push(ClipboardEntry { format, bytes });
+    }
+
+    if entries.is_empty() {
+        return Err(anyhow!("clipboard has no restorable global-memory formats"));
+    }
+    Ok(ClipboardSnapshot { entries })
+}
+
+fn restore_clipboard_snapshot(snapshot: &ClipboardSnapshot) -> Result<()> {
+    let _guard = ClipGuard::open()?;
+    unsafe { EmptyClipboard().map_err(|e| anyhow!("EmptyClipboard: {e}"))? };
+
+    let mut restored = 0usize;
+    for entry in &snapshot.entries {
+        let h_mem: HGLOBAL = unsafe {
+            GlobalAlloc(GMEM_MOVEABLE, entry.bytes.len())
+                .map_err(|e| anyhow!("GlobalAlloc: {e}"))?
+        };
+        let destination = unsafe { GlobalLock(h_mem) } as *mut u8;
+        if destination.is_null() {
+            unsafe {
+                let _ = GlobalFree(h_mem);
+            }
+            return Err(anyhow!("GlobalLock returned null"));
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(entry.bytes.as_ptr(), destination, entry.bytes.len());
+            let _ = GlobalUnlock(h_mem);
+        }
+
+        match unsafe { SetClipboardData(entry.format, HANDLE(h_mem.0)) } {
+            Ok(_) => restored += 1,
+            Err(error) => {
+                unsafe {
+                    let _ = GlobalFree(h_mem);
+                }
+                tracing::warn!(
+                    format = entry.format,
+                    ?error,
+                    "clipboard format restore failed"
+                );
+            }
+        }
+    }
+
+    if restored == 0 {
+        return Err(anyhow!("no clipboard formats could be restored"));
+    }
+    Ok(())
+}
+
 pub fn set_clipboard_text(text: &str) -> Result<()> {
     let mut utf16: Vec<u16> = text.encode_utf16().collect();
     utf16.push(0);
@@ -331,9 +434,60 @@ pub fn set_clipboard_text(text: &str) -> Result<()> {
         std::ptr::copy_nonoverlapping(utf16.as_ptr(), dst, utf16.len());
         let _ = GlobalUnlock(h_mem);
 
-        // Clipboard takes ownership of h_mem on success; don't free it.
-        SetClipboardData(CF_UNICODETEXT, HANDLE(h_mem.0))
-            .map_err(|e| anyhow!("SetClipboardData: {e}"))?;
+        // Clipboard takes ownership of h_mem on success; release it ourselves
+        // on failure.
+        if let Err(error) = SetClipboardData(CF_UNICODETEXT, HANDLE(h_mem.0)) {
+            let _ = GlobalFree(h_mem);
+            return Err(anyhow!("SetClipboardData: {error}"));
+        }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn send_input_requires_every_requested_event() {
+        assert!(ensure_all_inputs_sent(4, 4, "test").is_ok());
+        assert!(ensure_all_inputs_sent(0, 4, "test").is_err());
+        assert!(ensure_all_inputs_sent(3, 4, "test").is_err());
+    }
+
+    #[test]
+    fn clipboard_restore_only_runs_when_sequence_is_unchanged() {
+        assert!(should_restore_clipboard(42, 42));
+        assert!(!should_restore_clipboard(42, 43));
+        assert!(!should_restore_clipboard(0, 0));
+    }
+
+    #[test]
+    fn clipboard_restore_delay_stays_within_the_supported_range() {
+        assert_eq!(clamp_restore_delay_ms(0), 250);
+        assert_eq!(clamp_restore_delay_ms(250), 250);
+        assert_eq!(clamp_restore_delay_ms(750), 750);
+        assert_eq!(clamp_restore_delay_ms(1_500), 1_500);
+        assert_eq!(clamp_restore_delay_ms(9_999), 1_500);
+    }
+
+    #[test]
+    fn clipboard_snapshot_retains_multiple_global_memory_formats() {
+        let snapshot = ClipboardSnapshot {
+            entries: vec![
+                ClipboardEntry {
+                    format: CF_UNICODETEXT,
+                    bytes: vec![1, 0],
+                },
+                ClipboardEntry {
+                    // CF_DIB is the common bitmap payload used by copied images.
+                    format: 8,
+                    bytes: vec![0; 40],
+                },
+            ],
+        };
+
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(snapshot.entries[1].format, 8);
+    }
 }

@@ -87,7 +87,7 @@ impl SherpaParakeet {
         let (encoder, decoder, joiner, tokens) = self.resolve_files()?;
         let file_resolve_ms = resolve_start.elapsed().as_millis() as u64;
 
-        // fp16 encoders only decode sanely on a GPU provider (DirectML / CUDA). On CPU
+        // fp16 encoders only decode sanely on a GPU provider (DirectML). On CPU
         // the ONNX runtime either refuses half-precision kernels or grinds to 0.1x
         // realtime, so we refuse to load the combo with a human-readable error instead
         // of letting the user wait 30 seconds for every utterance.

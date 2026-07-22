@@ -304,6 +304,42 @@ export function AudioSettings() {
         </Card>
 
         <Card
+          title={t('audio.capture_tail.title')}
+          description={t('audio.capture_tail.description')}
+        >
+          <Row
+            label={t('audio.capture_tail.delay.label')}
+            description={t('audio.capture_tail.delay.description', {
+              milliseconds: Number((s.audio as Record<string, unknown>).capture_tail_pad_ms ?? 500),
+            })}
+          >
+            <div className="flex w-full items-center gap-3">
+              <input
+                type="range"
+                min={250}
+                max={1500}
+                step={250}
+                value={Number((s.audio as Record<string, unknown>).capture_tail_pad_ms ?? 500)}
+                onChange={(e) =>
+                  void patch({
+                    audio: {
+                      ...s.audio,
+                      capture_tail_pad_ms: Number(e.target.value),
+                    } as typeof s.audio,
+                  })
+                }
+                className="flex-1"
+              />
+              <span className="w-16 text-right font-mono text-[12px] tabular-nums text-fg-hi">
+                {t('audio.capture_tail.delay.value', {
+                  milliseconds: Number((s.audio as Record<string, unknown>).capture_tail_pad_ms ?? 500),
+                })}
+              </span>
+            </div>
+          </Row>
+        </Card>
+
+        <Card
           title={t('audio.noise_handling.title')}
           description={t('audio.noise_handling.description')}
         >

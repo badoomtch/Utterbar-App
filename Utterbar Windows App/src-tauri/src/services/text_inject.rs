@@ -6,13 +6,13 @@ pub struct TextInjectService;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Strategy {
-    /// Paste via clipboard + Ctrl+V. When `fallback_to_keystrokes` is true and the paste
-    /// appears to have failed (the clipboard still reads our text a moment later, which
-    /// in virtually every app means the host ignored Ctrl+V), retry via per-character
-    /// SendInput so apps that block synthetic Ctrl+V (RDP hosts, some Electron surfaces,
-    /// certain games in focus) still receive the text.
+    /// Paste via clipboard + Ctrl+V. When Windows reports that the paste input could not
+    /// be injected and `fallback_to_keystrokes` is true, retry via per-character SendInput
+    /// so apps that block synthetic Ctrl+V (RDP hosts, some Electron surfaces, certain
+    /// games in focus) still receive the text.
     Paste {
         restore_clipboard: bool,
+        clipboard_restore_delay_ms: u32,
         fallback_to_keystrokes: bool,
     },
     Keystrokes,
