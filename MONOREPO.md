@@ -721,8 +721,8 @@ Website docs were brought into line with v0.7.0 in the post-ship audit:
 ### Superseding release snapshot
 
 - **Last publicly-shipped stable:** `v0.21.0` (2026-07-21). It ships live local Meeting Mode transcription with separate microphone and system-audio tracks, speaker-side labelling, silence-aware chunks, Parakeet v2, and a simplified graphics-provider picker. The stable updater feed serves installer `https://dl.utterbar.com/releases/0.21.0/Utterbar-Setup-0.21.0.exe`, SHA-256 `0032462b3642c31a2968747a00d77b321d041f84ebad60ccf9f95dad36dad568`, 20,573,793 bytes.
-- **Beta channel:** `v0.21.1` (2026-07-22) improves text-insertion failure reporting, clipboard restoration, and final-audio capture. Its installer is `https://dl.utterbar.com/releases/0.21.1/Utterbar-Setup-0.21.1.exe`, SHA-256 `0ca63bf1117f0ac09ef512e543e73bb86dbbaf3bc063c67d4292d345564995aa`, 20,570,760 bytes. It is beta-only, with no announcement and no `latest` tag. `v0.20.11` remains as the historical Meeting Mode beta row.
-- **In-tree version:** `v0.21.1` across the desktop package, Rust crate, lockfile, and Tauri configuration. Tag `v0.21.1` points at the release commit.
+- **Beta channel:** `v0.21.2` (2026-07-22) restores copied images after dictation when clipboard restoration is enabled. Its installer is `https://dl.utterbar.com/releases/0.21.2/Utterbar-Setup-0.21.2.exe`, SHA-256 `ffd1d55d3a272d8d98f6d5d3368377d76c827a1c05150cf3e782940a3b383a4c`, 20,574,630 bytes. It is beta-only, with no announcement and no `latest` tag. `v0.21.1` remains the text-delivery and final-audio reliability beta; `v0.20.11` remains the historical Meeting Mode beta row.
+- **In-tree version:** `v0.21.2` across the desktop package, Rust crate, lockfile, and Tauri configuration. Tag `v0.21.2` points at the release commit.
 - **Distribution:** `/download` presents `v0.21.0`; beta-channel clients remain on the beta feed until they select the stable channel or a newer beta is published.
 
 The historical desktop-app notes below predate this snapshot. Use the four bullets above for current release state.
