@@ -252,6 +252,7 @@ pub enum Accent {
 }
 
 pub const DEFAULT_CAPTURE_TAIL_PAD_MS: u32 = 500;
+pub const KEEP_MODEL_LOADED_FOREVER_SECS: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
@@ -419,7 +420,7 @@ impl Default for ModelSettings {
         Self {
             default_asr_model_id: None,
             default_llm_model_id: None,
-            warm_duration_secs: 120,
+            warm_duration_secs: KEEP_MODEL_LOADED_FOREVER_SECS,
             experimental_models: false,
             whisper_language: "auto".into(),
             meeting_asr_model_id: None,
@@ -1143,6 +1144,19 @@ mod audio_settings_tests {
         let parsed: AudioSettings =
             serde_json::from_value(legacy).expect("legacy audio settings must deserialise");
         assert_eq!(parsed.capture_tail_pad_ms, DEFAULT_CAPTURE_TAIL_PAD_MS);
+    }
+}
+
+#[cfg(test)]
+mod model_settings_tests {
+    use super::*;
+
+    #[test]
+    fn default_model_settings_keep_the_selected_model_loaded() {
+        assert_eq!(
+            ModelSettings::default().warm_duration_secs,
+            KEEP_MODEL_LOADED_FOREVER_SECS
+        );
     }
 }
 

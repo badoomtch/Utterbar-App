@@ -9,10 +9,9 @@
 //! dictation after launch pays the full warm cost — typically
 //! 0.3–4 s, sometimes more on a cold disk or first-DML build.
 //!
-//! Anyone who keeps the warm window enabled (the default 120 s
-//! ships out of the box, and explicit "keep forever" via
-//! `warm_duration_secs == u32::MAX` is the opt-in extreme of the
-//! same lever) wants the model resident at the moment they next
+//! Anyone who keeps the warm window enabled (the default is
+//! `warm_duration_secs == u32::MAX`, which keeps the selected model
+//! resident until the app exits) wants the model ready when they next
 //! dictate. There is no reason to make them wait until first
 //! dictation to pay the cost. Prewarming on app startup turns
 //! their first dictation into a cache-hit fast-path and shifts
@@ -42,7 +41,7 @@
 //!     and swallowed. The first dictation will still attempt
 //!     load through the same path and surface its own error.
 //!   * User-first at launch — waits through a short startup grace
-//!     period, then skips the warm-up if dictation has begun. This
+//!     period, then skips the warm-up if a dictation began during it. This
 //!     prevents a first hotkey press from queuing behind a background
 //!     native model construction task.
 //!   * Meeting-mode model NOT prewarmed — meeting mode is
@@ -114,10 +113,10 @@ pub fn spawn(state: Arc<AppState>, orchestrator: Arc<InferenceOrchestrator>, mod
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(STARTUP_PREWARM_DELAY_SECS)).await;
         if state
-            .recording_in_progress
+            .dictation_started_since_launch
             .load(std::sync::atomic::Ordering::Acquire)
         {
-            tracing::info!(%model_id, "asr_prewarm: skipped because dictation started during startup grace");
+            tracing::info!(%model_id, "asr_prewarm: skipped because dictation began during startup grace");
             return;
         }
         tracing::info!(%model_id, "asr_prewarm: starting");
@@ -148,6 +147,19 @@ mod tests {
     }
 
     #[test]
+    fn launch_prewarm_skips_when_a_dictation_started_during_grace() {
+        let src = include_str!("prewarm.rs");
+        assert!(
+            src.contains("state\n            .dictation_started_since_launch"),
+            "prewarm must check the durable launch-session marker, not only the current recording flag"
+        );
+        assert!(
+            src.contains("skipped because dictation began during startup grace"),
+            "the skip branch must remain observable in logs"
+        );
+    }
+
+    #[test]
     fn no_prewarm_when_warm_duration_is_zero() {
         // `warm_duration_secs == 0` is the explicit "evict
         // immediately after every transcription" opt-out. The
@@ -159,13 +171,10 @@ mod tests {
     }
 
     #[test]
-    fn prewarm_when_default_120s_warm_window_and_default_set() {
-        // The shipped default. Pre-perf this test asserted
-        // `None` because prewarm only fired for u32::MAX. The
-        // perf fix lifts that gate so default users no longer
-        // pay a cold model load on first dictation. The idle
-        // sweeper still evicts the prewarmed model 120 s after
-        // launch if the user never dictates.
+    fn prewarm_when_finite_120s_warm_window_and_default_set() {
+        // A finite warm window still opts into launch prewarm. The
+        // idle sweeper evicts the prewarmed model 120 s after launch
+        // if the user never dictates.
         let s = settings_with(120, Some("sherpa-parakeet-tdt-0.6b-v3-int8"));
         assert_eq!(
             should_prewarm_default(&s),

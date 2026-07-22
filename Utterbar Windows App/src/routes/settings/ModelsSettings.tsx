@@ -131,7 +131,7 @@ export function ModelsSettings() {
   const settings = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
   const warmSecs =
-    (settings?.models as { warm_duration_secs?: number } | undefined)?.warm_duration_secs ?? 120;
+    (settings?.models as { warm_duration_secs?: number } | undefined)?.warm_duration_secs ?? FOREVER;
   // `default_asr_model_id` is the fallback a dictation uses when the active mode
   // hasn't pinned its own model. Before this was only editable per-mode, which
   // meant the natural "set my default model" mental model had no home. Now it
