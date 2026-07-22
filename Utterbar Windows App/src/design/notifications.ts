@@ -45,6 +45,14 @@ export function useSystemNotifications() {
     const errP = listen<string>(EVT.dictationError, (e) => {
       show('Dictation error', typeof e.payload === 'string' ? e.payload : 'Something went wrong');
     });
+    const hotkeyP = listen<string>(EVT.hotkeyRegistrationError, (e) => {
+      show(
+        'Recording shortcut unavailable',
+        typeof e.payload === 'string'
+          ? e.payload
+          : 'Choose a different recording shortcut in Settings > Shortcuts.',
+      );
+    });
     const progP = listen<{ phase: string; model_id: string }>(EVT.modelProgress, (e) => {
       if (e.payload.phase === 'error') {
         show('Model install failed', `Couldn't finish installing ${e.payload.model_id}. Check the Models page for details.`);
@@ -55,6 +63,7 @@ export function useSystemNotifications() {
 
     return () => {
       void errP.then((u) => u()).catch(() => undefined);
+      void hotkeyP.then((u) => u()).catch(() => undefined);
       void progP.then((u) => u()).catch(() => undefined);
     };
   }, [enabled]);

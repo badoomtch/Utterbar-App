@@ -28,6 +28,7 @@ export const EVT = {
   settingsChanged: 'settings:changed',
   shortcutTriggered: 'shortcut:triggered',
   shortcutReleased: 'shortcut:released',
+  hotkeyRegistrationError: 'shortcut:registration-error',
   fileJobProgress: 'file-job:progress',
   trayStartRecording: 'tray:start-recording',
   trayPauseToggled: 'tray:pause-toggled',

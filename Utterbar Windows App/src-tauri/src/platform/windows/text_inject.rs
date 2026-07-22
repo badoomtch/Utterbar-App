@@ -11,7 +11,8 @@ use anyhow::{anyhow, Result};
 use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData,
-    GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard, SetClipboardData,
+    GetClipboardFormatNameW, GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard,
+    SetClipboardData,
 };
 use windows::Win32::System::Memory::{
     GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
@@ -27,6 +28,10 @@ use crate::services::text_inject::Strategy;
 
 // CF_UNICODETEXT from winuser.h — reproduced here so we don't need the Ole feature flag.
 const CF_UNICODETEXT: u32 = 13;
+const CF_TEXT: u32 = 1;
+const CF_OEMTEXT: u32 = 7;
+const CF_DIB: u32 = 8;
+const CF_DIBV5: u32 = 17;
 const MAX_CLIPBOARD_FORMATS: usize = 64;
 const MAX_CLIPBOARD_BYTES: usize = 128 * 1024 * 1024;
 const MIN_CLIPBOARD_RESTORE_DELAY_MS: u64 = 250;
@@ -330,6 +335,15 @@ fn snapshot_clipboard() -> Result<ClipboardSnapshot> {
             ));
         }
 
+        if !format_uses_global_memory(format) {
+            // GetClipboardData can return GDI, metafile and delayed-rendering
+            // handles. Passing any of those to GlobalSize is invalid and, on
+            // current Windows builds, terminates the process with heap
+            // corruption rather than returning zero. Only inspect formats
+            // whose clipboard contract is an HGLOBAL payload.
+            continue;
+        }
+
         let handle = match unsafe { GetClipboardData(format) } {
             Ok(handle) => handle,
             Err(error) => {
@@ -343,9 +357,7 @@ fn snapshot_clipboard() -> Result<ClipboardSnapshot> {
         };
         let size = unsafe { GlobalSize(HGLOBAL(handle.0)) };
         if size == 0 {
-            // Bitmap, palette, metafile and delayed-rendering formats are not
-            // HGLOBAL payloads. Common image copies also provide DIB/DIBV5 or
-            // PNG, which are copied below.
+            // Zero-sized or currently unavailable payloads cannot be copied.
             continue;
         }
         total_bytes = total_bytes.saturating_add(size);
@@ -371,6 +383,22 @@ fn snapshot_clipboard() -> Result<ClipboardSnapshot> {
         return Err(anyhow!("clipboard has no restorable global-memory formats"));
     }
     Ok(ClipboardSnapshot { entries })
+}
+
+/// Returns whether a clipboard format is safe to inspect as an HGLOBAL byte
+/// payload. Image copies commonly provide DIB/DIBV5 and PNG alongside GDI
+/// bitmap handles; we retain the former and deliberately skip the latter.
+fn format_uses_global_memory(format: u32) -> bool {
+    matches!(
+        format,
+        CF_TEXT | CF_OEMTEXT | CF_UNICODETEXT | CF_DIB | CF_DIBV5
+    ) || clipboard_format_name(format).as_deref() == Some("PNG")
+}
+
+fn clipboard_format_name(format: u32) -> Option<String> {
+    let mut name = [0u16; 128];
+    let length = unsafe { GetClipboardFormatNameW(format, &mut name) };
+    (length > 0).then(|| String::from_utf16_lossy(&name[..length as usize]))
 }
 
 fn restore_clipboard_snapshot(snapshot: &ClipboardSnapshot) -> Result<()> {
@@ -489,5 +517,34 @@ mod tests {
 
         assert_eq!(snapshot.entries.len(), 2);
         assert_eq!(snapshot.entries[1].format, 8);
+    }
+
+    #[test]
+    fn clipboard_snapshot_only_reads_known_global_memory_formats() {
+        assert!(format_uses_global_memory(CF_UNICODETEXT));
+        assert!(format_uses_global_memory(CF_DIB));
+        assert!(format_uses_global_memory(CF_DIBV5));
+        assert!(!format_uses_global_memory(2)); // CF_BITMAP is a GDI handle.
+        assert!(!format_uses_global_memory(9)); // CF_PALETTE is a GDI handle.
+        assert!(!format_uses_global_memory(14)); // CF_ENHMETAFILE is not HGLOBAL.
+    }
+
+    #[test]
+    fn clipboard_snapshot_checks_format_before_global_size() {
+        let source = include_str!("text_inject.rs");
+        let snapshot_start = source
+            .find("fn snapshot_clipboard()")
+            .expect("clipboard snapshot must exist");
+        let snapshot = &source[snapshot_start..];
+        let guard = snapshot
+            .find("if !format_uses_global_memory(format)")
+            .expect("snapshot must reject non-HGLOBAL formats");
+        let global_size = snapshot
+            .find("GlobalSize(HGLOBAL(handle.0))")
+            .expect("snapshot must size approved HGLOBAL payloads");
+        assert!(
+            guard < global_size,
+            "clipboard format must be approved before GlobalSize receives its handle"
+        );
     }
 }
