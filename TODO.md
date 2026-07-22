@@ -2,7 +2,7 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-07-22** (v0.21.3 configurable clipboard-delay beta)
+**Last updated: 2026-07-22** (v0.21.4 separate end-of-speech and clipboard-delay controls beta)
 
 ---
 
@@ -11,9 +11,9 @@ Active working list. Keep short. When something ships, move it out of Next actio
 ### Canonical release state
 
 - **Stable channel:** `v0.21.0`, published 2026-07-21. It adds live, two-track Meeting Mode transcription, speaker-side labelling, silence-aware meeting chunks, Parakeet v2, and a simplified graphics-provider picker. SHA-256 `0032462b3642c31a2968747a00d77b321d041f84ebad60ccf9f95dad36dad568`; installer `https://dl.utterbar.com/releases/0.21.0/Utterbar-Setup-0.21.0.exe`, 20,573,793 bytes.
-- **Beta channel:** `v0.21.3` (admin row 99), published 2026-07-22. It adds a 250-1,500 ms clipboard-restoration delay control, retaining 1,500 ms as the conservative default. SHA-256 `9abc98ea2126c1360f208d094f0cd74e17175e3ce3e525b5d0d81a1932bc7eb7`; installer `https://dl.utterbar.com/releases/0.21.3/Utterbar-Setup-0.21.3.exe`, 20,577,828 bytes. Beta-only, with no announcement and no `latest` tag.
-- **Previous beta rows:** `v0.21.2` restores copied images after dictation; `v0.21.1` is the text-delivery and final-audio reliability beta; `v0.20.11` remains the completed Meeting Mode beta-line record.
-- **In-tree app version:** `v0.21.3` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
+- **Beta channel:** `v0.21.4` (admin row 100), published 2026-07-22. It adds a separate 250-1,500 ms end-of-speech capture delay in Settings, Audio, while retaining the configurable clipboard-restoration delay in Settings, Text Output, Delivery. Existing settings default to a balanced 500 ms capture tail; speech detection can extend active capture up to 1,500 ms to protect final words. SHA-256 `a574de740878f1a451edc69b52459e31addfca8a2a6e83ec28ed4f1690e29e59`; installer `https://dl.utterbar.com/releases/0.21.4/Utterbar-Setup-0.21.4.exe`, 20,575,784 bytes. Beta-only, with no announcement and no `latest` tag.
+- **Previous beta rows:** `v0.21.3` adds the configurable clipboard-restoration delay; `v0.21.2` restores copied images after dictation; `v0.21.1` is the text-delivery and final-audio reliability beta; `v0.20.11` remains the completed Meeting Mode beta-line record.
+- **In-tree app version:** `v0.21.4` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
 
 The bullets below preserve the historical release trail. They are not the current release state.
 
