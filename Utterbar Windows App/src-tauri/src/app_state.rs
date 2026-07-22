@@ -79,6 +79,13 @@ pub struct AppState {
     /// the flag is only treated as stale when it has been held for
     /// `RECORDING_STALE_MS` (well past any normal start latency).
     pub recording_in_progress_started_at_ms: std::sync::atomic::AtomicI64,
+    /// Becomes true after the first capture stream successfully arms in this
+    /// app process. Launch prewarm reads this after its grace period: if the
+    /// user dictated during that window, transcription owns the cold load.
+    ///
+    /// This is deliberately one-way. It only coordinates startup work and
+    /// remains true after the first recording stops.
+    pub dictation_started_since_launch: AtomicBool,
     /// Transcribe-in-flight guard. Set when `stop_recording` hands audio
     /// off to the inference orchestrator, cleared when `stop_recording`
     /// returns. `start_recording` rejects while this is true — the user
@@ -415,6 +422,7 @@ impl AppState {
             licence,
             recording_in_progress: AtomicBool::new(false),
             recording_in_progress_started_at_ms: std::sync::atomic::AtomicI64::new(0),
+            dictation_started_since_launch: AtomicBool::new(false),
             transcribe_in_progress: AtomicBool::new(false),
             transcribe_started_at_ms: std::sync::atomic::AtomicI64::new(0),
             start_recording_pending: AtomicBool::new(false),

@@ -1120,6 +1120,9 @@ pub async fn start_recording(
     // `started_at_ms` tag drives the elapsed-time counter on the floating bar, so it has
     // to line up with the moment real audio started flowing, not the moment the command
     // entered.
+    state
+        .dictation_started_since_launch
+        .store(true, std::sync::atomic::Ordering::Release);
     set_phase(
         &handle,
         DictationPhase::Listening {
@@ -2899,6 +2902,12 @@ pub(crate) async fn stop_recording_inner(
         ?reason,
         "dictation::stop_recording enter"
     );
+    // A stop hotkey must be visible immediately. Capture intentionally stays
+    // open for the configured speech tail below, but leaving the pill on
+    // "Recording" during that grace makes a successful stop look ignored.
+    if rec_flag {
+        set_phase(&handle, DictationPhase::Processing).await;
+    }
     // Pull mic and loopback streams separately. Non-meeting-mode paths
     // mix them immediately and continue with the existing single-buffer
     // flow; meeting mode stashes both sides so the chunked transcribe
@@ -2959,13 +2968,6 @@ pub(crate) async fn stop_recording_inner(
         duration_ms = final_.duration_ms,
         "audio captured"
     );
-
-    // Audio is already stopped at this point. Report that immediately,
-    // before any settings, mode, or inference-lock read can await behind a
-    // background model warm-up. Otherwise the bar remains on "Recording"
-    // even though a stop request succeeded, making a slow model load look
-    // like an unresponsive hotkey.
-    set_phase(&handle, DictationPhase::Processing).await;
 
     // Resolve the target model id ONCE, before the cold-load probe, so
     // every downstream consumer (early Warming label, ensure_loaded
@@ -6621,27 +6623,30 @@ mod diarised_helpers_tests {
         );
     }
 
-    /// A successful audio stop must update the pill before reading the
-    /// inference cache. `loaded_model_id()` takes the orchestrator read lock,
-    /// which can wait behind a background warm-up; putting Processing after it
-    /// leaves the user looking at "Recording" after their stop hotkey worked.
+    /// A stop request must update the pill before capture tail draining or any
+    /// inference wait. The tail intentionally keeps recording briefly to
+    /// preserve final words, but it must not make a successful hotkey look
+    /// ignored.
     #[test]
-    fn stop_reports_processing_before_waiting_for_inference_state() {
+    fn stop_reports_processing_before_draining_capture_or_waiting_for_inference() {
         let src = read_source("src-tauri/src/commands/dictation.rs");
         let stop_start = src
             .find("pub(crate) async fn stop_recording_inner(")
             .expect("stop_recording_inner must exist");
         let stop_src = &src[stop_start..];
-        let captured_idx = stop_src
-            .find("\"audio captured\"")
-            .expect("stop path must log captured audio");
-        let processing_idx = stop_src[captured_idx..]
+        let processing_idx = stop_src
             .find("set_phase(&handle, DictationPhase::Processing).await;")
-            .map(|offset| captured_idx + offset)
-            .expect("stop path must report Processing after capture");
+            .expect("stop path must report Processing at stop request");
+        let capture_drain_idx = stop_src
+            .find("state.audio.stop_capture_split().await")
+            .expect("stop path must drain capture");
         let loaded_model_idx = stop_src
             .find("state.inference.loaded_model_id().await")
             .expect("stop path must inspect the loaded model");
+        assert!(
+            processing_idx < capture_drain_idx,
+            "Processing must be emitted before the speech-tail capture drain"
+        );
         assert!(
             processing_idx < loaded_model_idx,
             "Processing must be emitted before loaded_model_id can wait behind a prewarm write lock"
