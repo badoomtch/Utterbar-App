@@ -2,7 +2,7 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-07-22** (v0.22.0 stable promotion)
+**Last updated: 2026-07-22** (v0.23.0 stable hotfix)
 
 ---
 
@@ -10,10 +10,10 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 ### Canonical release state
 
-- **Stable channel:** `v0.22.0` (admin row 101), published 2026-07-22. It promotes the v0.21.1 to v0.21.4 reliability beta line: clearer failed-insertion feedback, copied-image restoration, configurable clipboard restoration timing, and a separate end-of-speech capture delay. SHA-256 `f0fb37760abcd5d5a48b83f2a3cc27868f8c8707b76f4f4902e9234ef393a7b6`; installer `https://dl.utterbar.com/releases/0.22.0/Utterbar-Setup-0.22.0.exe`, 20,582,803 bytes. Published with the normal stable `latest` tag and release announcement; the subscriber list was empty, so no emails were sent.
+- **Stable channel:** `v0.23.0` (admin row 102), published 2026-07-22. Fixes the copied-image clipboard crash that could terminate Utterbar after transcription, reports Processing as soon as capture stops, defers startup warm-up so an immediate dictation remains responsive, and shows a visible warning when Windows cannot register a recording shortcut. SHA-256 `9c87349c1ffec5c90bac3d282aa5d91da6dba0f3ebdd2810cfd14e1eeab9c692`; installer `https://dl.utterbar.com/releases/0.23.0/Utterbar-Setup-0.23.0.exe`, 20,580,468 bytes. Published with the normal stable `latest` tag and release announcement; the subscriber list was empty, so no emails were sent. Supersedes v0.22.0 (row 101).
 - **Beta channel:** `v0.21.4` (admin row 100) remains the most recent server-side beta row. The next beta release will start the v0.22.x beta line.
 - **Previous beta rows:** `v0.21.4` adds the separate 250-1,500 ms end-of-speech capture delay; `v0.21.3` adds the configurable clipboard-restoration delay; `v0.21.2` restores copied images after dictation; `v0.21.1` is the text-delivery and final-audio reliability beta; `v0.20.11` remains the completed Meeting Mode beta-line record.
-- **In-tree app version:** `v0.22.0` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
+- **In-tree app version:** `v0.23.0` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
 
 The bullets below preserve the historical release trail. They are not the current release state.
 
