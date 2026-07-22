@@ -8,12 +8,14 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
-use windows::Win32::Foundation::{HANDLE, HGLOBAL, HWND};
+use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND};
 use windows::Win32::System::DataExchange::{
-    CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardSequenceNumber,
-    IsClipboardFormatAvailable, OpenClipboard, SetClipboardData,
+    CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData,
+    GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard, SetClipboardData,
 };
-use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+use windows::Win32::System::Memory::{
+    GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
+};
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
@@ -25,6 +27,19 @@ use crate::services::text_inject::Strategy;
 
 // CF_UNICODETEXT from winuser.h — reproduced here so we don't need the Ole feature flag.
 const CF_UNICODETEXT: u32 = 13;
+const MAX_CLIPBOARD_FORMATS: usize = 64;
+const MAX_CLIPBOARD_BYTES: usize = 128 * 1024 * 1024;
+
+#[derive(Debug)]
+struct ClipboardEntry {
+    format: u32,
+    bytes: Vec<u8>,
+}
+
+#[derive(Debug)]
+struct ClipboardSnapshot {
+    entries: Vec<ClipboardEntry>,
+}
 
 pub fn deliver(text: &str, strategy: Strategy) -> Result<()> {
     if text.is_empty() {
@@ -89,7 +104,7 @@ fn foreground_is_self() -> bool {
 
 fn paste_via_clipboard(text: &str, restore: bool) -> Result<()> {
     let prior = if restore {
-        read_clipboard_text_with_retry().ok()
+        snapshot_clipboard_with_retry().ok()
     } else {
         None
     };
@@ -122,7 +137,7 @@ fn paste_via_clipboard(text: &str, restore: bool) -> Result<()> {
             sleep(Duration::from_millis(RESTORE_DELAY_MS));
             let current_sequence = unsafe { GetClipboardSequenceNumber() };
             if should_restore_clipboard(transcript_sequence, current_sequence) {
-                if let Err(e) = set_clipboard_text(&prev) {
+                if let Err(e) = restore_clipboard_snapshot(&prev) {
                     tracing::warn!(?e, "failed to restore clipboard");
                 }
             } else {
@@ -265,14 +280,18 @@ pub fn read_clipboard_text() -> Result<String> {
     }
 }
 
-fn read_clipboard_text_with_retry() -> Result<String> {
+/// Snapshot global-memory clipboard formats so ordinary image copies (DIB,
+/// DIBV5, PNG) can be restored after a transcript paste. Formats backed by
+/// non-global handles are intentionally skipped: copying those handles would
+/// create invalid ownership and can corrupt the source application's data.
+fn snapshot_clipboard_with_retry() -> Result<ClipboardSnapshot> {
     const ATTEMPTS: usize = 6;
     const RETRY_DELAY_MS: u64 = 25;
 
     let mut last_error = None;
     for attempt in 0..ATTEMPTS {
-        match read_clipboard_text() {
-            Ok(text) => return Ok(text),
+        match snapshot_clipboard() {
+            Ok(snapshot) => return Ok(snapshot),
             Err(error) => {
                 last_error = Some(error);
                 if attempt + 1 < ATTEMPTS {
@@ -282,6 +301,109 @@ fn read_clipboard_text_with_retry() -> Result<String> {
         }
     }
     Err(last_error.expect("clipboard retry has at least one attempt"))
+}
+
+fn snapshot_clipboard() -> Result<ClipboardSnapshot> {
+    let _guard = ClipGuard::open()?;
+    let mut entries = Vec::new();
+    let mut total_bytes = 0usize;
+    let mut format = 0u32;
+
+    loop {
+        format = unsafe { EnumClipboardFormats(format) };
+        if format == 0 {
+            break;
+        }
+        if entries.len() >= MAX_CLIPBOARD_FORMATS {
+            return Err(anyhow!(
+                "clipboard has more than {MAX_CLIPBOARD_FORMATS} formats"
+            ));
+        }
+
+        let handle = match unsafe { GetClipboardData(format) } {
+            Ok(handle) => handle,
+            Err(error) => {
+                tracing::debug!(
+                    format,
+                    ?error,
+                    "clipboard format unavailable during snapshot"
+                );
+                continue;
+            }
+        };
+        let size = unsafe { GlobalSize(HGLOBAL(handle.0)) };
+        if size == 0 {
+            // Bitmap, palette, metafile and delayed-rendering formats are not
+            // HGLOBAL payloads. Common image copies also provide DIB/DIBV5 or
+            // PNG, which are copied below.
+            continue;
+        }
+        total_bytes = total_bytes.saturating_add(size);
+        if total_bytes > MAX_CLIPBOARD_BYTES {
+            return Err(anyhow!(
+                "clipboard exceeds the {} MiB snapshot limit",
+                MAX_CLIPBOARD_BYTES / 1024 / 1024
+            ));
+        }
+
+        let source = unsafe { GlobalLock(HGLOBAL(handle.0)) } as *const u8;
+        if source.is_null() {
+            return Err(anyhow!(
+                "GlobalLock returned null for clipboard format {format}"
+            ));
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(source, size) }.to_vec();
+        let _ = unsafe { GlobalUnlock(HGLOBAL(handle.0)) };
+        entries.push(ClipboardEntry { format, bytes });
+    }
+
+    if entries.is_empty() {
+        return Err(anyhow!("clipboard has no restorable global-memory formats"));
+    }
+    Ok(ClipboardSnapshot { entries })
+}
+
+fn restore_clipboard_snapshot(snapshot: &ClipboardSnapshot) -> Result<()> {
+    let _guard = ClipGuard::open()?;
+    unsafe { EmptyClipboard().map_err(|e| anyhow!("EmptyClipboard: {e}"))? };
+
+    let mut restored = 0usize;
+    for entry in &snapshot.entries {
+        let h_mem: HGLOBAL = unsafe {
+            GlobalAlloc(GMEM_MOVEABLE, entry.bytes.len())
+                .map_err(|e| anyhow!("GlobalAlloc: {e}"))?
+        };
+        let destination = unsafe { GlobalLock(h_mem) } as *mut u8;
+        if destination.is_null() {
+            unsafe {
+                let _ = GlobalFree(h_mem);
+            }
+            return Err(anyhow!("GlobalLock returned null"));
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(entry.bytes.as_ptr(), destination, entry.bytes.len());
+            let _ = GlobalUnlock(h_mem);
+        }
+
+        match unsafe { SetClipboardData(entry.format, HANDLE(h_mem.0)) } {
+            Ok(_) => restored += 1,
+            Err(error) => {
+                unsafe {
+                    let _ = GlobalFree(h_mem);
+                }
+                tracing::warn!(
+                    format = entry.format,
+                    ?error,
+                    "clipboard format restore failed"
+                );
+            }
+        }
+    }
+
+    if restored == 0 {
+        return Err(anyhow!("no clipboard formats could be restored"));
+    }
+    Ok(())
 }
 
 pub fn set_clipboard_text(text: &str) -> Result<()> {
@@ -302,9 +424,12 @@ pub fn set_clipboard_text(text: &str) -> Result<()> {
         std::ptr::copy_nonoverlapping(utf16.as_ptr(), dst, utf16.len());
         let _ = GlobalUnlock(h_mem);
 
-        // Clipboard takes ownership of h_mem on success; don't free it.
-        SetClipboardData(CF_UNICODETEXT, HANDLE(h_mem.0))
-            .map_err(|e| anyhow!("SetClipboardData: {e}"))?;
+        // Clipboard takes ownership of h_mem on success; release it ourselves
+        // on failure.
+        if let Err(error) = SetClipboardData(CF_UNICODETEXT, HANDLE(h_mem.0)) {
+            let _ = GlobalFree(h_mem);
+            return Err(anyhow!("SetClipboardData: {error}"));
+        }
     }
     Ok(())
 }
@@ -325,5 +450,25 @@ mod tests {
         assert!(should_restore_clipboard(42, 42));
         assert!(!should_restore_clipboard(42, 43));
         assert!(!should_restore_clipboard(0, 0));
+    }
+
+    #[test]
+    fn clipboard_snapshot_retains_multiple_global_memory_formats() {
+        let snapshot = ClipboardSnapshot {
+            entries: vec![
+                ClipboardEntry {
+                    format: CF_UNICODETEXT,
+                    bytes: vec![1, 0],
+                },
+                ClipboardEntry {
+                    // CF_DIB is the common bitmap payload used by copied images.
+                    format: 8,
+                    bytes: vec![0; 40],
+                },
+            ],
+        };
+
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(snapshot.entries[1].format, 8);
     }
 }
