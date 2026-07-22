@@ -94,6 +94,11 @@ describe('AudioSettings i18n source-grep guard', () => {
     expect(SOURCE).toMatch(/audio\.input_device\.live_meter\.label/);
     expect(SOURCE).toMatch(/audio\.input_device\.live_meter\.test/);
     expect(SOURCE).toMatch(/audio\.input_device\.live_meter\.stop/);
+    expect(SOURCE).toMatch(/audio\.capture_tail\.title/);
+    expect(SOURCE).toMatch(/audio\.capture_tail\.description/);
+    expect(SOURCE).toMatch(/audio\.capture_tail\.delay\.label/);
+    expect(SOURCE).toMatch(/audio\.capture_tail\.delay\.description/);
+    expect(SOURCE).toMatch(/audio\.capture_tail\.delay\.value/);
     expect(SOURCE).toMatch(/audio\.noise_handling\.title/);
     expect(SOURCE).toMatch(/audio\.noise_handling\.suppression\.label/);
     expect(SOURCE).toMatch(/audio\.noise_handling\.suppression\.preview_tooltip/);
@@ -153,6 +158,7 @@ describe('AudioSettings i18n source-grep guard', () => {
     const fields = [
       'capture_source',
       'input_device_id',
+      'capture_tail_pad_ms',
       'noise_suppression',
       'noise_gate',
       'dynamic_normalisation',
@@ -164,5 +170,11 @@ describe('AudioSettings i18n source-grep guard', () => {
         `AudioSettings.tsx must keep the settings field name '${field}' intact`,
       ).toBe(true);
     }
+  });
+
+  it('keeps the end-of-speech slider within the supported capture range', () => {
+    expect(SOURCE).toMatch(/min=\{250\}/);
+    expect(SOURCE).toMatch(/max=\{1500\}/);
+    expect(SOURCE).toMatch(/step=\{250\}/);
   });
 });

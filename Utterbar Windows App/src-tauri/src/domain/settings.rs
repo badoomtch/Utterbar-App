@@ -251,6 +251,8 @@ pub enum Accent {
     Custom,
 }
 
+pub const DEFAULT_CAPTURE_TAIL_PAD_MS: u32 = 500;
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/generated/")]
 pub struct AudioSettings {
@@ -276,6 +278,8 @@ pub struct AudioSettings {
     /// Defaults to `Microphone` so existing installs continue to behave identically.
     #[serde(default)]
     pub capture_source: CaptureSource,
+    #[serde(default = "default_capture_tail_pad_ms")]
+    pub capture_tail_pad_ms: u32,
     /// Diagnostic mode: write the raw captured PCM and the post-preprocess
     /// PCM (the exact buffer handed to the ASR) as WAVs under
     /// `%APPDATA%\Utterbar\diagnostics\audio\`. Off by default — only
@@ -285,6 +289,10 @@ pub struct AudioSettings {
     /// drive even if left on.
     #[serde(default)]
     pub diagnostic_audio_dump: bool,
+}
+
+fn default_capture_tail_pad_ms() -> u32 {
+    DEFAULT_CAPTURE_TAIL_PAD_MS
 }
 
 impl Default for AudioSettings {
@@ -298,6 +306,7 @@ impl Default for AudioSettings {
             noise_gate: false,
             input_gain_db: 0.0,
             capture_source: CaptureSource::Microphone,
+            capture_tail_pad_ms: default_capture_tail_pad_ms(),
             diagnostic_audio_dump: false,
         }
     }
@@ -1114,6 +1123,26 @@ mod text_output_tests {
             TextOutputSettings::default().clipboard_restore_delay_ms,
             1_500
         );
+    }
+}
+
+#[cfg(test)]
+mod audio_settings_tests {
+    use super::*;
+
+    #[test]
+    fn capture_tail_defaults_to_half_a_second_for_existing_settings() {
+        let default = AudioSettings::default();
+        assert_eq!(default.capture_tail_pad_ms, DEFAULT_CAPTURE_TAIL_PAD_MS);
+
+        let mut legacy = serde_json::to_value(default).expect("serialise");
+        legacy
+            .as_object_mut()
+            .expect("audio settings object")
+            .remove("capture_tail_pad_ms");
+        let parsed: AudioSettings =
+            serde_json::from_value(legacy).expect("legacy audio settings must deserialise");
+        assert_eq!(parsed.capture_tail_pad_ms, DEFAULT_CAPTURE_TAIL_PAD_MS);
     }
 }
 

@@ -13,6 +13,8 @@ use tokio::sync::mpsc;
 use super::InputDevice;
 
 pub const TARGET_RATE: u32 = 16_000;
+pub const MIN_TAIL_PAD_MS: u64 = 250;
+pub const MAX_TAIL_PAD_MS: u64 = 1_500;
 
 /// Safety cap on the in-thread PCM buffer. The cap exists as a leak backstop:
 /// if `stop()` is somehow never called, the buffer must not grow unbounded.
@@ -79,6 +81,7 @@ pub struct CaptureHandle {
     pub frames_rx: tokio::sync::Mutex<mpsc::Receiver<Vec<i16>>>,
     pub meter_rx: tokio::sync::Mutex<mpsc::Receiver<(f32, f32)>>,
     buffer: Arc<Mutex<Vec<i16>>>,
+    tail_pad_ms: u64,
 }
 
 #[derive(Clone)]
@@ -216,7 +219,7 @@ pub fn list_input_devices() -> Result<Vec<InputDevice>> {
     Ok(out)
 }
 
-pub fn start(device_id: Option<&str>) -> Result<(CaptureHandle, CaptureMeta)> {
+pub fn start(device_id: Option<&str>, tail_pad_ms: u32) -> Result<(CaptureHandle, CaptureMeta)> {
     let (frames_tx, frames_rx) = mpsc::channel::<Vec<i16>>(64);
     let (meter_tx, meter_rx) = mpsc::channel::<(f32, f32)>(64);
     let buffer = Arc::new(Mutex::new(Vec::<i16>::with_capacity(
@@ -262,6 +265,7 @@ pub fn start(device_id: Option<&str>) -> Result<(CaptureHandle, CaptureMeta)> {
             frames_rx: tokio::sync::Mutex::new(frames_rx),
             meter_rx: tokio::sync::Mutex::new(meter_rx),
             buffer,
+            tail_pad_ms: clamp_tail_pad_ms(tail_pad_ms),
         },
         meta,
     ))
@@ -577,13 +581,11 @@ impl CaptureHandle {
         // finishing a word when that window ends. After the minimum grace,
         // extend in short steps while the recent PCM tail still contains
         // speech. The hard cap keeps stop responsive on a noisy microphone.
-        const MIN_TAIL_PAD_MS: u64 = 500;
-        const MAX_TAIL_PAD_MS: u64 = 1_500;
         const TAIL_CHECK_MS: u64 = 100;
         const ACTIVE_WINDOW_MS: u64 = 250;
 
-        tokio::time::sleep(std::time::Duration::from_millis(MIN_TAIL_PAD_MS)).await;
-        let mut tail_pad_ms = MIN_TAIL_PAD_MS;
+        tokio::time::sleep(std::time::Duration::from_millis(self.tail_pad_ms)).await;
+        let mut tail_pad_ms = self.tail_pad_ms;
         while tail_pad_ms < MAX_TAIL_PAD_MS && self.recent_tail_has_speech(ACTIVE_WINDOW_MS) {
             tokio::time::sleep(std::time::Duration::from_millis(TAIL_CHECK_MS)).await;
             tail_pad_ms += TAIL_CHECK_MS;
@@ -630,6 +632,10 @@ impl CaptureHandle {
 
         tail_has_speech(samples, SPEECH_RMS_THRESHOLD)
     }
+}
+
+pub fn clamp_tail_pad_ms(tail_pad_ms: u32) -> u64 {
+    u64::from(tail_pad_ms).clamp(MIN_TAIL_PAD_MS, MAX_TAIL_PAD_MS)
 }
 
 // --- helpers ---
@@ -763,6 +769,15 @@ mod tests {
         assert!(!tail_has_speech(&quiet, 0.006));
         assert!(tail_has_speech(&speech, 0.006));
         assert!(!tail_has_speech(&[], 0.006));
+    }
+
+    #[test]
+    fn tail_pad_clamps_to_the_supported_capture_range() {
+        assert_eq!(clamp_tail_pad_ms(0), MIN_TAIL_PAD_MS);
+        assert_eq!(clamp_tail_pad_ms(250), 250);
+        assert_eq!(clamp_tail_pad_ms(500), 500);
+        assert_eq!(clamp_tail_pad_ms(1_500), 1_500);
+        assert_eq!(clamp_tail_pad_ms(u32::MAX), MAX_TAIL_PAD_MS);
     }
 
     fn pairs(devs: &[&str]) -> Vec<(String, String)> {

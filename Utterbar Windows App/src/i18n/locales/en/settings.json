@@ -435,6 +435,15 @@
         "stop": "Stop"
       }
     },
+    "capture_tail": {
+      "title": "End-of-speech capture",
+      "description": "Keep audio capture open briefly after you stop, so the last word is not cut off.",
+      "delay": {
+        "label": "End-of-speech delay",
+        "description": "After you stop recording, keep capturing for {{milliseconds}} ms. If speech is still detected, Utterbar can continue up to 1,500 ms to protect the end of your sentence.",
+        "value": "{{milliseconds}} ms"
+      }
+    },
     "noise_handling": {
       "title": "Noise handling",
       "description": "Clean up the recording before it reaches Parakeet. Everything here runs locally in sub-millisecond time, there's no cloud pass.",

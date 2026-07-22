@@ -435,6 +435,15 @@
         "stop": "Stoppen"
       }
     },
+    "capture_tail": {
+      "title": "Opname aan het einde van een zin",
+      "description": "Houdt de audio-opname na het stoppen kort open, zodat het laatste woord niet wordt afgekapt.",
+      "delay": {
+        "label": "Vertraging aan het einde van een zin",
+        "description": "Na het stoppen met opnemen blijft Utterbar {{milliseconds}} ms opnemen. Als er nog spraak wordt gedetecteerd, kan Utterbar tot 1.500 ms doorgaan om het einde van je zin te beschermen.",
+        "value": "{{milliseconds}} ms"
+      }
+    },
     "noise_handling": {
       "title": "Ruisbehandeling",
       "description": "Maakt de opname schoon voordat hij Parakeet bereikt. Alles hier draait lokaal in sub-milliseconde tijd, geen cloud-passage.",

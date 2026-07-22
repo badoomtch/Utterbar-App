@@ -435,6 +435,15 @@
         "stop": "Stopp"
       }
     },
+    "capture_tail": {
+      "title": "Aufnahme am Satzende",
+      "description": "Hält die Audioaufnahme nach dem Stoppen kurz geöffnet, damit das letzte Wort nicht abgeschnitten wird.",
+      "delay": {
+        "label": "Verzögerung am Satzende",
+        "description": "Nach dem Stoppen der Aufnahme wird noch {{milliseconds}} ms weiter aufgenommen. Wenn weiter Sprache erkannt wird, kann Utterbar bis zu 1.500 ms weiter aufnehmen, um dein Satzende zu schützen.",
+        "value": "{{milliseconds}} ms"
+      }
+    },
     "noise_handling": {
       "title": "Rauschbehandlung",
       "description": "Bereinigt die Aufnahme, bevor sie zu Parakeet gelangt. Alles hier läuft lokal in unter einer Millisekunde, kein Cloud-Durchgang.",

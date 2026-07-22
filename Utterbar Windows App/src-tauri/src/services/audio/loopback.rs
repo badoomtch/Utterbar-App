@@ -54,6 +54,7 @@ pub struct LoopbackHandle {
     #[allow(dead_code)]
     pub meter_rx: tokio::sync::Mutex<mpsc::Receiver<(f32, f32)>>,
     buffer: Arc<Mutex<Vec<i16>>>,
+    tail_pad_ms: u64,
 }
 
 /// Same safety net as `CaptureHandle::Drop` — if the handle gets dropped without an
@@ -79,8 +80,7 @@ impl LoopbackHandle {
         // Keep collecting briefly after the user stops. The microphone path
         // has the same grace window; without it a final system-audio frame can
         // be lost before WASAPI delivers it to this callback.
-        const TAIL_PAD_MS: u64 = 500;
-        tokio::time::sleep(Duration::from_millis(TAIL_PAD_MS)).await;
+        tokio::time::sleep(Duration::from_millis(self.tail_pad_ms)).await;
         self.stop_flag.store(true, Ordering::Relaxed);
         tokio::time::sleep(Duration::from_millis(120)).await;
         tokio::time::sleep(Duration::from_millis(30)).await;
@@ -98,7 +98,7 @@ impl LoopbackHandle {
     }
 }
 
-pub fn start() -> Result<LoopbackHandle> {
+pub fn start(tail_pad_ms: u32) -> Result<LoopbackHandle> {
     let (frames_tx, frames_rx) = mpsc::channel::<Vec<i16>>(64);
     let (meter_tx, meter_rx) = mpsc::channel::<(f32, f32)>(64);
     let buffer = Arc::new(Mutex::new(Vec::<i16>::with_capacity(
@@ -129,6 +129,7 @@ pub fn start() -> Result<LoopbackHandle> {
         frames_rx: tokio::sync::Mutex::new(frames_rx),
         meter_rx: tokio::sync::Mutex::new(meter_rx),
         buffer,
+        tail_pad_ms: super::capture::clamp_tail_pad_ms(tail_pad_ms),
     })
 }
 

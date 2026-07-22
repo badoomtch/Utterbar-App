@@ -435,6 +435,15 @@
         "stop": "Parar"
       }
     },
+    "capture_tail": {
+      "title": "Captura no fim da frase",
+      "description": "Mantém a captura de áudio aberta brevemente depois de parar, para não cortar a última palavra.",
+      "delay": {
+        "label": "Atraso no fim da frase",
+        "description": "Depois de parar a gravação, continua a captar durante {{milliseconds}} ms. Se ainda for detetada fala, o Utterbar pode continuar até 1.500 ms para proteger o fim da frase.",
+        "value": "{{milliseconds}} ms"
+      }
+    },
     "noise_handling": {
       "title": "Tratamento de ruído",
       "description": "Limpa a gravação antes que chegue ao Parakeet. Tudo aqui corre localmente em tempo abaixo do milissegundo; sem passagem pela nuvem.",

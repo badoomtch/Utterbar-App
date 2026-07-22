@@ -1029,7 +1029,14 @@ pub async fn start_recording(
 
     let mic_capture = if matches!(source, CaptureSource::Microphone | CaptureSource::Mixed) {
         let mic_t = std::time::Instant::now();
-        match state.audio.start_capture(effective_device_id.clone()).await {
+        match state
+            .audio
+            .start_capture(
+                effective_device_id.clone(),
+                settings.audio.capture_tail_pad_ms,
+            )
+            .await
+        {
             Ok((cap_handle, meta)) => {
                 tracing::info!(
                     mic_arm_ms = mic_t.elapsed().as_millis() as u64,
@@ -1080,7 +1087,11 @@ pub async fn start_recording(
 
     #[cfg(windows)]
     if matches!(source, CaptureSource::System | CaptureSource::Mixed) {
-        if let Err(e) = state.audio.start_loopback().await {
+        if let Err(e) = state
+            .audio
+            .start_loopback(settings.audio.capture_tail_pad_ms)
+            .await
+        {
             tracing::error!(error = %e, "audio.start_loopback failed");
             // A mic was already armed — shut it back down so we don't strand a live
             // capture thread when the secondary source failed.

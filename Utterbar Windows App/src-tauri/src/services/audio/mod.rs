@@ -44,6 +44,7 @@ impl AudioService {
     pub async fn start_capture(
         &self,
         device_id: Option<String>,
+        tail_pad_ms: u32,
     ) -> Result<(Arc<CaptureHandle>, capture::CaptureMeta)> {
         // Stop any existing capture first so the cpal stream + audio thread terminate and
         // release the PCM buffer. `.stop()` is idempotent at the thread level.
@@ -51,7 +52,7 @@ impl AudioService {
             tracing::warn!("start_capture: previous capture still active — stopping it first");
             let _ = prev.stop().await;
         }
-        let (handle, meta) = capture::start(device_id.as_deref())?;
+        let (handle, meta) = capture::start(device_id.as_deref(), tail_pad_ms)?;
         let handle = Arc::new(handle);
         *self.inner.write().await = Some(handle.clone());
         Ok((handle, meta))
@@ -60,12 +61,12 @@ impl AudioService {
     /// Start a WASAPI loopback capture (system audio). Windows-only. Same zombie-thread
     /// problem as `start_capture` — we stop any previous loopback before starting a new one.
     #[cfg(windows)]
-    pub async fn start_loopback(&self) -> Result<Arc<loopback::LoopbackHandle>> {
+    pub async fn start_loopback(&self, tail_pad_ms: u32) -> Result<Arc<loopback::LoopbackHandle>> {
         if let Some(prev) = self.loopback_inner.write().await.take() {
             tracing::warn!("start_loopback: previous loopback still active — stopping it first");
             let _ = prev.stop().await;
         }
-        let handle = Arc::new(loopback::start()?);
+        let handle = Arc::new(loopback::start(tail_pad_ms)?);
         *self.loopback_inner.write().await = Some(handle.clone());
         Ok(handle)
     }
