@@ -238,6 +238,11 @@
         "label": "Restore previous clipboard",
         "description": "About 1.5 seconds after pasting, put whatever was on your clipboard before back. Keeps your copy buffer intact."
       },
+      "clipboard_restore_delay": {
+        "label": "Clipboard restore delay",
+        "description": "Wait {{milliseconds}} ms after pasting before restoring your previous clipboard. A lower delay is faster, but slow apps may miss the paste.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Type it out if paste is blocked",
         "description": "Some apps (admin tools, remote desktop, a few games) don't accept pasted text. When that happens, Utterbar types the words in one character at a time instead. Slower, but it reaches apps that would otherwise drop the paste. Leave this on unless you've got a reason not to."

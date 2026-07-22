@@ -238,6 +238,11 @@
         "label": "Vorig klembord herstellen",
         "description": "Ongeveer 1,5 seconde na het plakken wordt teruggezet wat eerder op je klembord stond. Houdt je kopieerbuffer intact."
       },
+      "clipboard_restore_delay": {
+        "label": "Vertraging voor klembordherstel",
+        "description": "Wacht {{milliseconds}} ms na het plakken voordat je vorige klembord wordt hersteld. Een kortere vertraging is sneller, maar trage apps kunnen het plakken missen.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Typen als plakken geblokkeerd is",
         "description": "Sommige apps (admintools, extern bureaublad, enkele games) accepteren geen geplakte tekst. Wanneer dat gebeurt, typt Utterbar de woorden teken voor teken. Langzamer, maar bereikt apps die het plakken anders zouden negeren. Laat aan tenzij je een reden hebt om dat niet te doen."

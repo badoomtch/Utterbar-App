@@ -12,6 +12,7 @@ pub enum Strategy {
     /// games in focus) still receive the text.
     Paste {
         restore_clipboard: bool,
+        clipboard_restore_delay_ms: u32,
         fallback_to_keystrokes: bool,
     },
     Keystrokes,

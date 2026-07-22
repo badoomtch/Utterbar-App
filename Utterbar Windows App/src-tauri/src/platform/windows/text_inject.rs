@@ -29,6 +29,8 @@ use crate::services::text_inject::Strategy;
 const CF_UNICODETEXT: u32 = 13;
 const MAX_CLIPBOARD_FORMATS: usize = 64;
 const MAX_CLIPBOARD_BYTES: usize = 128 * 1024 * 1024;
+const MIN_CLIPBOARD_RESTORE_DELAY_MS: u64 = 250;
+const MAX_CLIPBOARD_RESTORE_DELAY_MS: u64 = 1_500;
 
 #[derive(Debug)]
 struct ClipboardEntry {
@@ -58,8 +60,9 @@ pub fn deliver(text: &str, strategy: Strategy) -> Result<()> {
     match strategy {
         Strategy::Paste {
             restore_clipboard,
+            clipboard_restore_delay_ms,
             fallback_to_keystrokes,
-        } => match paste_via_clipboard(text, restore_clipboard) {
+        } => match paste_via_clipboard(text, restore_clipboard, clipboard_restore_delay_ms) {
             Ok(()) => Ok(()),
             Err(e) if fallback_to_keystrokes => {
                 tracing::warn!(?e, "paste failed, falling back to keystrokes");
@@ -102,7 +105,7 @@ fn foreground_is_self() -> bool {
     }
 }
 
-fn paste_via_clipboard(text: &str, restore: bool) -> Result<()> {
+fn paste_via_clipboard(text: &str, restore: bool, restore_delay_ms: u32) -> Result<()> {
     let prior = if restore {
         snapshot_clipboard_with_retry().ok()
     } else {
@@ -132,9 +135,9 @@ fn paste_via_clipboard(text: &str, restore: bool) -> Result<()> {
         // clipboard sequence number still matches the value created for this
         // transcript. Any new user or application copy, including a non-text
         // clipboard payload, changes that number and is left alone.
+        let restore_delay_ms = clamp_restore_delay_ms(restore_delay_ms);
         std::thread::spawn(move || {
-            const RESTORE_DELAY_MS: u64 = 1_500;
-            sleep(Duration::from_millis(RESTORE_DELAY_MS));
+            sleep(Duration::from_millis(restore_delay_ms));
             let current_sequence = unsafe { GetClipboardSequenceNumber() };
             if should_restore_clipboard(transcript_sequence, current_sequence) {
                 if let Err(e) = restore_clipboard_snapshot(&prev) {
@@ -150,6 +153,13 @@ fn paste_via_clipboard(text: &str, restore: bool) -> Result<()> {
         });
     }
     Ok(())
+}
+
+fn clamp_restore_delay_ms(delay_ms: u32) -> u64 {
+    u64::from(delay_ms).clamp(
+        MIN_CLIPBOARD_RESTORE_DELAY_MS,
+        MAX_CLIPBOARD_RESTORE_DELAY_MS,
+    )
 }
 
 fn send_keystrokes(text: &str) -> Result<()> {
@@ -450,6 +460,15 @@ mod tests {
         assert!(should_restore_clipboard(42, 42));
         assert!(!should_restore_clipboard(42, 43));
         assert!(!should_restore_clipboard(0, 0));
+    }
+
+    #[test]
+    fn clipboard_restore_delay_stays_within_the_supported_range() {
+        assert_eq!(clamp_restore_delay_ms(0), 250);
+        assert_eq!(clamp_restore_delay_ms(250), 250);
+        assert_eq!(clamp_restore_delay_ms(750), 750);
+        assert_eq!(clamp_restore_delay_ms(1_500), 1_500);
+        assert_eq!(clamp_restore_delay_ms(9_999), 1_500);
     }
 
     #[test]

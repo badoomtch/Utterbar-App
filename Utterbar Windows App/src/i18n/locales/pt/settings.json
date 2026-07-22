@@ -238,6 +238,11 @@
         "label": "Restaurar área de transferência anterior",
         "description": "Cerca de 1,5 segundos depois de colar, repõe o que estava na sua área de transferência antes. Mantém o seu buffer de cópia intacto."
       },
+      "clipboard_restore_delay": {
+        "label": "Atraso para restaurar a área de transferência",
+        "description": "Aguarde {{milliseconds}} ms depois de colar antes de restaurar a área de transferência anterior. Um atraso menor é mais rápido, mas as apps lentas podem não receber a colagem.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Escrever se colar estiver bloqueado",
         "description": "Algumas apps (ferramentas de administração, ambiente de trabalho remoto, alguns jogos) não aceitam texto colado. Quando isso acontece, o Utterbar escreve as palavras um caractere de cada vez. Mais lento, mas chega a apps que de outra forma descartariam o colar. Deixe ativo a menos que tenha uma razão para não o fazer."

@@ -65,6 +65,9 @@ describe('TextOutputSettings i18n source-grep guard', () => {
   it('routes a representative row label and description through text_output.* keys', () => {
     expect(SOURCE).toMatch(/text_output\.delivery\.paste_automatically\.label/);
     expect(SOURCE).toMatch(/text_output\.delivery\.paste_automatically\.description/);
+    expect(SOURCE).toMatch(/text_output\.delivery\.clipboard_restore_delay\.label/);
+    expect(SOURCE).toMatch(/text_output\.delivery\.clipboard_restore_delay\.description/);
+    expect(SOURCE).toMatch(/text_output\.delivery\.clipboard_restore_delay\.value/);
     expect(SOURCE).toMatch(/text_output\.formatting\.smart_rewrite\.label/);
     expect(SOURCE).toMatch(/text_output\.formatting\.smart_rewrite\.description/);
     expect(SOURCE).toMatch(/text_output\.formatting\.shift_to_auto_send\.label/);
@@ -80,6 +83,7 @@ describe('TextOutputSettings i18n source-grep guard', () => {
     const fields = [
       'paste_automatically',
       'restore_clipboard',
+      'clipboard_restore_delay_ms',
       'keystroke_fallback',
       'auto_capitalise',
       'trim_trailing_space',
@@ -94,5 +98,13 @@ describe('TextOutputSettings i18n source-grep guard', () => {
         `TextOutputSettings.tsx must keep the settings field name '${field}' intact`,
       ).toBe(true);
     }
+  });
+
+  it('keeps the clipboard restore delay slider within the supported range', () => {
+    expect(SOURCE).toMatch(/type="range"/);
+    expect(SOURCE).toMatch(/min=\{250\}/);
+    expect(SOURCE).toMatch(/max=\{1500\}/);
+    expect(SOURCE).toMatch(/step=\{250\}/);
+    expect(SOURCE).toMatch(/disabled=\{!to\.restore_clipboard\}/);
   });
 });

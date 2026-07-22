@@ -238,6 +238,11 @@
         "label": "Restaurar el portapapeles anterior",
         "description": "Aproximadamente 1,5 segundos después de pegar, vuelve a poner lo que tenías antes en el portapapeles. Mantiene intacto tu búfer de copia."
       },
+      "clipboard_restore_delay": {
+        "label": "Retraso para restaurar el portapapeles",
+        "description": "Espera {{milliseconds}} ms después de pegar antes de restaurar el portapapeles anterior. Un retraso menor es más rápido, pero las apps lentas podrían no registrar el pegado.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Escribir si pegar está bloqueado",
         "description": "Algunas apps (herramientas de administración, escritorio remoto, algunos juegos) no aceptan texto pegado. Cuando ocurre, Utterbar escribe las palabras carácter a carácter en su lugar. Más lento, pero llega a apps que de otro modo descartarían el pegado. Déjalo activado salvo que tengas un motivo para no hacerlo."

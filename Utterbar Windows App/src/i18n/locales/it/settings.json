@@ -238,6 +238,11 @@
         "label": "Ripristina gli appunti precedenti",
         "description": "Circa 1,5 secondi dopo l'incollaggio, rimette ciò che era negli appunti prima. Mantiene intatto il tuo buffer di copia."
       },
+      "clipboard_restore_delay": {
+        "label": "Ritardo di ripristino degli appunti",
+        "description": "Attendi {{milliseconds}} ms dopo l'incollaggio prima di ripristinare gli appunti precedenti. Un ritardo minore è più veloce, ma le app lente potrebbero non ricevere l'incollaggio.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Scrivi se incolla è bloccato",
         "description": "Alcune app (strumenti di amministrazione, desktop remoto, alcuni giochi) non accettano testo incollato. Quando succede, Utterbar scrive le parole un carattere alla volta. Più lento, ma raggiunge le app che altrimenti scarterebbero l'incollaggio. Lascia attivo se non hai un motivo contrario."

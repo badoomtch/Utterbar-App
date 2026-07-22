@@ -238,6 +238,11 @@
         "label": "Vorherige Zwischenablage wiederherstellen",
         "description": "Etwa 1,5 Sekunden nach dem Einfügen wird wieder hergestellt, was zuvor in der Zwischenablage war. Bewahrt deinen Kopierpuffer."
       },
+      "clipboard_restore_delay": {
+        "label": "Verzögerung für die Zwischenablagen-Wiederherstellung",
+        "description": "Warte nach dem Einfügen {{milliseconds}} ms, bevor deine vorherige Zwischenablage wiederhergestellt wird. Eine kürzere Verzögerung ist schneller, aber langsame Apps können das Einfügen verpassen.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Tippen, wenn Einfügen blockiert",
         "description": "Manche Apps (Admin-Tools, Remote-Desktop, einige Spiele) akzeptieren keinen eingefügten Text. Wenn das passiert, tippt Utterbar die Wörter Zeichen für Zeichen ein. Langsamer, erreicht aber Apps, die das Einfügen sonst verwerfen würden. Lass das aktiviert, sofern du keinen Grund dagegen hast."

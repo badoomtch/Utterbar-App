@@ -423,6 +423,8 @@ impl Default for ModelSettings {
 pub struct TextOutputSettings {
     pub paste_automatically: bool,
     pub restore_clipboard: bool,
+    #[serde(default = "default_clipboard_restore_delay_ms")]
+    pub clipboard_restore_delay_ms: u32,
     pub keystroke_fallback: bool,
     pub shift_to_auto_send: bool,
     pub auto_capitalise: bool,
@@ -465,6 +467,10 @@ fn default_auto_space_on_paste() -> bool {
     true
 }
 
+fn default_clipboard_restore_delay_ms() -> u32 {
+    1_500
+}
+
 fn default_numbers_as_digits() -> bool {
     true
 }
@@ -474,6 +480,7 @@ impl Default for TextOutputSettings {
         Self {
             paste_automatically: true,
             restore_clipboard: true,
+            clipboard_restore_delay_ms: default_clipboard_restore_delay_ms(),
             keystroke_fallback: true,
             shift_to_auto_send: false,
             auto_capitalise: true,
@@ -1084,6 +1091,10 @@ mod text_output_tests {
         // Sanity: existing fields still round-trip.
         assert!(parsed.paste_automatically);
         assert!(parsed.numbers_as_digits);
+        assert_eq!(
+            parsed.clipboard_restore_delay_ms, 1_500,
+            "missing clipboard_restore_delay_ms must preserve the conservative default"
+        );
     }
 
     #[test]
@@ -1095,6 +1106,14 @@ mod text_output_tests {
         let json = serde_json::to_string(&t).expect("serialise");
         let parsed: TextOutputSettings = serde_json::from_str(&json).expect("deserialise");
         assert!(parsed.smart_rewrite, "round-trip must preserve true");
+    }
+
+    #[test]
+    fn clipboard_restore_delay_defaults_to_one_and_a_half_seconds() {
+        assert_eq!(
+            TextOutputSettings::default().clipboard_restore_delay_ms,
+            1_500
+        );
     }
 }
 

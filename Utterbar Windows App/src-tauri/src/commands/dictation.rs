@@ -3738,6 +3738,7 @@ pub(crate) async fn stop_recording_inner(
         let strategy = if settings.text_output.paste_automatically {
             crate::services::text_inject::Strategy::Paste {
                 restore_clipboard: settings.text_output.restore_clipboard,
+                clipboard_restore_delay_ms: settings.text_output.clipboard_restore_delay_ms,
                 fallback_to_keystrokes: settings.text_output.keystroke_fallback,
             }
         } else {

@@ -238,6 +238,11 @@
         "label": "Restaurer le presse-papiers précédent",
         "description": "Environ 1,5 seconde après le collage, remet ce qui était dans votre presse-papiers auparavant. Garde votre tampon de copie intact."
       },
+      "clipboard_restore_delay": {
+        "label": "Délai de restauration du presse-papiers",
+        "description": "Attendez {{milliseconds}} ms après le collage avant de restaurer votre presse-papiers précédent. Un délai plus court est plus rapide, mais les apps lentes pourraient manquer le collage.",
+        "value": "{{milliseconds}} ms"
+      },
       "keystroke_fallback": {
         "label": "Taper si le collage est bloqué",
         "description": "Certaines apps (outils admin, bureau distant, quelques jeux) n'acceptent pas le texte collé. Quand cela arrive, Utterbar tape les mots un caractère à la fois. Plus lent, mais atteint les apps qui rejetteraient le collage. Laissez activé sauf raison contraire."
