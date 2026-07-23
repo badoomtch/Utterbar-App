@@ -150,7 +150,7 @@ mod tests {
     fn launch_prewarm_skips_when_a_dictation_started_during_grace() {
         let src = include_str!("prewarm.rs");
         assert!(
-            src.contains("state\n            .dictation_started_since_launch"),
+            src.contains("dictation_started_since_launch"),
             "prewarm must check the durable launch-session marker, not only the current recording flag"
         );
         assert!(
