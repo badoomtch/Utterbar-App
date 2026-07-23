@@ -2,7 +2,7 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-07-22** (v0.24.0 stable release)
+**Last updated: 2026-07-23** (v0.25.0 stable release)
 
 ---
 
@@ -10,10 +10,10 @@ Active working list. Keep short. When something ships, move it out of Next actio
 
 ### Canonical release state
 
-- **Stable channel:** `v0.24.0` (admin row 103), published 2026-07-22. Shows Processing immediately when recording stops while retaining the final audio tail, avoids a redundant launch warm-up competing with the first recording, and keeps the selected speech model loaded until quit by default for new installs. Existing model-retention preferences are unchanged. SHA-256 `d85b92a398433bbe618f13be6d27043e4fa1d8ae931fe54046874f0503cb2f4a`; installer `https://dl.utterbar.com/releases/0.24.0/Utterbar-Setup-0.24.0.exe`, 20,583,970 bytes. Published with the normal stable `latest` tag and release announcement; the subscriber list was empty, so no emails were sent. Supersedes v0.23.0 (row 102).
-- **Beta channel:** `v0.21.4` (admin row 100) remains the most recent server-side beta row. The next beta release will start the v0.22.x beta line.
+- **Stable channel:** `v0.25.0` (admin row 104), published 2026-07-23. Media playback now pauses before microphone capture begins and resumes only if Utterbar successfully paused it. Local logs record Windows media-session discovery and pause or resume outcomes, making a remaining compatibility issue diagnosable without telemetry. SHA-256 `daa293e1428ebb0efdb3ecdb5e46317fd3034425139fbc84e808a5f7774a8006`; installer `https://dl.utterbar.com/releases/0.25.0/Utterbar-Setup-0.25.0.exe`, 20,579,697 bytes. Published with the normal stable `latest` tag and release announcement; the subscriber list was empty, so no emails were sent. Supersedes v0.24.0 (row 103).
+- **Beta channel:** `v0.21.4` (admin row 100) remains the most recent server-side beta row. The next beta release will start the v0.25.x beta line.
 - **Previous beta rows:** `v0.21.4` adds the separate 250-1,500 ms end-of-speech capture delay; `v0.21.3` adds the configurable clipboard-restoration delay; `v0.21.2` restores copied images after dictation; `v0.21.1` is the text-delivery and final-audio reliability beta; `v0.20.11` remains the completed Meeting Mode beta-line record.
-- **In-tree app version:** `v0.24.0` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
+- **In-tree app version:** `v0.25.0` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
 
 The bullets below preserve the historical release trail. They are not the current release state.
 
