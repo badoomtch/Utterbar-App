@@ -10,9 +10,47 @@
 
 use std::sync::Mutex;
 
+/// `pause_playing` and `resume_paused` run on Tokio blocking workers. Those
+/// threads are not guaranteed to have a COM apartment, but Windows media-session
+/// discovery is a WinRT call and needs one before it can reliably see browser and
+/// desktop-player sessions.
+#[cfg(windows)]
+struct ComGuard {
+    initialised_here: bool,
+}
+
+#[cfg(windows)]
+impl ComGuard {
+    fn new() -> Self {
+        use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+
+        let hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        let initialised_here = hr.is_ok();
+        if !initialised_here {
+            tracing::debug!(
+                ?hr,
+                "media session worker is using an existing COM apartment"
+            );
+        }
+        Self { initialised_here }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for ComGuard {
+    fn drop(&mut self) {
+        if self.initialised_here {
+            use windows::Win32::System::Com::CoUninitialize;
+
+            unsafe { CoUninitialize() };
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct PauseReport {
     pub sessions_seen: usize,
+    pub used_current_session_fallback: bool,
     pub playing_sessions: usize,
     pub pause_enabled_sessions: usize,
     pub paused_sessions: usize,
@@ -44,6 +82,7 @@ impl MediaService {
                     }
                     tracing::info!(
                         sessions_seen = report.sessions_seen,
+                        used_current_session_fallback = report.used_current_session_fallback,
                         playing_sessions = report.playing_sessions,
                         pause_enabled_sessions = report.pause_enabled_sessions,
                         paused_sessions = report.paused_sessions,
@@ -101,18 +140,38 @@ fn pause_windows_sessions() -> anyhow::Result<(Vec<String>, PauseReport)> {
         GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
     };
 
+    let _com = ComGuard::new();
     let manager = Mgr::RequestAsync()?.get()?;
     let sessions = manager.GetSessions()?;
     let mut paused = Vec::new();
+    let mut candidates = Vec::with_capacity(sessions.Size()? as usize);
+    for i in 0..sessions.Size()? {
+        if let Ok(session) = sessions.GetAt(i) {
+            candidates.push(session);
+        }
+    }
+
+    // On some Windows builds the global list can be transiently empty even
+    // though the system still exposes its selected playback session. That is
+    // the session a hardware media key would control, so it is the right
+    // single-session fallback for a browser video or music player.
+    let used_current_session_fallback = if candidates.is_empty() {
+        if let Ok(session) = manager.GetCurrentSession() {
+            candidates.push(session);
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
     let mut report = PauseReport {
-        sessions_seen: sessions.Size()? as usize,
+        sessions_seen: candidates.len(),
+        used_current_session_fallback,
         ..PauseReport::default()
     };
 
-    for i in 0..sessions.Size()? {
-        let Ok(session) = sessions.GetAt(i) else {
-            continue;
-        };
+    for session in candidates {
         let Ok(playback_info) = session.GetPlaybackInfo() else {
             continue;
         };
@@ -157,6 +216,7 @@ fn pause_windows_sessions() -> anyhow::Result<(Vec<String>, PauseReport)> {
 fn resume_windows_sessions(ids: &[String]) -> anyhow::Result<usize> {
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager as Mgr;
 
+    let _com = ComGuard::new();
     let manager = Mgr::RequestAsync()?.get()?;
     let sessions = manager.GetSessions()?;
     let mut resumed = 0;
@@ -182,4 +242,32 @@ fn resume_windows_sessions(ids: &[String]) -> anyhow::Result<usize> {
         }
     }
     Ok(resumed)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn media_session_workers_initialise_com_before_querying_windows() {
+        let source = include_str!("media.rs");
+        for function in ["fn pause_windows_sessions()", "fn resume_windows_sessions("] {
+            let start = source
+                .find(function)
+                .expect("media session helper must remain present");
+            let body = &source[start..];
+            let com_init = body
+                .find("let _com = ComGuard::new();")
+                .expect("media session helper must initialise COM");
+            let request = body
+                .find("Mgr::RequestAsync()")
+                .expect("media session helper must request the Windows session manager");
+            assert!(
+                com_init < request,
+                "COM must be initialised before requesting Windows media sessions"
+            );
+        }
+        assert!(
+            source.contains("manager.GetCurrentSession()"),
+            "an empty session list must fall back to Windows' current media session"
+        );
+    }
 }
