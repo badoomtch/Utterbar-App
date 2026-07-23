@@ -904,8 +904,12 @@ pub async fn start_recording(
         settings.privacy.pause_media_while_recording && matches!(source, CaptureSource::Microphone);
     if should_pause_media {
         let media = state.media.clone();
-        tokio::task::spawn_blocking(move || media.pause_playing());
-        media_paused = true;
+        match tokio::task::spawn_blocking(move || media.pause_playing()).await {
+            Ok(report) => {
+                media_paused = report.paused_sessions > 0;
+            }
+            Err(e) => tracing::warn!(error = %e, "media pause worker failed"),
+        }
     }
 
     // Mute Teams / Slack / Discord / Zoom output while recording, so incoming call
@@ -7043,6 +7047,30 @@ mod diarised_helpers_tests {
             "services/mic_mute.rs must keep the feature-on real \
              apply path. Without it, release builds with the \
              feature enabled would compile but silently no-op"
+        );
+    }
+
+    /// Media pause is part of recording startup, not a best-effort task that may
+    /// run after capture has already begun. A future refactor must keep the media
+    /// worker awaited before `start_capture`, otherwise Windows media controls can
+    /// race the microphone and leave music playing through the first dictation.
+    #[test]
+    fn media_pause_completes_before_microphone_capture_starts() {
+        let src = read_source("src-tauri/src/commands/dictation.rs");
+        let production = src
+            .split("#[cfg(test)]")
+            .next()
+            .expect("dictation source must contain its test module boundary");
+        let pause_idx = production
+            .find("spawn_blocking(move || media.pause_playing()).await")
+            .expect("media pause worker must be awaited before capture");
+        let capture_idx = production
+            .find(".start_capture(")
+            .expect("microphone capture start must remain present");
+
+        assert!(
+            pause_idx < capture_idx,
+            "media pause must complete before microphone capture begins"
         );
     }
 }

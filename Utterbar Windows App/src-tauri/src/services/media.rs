@@ -10,6 +10,14 @@
 
 use std::sync::Mutex;
 
+#[derive(Debug, Default)]
+pub struct PauseReport {
+    pub sessions_seen: usize,
+    pub playing_sessions: usize,
+    pub pause_enabled_sessions: usize,
+    pub paused_sessions: usize,
+}
+
 pub struct MediaService {
     // IDs of sessions we paused, so we know exactly which ones to resume. Stored as
     // SourceAppUserModelId strings since that's stable per app across our
@@ -26,17 +34,38 @@ impl MediaService {
 
     /// Pause every session currently in the Playing state. Remembers which ones so
     /// `resume_paused` only touches those.
-    pub fn pause_playing(&self) {
+    pub fn pause_playing(&self) -> PauseReport {
         #[cfg(windows)]
         {
             match pause_windows_sessions() {
-                Ok(ids) => {
+                Ok((ids, report)) => {
                     if let Ok(mut guard) = self.paused_ids.lock() {
                         *guard = ids;
                     }
+                    tracing::info!(
+                        sessions_seen = report.sessions_seen,
+                        playing_sessions = report.playing_sessions,
+                        pause_enabled_sessions = report.pause_enabled_sessions,
+                        paused_sessions = report.paused_sessions,
+                        "media pause attempt completed"
+                    );
+                    report
                 }
-                Err(e) => tracing::warn!(?e, "SMTC pause failed"),
+                Err(e) => {
+                    // A failed query must not leave IDs from an earlier recording behind.
+                    // Otherwise a later stop could restart media that this recording never paused.
+                    if let Ok(mut guard) = self.paused_ids.lock() {
+                        guard.clear();
+                    }
+                    tracing::warn!(?e, "media pause request failed");
+                    PauseReport::default()
+                }
             }
+        }
+
+        #[cfg(not(windows))]
+        {
+            PauseReport::default()
         }
     }
 
@@ -53,15 +82,20 @@ impl MediaService {
             if ids.is_empty() {
                 return;
             }
-            if let Err(e) = resume_windows_sessions(&ids) {
-                tracing::warn!(?e, "SMTC resume failed");
+            match resume_windows_sessions(&ids) {
+                Ok(resumed_sessions) => tracing::info!(
+                    requested_sessions = ids.len(),
+                    resumed_sessions,
+                    "media resume attempt completed"
+                ),
+                Err(e) => tracing::warn!(?e, "media resume request failed"),
             }
         }
     }
 }
 
 #[cfg(windows)]
-fn pause_windows_sessions() -> anyhow::Result<Vec<String>> {
+fn pause_windows_sessions() -> anyhow::Result<(Vec<String>, PauseReport)> {
     use windows::Media::Control::{
         GlobalSystemMediaTransportControlsSessionManager as Mgr,
         GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
@@ -70,6 +104,10 @@ fn pause_windows_sessions() -> anyhow::Result<Vec<String>> {
     let manager = Mgr::RequestAsync()?.get()?;
     let sessions = manager.GetSessions()?;
     let mut paused = Vec::new();
+    let mut report = PauseReport {
+        sessions_seen: sessions.Size()? as usize,
+        ..PauseReport::default()
+    };
 
     for i in 0..sessions.Size()? {
         let Ok(session) = sessions.GetAt(i) else {
@@ -84,6 +122,7 @@ fn pause_windows_sessions() -> anyhow::Result<Vec<String>> {
         if status != Status::Playing {
             continue;
         }
+        report.playing_sessions += 1;
         // Only touch sessions that actually expose a pause command — skips broken /
         // half-registered sources.
         let can_pause = playback_info
@@ -93,6 +132,7 @@ fn pause_windows_sessions() -> anyhow::Result<Vec<String>> {
         if !can_pause {
             continue;
         }
+        report.pause_enabled_sessions += 1;
 
         let Ok(id_hstring) = session.SourceAppUserModelId() else {
             continue;
@@ -104,20 +144,22 @@ fn pause_windows_sessions() -> anyhow::Result<Vec<String>> {
                 let ok = op.get().unwrap_or(false);
                 if ok {
                     paused.push(id);
+                    report.paused_sessions += 1;
                 }
             }
             Err(e) => tracing::debug!(?e, id = %id, "TryPauseAsync failed"),
         }
     }
-    Ok(paused)
+    Ok((paused, report))
 }
 
 #[cfg(windows)]
-fn resume_windows_sessions(ids: &[String]) -> anyhow::Result<()> {
+fn resume_windows_sessions(ids: &[String]) -> anyhow::Result<usize> {
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager as Mgr;
 
     let manager = Mgr::RequestAsync()?.get()?;
     let sessions = manager.GetSessions()?;
+    let mut resumed = 0;
 
     for i in 0..sessions.Size()? {
         let Ok(session) = sessions.GetAt(i) else {
@@ -130,9 +172,14 @@ fn resume_windows_sessions(ids: &[String]) -> anyhow::Result<()> {
         if !ids.iter().any(|x| x == &id) {
             continue;
         }
-        if let Err(e) = session.TryPlayAsync().map(|op| op.get().unwrap_or(false)) {
-            tracing::debug!(?e, id = %id, "TryPlayAsync failed");
+        match session.TryPlayAsync() {
+            Ok(op) => {
+                if op.get().unwrap_or(false) {
+                    resumed += 1;
+                }
+            }
+            Err(e) => tracing::debug!(?e, id = %id, "TryPlayAsync failed"),
         }
     }
-    Ok(())
+    Ok(resumed)
 }
