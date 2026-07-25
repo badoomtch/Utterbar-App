@@ -6,10 +6,8 @@ import { Button } from '@/components/common/Button';
 import { Card, Row } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { ManagedHint } from '@/components/common/ManagedHint';
-import { ProNudge } from '@/components/common/ProNudge';
 import { Toggle } from '@/components/common/Toggle';
 import { invoke } from '@/lib/ipc';
-import { useLicence, isPro } from '@/state/licence';
 import { usePolicy } from '@/state/policy';
 import { useSettings } from '@/state/settings';
 
@@ -25,7 +23,6 @@ export function PrivacySettings() {
   const { t } = useTranslation('settings');
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
-  const licenceStatus = useLicence((x) => x.status);
   const policy = usePolicy((x) => x.snapshot);
   const [paths, setPaths] = useState<DataPaths | null>(null);
 
@@ -34,7 +31,6 @@ export function PrivacySettings() {
   }, []);
 
   if (!s) return null;
-  const pro = isPro(licenceStatus);
   // PrivacySettings is typed end-to-end via `@/generated/PrivacySettings`, but this
   // screen intentionally drives every field through a generic `update(key, value)`
   // helper so the JSX stays flat. Cast once here to a loose index so the per-field
@@ -104,19 +100,10 @@ export function PrivacySettings() {
             description={t('privacy.audio_retention.save_recordings.description')}
           >
             <Toggle
-              checked={pro && Boolean(p.retain_audio)}
+              checked={Boolean(p.retain_audio)}
               onChange={(v) => void update('retain_audio', v)}
-              disabled={!pro}
             />
           </Row>
-          {!pro && (
-            <ProNudge
-              feature={t('privacy.audio_retention.pro_nudge.feature')}
-              description={t('privacy.audio_retention.pro_nudge.description')}
-              dense
-              className="mt-1"
-            />
-          )}
           <Row
             label={t('privacy.audio_retention.delete_after.label')}
             description={t('privacy.audio_retention.delete_after.description')}
@@ -127,7 +114,7 @@ export function PrivacySettings() {
                 min={1}
                 max={90}
                 step={1}
-                disabled={!pro || !p.retain_audio}
+                disabled={!p.retain_audio}
                 value={Number(p.retain_audio_days ?? 14)}
                 onChange={(e) => void update('retain_audio_days', Number(e.target.value))}
                 className="w-40"

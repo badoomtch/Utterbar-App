@@ -28,11 +28,6 @@
 //!   `Settings.audio.capture_source` back to `Microphone` regardless of
 //!   what the user picks. Compliance ask for environments where call /
 //!   meeting audio must not be captured (e.g. healthcare, finance).
-//! - `RequireLicence` (REG_DWORD): 0 or 1. When 1, the dictation entry
-//!   point refuses to operate unless the cached licence reports `Pro`.
-//!   Used in managed deployments where the free tier is not approved
-//!   software — the IT admin pushes a licence to the machine and the
-//!   user can't fall back to the free tier on their own.
 //! - `BlockHistory` (REG_DWORD): 0 or 1. When 1, no new history rows
 //!   are persisted. Existing rows are NOT deleted — the IT admin's
 //!   intent is "stop collecting more", not "destroy the past". Set
@@ -82,12 +77,6 @@ pub struct Policy {
     /// ask for environments that must not capture meeting / call
     /// audio (healthcare, finance, regulated call centres).
     pub block_system_audio: Option<bool>,
-    /// When true, the dictation entry point refuses to operate
-    /// unless the cached licence is `Pro`. Free tier becomes
-    /// unavailable on managed machines. The error surfaces in the
-    /// floating bar UI so the user knows their IT admin is the
-    /// person to ask.
-    pub require_licence: Option<bool>,
     /// When true, new history rows are not persisted. Existing
     /// rows are left untouched — the policy is forward-looking
     /// ("stop collecting more"), not retrospective. The Settings
@@ -131,13 +120,6 @@ impl Policy {
     /// model downloads on this machine?
     pub fn model_downloads_blocked(&self) -> bool {
         self.block_model_downloads.unwrap_or(false)
-    }
-
-    /// Convenience for the dictation entry point: does this machine
-    /// require a Pro licence before any dictation can run? Used to
-    /// short-circuit the free tier on managed deployments.
-    pub fn licence_required(&self) -> bool {
-        self.require_licence.unwrap_or(false)
     }
 
     /// True if this machine should not persist new history rows.
@@ -185,11 +167,9 @@ impl Policy {
             s.audio.capture_source = CaptureSource::Microphone;
         }
         // `block_model_downloads` is consumed directly by the model
-        // service via `Policy::model_downloads_blocked()`. `require_licence`
-        // is consumed by the dictation entry point via
-        // `Policy::licence_required()`. Neither has a Settings field
-        // to mirror into — they gate runtime behaviour, not user
-        // preferences.
+        // service via `Policy::model_downloads_blocked()` — it gates
+        // runtime behaviour, not a user preference, so it has no
+        // Settings field to mirror into.
     }
 
     /// True if any policy is pinned. Used by the UI to show a small
@@ -201,7 +181,6 @@ impl Policy {
             || self.check_updates_automatically.is_some()
             || self.block_model_downloads.is_some()
             || self.block_system_audio.is_some()
-            || self.require_licence.is_some()
             || self.block_history.is_some()
             || self.block_history_export.is_some()
             || self.block_telemetry.is_some()
@@ -235,7 +214,6 @@ fn read_from_registry() -> Policy {
             check_updates_auto = ?policy.check_updates_automatically,
             block_model_downloads = ?policy.block_model_downloads,
             block_system_audio = ?policy.block_system_audio,
-            require_licence = ?policy.require_licence,
             block_history = ?policy.block_history,
             block_history_export = ?policy.block_history_export,
             block_telemetry = ?policy.block_telemetry,
@@ -269,11 +247,6 @@ fn merge_keys(key: &winreg::RegKey, policy: &mut Policy) {
     if policy.block_system_audio.is_none() {
         if let Ok(v) = key.get_value::<u32, _>("BlockSystemAudio") {
             policy.block_system_audio = Some(v != 0);
-        }
-    }
-    if policy.require_licence.is_none() {
-        if let Ok(v) = key.get_value::<u32, _>("RequireLicence") {
-            policy.require_licence = Some(v != 0);
         }
     }
     if policy.block_history.is_none() {
@@ -378,11 +351,6 @@ mod tests {
             ..Default::default()
         }
         .is_active());
-        assert!(Policy {
-            require_licence: Some(true),
-            ..Default::default()
-        }
-        .is_active());
     }
 
     #[test]
@@ -417,21 +385,6 @@ mod tests {
         };
         p.apply_to(&mut s);
         assert_eq!(s.audio.capture_source, CaptureSource::System);
-    }
-
-    #[test]
-    fn licence_required_helper() {
-        assert!(!Policy::default().licence_required());
-        assert!(Policy {
-            require_licence: Some(true),
-            ..Default::default()
-        }
-        .licence_required());
-        assert!(!Policy {
-            require_licence: Some(false),
-            ..Default::default()
-        }
-        .licence_required());
     }
 
     #[test]

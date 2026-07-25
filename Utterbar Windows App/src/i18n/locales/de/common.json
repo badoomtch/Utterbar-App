@@ -51,10 +51,6 @@
     "footer": {
       "strap": "nur lokal"
     },
-    "tier": {
-      "pro": "Pro",
-      "free_cta": "Auf Pro upgraden →"
-    },
     "update_toast": {
       "title": "Update verfügbar",
       "install": "Installieren und neu starten",
@@ -65,24 +61,6 @@
       "post_body": "Du nutzt die neueste Version.",
       "post_link": "Was ist neu →",
       "dismiss_aria": "Schließen"
-    },
-    "upgrade_modal": {
-      "feature_prefix": "ist eine",
-      "pro_word": "Pro",
-      "feature_suffix": "Funktion",
-      "period": {
-        "one_time": "einmalig",
-        "monthly": "pro Monat",
-        "yearly": "pro Jahr"
-      },
-      "not_now": "Nicht jetzt",
-      "upgrade": "Upgraden"
-    },
-    "pro_nudge": {
-      "feature_prefix": "ist eine",
-      "pro_word": "Pro",
-      "feature_suffix": "Funktion.",
-      "learn_more": "Mehr erfahren →"
     },
     "managed_hint": {
       "default": "Von deinem Administrator deaktiviert."

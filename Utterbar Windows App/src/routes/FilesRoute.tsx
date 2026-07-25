@@ -19,11 +19,9 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 import { Button } from '@/components/common/Button';
 import { PageHeader } from '@/components/common/PageHeader';
-import { ProNudge } from '@/components/common/ProNudge';
 import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { cn } from '@/lib/cn';
-import { useLicence, isPro } from '@/state/licence';
 
 type FileJob = {
   id: string;
@@ -185,29 +183,6 @@ export function FilesRoute() {
       console.warn('[utterbar] folder picker failed', e);
     }
   };
-
-  const licenceStatus = useLicence((s) => s.status);
-  const pro = isPro(licenceStatus);
-
-  // Free-tier users see only a ProNudge, the dropzone and job list are
-  // Pro-only surfaces. The backend also rejects `enqueue_file`, so the
-  // worst case is a stale job list from a previous Pro session (harmless).
-  if (!pro) {
-    return (
-      <div className="mx-auto max-w-4xl p-8">
-        <PageHeader
-          title="File transcription"
-          subtitle="Turn any recording into searchable text, locally, with no upload, no token cost, no cloud queue."
-        />
-        <UseCaseStrip />
-        <ProNudge
-          feature="File transcription"
-          description="Drop a meeting recording, a podcast episode, or a voice memo and get a plain-text transcript next to the source file. Same Parakeet model that powers your dictation; nothing leaves your machine."
-          className="mt-6"
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto max-w-4xl p-8">

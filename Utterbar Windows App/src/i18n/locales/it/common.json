@@ -51,10 +51,6 @@
     "footer": {
       "strap": "solo locale"
     },
-    "tier": {
-      "pro": "Pro",
-      "free_cta": "Passa a Pro →"
-    },
     "update_toast": {
       "title": "Aggiornamento disponibile",
       "install": "Installa e riavvia",
@@ -65,24 +61,6 @@
       "post_body": "Sei sull'ultima versione.",
       "post_link": "Vedi le novità →",
       "dismiss_aria": "Chiudi"
-    },
-    "upgrade_modal": {
-      "feature_prefix": "è una",
-      "pro_word": "Pro",
-      "feature_suffix": "funzionalità",
-      "period": {
-        "one_time": "pagamento unico",
-        "monthly": "al mese",
-        "yearly": "all'anno"
-      },
-      "not_now": "Non ora",
-      "upgrade": "Aggiorna"
-    },
-    "pro_nudge": {
-      "feature_prefix": "è una",
-      "pro_word": "Pro",
-      "feature_suffix": "funzionalità.",
-      "learn_more": "Scopri di più →"
     },
     "managed_hint": {
       "default": "Disabilitato dal tuo amministratore."

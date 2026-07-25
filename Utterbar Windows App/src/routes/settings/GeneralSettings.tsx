@@ -1,13 +1,11 @@
-import { useRef, useState } from 'react';
-import { Palette, Sparkles } from 'lucide-react';
+import { useRef } from 'react';
+import { Palette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
-import { UpgradeModal } from '@/components/upgrade/UpgradeModal';
 import { useSettings } from '@/state/settings';
-import { useLicence, isPro } from '@/state/licence';
 import { cn } from '@/lib/cn';
 import { previewProfile, SOUND_PROFILES, type SoundProfileId } from '@/design/sounds';
 import type { AppLanguage } from '@/generated/AppLanguage';
@@ -46,9 +44,6 @@ const APP_LANGUAGES: ReadonlyArray<AppLanguage> = [
 export function GeneralSettings() {
   const s = useSettings((x) => x.data);
   const patch = useSettings((x) => x.patch);
-  const licenceStatus = useLicence((x) => x.status);
-  const pro = isPro(licenceStatus);
-  const [showAccentUpgrade, setShowAccentUpgrade] = useState(false);
   const { t: tSettings } = useTranslation('settings');
   const { t: tCommon } = useTranslation('common');
   // Hidden <input type="color">, clicking the Custom swatch chip opens the
@@ -148,27 +143,13 @@ export function GeneralSettings() {
                   aria-label={a}
                 />
               ))}
-              {/* Custom accent (Pro). For Free users, clicking this swatch
-                  opens the upgrade modal instead of the colour picker, same
-                  click-to-learn pattern used on the Modes page. Pro users
-                  get the native OS colour picker via a hidden input[type=
-                  color]. The swatch itself always previews the user's last
-                  pick (or cyan if they've never picked), giving a hint at
-                  what Pro unlocks without showing a dead grey tile. */}
+              {/* Custom accent. Clicking the swatch opens the native OS
+                  colour picker via a hidden input[type=color]. The swatch
+                  previews the user's last pick (or cyan if never picked). */}
               <button
                 type="button"
-                onClick={() => {
-                  if (!pro) {
-                    setShowAccentUpgrade(true);
-                    return;
-                  }
-                  colorPickerRef.current?.click();
-                }}
-                title={
-                  pro
-                    ? tSettings('general.appearance.custom_accent.title_pro')
-                    : tSettings('general.appearance.custom_accent.title_free')
-                }
+                onClick={() => colorPickerRef.current?.click()}
+                title={tSettings('general.appearance.custom_accent.title_pro')}
                 aria-label={tSettings('general.appearance.custom_accent.aria')}
                 className={cn(
                   'relative flex h-6 w-6 items-center justify-center rounded-full transition-shadow duration-180',
@@ -176,54 +157,33 @@ export function GeneralSettings() {
                     ? 'ring-2 ring-fg-hi ring-offset-2 ring-offset-bg-1'
                     : 'opacity-80 hover:opacity-100',
                 )}
-                style={{ background: pro ? customHex : 'var(--bg-2)' }}
+                style={{ background: customHex }}
               >
-                {pro ? (
-                  <Palette className="h-3 w-3 text-white mix-blend-difference" />
-                ) : (
-                  <Sparkles className="h-3 w-3 text-accent" />
-                )}
+                <Palette className="h-3 w-3 text-white mix-blend-difference" />
               </button>
-              {pro && (
-                <input
-                  ref={colorPickerRef}
-                  type="color"
-                  // Hidden but focusable, we drive the click from the
-                  // swatch above. `aria-hidden` because the swatch is the
-                  // accessible affordance.
-                  aria-hidden
-                  tabIndex={-1}
-                  className="pointer-events-none absolute h-0 w-0 opacity-0"
-                  value={customHex}
-                  onChange={(e) => {
-                    // Patch both fields in one go so the backend sees a
-                    // coherent "custom + hex" update. A two-step patch
-                    // (accent=custom, then hex) briefly flashes the last-
-                    // known hex before the new one lands.
-                    void patch({
-                      general: {
-                        ...s.general,
-                        accent: 'custom',
-                        custom_accent_hex: e.target.value.toUpperCase(),
-                      },
-                    });
-                  }}
-                />
-              )}
+              <input
+                ref={colorPickerRef}
+                type="color"
+                // Hidden but focusable, we drive the click from the
+                // swatch above. `aria-hidden` because the swatch is the
+                // accessible affordance.
+                aria-hidden
+                tabIndex={-1}
+                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                value={customHex}
+                onChange={(e) => {
+                  void patch({
+                    general: {
+                      ...s.general,
+                      accent: 'custom',
+                      custom_accent_hex: e.target.value.toUpperCase(),
+                    },
+                  });
+                }}
+              />
             </div>
           </Row>
         </Card>
-        <UpgradeModal
-          open={showAccentUpgrade}
-          onClose={() => setShowAccentUpgrade(false)}
-          feature={tSettings('general.upgrade.custom_accent.feature')}
-          description={tSettings('general.upgrade.custom_accent.description')}
-          bullets={[
-            tSettings('general.upgrade.custom_accent.bullets.any_hex'),
-            tSettings('general.upgrade.custom_accent.bullets.auto_tint_shade'),
-            tSettings('general.upgrade.custom_accent.bullets.presets_free'),
-          ]}
-        />
 
         <Card title={tSettings('general.app_language.label')}>
           {/* Stacked layout instead of Row's side-by-side. With seven

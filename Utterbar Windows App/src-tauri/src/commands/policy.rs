@@ -51,10 +51,6 @@ pub struct PolicySnapshot {
     /// True if `BlockSystemAudio` is set. The audio capture-source
     /// picker uses this to disable System / Mixed.
     pub system_audio_blocked: bool,
-    /// True if `RequireLicence` is set. The licence panel uses this
-    /// to surface a tighter "your IT admin manages this" message
-    /// rather than the generic free-tier copy.
-    pub licence_required: bool,
     /// True if `BlockHistory` is set. New history rows are not
     /// persisted; the History page renders the existing rows but
     /// the Privacy panel surfaces a disabled hint on the relevant
@@ -80,7 +76,6 @@ pub fn policy_snapshot(state: State<'_, Arc<AppState>>) -> CmdResult<PolicySnaps
         check_updates_pinned: p.check_updates_automatically.is_some(),
         model_downloads_blocked: p.model_downloads_blocked(),
         system_audio_blocked: p.block_system_audio.unwrap_or(false),
-        licence_required: p.licence_required(),
         history_blocked: p.history_blocked(),
         history_export_blocked: p.history_export_blocked(),
         telemetry_blocked: p.telemetry_blocked(),

@@ -2,7 +2,6 @@ import type { TFunction } from 'i18next';
 import {
   Accessibility,
   Info,
-  KeyRound,
   Keyboard,
   Mic,
   Minimize2,
@@ -249,25 +248,6 @@ const SECTIONS: readonly SectionSpec[] = [
       export_data: ['export', 'export data', 'export settings', 'backup'],
       import_backup: ['import', 'import backup', 'import settings', 'restore'],
       reset_settings: ['reset', 'reset settings', 'factory reset', 'defaults'],
-    },
-  },
-  {
-    to: '/settings/licence',
-    id: 'licence',
-    icon: KeyRound,
-    keywords: ['license', 'tier', 'free'],
-    matches: {
-      activate_pro: ['activate', 'activation', 'pro', 'upgrade', 'enter key'],
-      licence_key: ['licence key', 'license key', 'key'],
-      devices: ['devices', 'machines', 'seats', 'device cap'],
-      managed_licence_bin: ['managed', 'licence.bin', 'license.bin', 'fleet', 'b2b', 'enterprise'],
-      air_gapped_activation: [
-        'air-gapped',
-        'air gapped',
-        'airgapped',
-        'offline activation',
-        'no internet',
-      ],
     },
   },
   {

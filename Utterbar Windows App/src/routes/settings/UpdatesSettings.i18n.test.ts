@@ -55,21 +55,6 @@ describe('UpdatesSettings i18n source-grep guard', () => {
       '"What\'s new in this version"',
       "'Release notes for the version you're running.",
       'No release notes bundled for this version.',
-      // Release-email card props.
-      'title="Release updates"',
-      'description="Get a short email when a new Utterbar',
-      'label="Email me when there\'s a new release"',
-      // ReleaseEmailCard subscribe form / status literals.
-      'placeholder="you@example.com"',
-      "? 'Sending…' : 'Subscribe'",
-      // Subscribed-as banner: the pre-localisation `Subscribed as ${current}`
-      // shape + the Change-email button JSX text.
-      '>Subscribed as ',
-      '>Change email<',
-      // Inline error messages — these now live in the catalogue.
-      "'Enter your email to subscribe.'",
-      "That doesn't look like an email address",
-      "Couldn't reach the server.",
     ];
     for (const literal of forbidden) {
       expect(
@@ -102,71 +87,42 @@ describe('UpdatesSettings i18n source-grep guard', () => {
     expect(SOURCE).toMatch(/updates\.release_notes\.title_fallback/);
     expect(SOURCE).toMatch(/updates\.release_notes\.description/);
     expect(SOURCE).toMatch(/updates\.release_notes\.empty/);
-    expect(SOURCE).toMatch(/updates\.release_email\.title/);
-    expect(SOURCE).toMatch(/updates\.release_email\.description/);
-    expect(SOURCE).toMatch(/updates\.release_email\.row\.label/);
-    expect(SOURCE).toMatch(/updates\.release_email\.row\.description/);
-    expect(SOURCE).toMatch(/updates\.release_email\.input_placeholder/);
-    expect(SOURCE).toMatch(/updates\.release_email\.subscribe/);
-    expect(SOURCE).toMatch(/updates\.release_email\.sending/);
-    expect(SOURCE).toMatch(/updates\.release_email\.subscribed_as/);
-    expect(SOURCE).toMatch(/updates\.release_email\.change_email/);
-    expect(SOURCE).toMatch(/updates\.release_email\.errors\.empty/);
-    expect(SOURCE).toMatch(/updates\.release_email\.errors\.invalid/);
-    expect(SOURCE).toMatch(/updates\.release_email\.errors\.fallback/);
   });
 
   it('passes interpolation values through t() at the call sites', () => {
     // Pin every interpolated key + the variable-name shape it expects.
     // The check-now description carries both `current` and `available`;
-    // the release-notes title carries `version`; the subscribed-as
-    // banner carries `email`. A future regression that drops any
-    // argument fails at build time, not by leaking a literal mustache
-    // template to users.
+    // the release-notes title carries `version`. A future regression
+    // that drops any argument fails at build time, not by leaking a
+    // literal mustache template to users.
     expect(SOURCE).toMatch(
       /updates\.channel\.check_now\.description_available['"][\s\S]{0,120}current:[\s\S]{0,40}available:/,
     );
     expect(SOURCE).toMatch(
       /updates\.release_notes\.title_with_version['"][\s\S]{0,80}version/,
     );
-    expect(SOURCE).toMatch(
-      /updates\.release_email\.subscribed_as['"][\s\S]{0,80}email:/,
-    );
   });
 
-  it('keeps backend-emitted updater feed and subscription values verbatim', () => {
+  it('keeps backend-emitted updater feed values verbatim', () => {
     // updateInfo.current and updateInfo.available are version strings
     // emitted by the Rust updater feed. The bundled release-notes
-    // markdown comes from `current_release_notes`. The server-returned
-    // subscription `msg` is backend prose. The OrliqError envelope's
-    // `message` field is also backend prose. None of these strings
-    // are wrapped in t(); they flow through verbatim. Pin the
-    // structural usages positively, plus a couple of negative pins.
+    // markdown comes from `current_release_notes`. None of these
+    // strings are wrapped in t(); they flow through verbatim. Pin the
+    // structural usages positively.
     expect(SOURCE).toMatch(/updateInfo\?\.current/);
     expect(SOURCE).toMatch(/updateInfo\.available/);
     expect(SOURCE).toMatch(/setNotes\(/);
     // The release-notes <ReleaseNotes md={notes} /> call: notes flow
     // straight through from Rust to the inline markdown renderer.
     expect(SOURCE).toMatch(/<ReleaseNotes md=\{notes\}/);
-    // Server-returned subscription message: status text comes from
-    // `msg` (Rust string return value).
-    expect(SOURCE).toMatch(/text:\s*msg\b/);
-    // OrliqError envelope's message field is rendered verbatim when
-    // the looksLikeOrliqError check passes.
-    expect(SOURCE).toMatch(/env\.message!/);
-    // The user-supplied email value `current` is rendered verbatim
-    // through the catalogued subscribed_as template — pin the
-    // interpolation shape.
-    expect(SOURCE).toMatch(/email:\s*current/);
   });
 
   it('preserves the load-bearing IPC commands and update-store wiring', () => {
-    // The structural updater + subscription flow is unchanged — every
-    // Tauri command name and the useUpdate store contract must
-    // survive the localisation. Pin each so a future regression that
-    // renames a command or breaks the check-now loop fails
-    // immediately.
-    const commands = ['current_release_notes', 'subscribe_to_release_updates'];
+    // The structural updater flow is unchanged — every Tauri command
+    // name and the useUpdate store contract must survive the
+    // localisation. Pin each so a future regression that renames a
+    // command or breaks the check-now loop fails immediately.
+    const commands = ['current_release_notes'];
     for (const cmd of commands) {
       expect(
         SOURCE.includes(cmd),
@@ -185,11 +141,10 @@ describe('UpdatesSettings i18n source-grep guard', () => {
   it('preserves the underlying settings field names and channel ids', () => {
     // The localisation only swaps display labels. Each control still
     // reads `s.advanced.update_channel` / `g.check_updates_automatically`
-    // / `g.releases_email` and writes via `patch({ ... })` against
-    // the matching slot on Settings. Pin every load-bearing field
-    // name so a future regression that renames a settings field
-    // fails immediately.
-    const fields = ['update_channel', 'check_updates_automatically', 'releases_email'];
+    // and writes via `patch({ ... })` against the matching slot on
+    // Settings. Pin every load-bearing field name so a future
+    // regression that renames a settings field fails immediately.
+    const fields = ['update_channel', 'check_updates_automatically'];
     for (const field of fields) {
       expect(
         SOURCE.includes(field),

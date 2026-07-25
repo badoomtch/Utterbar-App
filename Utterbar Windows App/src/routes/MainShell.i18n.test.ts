@@ -88,12 +88,4 @@ describe('MainShell i18n source-grep guard', () => {
     expect(SOURCE).not.toMatch(/`v\$\{[^}]+\}` : 'v…'\} · local only/);
     expect(SOURCE).toMatch(/chrome\.footer\.strap/);
   });
-
-  it('routes TierLine labels through chrome.tier.* keys', () => {
-    // The previous shape rendered `Pro` and `Upgrade to Pro →` as bare
-    // JSX text nodes. New path resolves both via t().
-    expect(SOURCE).not.toMatch(/>\s*Upgrade to Pro\s+→\s*</);
-    expect(SOURCE).toMatch(/chrome\.tier\.pro/);
-    expect(SOURCE).toMatch(/chrome\.tier\.free_cta/);
-  });
 });

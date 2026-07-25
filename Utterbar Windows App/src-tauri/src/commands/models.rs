@@ -4,7 +4,6 @@ use tauri::{AppHandle, State};
 
 use crate::app_state::AppState;
 use crate::domain::ModelInfo;
-use crate::util::gating::{is_pro, pro_required};
 use crate::util::result::{CmdResult, OrliqError};
 
 #[tauri::command]
@@ -23,20 +22,6 @@ pub async fn install_model(
     state: State<'_, Arc<AppState>>,
     id: String,
 ) -> CmdResult<ModelInfo> {
-    // Pro gate: reject install of catalogue entries that carry
-    // `requires_pro` when the user is on Free. The UI also disables the
-    // button, but the backend is the source of truth — otherwise a crafted
-    // IPC call could bypass it.
-    let catalogue = state.models.list_available().await;
-    if let Some(entry) = catalogue.iter().find(|m| m.id == id) {
-        if entry.requires_pro {
-            let status = state.licence.status().await;
-            if !is_pro(&status) {
-                return Err(pro_required(&entry.display_name));
-            }
-        }
-    }
-
     state
         .models
         .install(&handle, &id)

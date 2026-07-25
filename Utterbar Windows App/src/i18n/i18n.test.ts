@@ -247,11 +247,6 @@ describe('i18n English foundation', () => {
       'general.feedback.sound_profile.options.chime.description',
       'general.feedback.notifications.label',
       'general.feedback.notifications.description',
-      'general.upgrade.custom_accent.feature',
-      'general.upgrade.custom_accent.description',
-      'general.upgrade.custom_accent.bullets.any_hex',
-      'general.upgrade.custom_accent.bullets.auto_tint_shade',
-      'general.upgrade.custom_accent.bullets.presets_free',
     ];
     for (const key of keys) {
       const value = i18n.getResource('en', 'settings', key);
@@ -287,7 +282,6 @@ describe('i18n English foundation', () => {
       'accessibility',
       'privacy',
       'advanced',
-      'licence',
       'updates',
       'about',
     ];
@@ -405,8 +399,6 @@ describe('i18n English foundation', () => {
       'chrome.nav.vocabulary',
       'chrome.nav.files',
       'chrome.footer.strap',
-      'chrome.tier.pro',
-      'chrome.tier.free_cta',
       'chrome.update_toast.title',
       'chrome.update_toast.install',
       'chrome.update_toast.installing',
@@ -416,18 +408,6 @@ describe('i18n English foundation', () => {
       'chrome.update_toast.post_body',
       'chrome.update_toast.post_link',
       'chrome.update_toast.dismiss_aria',
-      'chrome.upgrade_modal.feature_prefix',
-      'chrome.upgrade_modal.pro_word',
-      'chrome.upgrade_modal.feature_suffix',
-      'chrome.upgrade_modal.period.one_time',
-      'chrome.upgrade_modal.period.monthly',
-      'chrome.upgrade_modal.period.yearly',
-      'chrome.upgrade_modal.not_now',
-      'chrome.upgrade_modal.upgrade',
-      'chrome.pro_nudge.feature_prefix',
-      'chrome.pro_nudge.pro_word',
-      'chrome.pro_nudge.feature_suffix',
-      'chrome.pro_nudge.learn_more',
       'chrome.managed_hint.default',
     ];
     for (const key of keys) {
@@ -740,8 +720,6 @@ describe('i18n English foundation', () => {
       'privacy.audio_retention.title',
       'privacy.audio_retention.save_recordings.label',
       'privacy.audio_retention.save_recordings.description',
-      'privacy.audio_retention.pro_nudge.feature',
-      'privacy.audio_retention.pro_nudge.description',
       'privacy.audio_retention.delete_after.label',
       'privacy.audio_retention.delete_after.description',
       'privacy.audio_retention.delete_after.value',
@@ -837,18 +815,6 @@ describe('i18n English foundation', () => {
       'updates.release_notes.title_fallback',
       'updates.release_notes.description',
       'updates.release_notes.empty',
-      'updates.release_email.title',
-      'updates.release_email.description',
-      'updates.release_email.row.label',
-      'updates.release_email.row.description',
-      'updates.release_email.input_placeholder',
-      'updates.release_email.subscribe',
-      'updates.release_email.sending',
-      'updates.release_email.subscribed_as',
-      'updates.release_email.change_email',
-      'updates.release_email.errors.empty',
-      'updates.release_email.errors.invalid',
-      'updates.release_email.errors.fallback',
     ];
     for (const key of keys) {
       const value = i18n.getResource('en', 'settings', key);
@@ -884,20 +850,6 @@ describe('i18n English foundation', () => {
     expect(out).toContain('0.20.1');
     expect(out).not.toContain('{{');
     expect(out).not.toContain('updates.release_notes.title_with_version');
-  });
-
-  it('renders updates.release_email.subscribed_as with the email interpolated', () => {
-    // The "Subscribed as" line displays the user-supplied email
-    // verbatim through the catalogued template. Pin the `{{email}}`
-    // substitution so the email can never be dropped or replaced by
-    // a literal placeholder.
-    const out = i18n.t('updates.release_email.subscribed_as', {
-      ns: 'settings',
-      email: 'jay@example.com',
-    });
-    expect(out).toContain('jay@example.com');
-    expect(out).not.toContain('{{');
-    expect(out).not.toContain('updates.release_email.subscribed_as');
   });
 
   it('resolves every Advanced settings key', () => {
@@ -1170,13 +1122,10 @@ describe('i18n English foundation', () => {
     expect(Object.keys(commonEn.chrome).length).toBeGreaterThan(0);
     expect(Object.keys(commonEn.chrome.nav).length).toBeGreaterThan(0);
     expect(Object.keys(commonEn.chrome.update_toast).length).toBeGreaterThan(0);
-    expect(Object.keys(commonEn.chrome.upgrade_modal).length).toBeGreaterThan(0);
-    expect(Object.keys(commonEn.chrome.pro_nudge).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general.startup).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general.appearance).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.general.feedback).length).toBeGreaterThan(0);
-    expect(Object.keys(settingsEn.general.upgrade).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.nav).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.nav.group).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.nav.search).length).toBeGreaterThan(0);
@@ -1224,9 +1173,6 @@ describe('i18n English foundation', () => {
     expect(Object.keys(settingsEn.updates.channel.auto_check).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.updates.channel.check_now).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.updates.release_notes).length).toBeGreaterThan(0);
-    expect(Object.keys(settingsEn.updates.release_email).length).toBeGreaterThan(0);
-    expect(Object.keys(settingsEn.updates.release_email.row).length).toBeGreaterThan(0);
-    expect(Object.keys(settingsEn.updates.release_email.errors).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.advanced).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.advanced.gpu).length).toBeGreaterThan(0);
     expect(Object.keys(settingsEn.advanced.gpu.description).length).toBeGreaterThan(0);

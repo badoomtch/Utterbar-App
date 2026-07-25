@@ -32,7 +32,6 @@ const EMPTY: PolicySnapshot = {
   check_updates_pinned: false,
   model_downloads_blocked: false,
   system_audio_blocked: false,
-  licence_required: false,
   history_blocked: false,
   history_export_blocked: false,
   telemetry_blocked: false,
@@ -62,7 +61,6 @@ export function isPolicyActive(p: PolicySnapshot | null): boolean {
     p.check_updates_pinned ||
     p.model_downloads_blocked ||
     p.system_audio_blocked ||
-    p.licence_required ||
     p.history_blocked ||
     p.history_export_blocked ||
     p.telemetry_blocked

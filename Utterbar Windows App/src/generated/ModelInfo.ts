@@ -35,13 +35,4 @@ accuracy_score: number,
  * because most installs will fall back to CPU and run slowly (or fail
  * to load at all).
  */
-speed_score: number, 
-/**
- * Pro-gated model. The Rust side rejects `install_model` with a
- * `pro_required` licence error; the frontend shows a `<ProNudge>`
- * under the card and disables the Install button. fp16 carries this
- * flag because the accuracy-ceiling experience is part of the paid
- * promise — plus it's the only variant that needs a real GPU, so
- * pairing the gate with the hardware reality keeps the funnel honest.
- */
-requires_pro: boolean, };
+speed_score: number, };

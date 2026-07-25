@@ -1,13 +1,10 @@
 import { Suspense, forwardRef, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { getVersion } from '@tauri-apps/api/app';
-import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useTranslation } from 'react-i18next';
 
 import { listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
-import { Led } from '@/components/common/Led';
-import { useLicence } from '@/state/licence';
 import {
   BarChart3,
   FileAudio,
@@ -83,9 +80,6 @@ const AboutSettings = lazy(() =>
 );
 const BarSettings = lazy(() =>
   import('@/routes/settings/BarSettings').then((m) => ({ default: m.BarSettings })),
-);
-const LicenceSettings = lazy(() =>
-  import('@/routes/settings/LicenceSettings').then((m) => ({ default: m.LicenceSettings })),
 );
 const UpdatesSettings = lazy(() =>
   import('@/routes/settings/UpdatesSettings').then((m) => ({ default: m.UpdatesSettings })),
@@ -239,7 +233,7 @@ export function MainShell() {
           />
         </nav>
 
-        {/* Footer — TierLine + version + "local only" strap.
+        {/* Footer — version + "local only" strap.
             `shrink-0` is load-bearing: without it, flexbox can shrink
             this block to zero on shorter windows now that the aside is
             `overflow-hidden` (v0.6.2 triple-scrollbar fix). The version
@@ -251,7 +245,6 @@ export function MainShell() {
             nav-scroll ends right up against the footer and pb-3 read
             as the version was glued to the edge. */}
         <div className="shrink-0 px-5 pt-3 pb-5 space-y-2">
-          <TierLine />
           <div className="ub-eyebrow font-mono">
             {appVersion ? `v${appVersion}` : 'v…'} · {tCommon('chrome.footer.strap')}
           </div>
@@ -303,7 +296,6 @@ export function MainShell() {
             <Route path="/settings/accessibility" element={<AccessibilitySettings />} />
             <Route path="/settings/privacy" element={<PrivacySettings />} />
             <Route path="/settings/advanced" element={<AdvancedSettings />} />
-            <Route path="/settings/licence" element={<LicenceSettings />} />
             <Route path="/settings/updates" element={<UpdatesSettings />} />
             <Route path="/settings/about" element={<AboutSettings />} />
           </Routes>
@@ -313,49 +305,6 @@ export function MainShell() {
       <PostUpdateToast />
       <LiveMeetingTranscript />
     </div>
-  );
-}
-
-/**
- * Sidebar tier indicator. Visible on every page so the user always knows
- * whether the install is Pro — two forms:
- *
- *   • Free — muted "Upgrade to Pro →" link. Opens utterbar.com/pricing in
- *     the default browser. Not a CTA button: the spec allows one or two
- *     deliberate cyan moments per viewport, and an always-visible CTA in
- *     the sidebar would burn the budget before the user has even looked
- *     at the stage.
- *   • Pro  — cyan LED + "Pro" label as a link to Settings → Licence. Uses
- *     the LED primitive directly so the glow language stays consistent
- *     with the recording-state LED on the floating pill.
- *
- * Hidden until the store has hydrated to avoid flashing "Free" for one
- * frame on launch before `licence_status` resolves.
- */
-function TierLine() {
-  const { t } = useTranslation('common');
-  const status = useLicence((s) => s.status);
-  const loaded = useLicence((s) => s.loaded);
-  if (!loaded || !status) return null;
-
-  if (status.tier === 'pro') {
-    return (
-      <NavLink
-        to="/settings/licence"
-        className="inline-flex items-center gap-2 text-[12px] font-medium text-fg-hi transition-colors hover:text-accent"
-      >
-        <Led size={6} />
-        {t('chrome.tier.pro')}
-      </NavLink>
-    );
-  }
-  return (
-    <button
-      onClick={() => void openShell('https://utterbar.com/pricing').catch(() => undefined)}
-      className="text-[12px] font-medium text-muted transition-colors hover:text-fg-hi"
-    >
-      {t('chrome.tier.free_cta')}
-    </button>
   );
 }
 

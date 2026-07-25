@@ -6,7 +6,6 @@ import { EVT } from '@/lib/events';
 import { useDictation, type DictationPhase, type MeterFrame } from '@/state/dictation';
 import { useModes } from '@/state/modes';
 import { useSettings } from '@/state/settings';
-import { attachLicenceListener, useLicence } from '@/state/licence';
 import { usePolicy } from '@/state/policy';
 import { useSoundCues } from '@/design/sounds';
 import { useSystemNotifications } from '@/design/notifications';
@@ -37,7 +36,6 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   const resetLiveMeeting = useDictation((s) => s.resetLiveMeeting);
   const addLiveSegment = useDictation((s) => s.addLiveSegment);
   const setLastText = useDictation((s) => s.setLastText);
-  const loadLicence = useLicence((s) => s.load);
   const loadPolicy = usePolicy((s) => s.load);
   const reduceMotion = useSettings((s) => s.data?.general.reduce_motion ?? false);
   const appLanguage = useSettings((s) => s.data?.general.app_language);
@@ -62,17 +60,6 @@ export function AppBootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadPolicy();
   }, [loadPolicy]);
-
-  // Licence: pull the current tier once on mount and subscribe to the
-  // `licence_changed` event so the store stays in sync with Rust through
-  // activate / deactivate / background heartbeat revocations.
-  useEffect(() => {
-    void loadLicence();
-    const p = attachLicenceListener();
-    return () => {
-      void p.then((u) => u()).catch(() => undefined);
-    };
-  }, [loadLicence]);
 
   // Tag <html> with the reduce-motion flag so globals.css can kill transitions, and feed
   // the same value into Framer Motion's context so its springs respect the user's

@@ -1,26 +1,15 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Mail } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, Row } from '@/components/common/Card';
 import { Toggle } from '@/components/common/Toggle';
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
 import { useSettings } from '@/state/settings';
 import { useUpdate } from '@/state/update';
 import { invoke } from '@/lib/ipc';
 import { cn } from '@/lib/cn';
-
-/**
- * Loose email syntax check for the release-updates signup. Catches
- * obvious typos like "jay@" or "jay.com" before the IPC/network round-
- * trip. The server is the authority on what it accepts; this is just
- * a "save 300ms of latency on the obvious miss" shortcut.
- */
-function isPlausibleEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
 
 // Stable id registry. ids match the `update_channel` field's
 // serialised values on the Rust side, so the patch wiring continues
@@ -180,11 +169,6 @@ export function UpdatesSettings() {
             </div>
           )}
         </Card>
-
-        <ReleaseEmailCard
-          current={(g.releases_email as string | null | undefined) ?? null}
-          onSubscribe={(email) => void update('releases_email', email)}
-        />
       </div>
     </div>
   );
@@ -203,177 +187,6 @@ export function UpdatesSettings() {
  * grow tables / images / nested lists the right move is the proper
  * library; until then this is honest.
  */
-
-/**
- * Release-email subscription card.
- *
- * Opt-in list for the short release-announcement mail we send when a
- * new version ships. The server (utterbar.com) owns the double-opt-in
- * flow (confirmation mail + one-click unsubscribe), so this surface
- * deliberately doesn't track "confirmed vs pending". We just show the
- * verbatim `message` the server returns and record the email locally
- * so the UI knows the user has opted in across restarts.
- * Unsubscribing happens via the link in every release mail, not here.
- *
- * States:
- *   • Closed, no email on file, toggle off, no inputs.
- *   • Open, fresh, toggle on, email input + Subscribe button.
- *   • Submitted, server's verbatim message under the input.
- *   • Subscribed, read-only "Subscribed as X" line with a change button.
- */
-function ReleaseEmailCard({
-  current,
-  onSubscribe,
-}: {
-  current: string | null;
-  onSubscribe: (email: string | null) => void;
-}) {
-  const { t } = useTranslation('settings');
-  const [enabled, setEnabled] = useState<boolean>(Boolean(current));
-  const [email, setEmail] = useState<string>(current ?? '');
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
-
-  // Keep local state synced when the underlying setting changes (reset,
-  // import, cross-window update). Without this the card stays on stale
-  // values after the store rehydrates.
-  useEffect(() => {
-    setEnabled(Boolean(current));
-    setEmail(current ?? '');
-  }, [current]);
-
-  async function submit() {
-    const trimmed = email.trim();
-    if (!trimmed) {
-      setStatus({ tone: 'err', text: t('updates.release_email.errors.empty') });
-      return;
-    }
-    if (!isPlausibleEmail(trimmed)) {
-      setStatus({
-        tone: 'err',
-        text: t('updates.release_email.errors.invalid'),
-      });
-      return;
-    }
-    setBusy(true);
-    setStatus(null);
-    try {
-      const msg = await invoke<string>('subscribe_to_release_updates', { email: trimmed });
-      onSubscribe(trimmed);
-      // Server-returned `msg` is backend prose and stays verbatim — the
-      // server (utterbar.com) owns the double-opt-in flow and its
-      // confirmation copy. Showing it untranslated keeps the UI honest
-      // about what was actually delivered.
-      setStatus({ tone: 'ok', text: msg });
-    } catch (e) {
-      // Two error shapes can land here: an OrliqError envelope from
-      // the Rust command (with `code` + `message`) or a raw JS error
-      // from invoke. Trust `.message` only when `code` is also
-      // present; everything else collapses to a generic copy so a
-      // stringified JS error never leaks into the settings surface.
-      // env.message is backend-emitted prose (Rust-side i18n branch
-      // territory) and stays verbatim.
-      const env = e as { kind?: string; code?: string; message?: string };
-      const looksLikeOrliqError =
-        typeof env?.code === 'string' && typeof env?.message === 'string';
-      setStatus({
-        tone: 'err',
-        text: looksLikeOrliqError
-          ? env.message!
-          : t('updates.release_email.errors.fallback'),
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggle(next: boolean) {
-    setEnabled(next);
-    if (!next) {
-      // Local opt-out only. The server list is authoritative; the user
-      // fully unsubscribes via the link in any release mail. Clearing
-      // the local hint just hides the subscribed state in this UI.
-      onSubscribe(null);
-      setStatus(null);
-    }
-  }
-
-  const subscribed = Boolean(current) && current === email.trim();
-
-  return (
-    <Card
-      title={t('updates.release_email.title')}
-      description={t('updates.release_email.description')}
-    >
-      <Row
-        label={t('updates.release_email.row.label')}
-        description={t('updates.release_email.row.description')}
-      >
-        <Toggle checked={enabled} onChange={toggle} />
-      </Row>
-      {enabled && (
-        <div className="border-t border-border-soft/70 pt-4">
-          {subscribed ? (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2 text-[13px] text-fg-hi">
-                <Mail className="h-4 w-4 text-accent shrink-0" />
-                {/* `current` is the user-supplied email and is
-                    interpolated into the catalogued template at
-                    render time so the string itself stays verbatim. */}
-                <span className="truncate">
-                  {t('updates.release_email.subscribed_as', { email: current })}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEmail('')}
-                className="ub-btn ub-btn-plain !py-[0.4rem] !text-[12px] shrink-0"
-              >
-                {t('updates.release_email.change_email')}
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted shrink-0" />
-              <Input
-                type="email"
-                placeholder={t('updates.release_email.input_placeholder')}
-                value={email}
-                disabled={busy}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !busy) void submit();
-                }}
-                className="flex-1"
-                autoComplete="email"
-              />
-              <button
-                type="button"
-                onClick={() => void submit()}
-                disabled={busy || email.trim().length === 0}
-                className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] shrink-0"
-              >
-                {busy
-                  ? t('updates.release_email.sending')
-                  : t('updates.release_email.subscribe')}
-              </button>
-            </div>
-          )}
-          {status && (
-            <p
-              className={cn(
-                'mt-2 text-[12px] leading-relaxed',
-                status.tone === 'ok' ? 'text-accent' : 'text-rose-400',
-              )}
-            >
-              {status.text}
-            </p>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-}
 
 function ReleaseNotes({ md }: { md: string }) {
   const blocks = parseBlocks(md);

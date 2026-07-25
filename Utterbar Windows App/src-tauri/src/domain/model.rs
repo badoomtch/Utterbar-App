@@ -41,14 +41,6 @@ pub struct ModelInfo {
     /// because most installs will fall back to CPU and run slowly (or fail
     /// to load at all).
     pub speed_score: u8,
-    /// Pro-gated model. The Rust side rejects `install_model` with a
-    /// `pro_required` licence error; the frontend shows a `<ProNudge>`
-    /// under the card and disables the Install button. fp16 carries this
-    /// flag because the accuracy-ceiling experience is part of the paid
-    /// promise — plus it's the only variant that needs a real GPU, so
-    /// pairing the gate with the hardware reality keeps the funnel honest.
-    #[serde(default)]
-    pub requires_pro: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

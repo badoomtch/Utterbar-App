@@ -4,7 +4,6 @@ use tauri::State;
 
 use crate::app_state::AppState;
 use crate::services::files::FileJob;
-use crate::util::gating::{is_pro, pro_required};
 use crate::util::result::{CmdResult, OrliqError};
 
 #[tauri::command]
@@ -14,13 +13,6 @@ pub async fn enqueue_file(
     mode_id: Option<String>,
     model_id: Option<String>,
 ) -> CmdResult<FileJob> {
-    // Pro gate: file transcription is Pro-only. The UI renders the Files
-    // page as a ProNudge for Free users; this is the backend enforcement.
-    let status = state.licence.status().await;
-    if !is_pro(&status) {
-        return Err(pro_required("File transcription"));
-    }
-
     state
         .files
         .enqueue(source_path, mode_id, model_id)
@@ -64,11 +56,6 @@ pub async fn enqueue_folder(
     mode_id: Option<String>,
     model_id: Option<String>,
 ) -> CmdResult<usize> {
-    let status = state.licence.status().await;
-    if !is_pro(&status) {
-        return Err(pro_required("File transcription"));
-    }
-
     const ALLOWED: &[&str] = &["mp3", "wav", "m4a", "flac", "ogg", "mp4", "mov", "mkv"];
     const HARD_CAP: usize = 1_000;
 

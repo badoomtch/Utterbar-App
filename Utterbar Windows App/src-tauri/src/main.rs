@@ -77,10 +77,6 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        // Deep link — `utterbar://licence/{TOKEN}` routes to the licence
-        // activation flow. The scheme is registered by the NSIS installer;
-        // the plugin dispatches incoming URLs into the running process.
-        .plugin(tauri_plugin_deep_link::init())
         // Updater plugin needs a real pubkey to init; disabled until we sign releases.
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(state.clone())
@@ -164,13 +160,6 @@ fn main() {
             commands::files::read_job_transcript,
             commands::files::reveal_job_in_folder,
             commands::files::delete_job,
-            // licence
-            commands::licence::licence_status,
-            commands::licence::licence_activate,
-            commands::licence::licence_deactivate,
-            commands::licence::licence_is_managed,
-            commands::licence::licence_export_request_file,
-            commands::licence::licence_import_managed_file,
             // analytics
             commands::analytics::get_stats_summary,
             commands::analytics::get_stats_series,
@@ -180,12 +169,8 @@ fn main() {
             commands::updater::check_update,
             commands::updater::install_update,
             commands::updater::consume_post_update_marker,
-            // release-email subscription
-            commands::updates::subscribe_to_release_updates,
             // release notes for the in-app Updates page
             commands::release_notes::current_release_notes,
-            // pricing lookup (for the in-app upgrade modal)
-            commands::pricing::get_pro_price,
             // group-policy snapshot for the settings UI hints
             commands::policy::policy_snapshot,
             // diagnostics
@@ -447,59 +432,8 @@ fn main() {
                     );
                 }
 
-                // Licence launch check: reads the cached blob, verifies
-                // offline, emits `licence_changed`. The heartbeat (if the
-                // window has elapsed) runs on its own spawn inside the
-                // service so it never blocks UI.
-                state_bg
-                    .licence
-                    .clone()
-                    .launch_check(handle_bg.clone())
-                    .await;
-
                 info!("background services ready");
             });
-
-            // Deep-link routing. Tauri v2's plugin dispatches the URL via a
-            // callback — we parse `utterbar://licence/{TOKEN}`, normalise the
-            // token through the keyfmt rules, and kick the activate flow.
-            // Any error is surfaced via the `licence_changed` event; the
-            // settings page listens and shows the error inline.
-            {
-                use tauri_plugin_deep_link::DeepLinkExt;
-                let handle_dl = app.handle().clone();
-                let state_dl = state.clone();
-                app.deep_link().on_open_url(move |event| {
-                    for url in event.urls() {
-                        if url.scheme() != "utterbar" {
-                            continue;
-                        }
-                        // Path form: `/licence/{TOKEN}` — url.path() includes the
-                        // leading slash on web URLs but Tauri parses custom
-                        // schemes as opaque, so try both.
-                        let host = url.host_str().unwrap_or("");
-                        let path = url.path();
-                        let token = if host == "licence" {
-                            path.trim_start_matches('/')
-                        } else if path.starts_with("/licence/") {
-                            path.trim_start_matches("/licence/")
-                        } else {
-                            continue;
-                        };
-                        if token.is_empty() {
-                            continue;
-                        }
-                        let svc = state_dl.licence.clone();
-                        let handle_inner = handle_dl.clone();
-                        let key = token.to_string();
-                        tauri::async_runtime::spawn(async move {
-                            if let Err(e) = svc.activate(handle_inner, &key).await {
-                                tracing::warn!(error = ?e, "deep-link activation failed");
-                            }
-                        });
-                    }
-                });
-            }
 
             // Experimental mic-mute restore-on-launch. If Utterbar
             // crashed during a previous dictation while the mic-mute

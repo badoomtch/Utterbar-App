@@ -73,17 +73,6 @@
         "label": "Notificações do sistema",
         "description": "Mostra uma notificação do Windows quando algo realmente requer a sua atenção: erros de ditado, falhas na instalação de modelos, instalações bem-sucedidas."
       }
-    },
-    "upgrade": {
-      "custom_accent": {
-        "feature": "Cores de acento personalizadas",
-        "description": "Escolha qualquer cor para a família de acento, o botão de gravação, a forma de onda da barra flutuante, o glifo da pílula e cada destaque. Os seis predefinidos são gratuitos; a cor à escolha faz parte do Pro.",
-        "bullets": {
-          "any_hex": "Escolha qualquer cor hexadecimal com o seletor nativo do Windows",
-          "auto_tint_shade": "Tons e sombras derivados automaticamente, os gradientes mantêm profundidade",
-          "presets_free": "Os seis acentos predefinidos continuam gratuitos para todos"
-        }
-      }
     }
   },
   "nav": {
@@ -194,16 +183,6 @@
         "export_data": "Exportar dados",
         "import_backup": "Importar cópia de segurança",
         "reset_settings": "Repor definições"
-      }
-    },
-    "licence": {
-      "label": "Licença",
-      "matches": {
-        "activate_pro": "Ativar Pro",
-        "licence_key": "Chave de licença",
-        "devices": "Dispositivos",
-        "managed_licence_bin": "licence.bin gerido",
-        "air_gapped_activation": "Ativação offline"
       }
     },
     "updates": {
@@ -511,10 +490,6 @@
         "label": "Guardar gravações",
         "description": "Mantém o WAV de cada ditado no disco para o poder reproduzir ou retranscrever mais tarde. Os ficheiros vivem na sua pasta Gravações e são limpos automaticamente após a janela de retenção abaixo."
       },
-      "pro_nudge": {
-        "feature": "Retenção de áudio",
-        "description": "Mantém um WAV local de cada ditado para poder voltar a ouvir ou retranscrever mais tarde. Guardado apenas no seu disco, nunca enviado."
-      },
       "delete_after": {
         "label": "Apagar gravações após",
         "description": "Os WAVs mais antigos são limpos automaticamente em cada novo ditado, para a pasta de gravações não inchar.",
@@ -597,24 +572,6 @@
       "title_fallback": "Novidades nesta versão",
       "description": "Notas da versão que está a executar. As notas de versões anteriores vivem no arquivo de versões do GitHub.",
       "empty": "Sem notas de versão incluídas para esta versão. (Provavelmente um build de desenvolvimento.)"
-    },
-    "release_email": {
-      "title": "Avisos de versão",
-      "description": "Receba um e-mail breve quando sai uma nova versão do Utterbar. O que há de novo, como atualizar; nada mais. Cancele a subscrição com um clique a partir de qualquer e-mail de versão.",
-      "row": {
-        "label": "Avisar-me quando houver uma nova versão",
-        "description": "No máximo um e-mail por versão. O seu endereço fica apenas na lista do servidor; nunca o partilhamos."
-      },
-      "input_placeholder": "voce@exemplo.com",
-      "subscribe": "Subscrever",
-      "sending": "A enviar…",
-      "subscribed_as": "Subscrito como {{email}}",
-      "change_email": "Mudar e-mail",
-      "errors": {
-        "empty": "Introduza o seu e-mail para subscrever.",
-        "invalid": "Isso não parece um endereço de e-mail; verifique se há gralhas.",
-        "fallback": "Não foi possível contactar o servidor. Verifique a sua ligação e tente novamente."
-      }
     }
   },
   "advanced": {

@@ -7,17 +7,8 @@ import { Card, Row } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Kbd } from '@/components/common/Kbd';
 import { PageHeader } from '@/components/common/PageHeader';
-import { ProNudge } from '@/components/common/ProNudge';
 import { invoke } from '@/lib/ipc';
-import { useLicence, isPro } from '@/state/licence';
 import { useSettings } from '@/state/settings';
-
-// Must track the backend caps in src-tauri/src/util/gating.rs. If you edit
-// one, edit the other — there's no shared source of truth for "50 / 25"
-// that bridges Rust and TS (these are display values, not validation —
-// the backend is the enforcement).
-const FREE_VOCAB_CAP = 50;
-const FREE_REPLACEMENTS_CAP = 25;
 
 type Vocab = { id: string; word: string; hint: string | null; enabled: boolean; weight: number };
 type Replacement = {
@@ -110,10 +101,8 @@ export function VocabularyRoute() {
     await reload();
   };
 
-  const licenceStatus = useLicence((s) => s.status);
-  const pro = isPro(licenceStatus);
-  const wordsAtCap = !pro && words.length >= FREE_VOCAB_CAP;
-  const repsAtCap = !pro && reps.length >= FREE_REPLACEMENTS_CAP;
+  const wordsAtCap = false;
+  const repsAtCap = false;
 
   // Filter + sort pipeline for the visible words list. useMemo so a
   // render caused by something else (e.g. licence status refresh) doesn't
@@ -144,12 +133,8 @@ export function VocabularyRoute() {
 
   // Same "X / N" counter pattern the DESIGN_SYSTEM uses for any bounded
   // count — muted, tabular-nums, sits next to the section title.
-  const wordsCounter = pro
-    ? `${words.length} word${words.length === 1 ? '' : 's'}`
-    : `${words.length} / ${FREE_VOCAB_CAP} words`;
-  const repsCounter = pro
-    ? `${reps.length} replacement${reps.length === 1 ? '' : 's'}`
-    : `${reps.length} / ${FREE_REPLACEMENTS_CAP} replacements`;
+  const wordsCounter = `${words.length} word${words.length === 1 ? '' : 's'}`;
+  const repsCounter = `${reps.length} replacement${reps.length === 1 ? '' : 's'}`;
 
   return (
     <div className="mx-auto max-w-4xl p-8">
@@ -188,14 +173,6 @@ export function VocabularyRoute() {
               Add
             </Button>
           </div>
-          {wordsAtCap && (
-            <ProNudge
-              feature="Unlimited vocabulary"
-              description={`You're at the Free-tier cap of ${FREE_VOCAB_CAP} words. Existing words keep working — Pro removes the cap.`}
-              dense
-              className="mt-3"
-            />
-          )}
           {/* Search + sort controls. Hidden until the list is worth
               filtering (10+ entries) so small lists don't get chrome they
               don't need. */}
@@ -298,14 +275,6 @@ export function VocabularyRoute() {
               Add
             </Button>
           </div>
-          {repsAtCap && (
-            <ProNudge
-              feature="Unlimited replacements"
-              description={`You're at the Free-tier cap of ${FREE_REPLACEMENTS_CAP} replacements. Existing rules keep working — Pro removes the cap.`}
-              dense
-              className="mt-3"
-            />
-          )}
           {reps.length >= 10 && (
             <div className="mt-3">
               <Input

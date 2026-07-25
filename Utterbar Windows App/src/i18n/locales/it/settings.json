@@ -73,17 +73,6 @@
         "label": "Notifiche di sistema",
         "description": "Mostra una notifica Windows quando qualcosa richiede davvero la tua attenzione: errori di dettatura, fallimenti di installazione modelli, installazioni riuscite."
       }
-    },
-    "upgrade": {
-      "custom_accent": {
-        "feature": "Colori d'accento personalizzati",
-        "description": "Scegli qualsiasi colore per la famiglia di accento, il pulsante di registrazione, la forma d'onda della barra fluttuante, il glifo della pillola e ogni evidenziazione. I sei preset sono gratis; il colore libero fa parte di Pro.",
-        "bullets": {
-          "any_hex": "Scegli qualsiasi colore esadecimale con il selettore nativo di Windows",
-          "auto_tint_shade": "Tinte e sfumature derivate automaticamente, i gradienti mantengono profondità",
-          "presets_free": "Tutti e sei i preset di accento restano gratis per tutti"
-        }
-      }
     }
   },
   "nav": {
@@ -194,16 +183,6 @@
         "export_data": "Esporta dati",
         "import_backup": "Importa backup",
         "reset_settings": "Ripristina impostazioni"
-      }
-    },
-    "licence": {
-      "label": "Licenza",
-      "matches": {
-        "activate_pro": "Attiva Pro",
-        "licence_key": "Chiave di licenza",
-        "devices": "Dispositivi",
-        "managed_licence_bin": "licence.bin gestito",
-        "air_gapped_activation": "Attivazione offline"
       }
     },
     "updates": {
@@ -511,10 +490,6 @@
         "label": "Salva registrazioni",
         "description": "Mantiene il WAV di ogni dettatura su disco così puoi riprodurlo o ritrascriverlo più tardi. I file vivono nella cartella Registrazioni e vengono potati automaticamente dopo la finestra di conservazione qui sotto."
       },
-      "pro_nudge": {
-        "feature": "Conservazione audio",
-        "description": "Mantieni un WAV locale di ogni dettatura per riascoltarla o ritrascriverla più tardi. Salvato solo sul tuo disco, mai caricato."
-      },
       "delete_after": {
         "label": "Elimina registrazioni dopo",
         "description": "I WAV più vecchi vengono ripuliti automaticamente a ogni nuova dettatura, così la cartella registrazioni non si gonfia.",
@@ -597,24 +572,6 @@
       "title_fallback": "Novità in questa versione",
       "description": "Note di rilascio per la versione che stai eseguendo. Le note delle versioni precedenti vivono nell'archivio delle release di GitHub.",
       "empty": "Nessuna nota di rilascio inclusa per questa versione. (Probabilmente un build di sviluppo.)"
-    },
-    "release_email": {
-      "title": "Avvisi di rilascio",
-      "description": "Ricevi una breve email quando esce una nuova versione di Utterbar. Cosa c'è di nuovo, come aggiornare, nient'altro. Annulla l'iscrizione con un clic da qualsiasi email di rilascio.",
-      "row": {
-        "label": "Avvisami quando c'è una nuova versione",
-        "description": "Al massimo una email per versione. Il tuo indirizzo resta solo nella lista del server; non lo condividiamo mai."
-      },
-      "input_placeholder": "tu@esempio.com",
-      "subscribe": "Iscriviti",
-      "sending": "Invio…",
-      "subscribed_as": "Iscritto come {{email}}",
-      "change_email": "Cambia email",
-      "errors": {
-        "empty": "Inserisci la tua email per iscriverti.",
-        "invalid": "Non sembra un indirizzo email, controlla eventuali errori di battitura.",
-        "fallback": "Impossibile contattare il server. Controlla la connessione e riprova."
-      }
     }
   },
   "advanced": {

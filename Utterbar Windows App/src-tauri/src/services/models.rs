@@ -128,7 +128,6 @@ impl ModelRegistry {
                     // should go through `list_available` + filter, not here.
                     accuracy_score: 0,
                     speed_score: 0,
-                    requires_pro: false,
                 })
             })?
             .filter_map(|r| r.ok())
@@ -552,7 +551,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             recommended: true,
             accuracy_score: 9,
             speed_score: 10,
-            requires_pro: false,
         },
         // Parakeet v2 int8 — the previous NeMo generation, English only.
         // Same 0.6B TDT architecture and int8 CPU path as v3, so it is
@@ -592,7 +590,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             recommended: false,
             accuracy_score: 9,
             speed_score: 9,
-            requires_pro: false,
         },
         // Whisper base — multilingual, free tier. ~99 languages via
         // OpenAI Whisper. Slower than Parakeet on English but the only
@@ -622,7 +619,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             recommended: false,
             accuracy_score: 7,
             speed_score: 6,
-            requires_pro: false,
         },
         // Whisper small — Pro tier. Multilingual. From v0.15.4 the
         // recommended Meeting Mode default: the fastest of the three
@@ -657,7 +653,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             recommended: true,
             accuracy_score: 9,
             speed_score: 4,
-            requires_pro: true,
         },
         // Whisper medium — Pro tier. Multilingual. The "Balanced"
         // explicit option in the Meeting Mode picker. v0.15.3 made
@@ -702,7 +697,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             recommended: false,
             accuracy_score: 9,
             speed_score: 5,
-            requires_pro: true,
         },
         // Whisper large v3 — Pro tier, the highest-accuracy Meeting
         // Mode option. Multilingual. Picked when the audio is very
@@ -733,7 +727,6 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             recommended: false,
             accuracy_score: 10,
             speed_score: 2,
-            requires_pro: true,
         },
         // Offline Zipformer was retired in v0.14.2: Parakeet covers the
         // English fast-path comprehensively, and shipping two

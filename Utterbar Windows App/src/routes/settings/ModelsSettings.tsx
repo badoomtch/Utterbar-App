@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/common/Card';
-import { ProNudge } from '@/components/common/ProNudge';
 import { Select, type SelectOption } from '@/components/common/Select';
 import { ScoreBars } from '@/components/common/ScoreBars';
 import { Toggle } from '@/components/common/Toggle';
@@ -13,7 +12,6 @@ import { invoke, listen } from '@/lib/ipc';
 import { EVT } from '@/lib/events';
 import { formatBytes } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { useLicence, isPro } from '@/state/licence';
 import { useSettings } from '@/state/settings';
 import { DICTATION_LANGUAGES, isMultilingualOnly } from '@/lib/dictationLanguages';
 import {
@@ -37,7 +35,6 @@ type ModelInfo = {
   recommended: boolean;
   accuracy_score: number;
   speed_score: number;
-  requires_pro: boolean;
   engine?: 'parakeet-tdt' | 'whisper' | 'zipformer';
 };
 
@@ -220,8 +217,6 @@ export function ModelsSettings() {
   ];
 
   const installedModels = useMemo(() => items.filter((m) => m.installed), [items]);
-  const licenceStatus = useLicence((s) => s.status);
-  const pro = isPro(licenceStatus);
 
   // Reuse the onboarding recommendation helper against the *installed*
   // model list so Settings → Models recommends a switch to a model the
@@ -298,8 +293,7 @@ export function ModelsSettings() {
           Whispers can find their way in — the row's Install link
           handles install-state. Picker writes `meeting_asr_model_id`
           on the settings store; start_recording's preflight is the
-          enforcement point. Pro-gating mirrors the existing model-row
-          treatment below: locked rows show ProNudge + disabled Install. */}
+          enforcement point. */}
       <Card
         title="Meeting mode model"
         description="Meeting Mode uses a Whisper model to transcribe full meetings. Pick the trade-off that fits how you'll use it."
@@ -308,8 +302,6 @@ export function ModelsSettings() {
           {meetingPickerOptions.map((opt) => {
             const entry = items.find((m) => m.id === opt.id);
             const installed = !!entry?.installed;
-            const requiresPro = !!entry?.requires_pro;
-            const locked = requiresPro && !pro;
             const checked = meetingAsrModelId === opt.id;
             const sizeLabel = entry ? formatBytes(entry.size_bytes) : '-';
             // v0.15.3 round-3 fix: read the same progress map the main
@@ -350,19 +342,11 @@ export function ModelsSettings() {
                       )}
                     </div>
                     <div className="mt-0.5 font-mono text-[11px] text-fg-dim">
-                      {sizeLabel} · Multilingual{requiresPro ? ' · Pro' : ''}
+                      {sizeLabel} · Multilingual
                     </div>
                     <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-muted">
                       {opt.subtitle}
                     </p>
-                    {locked && (
-                      <ProNudge
-                        feature={entry?.display_name ?? opt.label}
-                        description="This Whisper checkpoint is part of Pro. Upgrade to install and use it for Meeting Mode."
-                        dense
-                        className="mt-2 max-w-xl"
-                      />
-                    )}
                     {/* In-progress install: same shape as the main
                         model list further down — bar + bytes counter.
                         Visible inside the meeting card so the user
@@ -407,17 +391,16 @@ export function ModelsSettings() {
                         onClick={(e) => {
                           e.preventDefault();
                           // Defence-in-depth: the disabled prop already
-                          // gates this for `locked || !entry || downloading`,
-                          // but a second click during the brief render
-                          // cycle before the prog event arrives could
-                          // race a duplicate install_model call. Bail
-                          // here too.
-                          if (locked || !entry || downloading) return;
+                          // gates this for `!entry || downloading`, but a
+                          // second click during the brief render cycle
+                          // before the prog event arrives could race a
+                          // duplicate install_model call. Bail here too.
+                          if (!entry || downloading) return;
                           void invoke('install_model', { id: opt.id })
                             .then(reload)
                             .catch(() => undefined);
                         }}
-                        disabled={locked || !entry || downloading}
+                        disabled={!entry || downloading}
                         className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Install
@@ -582,7 +565,6 @@ export function ModelsSettings() {
             const prog = progress[m.id];
             const downloading = prog && prog.phase !== 'done' && prog.phase !== 'error';
             const pct = prog && prog.bytes_total > 0 ? Math.round((prog.bytes_done / prog.bytes_total) * 100) : 0;
-            const locked = m.requires_pro && !pro;
             return (
               <li key={m.id} className="py-4">
                 <div className="flex items-start gap-4">
@@ -620,14 +602,6 @@ export function ModelsSettings() {
                       speed={m.speed_score}
                       className="mt-3 max-w-[280px]"
                     />
-                    {locked && (
-                      <ProNudge
-                        feature={m.display_name}
-                        description="The higher-precision fp16 model is part of Pro. It's the accuracy ceiling of the Parakeet family and benefits from a real GPU, same privacy guarantees as every other model (never leaves your machine)."
-                        dense
-                        className="mt-3 max-w-xl"
-                      />
-                    )}
                   </div>
                   {m.installed ? (
                     <button
@@ -641,7 +615,6 @@ export function ModelsSettings() {
                   ) : (
                     <button
                       onClick={() => invoke('install_model', { id: m.id }).then(reload).catch(() => undefined)}
-                      disabled={locked}
                       className="ub-btn ub-btn-cta !py-[0.4rem] !text-[12px] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Install

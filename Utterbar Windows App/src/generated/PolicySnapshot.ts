@@ -26,12 +26,6 @@ model_downloads_blocked: boolean,
  */
 system_audio_blocked: boolean, 
 /**
- * True if `RequireLicence` is set. The licence panel uses this
- * to surface a tighter "your IT admin manages this" message
- * rather than the generic free-tier copy.
- */
-licence_required: boolean, 
-/**
  * True if `BlockHistory` is set. New history rows are not
  * persisted; the History page renders the existing rows but
  * the Privacy panel surfaces a disabled hint on the relevant

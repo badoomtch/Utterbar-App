@@ -73,17 +73,6 @@
         "label": "Systeemmeldingen",
         "description": "Toont een Windows-melding wanneer iets echt je aandacht nodig heeft: dictaatfouten, mislukte modelinstallaties, geslaagde modelinstallaties."
       }
-    },
-    "upgrade": {
-      "custom_accent": {
-        "feature": "Aangepaste accentkleuren",
-        "description": "Kies een willekeurige kleur voor de accentfamilie, de opnameknop, de golfvorm van de zwevende balk, het pilglyph en elk accent. De zes voorinstellingen zijn gratis; eigen kleur hoort bij Pro.",
-        "bullets": {
-          "any_hex": "Kies een willekeurige hex-kleur met de Windows-kleurkiezer",
-          "auto_tint_shade": "Automatisch afgeleide tinten en schaduwen, zodat verlopen diepte behouden",
-          "presets_free": "Alle zes voorinstellingen blijven gratis voor iedereen"
-        }
-      }
     }
   },
   "nav": {
@@ -194,16 +183,6 @@
         "export_data": "Data exporteren",
         "import_backup": "Back-up importeren",
         "reset_settings": "Instellingen resetten"
-      }
-    },
-    "licence": {
-      "label": "Licentie",
-      "matches": {
-        "activate_pro": "Pro activeren",
-        "licence_key": "Licentiesleutel",
-        "devices": "Apparaten",
-        "managed_licence_bin": "Beheerde licence.bin",
-        "air_gapped_activation": "Activering zonder verbinding"
       }
     },
     "updates": {
@@ -511,10 +490,6 @@
         "label": "Opnames bewaren",
         "description": "Bewaart de WAV van elk dictaat op schijf zodat je het later opnieuw kunt afspelen of transcriberen. Bestanden staan in je Opnames-map en worden automatisch opgeruimd na het bewaarvenster hieronder."
       },
-      "pro_nudge": {
-        "feature": "Audiobehoud",
-        "description": "Bewaar een lokale WAV van elk dictaat zodat je het later opnieuw kunt beluisteren of transcriberen. Alleen op je schijf opgeslagen, nooit geüpload."
-      },
       "delete_after": {
         "label": "Opnames verwijderen na",
         "description": "Oudere WAV's worden bij elk nieuw dictaat automatisch opgeruimd, zodat de opnamemap niet uitdijt.",
@@ -597,24 +572,6 @@
       "title_fallback": "Wat is nieuw in deze versie",
       "description": "Releaseopmerkingen voor de versie die je draait. Opmerkingen van oudere versies leven in het GitHub-releases-archief.",
       "empty": "Geen releaseopmerkingen meegeleverd voor deze versie. (Waarschijnlijk een ontwikkelbuild.)"
-    },
-    "release_email": {
-      "title": "Release-updates",
-      "description": "Ontvang een korte e-mail wanneer er een nieuwe Utterbar-versie uitkomt. Wat is nieuw, hoe te updaten, niets meer. Met één klik uit te schrijven vanuit elke release-mail.",
-      "row": {
-        "label": "Mail me wanneer er een nieuwe release is",
-        "description": "Maximaal één mail per release. Je adres blijft alleen op de serverlijst; we delen het nooit."
-      },
-      "input_placeholder": "jij@voorbeeld.com",
-      "subscribe": "Abonneren",
-      "sending": "Bezig met verzenden…",
-      "subscribed_as": "Geabonneerd als {{email}}",
-      "change_email": "E-mail wijzigen",
-      "errors": {
-        "empty": "Voer je e-mail in om te abonneren.",
-        "invalid": "Dat lijkt geen e-mailadres, controleer op typefouten.",
-        "fallback": "Kon de server niet bereiken. Controleer je verbinding en probeer het opnieuw."
-      }
     }
   },
   "advanced": {

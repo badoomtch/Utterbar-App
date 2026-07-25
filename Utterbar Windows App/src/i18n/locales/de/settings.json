@@ -73,17 +73,6 @@
         "label": "Systembenachrichtigungen",
         "description": "Zeigt eine Windows-Benachrichtigung, wenn etwas wirklich deine Aufmerksamkeit braucht: Diktat-Fehler, fehlgeschlagene Modell-Installationen, erfolgreiche Modell-Installationen."
       }
-    },
-    "upgrade": {
-      "custom_accent": {
-        "feature": "Eigene Akzentfarben",
-        "description": "Wähle eine beliebige Farbe für die Akzent-Familie, den Aufnahme-Button, die Wellenform der schwebenden Leiste, das Pillen-Glyph und jede Hervorhebung. Die sechs Voreinstellungen sind kostenlos; eigene Farben gehören zu Pro.",
-        "bullets": {
-          "any_hex": "Wähle jede Hex-Farbe mit dem nativen Windows-Farbwähler",
-          "auto_tint_shade": "Automatisch abgeleitete Tönung und Schatten, damit Verläufe Tiefe behalten",
-          "presets_free": "Alle sechs Voreinstellungen bleiben kostenlos für alle"
-        }
-      }
     }
   },
   "nav": {
@@ -194,16 +183,6 @@
         "export_data": "Daten exportieren",
         "import_backup": "Backup importieren",
         "reset_settings": "Einstellungen zurücksetzen"
-      }
-    },
-    "licence": {
-      "label": "Lizenz",
-      "matches": {
-        "activate_pro": "Pro aktivieren",
-        "licence_key": "Lizenzschlüssel",
-        "devices": "Geräte",
-        "managed_licence_bin": "Verwaltete licence.bin",
-        "air_gapped_activation": "Offline-Aktivierung"
       }
     },
     "updates": {
@@ -511,10 +490,6 @@
         "label": "Aufnahmen speichern",
         "description": "Behalte das WAV jeder Diktat-Aufnahme auf der Festplatte, damit du sie später erneut abspielen oder transkribieren kannst. Dateien liegen in deinem Aufnahmen-Ordner und werden nach dem Aufbewahrungs-Fenster unten automatisch gelöscht."
       },
-      "pro_nudge": {
-        "feature": "Audio-Aufbewahrung",
-        "description": "Behalte ein lokales WAV jeder Diktat-Aufnahme, um es später erneut zu hören oder zu transkribieren. Nur auf deiner Festplatte gespeichert, nie hochgeladen."
-      },
       "delete_after": {
         "label": "Aufnahmen löschen nach",
         "description": "Ältere WAVs werden bei jedem neuen Diktat automatisch aufgeräumt, damit der Aufnahmen-Ordner nicht aus den Nähten platzt.",
@@ -597,24 +572,6 @@
       "title_fallback": "Neu in dieser Version",
       "description": "Versionshinweise für die Version, die du ausführst. Hinweise zu älteren Versionen leben im GitHub-Releases-Archiv.",
       "empty": "Keine Versionshinweise für diese Version gebündelt. (Wahrscheinlich ein Dev-Build.)"
-    },
-    "release_email": {
-      "title": "Versions-Updates",
-      "description": "Erhalte eine kurze E-Mail, wenn eine neue Utterbar-Version erscheint. Was neu ist, wie man aktualisiert, sonst nichts. Mit einem Klick aus jeder Versions-Mail abmeldbar.",
-      "row": {
-        "label": "Mir bei einer neuen Version Bescheid geben",
-        "description": "Höchstens eine Mail pro Version. Deine Adresse bleibt nur auf der Server-Liste; wir teilen sie nie."
-      },
-      "input_placeholder": "du@beispiel.de",
-      "subscribe": "Abonnieren",
-      "sending": "Senden…",
-      "subscribed_as": "Abonniert als {{email}}",
-      "change_email": "E-Mail ändern",
-      "errors": {
-        "empty": "Gib deine E-Mail ein, um zu abonnieren.",
-        "invalid": "Das sieht nicht nach einer E-Mail-Adresse aus, prüfe auf Tippfehler.",
-        "fallback": "Server konnte nicht erreicht werden. Prüfe deine Verbindung und versuche es erneut."
-      }
     }
   },
   "advanced": {

@@ -73,17 +73,6 @@
         "label": "Notifications système",
         "description": "Affiche une notification Windows quand quelque chose nécessite vraiment votre attention : erreurs de dictée, échecs d'installation de modèle, installations réussies."
       }
-    },
-    "upgrade": {
-      "custom_accent": {
-        "feature": "Couleurs d'accent personnalisées",
-        "description": "Choisissez n'importe quelle couleur pour la famille d'accent, le bouton d'enregistrement, la forme d'onde de la barre flottante, le glyphe de la pastille et chaque surlignage. Les six préréglages sont gratuits ; le choix libre fait partie de Pro.",
-        "bullets": {
-          "any_hex": "Choisissez n'importe quelle couleur hex avec le sélecteur Windows natif",
-          "auto_tint_shade": "Teintes et nuances dérivées automatiquement, les dégradés gardent leur profondeur",
-          "presets_free": "Les six préréglages d'accent restent gratuits pour tout le monde"
-        }
-      }
     }
   },
   "nav": {
@@ -194,16 +183,6 @@
         "export_data": "Exporter les données",
         "import_backup": "Importer une sauvegarde",
         "reset_settings": "Réinitialiser les paramètres"
-      }
-    },
-    "licence": {
-      "label": "Licence",
-      "matches": {
-        "activate_pro": "Activer Pro",
-        "licence_key": "Clé de licence",
-        "devices": "Appareils",
-        "managed_licence_bin": "licence.bin gérée",
-        "air_gapped_activation": "Activation hors-ligne"
       }
     },
     "updates": {
@@ -511,10 +490,6 @@
         "label": "Enregistrer les enregistrements",
         "description": "Conserve le WAV de chaque dictée sur disque pour pouvoir le rejouer ou retranscrire plus tard. Les fichiers vivent dans votre dossier Enregistrements et sont nettoyés automatiquement après la fenêtre de conservation ci-dessous."
       },
-      "pro_nudge": {
-        "feature": "Conservation audio",
-        "description": "Garde un WAV local de chaque dictée pour pouvoir réécouter ou retranscrire plus tard. Stocké uniquement sur votre disque, jamais téléversé."
-      },
       "delete_after": {
         "label": "Supprimer les enregistrements après",
         "description": "Les anciens WAV sont nettoyés automatiquement à chaque nouvelle dictée, ainsi le dossier d'enregistrements ne grossit pas.",
@@ -597,24 +572,6 @@
       "title_fallback": "Nouveautés de cette version",
       "description": "Notes de version pour la version que vous exécutez. Les notes des versions précédentes vivent dans les archives de releases GitHub.",
       "empty": "Aucune note de version fournie pour cette version. (Probablement une build de développement.)"
-    },
-    "release_email": {
-      "title": "Notifications de version",
-      "description": "Recevez un court e-mail à chaque nouvelle version d'Utterbar. Quoi de neuf, comment mettre à jour, rien d'autre. Désabonnement en un clic depuis n'importe quel e-mail de version.",
-      "row": {
-        "label": "M'avertir lors d'une nouvelle version",
-        "description": "Au plus un e-mail par version. Votre adresse reste uniquement sur la liste du serveur ; nous ne la partageons jamais."
-      },
-      "input_placeholder": "vous@exemple.com",
-      "subscribe": "S'abonner",
-      "sending": "Envoi…",
-      "subscribed_as": "Abonné en tant que {{email}}",
-      "change_email": "Changer d'e-mail",
-      "errors": {
-        "empty": "Saisissez votre e-mail pour vous abonner.",
-        "invalid": "Cela ne ressemble pas à une adresse e-mail, vérifiez les fautes.",
-        "fallback": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
-      }
     }
   },
   "advanced": {

@@ -15,7 +15,7 @@ const NAV = buildSettingsNav(i18n.getFixedT('en', 'settings'));
 const labelsOf = (xs: ReadonlyArray<{ label: string }>) => xs.map((x) => x.label);
 
 describe('buildSettingsNav: shape', () => {
-  it('returns 12 sections in the canonical IA order', () => {
+  it('returns 11 sections in the canonical IA order', () => {
     expect(labelsOf(NAV)).toEqual([
       'General',
       'Utterbar',
@@ -26,7 +26,6 @@ describe('buildSettingsNav: shape', () => {
       'Accessibility',
       'Privacy',
       'Advanced',
-      'Licence',
       'Updates',
       'About',
     ]);
@@ -90,12 +89,6 @@ describe('Settings search behaviour parity (English)', () => {
     expect(labelsOf(filterSettingsByQuery(NAV, 'apps to silence'))).toEqual(['Privacy']);
     const privacy = NAV.find((x) => x.label === 'Privacy')!;
     expect(settingsSearchMatchSummary(privacy, 'apps to silence')).toBe('Apps to silence');
-  });
-
-  it('air gapped → Licence / Air-gapped activation', () => {
-    expect(labelsOf(filterSettingsByQuery(NAV, 'air gapped'))).toEqual(['Licence']);
-    const licence = NAV.find((x) => x.label === 'Licence')!;
-    expect(settingsSearchMatchSummary(licence, 'air gapped')).toBe('Air-gapped activation');
   });
 
   it('gpu → Advanced / GPU acceleration', () => {

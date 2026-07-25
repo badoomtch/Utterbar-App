@@ -98,11 +98,9 @@ describe('PrivacySettings i18n source-grep guard', () => {
     expect(SOURCE).toMatch(/privacy\.context\.active_app\.label/);
     expect(SOURCE).toMatch(/privacy\.context\.selection\.label/);
     expect(SOURCE).toMatch(/privacy\.context\.clipboard\.label/);
-    // Audio retention sub-tree (incl. ProNudge prop wiring).
+    // Audio retention sub-tree.
     expect(SOURCE).toMatch(/privacy\.audio_retention\.title/);
     expect(SOURCE).toMatch(/privacy\.audio_retention\.save_recordings\.label/);
-    expect(SOURCE).toMatch(/privacy\.audio_retention\.pro_nudge\.feature/);
-    expect(SOURCE).toMatch(/privacy\.audio_retention\.pro_nudge\.description/);
     expect(SOURCE).toMatch(/privacy\.audio_retention\.delete_after\.label/);
     expect(SOURCE).toMatch(/privacy\.audio_retention\.delete_after\.value/);
     // Media sub-tree.

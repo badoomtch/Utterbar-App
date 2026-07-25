@@ -73,17 +73,6 @@
         "label": "System notifications",
         "description": "Raise a Windows toast when something actually needs your attention, dictation errors, model-install failures, successful model installs."
       }
-    },
-    "upgrade": {
-      "custom_accent": {
-        "feature": "Custom accent colours",
-        "description": "Pick any colour for the accent family, the recording button, the floating bar's waveform, the pill glyph, and every highlight. The six presets are free; bring-your-own is part of Pro.",
-        "bullets": {
-          "any_hex": "Pick any hex colour from the native Windows colour picker",
-          "auto_tint_shade": "Auto-derived tint and shade so gradients still have depth",
-          "presets_free": "All six preset accents stay free for everyone"
-        }
-      }
     }
   },
   "nav": {
@@ -194,16 +183,6 @@
         "export_data": "Export data",
         "import_backup": "Import backup",
         "reset_settings": "Reset settings"
-      }
-    },
-    "licence": {
-      "label": "Licence",
-      "matches": {
-        "activate_pro": "Activate Pro",
-        "licence_key": "Licence key",
-        "devices": "Devices",
-        "managed_licence_bin": "Managed licence.bin",
-        "air_gapped_activation": "Air-gapped activation"
       }
     },
     "updates": {
@@ -511,10 +490,6 @@
         "label": "Save recordings",
         "description": "Keep the WAV of each dictation on disk so you can re-play or re-transcribe it later. Files live under your Recordings folder and are automatically pruned after the retention window below."
       },
-      "pro_nudge": {
-        "feature": "Audio retention",
-        "description": "Keep a local WAV of every dictation so you can re-listen or re-transcribe it later. Stored on your disk only, never uploaded."
-      },
       "delete_after": {
         "label": "Delete recordings after",
         "description": "Older WAVs are cleaned up automatically on each new dictation, so the recordings folder doesn't balloon.",
@@ -597,24 +572,6 @@
       "title_fallback": "What's new in this version",
       "description": "Release notes for the version you're running. Older versions' notes live in the GitHub releases archive.",
       "empty": "No release notes bundled for this version. (Probably running a dev build.)"
-    },
-    "release_email": {
-      "title": "Release updates",
-      "description": "Get a short email when a new Utterbar version ships. What's new, how to update, nothing else. Unsubscribe in one click from any release mail.",
-      "row": {
-        "label": "Email me when there's a new release",
-        "description": "At most one mail per release. Your address stays on the server's list only; we never share it."
-      },
-      "input_placeholder": "you@example.com",
-      "subscribe": "Subscribe",
-      "sending": "Sending…",
-      "subscribed_as": "Subscribed as {{email}}",
-      "change_email": "Change email",
-      "errors": {
-        "empty": "Enter your email to subscribe.",
-        "invalid": "That doesn't look like an email address, check for typos.",
-        "fallback": "Couldn't reach the server. Check your connection and try again."
-      }
     }
   },
   "advanced": {

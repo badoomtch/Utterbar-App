@@ -443,10 +443,6 @@ type ModelCatEntry = {
   recommended: boolean;
   accuracy_score: number;
   speed_score: number;
-  // Pro-gated models are filtered out of the onboarding shortlist
-  // because a first-run user can't buy yet. Catalogue (services/models.rs)
-  // is the source of truth; surfaced in Settings → Models for upgraded users.
-  requires_pro: boolean;
 };
 
 type ModelProgress = {
@@ -555,15 +551,10 @@ function ModelPickStep() {
   const extractStartRef = useRef<number>(0);
   const [nowTick, setNowTick] = useState(0);
 
-  // Onboarding shows a deliberately narrowed shortlist: Pro-gated
-  // models (fp16) are skipped because a fresh user is on the free tier
-  // and can't buy yet. The Settings → Models page exposes the full
-  // catalogue once they're past onboarding.
   const reload = () =>
     invoke<ModelCatEntry[]>('list_available_models')
       .then((list) => {
-        const onboarding = list.filter((m) => !m.requires_pro);
-        setModels(onboarding);
+        setModels(list);
         if (!pick) {
           // Defer to the pure recommendation helper so the language
           // constraint applies on first paint too. For English / auto
@@ -571,7 +562,7 @@ function ModelPickStep() {
           // (installed > recommended > first); for non-English it
           // filters to multilingual.
           const initial = recommendModelForLanguage({
-            models: onboarding as readonly RecommendationModel[],
+            models: list as readonly RecommendationModel[],
             currentSelection: null,
             dictationLanguage,
           });

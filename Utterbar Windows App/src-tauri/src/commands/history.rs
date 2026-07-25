@@ -4,7 +4,6 @@ use tauri::State;
 
 use crate::app_state::AppState;
 use crate::domain::{HistoryEntry, HistoryFilter, HistoryStatus, PostProcessing};
-use crate::util::gating::{is_pro, pro_required, FREE_HISTORY_CAP};
 use crate::util::result::{CmdResult, OrliqError};
 use crate::util::time::now_ms;
 
@@ -13,15 +12,7 @@ pub async fn list_history(
     state: State<'_, Arc<AppState>>,
     filter: HistoryFilter,
 ) -> CmdResult<Vec<HistoryEntry>> {
-    // Free-tier cap: return at most 100 entries. The DB still holds
-    // everything — we filter on read so upgrading to Pro restores the full
-    // list without a restore step. List is ordered newest-first, so
-    // truncating keeps the useful recent slice.
     let rows = state.history.list(filter).map_err(OrliqError::from)?;
-    let status = state.licence.status().await;
-    if !is_pro(&status) && rows.len() > FREE_HISTORY_CAP {
-        return Ok(rows.into_iter().take(FREE_HISTORY_CAP).collect());
-    }
     Ok(rows)
 }
 
@@ -46,12 +37,6 @@ pub async fn reprocess_history(
     id: String,
     mode_id: String,
 ) -> CmdResult<HistoryEntry> {
-    // Pro gate: re-transcribe / reprocess is Pro-only.
-    let lic = state.licence.status().await;
-    if !is_pro(&lic) {
-        return Err(pro_required("Re-transcribe"));
-    }
-
     let source = state
         .history
         .get(&id)
