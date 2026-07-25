@@ -11,7 +11,7 @@
 
 ## Architecture in one paragraph
 
-The Utterbar installer lives in the Cloudflare R2 bucket `utterbar`, exposed publicly via `dl.utterbar.com`. Anyone can download from `https://dl.utterbar.com/releases/{version}/Utterbar-Setup-{version}.exe` — the version appears in both the path *and* the filename so a user who drags the `.exe` to their desktop still knows which build it is. Gating happens inside the app (licence check unlocks Pro), not at the download URL. The website tracks release metadata (version, SHA-256, notes, file size) in Laravel. Two ways to publish a release on the website: (a) the admin form at `/admin/releases/create` (manual), or (b) `POST /api/admin/releases` with a bearer token (automated). This guide uses (b).
+The Utterbar installer lives in the Cloudflare R2 bucket `utterbar`, exposed publicly via `dl.utterbar.com`. Anyone can download from `https://dl.utterbar.com/releases/{version}/Utterbar-Setup-{version}.exe` — the version appears in both the path *and* the filename so a user who drags the `.exe` to their desktop still knows which build it is. The app is free and open source, so there's no gating at the download URL or in the app. The website tracks release metadata (version, SHA-256, notes, file size) in Laravel. Releases are published headlessly via `POST /api/admin/releases` with a bearer token (the admin web form was removed with the admin panel). This guide covers that flow.
 
 ---
 
@@ -136,9 +136,9 @@ The full workflow in one command. See the script source at the bottom of this do
 ```
 
 Flags:
-- `--announce` — send the release email to all confirmed update-subscribers (only for stable releases you're confident about)
 - `--beta` — channel = beta (defaults to stable)
 - `--tag "latest"` — small cyan pill shown next to the version on the download page
+- `--announce` — no-op (the release-email subscriber list was removed with the paid stack)
 - `--dry-run` — print what would happen, don't upload or POST
 
 On success you'll see:
@@ -153,8 +153,6 @@ On success you'll see:
   id:           4
   download_url: https://dl.utterbar.com/releases/0.7.0/Utterbar-Setup-0.7.0.exe
   size:         10,962,662 bytes
-  announced_to: 142 subscribers
-  admin:        https://utterbar.com/admin/releases
 ```
 
 If anything fails, the script prints the error and exits non-zero. Safe to re-run — the admin API rejects duplicate (version, channel) pairs with `409 version_exists`, so a half-done release doesn't re-mint.
@@ -210,7 +208,7 @@ jq -n \
   --arg r2 "releases/0.7.0/Utterbar-Setup-0.7.0.exe" \
   --arg sha "47bd8249f82d1210f500d738bd0529a06f5970fa1e5282138bb6d9acf17920da" \
   --arg notes "$NOTES" \
-  '{version:$v, channel:"stable", r2_key:$r2, sha256:$sha, notes_markdown:$notes, announce:true, tag:"latest"}' \
+  '{version:$v, channel:"stable", r2_key:$r2, sha256:$sha, notes_markdown:$notes, tag:"latest"}' \
   > "$TMP"
 
 curl -s -X POST "$UTTERBAR_API_BASE/api/admin/releases" \
@@ -229,9 +227,7 @@ Expected response (HTTP 201):
   "version": "0.7.0",
   "channel": "stable",
   "download_url": "https://dl.utterbar.com/releases/0.7.0/Utterbar-Setup-0.7.0.exe",
-  "size_bytes": 10962662,
-  "announced_to": 142,
-  "admin_url": "https://utterbar.com/admin/releases"
+  "size_bytes": 10962662
 }
 ```
 
@@ -252,8 +248,7 @@ Expected response (HTTP 201):
   "tag":     "latest",                // optional, small pill shown on download page
   "sha256":  "47bd8249…",             // REQUIRED, 64 hex chars lowercase (server validates the object in R2 matches)
   "notes_markdown": "- first change\n- second change",  // required
-  "announce": true,                   // optional, fires the release email
-  "announce_subject": "Utterbar 0.7.0 is out"  // optional, defaults to this format
+  "updater_signature": "<base64>"     // required when the server has UPDATER_PUBLIC_KEY_B64 set; publish-release.sh signs and adds it
 }
 ```
 
@@ -261,7 +256,7 @@ Expected response (HTTP 201):
 
 | Code | Meaning |
 |---|---|
-| 201 | Created. Response body includes id, download_url, size_bytes, announced_to. |
+| 201 | Created. Response body includes id, download_url, size_bytes. |
 | 401 | Missing or wrong bearer token. |
 | 409 | `version_exists` — that (version, channel) pair is already published. Nothing created. |
 | 422 | Validation failure (missing/malformed fields, bad SHA-256, file not in R2 bucket). |
@@ -296,15 +291,9 @@ Requires `jq`, `curl`, `aws`, `sha256sum`. All standard on macOS / Linux; on Win
 
 ## Admin cross-reference
 
-Back-office surfaces (auth required + email on `ADMIN_EMAILS` allow-list):
-
-| URL | What |
-|---|---|
-| `/admin` | Overview dashboard |
-| `/admin/releases` | List all releases, delete, create new |
-| `/admin/releases/create` | Manual release form (browser equivalent of the API) |
-
-The admin form and the API both talk to the same backend; neither is better than the other. Use the API for scripted releases and the form for one-off edits or quick-fix deletes.
+There is no admin web panel any more — it was removed with the accounts system
+in the open-source pivot. Releases are published and deleted only through the
+bearer-token API (`POST` / `DELETE /api/admin/releases`) documented above.
 
 ---
 
@@ -312,13 +301,12 @@ The admin form and the API both talk to the same backend; neither is better than
 
 An NSIS upgrade replaces the contents of `C:\Program Files\Utterbar\` (or the per-user install dir — `installMode: "currentUser"` puts us under `%LOCALAPPDATA%\Programs\Utterbar\`). Anything inside that folder is wiped and re-extracted; anything outside it survives. Utterbar deliberately keeps all user-facing state outside the install dir:
 
-- **Licence blob** → Windows Credential Manager (DPAPI-encrypted, service `Utterbar/Licence`). Independent of the install dir — survives uninstall, reinstall, even "Add/Remove Programs → Repair". See `src-tauri/src/services/licence/cache.rs`.
 - **Settings** → `%APPDATA%\Utterbar\config\settings.json`. Survives. See `src-tauri/src/services/settings.rs`.
 - **History DB** → `%APPDATA%\Utterbar\data\*.sqlite`. Survives.
 - **Downloaded models** → `%APPDATA%\Utterbar\models\`. Survives.
 - **Recordings** (if `retain_audio` is on) → `%APPDATA%\Utterbar\recordings\`. Survives.
 
-If a future refactor ever moves any of these into the install dir or a temp folder, the user's licence and preferences disappear on the next update — users can't distinguish that from "my licence got deleted". Please don't.
+If a future refactor ever moves any of these into the install dir or a temp folder, the user's history and preferences disappear on the next update — users can't distinguish that from "my data got deleted". Please don't.
 
 ---
 

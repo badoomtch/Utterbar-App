@@ -33,8 +33,12 @@ If any precondition fails: stop and resolve before touching anything else. Parti
 
 Semver, pre-1.0, with channel-encoded-in-version convention (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)):
 
-- **MINOR** (`0.x.0`) — mainline / stable channel. Bundles whatever betas have soaked since the previous mainline. This is what `/download`, the "latest" pill, and the Microsoft Store listing point at. **Always ship with `--announce --tag "latest"`.**
-- **PATCH** (`0.x.y` where `y > 0`) — beta channel. Used for soak releases between mainline minors. **Always ship with `--beta`, never `--tag "latest"`.** Don't `--announce` unless you've confirmed the beta-subscriber list is what you want.
+- **MINOR** (`0.x.0`) — mainline / stable channel. Bundles whatever betas have soaked since the previous mainline. This is what `/download`, the "latest" pill, and the Microsoft Store listing point at. **Always ship with `--tag "latest"`.**
+- **PATCH** (`0.x.y` where `y > 0`) — beta channel. Used for soak releases between mainline minors. **Always ship with `--beta`, never `--tag "latest"`.**
+
+> The old `--announce` flag (release-email blast) is a **no-op** now — the
+> subscriber list was removed with the paid stack. It's harmless to pass but
+> does nothing; the examples below drop it.
 - **MAJOR** (`0.x → 1.0`) — reserved for the "we ship this to the public" launch.
 
 So the typical rhythm is: feature work lands on a series of `0.x.1`, `0.x.2`, `0.x.3` betas; once the line has soaked, cut `0.(x+1).0` mainline that promotes the lot to stable. Don't ship features straight to mainline without a beta soak — even when "obviously safe", because that's the same intuition that shipped v0.6.1.
@@ -156,19 +160,19 @@ cd "Utterbar Windows App"
 ./scripts/publish-release.sh <version> \
     "src-tauri/target/release/bundle/nsis/Utterbar_<version>_x64-setup.exe" \
     releases/<version>.md \
-    --announce --tag "latest"
+    --tag "latest"
 ```
 
 Flags:
-- `--announce` — sends the release email to confirmed update-subscribers. Include for **mainline (`0.x.0`)** releases. For **beta (`0.x.y`)** releases, include only if you've explicitly decided this beta is broad enough to warrant a notification email; default is to skip.
 - `--tag "latest"` — displays the cyan "latest" pill next to the version on `/download`. **Mainline only.** Never on a beta — `latest` is supposed to mean "the version everyone should be on".
 - `--beta` — channel=beta instead of stable. **Required for any `0.x.y` patch release** (per [CLAUDE.md §5.7](CLAUDE.md) versioning convention). Mainline minors omit it.
+- `--announce` — **no-op** (the subscriber email list was removed with the paid stack). Passing it does nothing; there's no reason to.
 
 So the two canonical invocations are:
 
 ```bash
 # Mainline (0.x.0) — what users on stable see
-./scripts/publish-release.sh 0.12.0 ... --announce --tag "latest"
+./scripts/publish-release.sh 0.12.0 ... --tag "latest"
 
 # Beta soak (0.x.y, y > 0) — only beta-channel users see it
 ./scripts/publish-release.sh 0.12.1 ... --beta
@@ -184,10 +188,9 @@ So the two canonical invocations are:
 4. Signs the canonical metadata blob locally with the operator's
    Ed25519 key (loaded from `~/.utterbar-deploy/.env`).
 5. POSTs metadata (`version`, `channel`, `r2_key`, `sha256`,
-   `notes_markdown`, `announce`, `tag`, `updater_signature`,
-   `confirm_stable_announce`) to `$UTTERBAR_API_BASE/api/admin/releases`
-   with bearer-token auth.
-6. Expects `201 Created` with `id`, `download_url`, `size_bytes`, `announced_to`.
+   `notes_markdown`, `tag`, `updater_signature`) to
+   `$UTTERBAR_API_BASE/api/admin/releases` with bearer-token auth.
+6. Expects `201 Created` with `id`, `download_url`, `size_bytes`.
 
 ### Server-side validation rules (effective from the v0.14.13 hardening)
 
@@ -208,15 +211,9 @@ The publish endpoint runs these checks before a row is created:
   against a canonical metadata blob built with the **computed** SHA,
   not the pasted one — so a wrong pasted SHA can't drag the signature
   along with it and produce a row that signs-and-verifies but doesn't
-  match the bucket. Both the API path (`POST /api/admin/releases`) and
-  the browser form (`POST /admin/releases`) enforce this rule
-  identically since the v0.14.13 patch.
-- **Stable + announce confirmation flag.** When `channel=stable` AND
-  `announce=true`, the body must include `confirm_stable_announce=true`
-  (or `'1'` from the browser form). Without it, the publish is refused
-  (`error: stable_announce_unconfirmed`). This is a defensive guard
-  against typo-driven subscriber blasts; `publish-release.sh` sets the
-  flag automatically when `--announce` is passed without `--beta`.
+  match the bucket. The headless API (`POST /api/admin/releases`) is the
+  only publish path (the browser admin form was removed with the admin
+  web panel).
 - **Channel separation.** Beta and stable rows live in the same table
   but separate uniqueness namespaces (`(version, channel)`), so the
   same version string can exist on both — this is intentional, used
@@ -242,7 +239,6 @@ See [MONOREPO.md §10](MONOREPO.md) for the full list. When fixing drift, **fix 
 | `422 r2_hash_failed` | Server couldn't read the R2 object back to hash it. Rare; usually transient. | Retry. If it persists, check R2 credentials on the server. |
 | `422 updater_signature_required` | `UPDATER_PUBLIC_KEY_B64` is configured server-side but the script didn't send a signature. | Re-run after confirming `~/.utterbar-deploy/.env` has the operator private key and the script's signing step succeeded. |
 | `422 updater_signature_invalid` | Signature parsed but doesn't verify against the canonical metadata blob built from the **computed** SHA. | Most often: the file was modified between local SHA + the upload. Re-build, re-sign, re-publish. |
-| `422 stable_announce_unconfirmed` | `--announce --tag "latest"` was used without `confirm_stable_announce=true`. | `publish-release.sh` should set this automatically when `--announce` is on a stable. If you're invoking the API directly, add `"confirm_stable_announce": true`. |
 | `422 version required` (or similar per-field) | curl quoting bug (§5 drifts). | Re-run with payload written to a temp file and `--data-binary "@$TMPFILE"`. |
 | `503` | Admin API is not configured server-side. | Stop. Server ops issue — contact Jay. |
 
@@ -293,7 +289,7 @@ You find out a shipped build crashes / has a regression / breaks activation. Res
      -H "Authorization: Bearer $UTTERBAR_ADMIN_API_TOKEN"
    ```
    `delete_file=0` keeps the R2 object (so users mid-download don't 404) but removes the DB row (so `/download` falls back to the previous stable release).
-2. **Tell users.** If `--announce` was used, some users already got an email pointing them at a broken installer. Send a follow-up. Script doesn't do this — hand-write it for now.
+2. **Tell users.** Anyone on the affected channel will get the pulled version withdrawn from their update feed once the row is gone, but users who already downloaded it have the broken installer. There's no release-email list any more; if a broad heads-up is warranted, post it on the changelog / wherever you announce.
 3. **Record the failure.** Add a memory file under `memory/project_v<ver>_pulled.md` with: what broke, when you found out, what evidence you have (crash.log, user report), and what the re-release needs to change. This is the pattern established by [project_v061_pulled.md](../.claude/projects/c--Users-jaypa-Documents-GitHub-Utterbar/memory/project_v061_pulled.md).
 4. **Fix the root cause, not the symptom.** If the binary crashed, diagnose why — don't just rebuild. See [MONOREPO.md §10.6](MONOREPO.md) + [project_v061_investigation.md](../.claude/projects/c--Users-jaypa-Documents-GitHub-Utterbar/memory/project_v061_investigation.md) for the template.
 5. **Re-release at the next patch.** Never re-upload under the same version — the SHA-256 would change and anyone who cached the old one gets stuck. Bump to `<version>+1` and follow this runbook from §1.
@@ -350,9 +346,14 @@ rebuilt manually by following these steps.
 
 ## 10. What this runbook does NOT cover
 
-- **Ed25519 keypair rotation** — completed 2026-04-26. The licence keypair is now v2 in production and the v1 sandbox key is accepted transitionally on the client. The updater pipeline has its own separate Ed25519 key (operator-local). To rotate again in future, see [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md) and the helper script [scripts/rotate-licence-key.ps1](scripts/rotate-licence-key.ps1).
-- **Code signing** — we ship unsigned EXEs today. SmartScreen warnings are expected. Cert plan is in [LAUNCH_CHECKLIST.md §A1](Utterbar%20Website/LAUNCH_CHECKLIST.md).
-- **Stripe price changes** — those don't need a new app build. Update `STRIPE_PRO_PRICE_ID` in server `.env`.
+- **Updater key rotation** — the release/update pipeline signs with an
+  operator-local Ed25519 key (`UPDATER_PRIVATE_KEY_B64` in
+  `~/.utterbar-deploy/.env`); only the matching public key is baked into the
+  desktop app. To rotate it you'd generate a new pair (`php artisan updater:keygen`),
+  bake the new public key into the app, and ship a build before publishing
+  anything signed with the new private key. (The old licence signing keypair is
+  gone — nothing verifies licences any more.)
+- **Code signing** — we ship unsigned EXEs today. SmartScreen warnings are expected.
 - **Website-only changes** — there's no parallel runbook yet; deploy via `pscp`/`plink` per [MONOREPO.md §2 build commands](MONOREPO.md).
 
 ---

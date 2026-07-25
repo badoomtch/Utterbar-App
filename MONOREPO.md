@@ -7,11 +7,24 @@ cold. If you only read one long doc, read this.
 Companion rules file: [CLAUDE.md](CLAUDE.md).
 Counterpart brain dumps: [Utterbar Windows App/CLAUDE.md](Utterbar%20Windows%20App/CLAUDE.md) and [Utterbar Website/CLAUDE.md](Utterbar%20Website/CLAUDE.md) — superseded by this doc where they disagree, but kept for historical context.
 
+> **⚠️ Open-source pivot (2026-07-25).** Utterbar is now **free and open source
+> (MIT)**, every feature on for everyone. The entire paid/licensing stack was
+> **removed** from both sides: Stripe checkout + webhooks, licence minting /
+> signing / verification / device caps, customer accounts (magic-link),
+> the release-email subscriber list, volume/Team/Business tiers, tips, and the
+> admin web panel. **Any section below that describes those systems — pricing,
+> `licences`/`activations`/`stripe_webhook_events`/`update_subscribers` tables,
+> the licence API, magic-link auth, Stripe, the admin panel — is HISTORICAL.
+> The code is gone.** What survives: the free desktop app, the marketing site,
+> the download endpoint, the contact form, and the Ed25519-signed auto-updater
+> (feed + headless bearer-token release API). Treat this banner as authoritative
+> where the body text disagrees.
+
 ---
 
 ## 0. The product in one paragraph
 
-Utterbar is a Windows-first, local-only dictation app. Press `Ctrl+Space`, speak, release, your text lands in the focused app — Chrome, Slack, VS Code, Notion, anywhere. ASR runs on-device via NVIDIA Parakeet-tdt (0.6B v2) through sherpa-onnx. No audio leaves the machine. Free tier covers the core flow. Pro is a one-time **£39.99 GBP** licence (3-device cap) that unlocks custom accent colours, unlimited modes, full vocabulary, file transcription, and more dialects. Windows 10/11 x64 only. No macOS, no Linux.
+Utterbar is a Windows-first, local-only dictation app. Press `Ctrl+Space`, speak, release, your text lands in the focused app — Chrome, Slack, VS Code, Notion, anywhere. ASR runs on-device via NVIDIA Parakeet-tdt through sherpa-onnx. No audio leaves the machine. **Free and open source (MIT), every feature included** — no price, no account, no licence: custom accent colours, unlimited modes, full vocabulary, file transcription, meeting transcription, and 30+ languages, all on for everyone. Windows 10/11 x64 only. No macOS, no Linux.
 
 ---
 
@@ -255,7 +268,7 @@ Alphabet: Crockford base32 (`0-9A-Z` minus `I, L, O, U`). 100 bits entropy. Stor
 
 ### 3.5 Signed blob (96 bytes)
 
-What the Tauri app verifies offline. Full layout in [LICENCE_APP_HANDOFF.md §3](Utterbar%20Website/LICENCE_APP_HANDOFF.md):
+What the Tauri app verifies offline. Full layout in the licence handoff doc *(deleted in the open-source pivot)*:
 
 ```
 [0]   1   version u8
@@ -292,7 +305,7 @@ These endpoints are the contract between app and website. **Breaking any of them
 
 ### 4.1 Licence API — app → website
 
-All CSRF-exempt (via `bootstrap/app.php`). All return JSON. Errors: `{ error: slug, message: string, meta: mixed|null }`. Full shapes in [LICENCE_APP_HANDOFF.md §4](Utterbar%20Website/LICENCE_APP_HANDOFF.md).
+All CSRF-exempt (via `bootstrap/app.php`). All return JSON. Errors: `{ error: slug, message: string, meta: mixed|null }`. Full shapes in the licence handoff doc *(deleted in the open-source pivot)*.
 
 | Endpoint | Purpose | Rate limit |
 | --- | --- | --- |
@@ -409,7 +422,7 @@ winget install Amazon.AWSCLI jqlang.jq
 
 ## 6. Licence system
 
-Full arch spec: [LICENCE_SYSTEM_SPEC.md](Utterbar%20Website/LICENCE_SYSTEM_SPEC.md). Contract handoff: [LICENCE_APP_HANDOFF.md](Utterbar%20Website/LICENCE_APP_HANDOFF.md).
+Full arch spec: the licence system spec *(deleted in the open-source pivot)*. Contract handoff: the licence handoff doc *(deleted in the open-source pivot)*.
 
 ### 6.1 Flow (app side)
 
@@ -429,7 +442,7 @@ Custom accent, >N modes, >N vocab entries, file transcription, multi-language di
 
 **Currently sandbox keypair** — generated as a test key and reused when cutting over to live Stripe. Documented risk: private key was exposed in chat during setup. Real-world exploitability is low because forging a licence requires BOTH the private key AND write access to the DB (the `/api/licence/fetch` returns the blob from DB, not from what the app claims), OR patching the Tauri binary to skip verification — at which point patching out the licence check is easier than forging.
 
-**Rotation plan** in [LAUNCH_CHECKLIST.md §A2](Utterbar%20Website/LAUNCH_CHECKLIST.md): at v0.7, run `php artisan licence:keygen` on a dev machine (not the server), put new private key in server `.env` as `LICENCE_PRIVATE_KEY_B64`, bump `LICENCE_PAYLOAD_VERSION=2`, give app Claude the new public key so the app bakes BOTH v1 and v2 keys. Existing sandbox licences still verify (v1); new licences sign v2.
+**Rotation plan** in the launch checklist *(deleted in the open-source pivot)*: at v0.7, run `php artisan licence:keygen` on a dev machine (not the server), put new private key in server `.env` as `LICENCE_PRIVATE_KEY_B64`, bump `LICENCE_PAYLOAD_VERSION=2`, give app Claude the new public key so the app bakes BOTH v1 and v2 keys. Existing sandbox licences still verify (v1); new licences sign v2.
 
 ### 6.4 Artisan commands
 
@@ -540,7 +553,7 @@ ADMIN_API_TOKEN=<64-hex>
 
 # Cloudflare R2
 CLOUDFLARE_R2_ACCOUNT_ID=bf4d2d2ba6ffeb5eb8472648bacc2f78
-CLOUDFLARE_R2_BUCKET=utterbar
+CLOUDFLARE_R2_BUCKET=<R2_BUCKET>
 CLOUDFLARE_R2_PUBLIC_URL=https://dl.utterbar.com
 CLOUDFLARE_R2_ACCESS_KEY_ID=<...>
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=<secret>
@@ -838,4 +851,4 @@ Ranked by user-impact, current priorities:
 
 ---
 
-End of unified reference. Rules live in [CLAUDE.md](CLAUDE.md); canonical release flow in [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md); product/brand in [Utterbar Website/BRIEF.md](Utterbar%20Website/BRIEF.md); design in [Utterbar Website/DESIGN_SYSTEM.md](Utterbar%20Website/DESIGN_SYSTEM.md); licence contract in [Utterbar Website/LICENCE_APP_HANDOFF.md](Utterbar%20Website/LICENCE_APP_HANDOFF.md).
+End of unified reference. Rules live in [CLAUDE.md](CLAUDE.md); canonical release flow in [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md); product/brand in [Utterbar Website/BRIEF.md](Utterbar%20Website/BRIEF.md); design in [Utterbar Website/DESIGN_SYSTEM.md](Utterbar%20Website/DESIGN_SYSTEM.md). (The licence-contract and licence-spec docs were deleted in the open-source pivot — the licence system they described is gone.)

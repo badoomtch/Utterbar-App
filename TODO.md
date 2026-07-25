@@ -2,7 +2,22 @@
 
 Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
 
-**Last updated: 2026-07-23** (v0.25.1 media-pause reliability beta)
+**Last updated: 2026-07-25** (open-source pivot)
+
+---
+
+> **⚠️ Open-source pivot (2026-07-25, branch `feature/open-source-phase1`).**
+> Utterbar is going **free and open source (MIT)**. The entire paid/licensing
+> stack was removed from both sides — Stripe, licence signing + device caps,
+> accounts (magic-link), the release-email subscriber list, volume/Team/Business
+> tiers, tips, and the admin web panel. The free desktop app, marketing site,
+> download endpoint, contact form, and Ed25519-signed auto-updater stay. **Every
+> backlog/history entry below about pricing, volume/B2B checkout, licence.bin,
+> air-gapped activation, the admin dashboard, or subscribers is now superseded —
+> those systems no longer exist.** Remaining to go public: Jay rotates the live
+> `ADMIN_API_TOKEN` + Stripe test key (Phase 0), then flip the repo public. Added
+> at root: `LICENSE` (MIT), `THIRD_PARTY_NOTICES.md`, `README.md`. Not yet
+> committed.
 
 ---
 
@@ -114,7 +129,7 @@ External audit ran late April 2026. Findings sorted into three buckets.
 
 ### Deferred
 
-- **Origin lockdown for `178.62.6.215`.** Parked hardening, not active work, not urgent. Stripe webhook HMAC, licence Ed25519, admin bearer token, and per-route Laravel throttles all hold on the direct path; nothing's currently exploitable. If we ever pick this up, it's operational work (not a repo change): Cloudways firewall allow-listing Cloudflare IPs, Cloudflare Authenticated Origin Pulls + nginx mTLS, and SSH (port 22) restriction tracked separately. Trigger to revisit: a real bypass attempt in logs, an IP-leak incident, or a quiet maintenance window.
+- **Origin lockdown for `<SERVER_IP>`.** Parked hardening, not active work, not urgent. Stripe webhook HMAC, licence Ed25519, admin bearer token, and per-route Laravel throttles all hold on the direct path; nothing's currently exploitable. If we ever pick this up, it's operational work (not a repo change): Cloudways firewall allow-listing Cloudflare IPs, Cloudflare Authenticated Origin Pulls + nginx mTLS, and SSH (port 22) restriction tracked separately. Trigger to revisit: a real bypass attempt in logs, an IP-leak incident, or a quiet maintenance window.
 - **CSP enforcement / inline-script nonce refactor.** Current Report-Only with `'unsafe-inline'` is hygiene-level CSP. Real win comes from refactoring 9 inline `<script>` blocks to use a per-request nonce, then dropping `'unsafe-inline'`. Moderate refactor across ~14 view files plus middleware nonce plumbing. **Do not flip CSP to enforcement until the nonce refactor is in.**
 - **SSH IP restriction (port 22).**
 - **CAA records.** Pin the CAs Cloudflare actually uses to prevent mis-issuance.
