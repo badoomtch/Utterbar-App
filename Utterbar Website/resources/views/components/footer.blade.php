@@ -5,7 +5,6 @@
             ['How it works', route('how-it-works')],
             ['Privacy', route('privacy')],
             ['Pricing', route('pricing')],
-            ['For business', route('business')],
             ['Compare', route('compare.index')],
             ['Changelog', route('changelog')],
             ['Roadmap', route('roadmap')],
@@ -18,11 +17,8 @@
             ['Troubleshooting', route('docs.troubleshooting')],
             ['IT deployment', route('docs.it-deployment')],
         ],
-        // Sign-in deliberately omitted: it's an auth surface, not a marketing
-        // page, and putting it on every public page wasted internal link
-        // weight on a noindex'd URL. Customers reach it via the licence email
-        // or the in-app account link. EULA also omitted while it remains a
-        // placeholder pending the 1.0 installer.
+        // EULA omitted while it remains a placeholder pending the 1.0
+        // installer.
         'Company' => [
             ['Press', route('press')],
             ['Contact', route('contact')],
@@ -66,7 +62,7 @@
                     Download Utterbar for Windows.
                 </h3>
                 <p class="mt-4 text-sm" style="color: var(--muted);">
-                    Small installer. Windows 10 or 11. Free forever. Pro is one-time, &pound;39.99, lifetime.
+                    Small installer. Windows 10 or 11. Free and open source, every feature included.
                 </p>
                 <div class="mt-6">
                     <a href="{{ route('download') }}" class="ub-btn ub-btn-cta">

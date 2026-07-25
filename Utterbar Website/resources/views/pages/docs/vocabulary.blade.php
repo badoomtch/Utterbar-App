@@ -14,8 +14,7 @@
         <div>
             <h2 class="text-2xl">Limits</h2>
             <ul class="mt-3 text-sm space-y-2" style="color: var(--muted);">
-                <li>Free: 50 vocabulary words, 25 replacements.</li>
-                <li>Pro: unlimited.</li>
+                <li>Unlimited vocabulary words and replacements.</li>
             </ul>
         </div>
     </div>

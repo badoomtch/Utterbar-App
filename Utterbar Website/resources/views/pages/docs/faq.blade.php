@@ -3,7 +3,7 @@
         ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your PC.'],
         ['q' => 'Which Windows versions are supported?', 'a' => 'Windows 10 22H2 and Windows 11, x86_64. WebView2 is required (already on Windows 11; auto-bootstrapped on Windows 10).'],
         ['q' => 'Do I need a GPU?', 'a' => 'No. The default Parakeet build runs comfortably on any modern CPU. If you have a DirectX 12 graphics card (NVIDIA, AMD, or Intel), Utterbar uses it via DirectML for Whisper Medium, Whisper Large, and Parakeet on Auto. Whisper Small stays on CPU on Auto, because that is actually faster. Explicit DirectML in Settings > Advanced overrides the per-model rule. CUDA is not bundled.'],
-        ['q' => 'What languages are supported?', 'a' => 'Over 30 out of the box, including English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, and Mandarin. English runs on Parakeet for speed; everything else runs on Whisper. Whisper base is free; Whisper small is Pro for stronger non-English accuracy. Auto-detect is on by default, so you don\'t have to pick.'],
+        ['q' => 'What languages are supported?', 'a' => 'Over 30 out of the box, including English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, and Mandarin. English runs on Parakeet for speed; everything else runs on Whisper. Whisper base is compact and fast; Whisper small gives stronger non-English accuracy. Both are included. Auto-detect is on by default, so you don\'t have to pick.'],
         ['q' => 'Can I use it to talk to Claude / ChatGPT / Gemini / Copilot?', 'a' => 'Yes. Utterbar types into whichever app has the cursor, which includes browser tabs and AI desktop apps. Click the assistant\'s chat input, hold the hotkey, ask your question. The text lands in the box. No browser extension, no API key, no per-assistant setup. Works the same way with the local LLM you run yourself.'],
         ['q' => 'Does it work offline?', 'a' => 'Completely, once the model is downloaded on first run.'],
         ['q' => 'Can I use it in video-call and chat apps?', 'a' => 'Yes, for typing into the chat box. Utterbar never injects audio into a call.'],
@@ -15,7 +15,7 @@
         ['q' => 'Can I audit the code?', 'a' => 'Utterbar isn\'t open source (the paid features stay paid that way), but security researchers and enterprise buyers can request a source review under NDA. Email <a href="mailto:' . config('site.email.contact') . '" style="color: var(--accent);">' . config('site.email.contact') . '</a>.'],
         ['q' => 'How do I export my transcription history?', 'a' => 'Settings &gt; History &gt; Export. Produces a zip of every transcription (and audio, if you retained it).'],
         ['q' => 'Why does dictation refuse past 5 minutes?', 'a' => 'Single-shot dictation is capped at 5 minutes. The offline recogniser allocates memory proportional to audio length, so the cap protects you from a long-input crash. For longer recordings, switch to Meeting Mode (Settings &gt; Modes &gt; Meeting): it chunks audio internally and handles up to about an hour. The cap will go away when the streaming-recogniser rebuild lands in a future release.'],
-        ['q' => 'Can I use it commercially?', 'a' => 'Yes, once Pro is licensed. Free is for personal use.'],
+        ['q' => 'Can I use it commercially?', 'a' => 'Yes. Utterbar is free and open source for personal and commercial use alike.'],
     ];
 @endphp
 

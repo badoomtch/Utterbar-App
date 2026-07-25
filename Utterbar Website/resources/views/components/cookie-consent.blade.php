@@ -36,7 +36,7 @@
                 Cookies on utterbar.com
             </p>
             <p id="cookie-consent-body" class="mt-1.5 text-xs leading-relaxed" style="color: var(--muted);">
-                We use essential cookies so this site works (sign-in, checkout, your consent choice). With your permission we'd also load Google Analytics so we can see which pages are useful. Your choice is saved for 12 months.
+                We use essential cookies so this site works (form security and your consent choice). With your permission we'd also load Google Analytics so we can see which pages are useful. Your choice is saved for 12 months.
                 <a href="{{ route('legal.privacy') }}" style="color: var(--accent);">Privacy policy</a>.
             </p>
         </div>

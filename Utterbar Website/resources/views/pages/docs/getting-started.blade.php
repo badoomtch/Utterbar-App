@@ -31,7 +31,7 @@
             This is the only time Utterbar will ever talk to the network for transcription. After this, you can disconnect from the internet entirely and dictation keeps working, the model lives on your disk, the inference runs on your CPU (or GPU, if you have one), and the audio never leaves your machine.
         </p>
         <p class="mt-3 text-base leading-relaxed" style="color: var(--fg);">
-            Other models live in Settings &gt; Models. Whisper Base (free) and Whisper Small / Medium / Large v3 (Pro) cover 30+ languages between them. If you have a DirectX 12 graphics card, Utterbar uses it via DirectML for Whisper Medium, Whisper Large, and Parakeet. CUDA is not bundled.
+            Other models live in Settings &gt; Models. Whisper Base and Whisper Small / Medium / Large v3 cover 30+ languages between them, all included. If you have a DirectX 12 graphics card, Utterbar uses it via DirectML for Whisper Medium, Whisper Large, and Parakeet. CUDA is not bundled.
         </p>
 
         <div class="mt-6 ub-card" style="padding: 1rem 1.25rem;">

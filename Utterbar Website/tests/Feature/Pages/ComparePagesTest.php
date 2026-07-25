@@ -7,14 +7,13 @@ use Tests\TestCase;
 /**
  * Smoke + content tests for the /compare pages. Each route must
  * return 200, the comparison table must render, and the page must
- * carry the canonical £39.99 GBP / Utterbar one-time pricing
- * mention so a future template refactor can't quietly drop the
- * commercial anchor.
+ * carry the "free and open source" positioning so a future template
+ * refactor can't quietly drop the anchor.
  *
  * Each new /compare/<competitor> page extends the same shape:
  *   * route returns 200
  *   * page renders the competitor's name in the headline
- *   * page renders the £39.99 anchor
+ *   * page renders the "Free and open source" anchor
  *   * page renders at least one row of the <x-compare-table>
  *
  * The table component is the load-bearing primitive — if it ever
@@ -61,11 +60,11 @@ class ComparePagesTest extends TestCase
         $response->assertSee('Wispr Flow', false);
     }
 
-    public function test_compare_wispr_flow_shows_utterbar_pricing_anchor(): void
+    public function test_compare_wispr_flow_shows_utterbar_is_free(): void
     {
         $response = $this->get(route('compare.wispr-flow'));
         $response->assertStatus(200);
-        $response->assertSee('£39.99', false);
+        $response->assertSee('Free and open source', false);
     }
 
     public function test_compare_wispr_flow_uses_extracted_compare_table(): void
@@ -89,11 +88,11 @@ class ComparePagesTest extends TestCase
         $response->assertSee('Dragon', false);
     }
 
-    public function test_compare_dragon_shows_utterbar_pricing_anchor(): void
+    public function test_compare_dragon_shows_utterbar_is_free(): void
     {
         $response = $this->get(route('compare.dragon'));
         $response->assertStatus(200);
-        $response->assertSee('£39.99', false);
+        $response->assertSee('Free and open source', false);
     }
 
     public function test_compare_dragon_uses_extracted_compare_table(): void
@@ -110,11 +109,11 @@ class ComparePagesTest extends TestCase
         $response->assertSee('Voice Access', false);
     }
 
-    public function test_compare_voice_access_shows_utterbar_pricing_anchor(): void
+    public function test_compare_voice_access_shows_utterbar_is_free(): void
     {
         $response = $this->get(route('compare.voice-access'));
         $response->assertStatus(200);
-        $response->assertSee('£39.99', false);
+        $response->assertSee('Free and open source', false);
     }
 
     public function test_compare_voice_access_does_not_overclaim_voice_access_lacks_vocabulary(): void
@@ -137,11 +136,11 @@ class ComparePagesTest extends TestCase
         $response->assertSee('Superwhisper', false);
     }
 
-    public function test_compare_superwhisper_shows_utterbar_pricing_anchor(): void
+    public function test_compare_superwhisper_shows_utterbar_is_free(): void
     {
         $response = $this->get(route('compare.superwhisper'));
         $response->assertStatus(200);
-        $response->assertSee('£39.99', false);
+        $response->assertSee('Free and open source', false);
     }
 
     public function test_compare_superwhisper_does_not_describe_competitor_as_mac_only(): void

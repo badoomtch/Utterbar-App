@@ -30,7 +30,7 @@
         [
             'title' => 'Modes that match the job.',
             'body'  => 'Dictate a casual message, get a casual message. Dictate meeting notes, get verbatim capture with line breaks. Switch mode in a click or by hotkey. One per job, one keystroke.',
-            'wins'  => ['Three built-in modes', 'Switch in a click or by hotkey', 'Unlimited custom modes on Pro'],
+            'wins'  => ['Three built-in modes', 'Switch in a click or by hotkey', 'Unlimited custom modes'],
             'video' => 'feature-modes',
         ],
         [
@@ -54,13 +54,13 @@
         [
             'title' => 'Transcribes files, too.',
             'body'  => 'Drop in a recording: a meeting, a podcast, an old lecture. Get a plain-text transcript next to it, with subtitle files alongside. Same engine as the floating bar, longer audio.',
-            'wins'  => ['Common audio and video formats', 'Plain-text plus .srt and .vtt', 'Pro only'],
+            'wins'  => ['Common audio and video formats', 'Plain-text plus .srt and .vtt', 'Batch a whole folder'],
             'video' => 'feature-file-transcription',
         ],
         [
             'title' => 'Reprocess any past dictation.',
             'body'  => 'Every transcript stays in your history. Open one, pick a different mode, run it again. Turn a rough capture into meeting notes a week later. Rewrite a message in a calmer tone without saying it again.',
-            'wins'  => ['Full history', 'Any mode, any recording', 'Audio retention on Pro'],
+            'wins'  => ['Full history', 'Any mode, any recording', 'Optional audio retention'],
             'video' => 'feature-history-retranscribe',
         ],
         [

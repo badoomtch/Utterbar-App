@@ -46,7 +46,7 @@
     <div class="ub-compare-row">
         <div class="label">Pricing model</div>
         <div class="their">Subscription, ongoing</div>
-        <div class="ours">&pound;39.99 once</div>
+        <div class="ours">Free &amp; open source</div>
     </div>
 
     <div class="ub-compare-row">

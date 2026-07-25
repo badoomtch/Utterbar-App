@@ -8,7 +8,7 @@
     $teasers = [
         [
             'href'     => route('compare.wispr-flow'),
-            'eyebrow'  => 'Cloud subscription vs local one-time',
+            'eyebrow'  => 'Cloud subscription vs local and free',
             'title'    => 'Utterbar vs Wispr Flow',
             'body'     => 'Wispr Flow is the most-marketed modern dictation app. They send your voice to their servers and bill you monthly; we run it on your PC and charge once. Full table, honest essay.',
         ],
@@ -28,14 +28,14 @@
             'href'     => route('compare.superwhisper'),
             'eyebrow'  => 'Cross-platform sibling',
             'title'    => 'Utterbar vs Superwhisper',
-            'body'     => 'Superwhisper ships on Mac, Windows, and iOS with strong privacy defaults and optional LLM rewrites. We are Windows-only with strict on-device processing and one-time GBP pricing. Both are honest products with different shapes.',
+            'body'     => 'Superwhisper ships on Mac, Windows, and iOS with strong privacy defaults and optional LLM rewrites. We are Windows-only with strict on-device processing, free and open source. Both are honest products with different shapes.',
         ],
     ];
 @endphp
 
 <x-layouts.app
     title="How Utterbar compares"
-    description="Honest, line-by-line comparisons between Utterbar and the dictation tools you might already be considering: Wispr Flow, Windows Voice Access, Dragon, and Superwhisper. £39.99 one-time, local-only, Windows-native.">
+    description="Honest, line-by-line comparisons between Utterbar and the dictation tools you might already be considering: Wispr Flow, Windows Voice Access, Dragon, and Superwhisper. Free and open source, local-only, Windows-native.">
 
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">

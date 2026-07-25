@@ -29,7 +29,7 @@
     // page. Lead with the query buyers actually type ("local dictation
     // for Windows"), not a tagline. Layout wraps with " — Utterbar".
     $homeTitle = 'Local dictation for Windows';
-    $homeDescription = 'Local-only Windows dictation. Press a hotkey, speak, your words land anywhere. Free forever, no cloud, no account. Pro unlocks power features, £39.99 lifetime.';
+    $homeDescription = 'Local-only Windows dictation. Press a hotkey, speak, your words land anywhere. Free and open source, no cloud, no account, every feature included.';
 @endphp
 
 <x-layouts.app :title="$homeTitle" :description="$homeDescription">
@@ -49,21 +49,12 @@
                     'downloadUrl'         => url('/download'),
                     'softwareVersion'     => ($latestRelease ?? null)?->version ?? config('site.version'),
                     'offers' => [
-                        [
-                            '@type'         => 'Offer',
-                            'name'          => 'Utterbar Free',
-                            'price'         => '0',
-                            'priceCurrency' => 'GBP',
-                            'availability'  => 'https://schema.org/InStock',
-                        ],
-                        [
-                            '@type'         => 'Offer',
-                            'name'          => 'Utterbar Pro (Lifetime)',
-                            'price'         => '39.99',
-                            'priceCurrency' => 'GBP',
-                            'availability'  => 'https://schema.org/InStock',
-                            'url'           => url('/pricing'),
-                        ],
+                        '@type'         => 'Offer',
+                        'name'          => 'Utterbar',
+                        'price'         => '0',
+                        'priceCurrency' => 'GBP',
+                        'availability'  => 'https://schema.org/InStock',
+                        'url'           => url('/download'),
                     ],
                     'author'    => ['@id' => url('/#organization')],
                     'publisher' => ['@id' => url('/#organization')],
@@ -478,7 +469,7 @@
         <div class="ub-container">
             <p>
                 <span class="ub-conviction-lead">Most dictation apps charge rent on your voice.</span>
-                Utterbar runs entirely on your machine, never opens a socket after install, and the core is free forever. You pay once for the power-user features, or not at all.
+                Utterbar runs entirely on your machine, never opens a socket after install, and is free and open source. Every feature is on for everyone, with nothing to buy.
             </p>
         </div>
     </section>
@@ -660,18 +651,16 @@
         </div>
     </section>
 
-    {{-- Pricing: design's two-tier pricing-wrap shell. Free on the
-         left, Pro on the right with a soft cyan radial corner-wash
-         and gradient h3/amount. Mono caption "GBP, LIFETIME, 3
-         DEVICES" under the Pro price. The CTA stays a link to
-         /pricing so volume tiers + Stripe checkout still drive from
-         there. --}}
+    {{-- Pricing: single "everything's free" panel. The paid tier is
+         gone; every feature is on for everyone. CTA drives to
+         /download; a secondary link goes to the /pricing page which
+         now explains the free + open-source model. --}}
     <section id="pricing" class="ub-pricing-section">
         <div class="ub-container">
             <div class="ub-pricing-head">
                 <p class="ub-eyebrow">Pricing</p>
                 <h2 class="ub-pricing-title">
-                    Free forever. <x-hl>Pro</x-hl> once, for life.
+                    Free and <x-hl>open source</x-hl>.
                 </h2>
                 <p class="ub-pricing-lead">
                     The act of speaking isn&rsquo;t a premium feature.
@@ -679,52 +668,30 @@
             </div>
 
             <div class="ub-pricing-wrap">
-                {{-- FREE --}}
+                {{-- FREE — the whole app --}}
                 <div class="ub-tier ub-tier-free">
                     <div class="ub-tier-head">
-                        <h3>Free</h3>
-                        <span class="ub-tier-badge">forever</span>
+                        <h3>Everything</h3>
+                        <span class="ub-tier-badge">free</span>
                     </div>
                     <div class="ub-tier-price">
                         <span class="amount">&pound;0</span>
                     </div>
-                    <p class="ub-tier-sub">No account. No trial clock. No limits.</p>
+                    <p class="ub-tier-sub">No account. No trial clock. No limits. No paid tier.</p>
                     <ul>
-                        @foreach (['Unlimited dictations', '30+ languages, all on-device', 'Every built-in mode', 'Vocabulary, history, privacy controls'] as $f)
+                        @foreach (['Unlimited dictations', '30+ languages, all on-device', 'Every mode, unlimited custom modes', 'File transcription, full history, meetings', 'Vocabulary, replacements, privacy controls'] as $f)
                             <li>
                                 <x-icon name="check" class="ub-tier-check" size="16" stroke="2" />
                                 <span>{{ $f }}</span>
                             </li>
                         @endforeach
                     </ul>
-                    <a href="{{ route('download') }}" class="ub-btn ub-btn-ghost ub-tier-cta">Download free</a>
-                </div>
-
-                {{-- PRO --}}
-                <div class="ub-tier ub-tier-pro">
-                    <div class="ub-tier-head">
-                        <h3 class="ub-tier-h3-gradient">Pro</h3>
-                        <span class="ub-tier-badge ub-tier-badge-cyan">lifetime licence</span>
-                    </div>
-                    <div class="ub-tier-price">
-                        <span class="amount ub-tier-amount-gradient">&pound;39.99</span>
-                        <span class="when">once, for life</span>
-                    </div>
-                    <p class="ub-tier-sub ub-tier-sub-mono">GBP &middot; LIFETIME &middot; 3 DEVICES</p>
-                    <ul>
-                        @foreach (['Everything in Free', 'Unlimited custom modes + vocabulary', 'Whisper Medium / Large engine', 'File transcription, full audio history'] as $f)
-                            <li>
-                                <x-icon name="check" class="ub-tier-check" size="16" stroke="2" />
-                                <span>{{ $f }}</span>
-                            </li>
-                        @endforeach
-                    </ul>
-                    <a href="{{ route('pricing') }}" class="ub-btn ub-btn-cta ub-tier-cta">Buy Pro</a>
+                    <a href="{{ route('download') }}" class="ub-btn ub-btn-cta ub-tier-cta">Download free</a>
                 </div>
             </div>
 
             <div class="ub-pricing-foot">
-                <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">See the full pricing</a>
+                <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">Why it&rsquo;s free</a>
             </div>
         </div>
     </section>
@@ -807,12 +774,6 @@
                 </div>
             </div>
 
-            {{-- Tip jar (kept). Quiet support surface. Auto-hides if
-                 Stripe tipping is not configured (see
-                 config/services.php). --}}
-            <div class="ub-final-cta-tip">
-                <x-tip-jar />
-            </div>
         </div>
     </section>
 </x-layouts.app>

@@ -62,7 +62,7 @@
                     <li><strong style="color: var(--fg-hi);">An audio capture path.</strong> The bit that listens to your microphone (or your system audio, in Utterbar&rsquo;s case), feeds it to the runtime, and types the result wherever your cursor is.</li>
                 </ul>
                 <p>
-                    There&rsquo;s no part of that chain that calls home. The only network activity Utterbar ever does is the model download on first run, the once-a-day check for an app update, and the once-on-purchase licence verification. You can verify it yourself with any network sniffer.
+                    There&rsquo;s no part of that chain that calls home. The only network activity Utterbar ever does is the model download when you install a model and the once-a-day check for an app update. You can verify it yourself with any network sniffer.
                 </p>
 
                 <h2 class="text-2xl md:text-3xl mt-12 mb-2" style="color: var(--fg-hi); letter-spacing: -0.025em;">Why anyone would care</h2>
@@ -76,7 +76,7 @@
                     <strong style="color: var(--fg-hi);">It&rsquo;s genuinely private.</strong> Not in a marketing sense, in an architectural sense. There is no server logging your voice, because there is no server. There is no &ldquo;we may use your data to improve the service&rdquo; clause, because there&rsquo;s no place for them to use it. If your job involves dictating things you wouldn&rsquo;t paste into a free web tool, legal correspondence, medical notes, security work, anything compliance-bounded, this matters quite a lot.
                 </p>
                 <p>
-                    <strong style="color: var(--fg-hi);">It doesn&rsquo;t need a subscription.</strong> Cloud dictation is fundamentally a service: the company pays for compute every time you use it, so you pay them every month. Local dictation is fundamentally software: the company writes it once, ships it once, and the running cost is borne by your laptop&rsquo;s power budget. That&rsquo;s why local apps tend to be one-time purchases, and cloud apps almost never are.
+                    <strong style="color: var(--fg-hi);">It doesn&rsquo;t need a subscription.</strong> Cloud dictation is fundamentally a service: the company pays for compute every time you use it, so you pay them every month. Local dictation is fundamentally software: it&rsquo;s written once, ships once, and the running cost is borne by your laptop&rsquo;s power budget. That&rsquo;s why local apps tend to be one-time purchases or, like Utterbar, free and open source, while cloud apps almost never are.
                 </p>
 
                 <h2 class="text-2xl md:text-3xl mt-12 mb-2" style="color: var(--fg-hi); letter-spacing: -0.025em;">The trade-offs</h2>

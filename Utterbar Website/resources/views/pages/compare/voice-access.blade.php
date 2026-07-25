@@ -18,7 +18,7 @@
     $rows = [
         [
             'topic'      => 'Cost',
-            'utterbar'   => 'Free for unlimited dictation. Pro is one-time, &pound;39.99, lifetime.',
+            'utterbar'   => 'Free and open source. Every feature included, no account.',
             'competitor' => 'Free. Built into Windows 11.',
             'edge'       => 'tie',
         ],
@@ -42,7 +42,7 @@
         ],
         [
             'topic'      => 'File transcription',
-            'utterbar'   => 'Yes, Pro tier. Drop a recording, get a plain-text transcript next to the source file.',
+            'utterbar'   => 'Yes, included. Drop a recording, get a plain-text transcript next to the source file.',
             'competitor' => 'No. Voice Access is interactive only. Transcribing recorded audio is a different Microsoft tool (Word Transcribe, Microsoft 365).',
             'edge'       => 'utterbar',
         ],
@@ -107,9 +107,8 @@
         'applicationCategory' => 'BusinessApplication',
         'offers' => [
             '@type'         => 'Offer',
-            'price'         => '39.99',
+            'price'         => '0',
             'priceCurrency' => 'GBP',
-            'category'      => 'OneTimePurchase',
             'url'           => route('pricing'),
         ],
         'url' => url('/'),
@@ -151,12 +150,12 @@
                             <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · paid · dictation</span>
                         </div>
                         <p class="mt-4" style="color: var(--fg); line-height: 1.55;">
-                            Built for people who dictate a lot, into any app on their PC. Modes for voice-to-text, message, meeting. File and meeting transcription. Custom vocabulary. £39.99 one-time, three devices.
+                            Built for people who dictate a lot, into any app on their PC. Modes for voice-to-text, message, meeting. File and meeting transcription. Custom vocabulary. Free and open source.
                         </p>
                         <ul class="mt-6 space-y-2.5 text-sm">
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Whisper / Parakeet on-device</span></li>
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Custom words and replacements</span></li>
-                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">File and meeting transcription on Pro</span></li>
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">File and meeting transcription included</span></li>
                         </ul>
                     </div>
                     <div class="p-8 md:p-10" style="border-left: 1px solid var(--border);">
@@ -238,6 +237,6 @@
 
     <x-prompt-cta
         :heading="'Free forever for unlimited dictation.'"
-        :sub="'No account needed. If Pro isn&rsquo;t for you, the licence is refundable for 14 days. No questions.'"
+        :sub="'No account needed. Free and open source, every feature included.'"
     />
 </x-layouts.app>

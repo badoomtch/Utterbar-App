@@ -24,7 +24,6 @@ class PageController extends Controller
         ]);
     }
     public function contact() { return view('pages.contact'); }
-    public function thanks()  { return view('pages.thanks'); }
     public function roadmap() { return view('pages.roadmap'); }
     public function press() { return view('pages.press'); }
     public function blog()
@@ -53,8 +52,6 @@ class PageController extends Controller
     // Educational deep-dive — "what is local dictation" — link-bait quality
     // page that explains on-device speech recognition without selling.
     public function whatIsLocalDictation() { return view('pages.what-is-local-dictation'); }
-
-    public function business() { return view('pages.business'); }
 
     public function docsIndex() { return view('pages.docs.index'); }
     public function docsGettingStarted() { return view('pages.docs.getting-started'); }

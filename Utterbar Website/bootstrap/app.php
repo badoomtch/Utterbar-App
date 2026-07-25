@@ -11,19 +11,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Stripe webhook verifies via Stripe-Signature HMAC; licence API is
-        // called from the Tauri app (desktop, no session cookies) — both are
-        // CSRF-exempt by design and authenticated via their own mechanisms.
+        // The headless admin release API is called by the publish script
+        // (no session cookies) and authenticated by its own bearer token,
+        // so it is CSRF-exempt by design.
         $middleware->validateCsrfTokens(except: [
-            'api/stripe/webhook',
-            'api/licence/*',
-            'api/updates/*',
             'api/admin/*',
         ]);
-
-        // Unauthenticated visitors to auth-protected routes land on /sign-in,
-        // not Laravel's default /login.
-        $middleware->redirectGuestsTo(fn () => route('sign-in.show'));
 
         // Baseline browser-hardening headers (XFO, nosniff, referrer-policy,
         // permissions-policy, Report-Only CSP) on every response. Appended
@@ -34,7 +27,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Route middleware aliases.
         $middleware->alias([
-            'admin'     => \App\Http\Middleware\AdminOnly::class,
             'admin.api' => \App\Http\Middleware\AdminApiToken::class,
         ]);
     })

@@ -77,7 +77,7 @@ return [
             'duration_seconds' => 8,
             'width'            => 1440,
             'height'           => 900,
-            'alt'              => "A 'Your PC' panel holds Audio, Transcripts, Vocabulary, History, connected by an internal cyan loop. A thin outbound line lights up briefly for each of four small network calls (update check, licence check, pricing, model download).",
+            'alt'              => "A 'Your PC' panel holds Audio, Transcripts, Vocabulary, History, connected by an internal cyan loop. A thin outbound line lights up briefly for each of two small network calls (update check, model download).",
             'loops'            => true,
         ],
         'feature-file-transcription' => [

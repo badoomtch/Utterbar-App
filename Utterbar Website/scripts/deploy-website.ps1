@@ -90,7 +90,7 @@ function Invoke-NativeQuiet([scriptblock]$Block) {
 # Supports two Cloudways auth patterns; the script picks whichever is set:
 #
 # 1. MASTER-LEVEL credentials (most common for fresh Cloudways servers):
-#      CLOUDWAYS_IP          = 178.62.6.215
+#      CLOUDWAYS_IP          = <server ip>
 #      CLOUDWAYS_MASTER_USER = master_xxxxxxxxxx
 #      CLOUDWAYS_MASTER_PASS = <pw>
 #    Apps live at ~/applications/<APP_FOLDER>/public_html/ on the master
@@ -100,7 +100,7 @@ function Invoke-NativeQuiet([scriptblock]$Block) {
 #
 # 2. APP-LEVEL credentials (only if you've explicitly set an app SSH
 #    password via Cloudways → SSH/SFTP Access → "Enable SSH"):
-#      CLOUDWAYS_HOST     = utter@178.62.6.215
+#      CLOUDWAYS_HOST     = <user>@<server ip>
 #      CLOUDWAYS_PASSWORD = <pw>
 #    App files live at ~/public_html on the per-app user. The script
 #    targets that by default under this pattern.

@@ -34,7 +34,7 @@
     </div>
 
     <p class="mt-6 text-sm" style="color: var(--muted);">
-        Every slot is rebindable from Settings &gt; Shortcuts. Per-mode hotkey overrides live in the mode editor (Pro).
+        Every slot is rebindable from Settings &gt; Shortcuts. Per-mode hotkey overrides live in the mode editor.
     </p>
 
     <div class="mt-8">

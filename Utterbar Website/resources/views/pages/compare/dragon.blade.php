@@ -20,19 +20,19 @@
         ],
         [
             'topic'      => 'Pricing model',
-            'utterbar'   => 'Free forever for unlimited dictation. Pro is one-time, &pound;39.99, lifetime.',
+            'utterbar'   => 'Free and open source. Every feature included, no account.',
             'competitor' => 'Dragon Professional v16: one-time, around $699 USD via UK/US resellers (no direct GBP price published). Dragon Anywhere: $14.99/month or $149.99/year subscription.',
             'edge'       => 'utterbar',
         ],
         [
-            'topic'      => 'Where to buy in the UK',
-            'utterbar'   => 'utterbar.com, direct, in GBP. Card or wire.',
+            'topic'      => 'How to get it',
+            'utterbar'   => 'Download free from utterbar.com. No account, no card.',
             'competitor' => 'No direct GBP retail. UK customers go through resellers (Speech Computing, Posturite, Voicepower, Speak-IT). dragon.nuance.com routes UK buyers to a contact form.',
             'edge'       => 'utterbar',
         ],
         [
-            'topic'      => 'Devices per licence',
-            'utterbar'   => 'Three devices per Pro licence. Add or replace from utterbar.com without re-buying.',
+            'topic'      => 'Devices',
+            'utterbar'   => 'Install on as many devices as you like. No licence, no seat cap.',
             'competitor' => 'Dragon Professional v16 single-user licence: per Nuance KB, installable on up to two computers for the same user. Verify the EULA at purchase time.',
             'edge'       => 'utterbar',
         ],
@@ -56,7 +56,7 @@
         ],
         [
             'topic'      => 'File transcription',
-            'utterbar'   => 'Yes, Pro tier. Drop a recording, get a plain-text transcript next to the source file.',
+            'utterbar'   => 'Yes, included. Drop a recording, get a plain-text transcript next to the source file.',
             'competitor' => 'Not a headline feature on Dragon Professional v16. Dragon Anywhere is dictation-only.',
             'edge'       => 'utterbar',
         ],
@@ -109,9 +109,8 @@
         'applicationCategory' => 'BusinessApplication',
         'offers' => [
             '@type'         => 'Offer',
-            'price'         => '39.99',
+            'price'         => '0',
             'priceCurrency' => 'GBP',
-            'category'      => 'OneTimePurchase',
             'url'           => route('pricing'),
         ],
         'url' => url('/'),
@@ -125,7 +124,7 @@
 
 <x-layouts.app
     title="Utterbar vs Dragon (NaturallySpeaking, Professional v16)"
-    description="Comparing Utterbar (local-only, Windows-native, £39.99 one-time) with the Microsoft-owned Dragon dictation line (Professional v16 on-device, Anywhere/Mobile/Medical cloud). Honest table, no spin.">
+    description="Comparing Utterbar (local-only, Windows-native, free and open source) with the Microsoft-owned Dragon dictation line (Professional v16 on-device, Anywhere/Mobile/Medical cloud). Honest table, no spin.">
 
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">
@@ -150,10 +149,10 @@
                          style="background: radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%); border-left: 2px solid var(--accent);">
                         <div class="flex items-baseline justify-between mb-2">
                             <h2 class="text-2xl"><x-wordmark /></h2>
-                            <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · one-time · GBP</span>
+                            <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · free · open source</span>
                         </div>
                         <p class="mt-4" style="color: var(--fg); line-height: 1.55;">
-                            Windows-native, £39.99 one-time, three devices. On-device speech recognition with Whisper and NVIDIA Parakeet. Dictation, modes, vocabulary, file transcription, meetings.
+                            Windows-native, free and open source. On-device speech recognition with Whisper and NVIDIA Parakeet. Dictation, modes, vocabulary, file transcription, meetings.
                         </p>
                         <ul class="mt-6 space-y-2.5 text-sm">
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Direct GBP purchase, no reseller dance</span></li>
@@ -224,7 +223,7 @@
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re in the UK and want to pay in GBP without going through a reseller and a quote. We sell direct from a single page, and the licence arrives by email immediately.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re used to modern apps that ship updates in weeks, not years, and you don&rsquo;t want a tool that has gone quiet since 2023.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You need to transcribe meetings (system audio) or files (recordings, podcasts) in addition to dictation. That&rsquo;s a different surface from Dragon&rsquo;s.</span></li>
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want to pay several hundred pounds up front for a tool you&rsquo;d use a few times a day. £39.99 once is a different commitment level.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want to pay several hundred pounds up front for a tool you&rsquo;d use a few times a day. Free is a different commitment level.</span></li>
                     </ul>
                 </div>
 
@@ -240,6 +239,6 @@
 
     <x-prompt-cta
         :heading="'See for yourself.'"
-        :sub="'Free forever for unlimited dictation, no account needed. If Pro isn&rsquo;t for you, the licence is refundable for 14 days. No questions.'"
+        :sub="'Free and open source, no account needed. Every feature is included.'"
     />
 </x-layouts.app>

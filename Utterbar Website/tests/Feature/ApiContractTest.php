@@ -7,62 +7,18 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Verifies the two API endpoints the Tauri desktop app depends on:
+ * Verifies the API endpoint the Tauri desktop app depends on:
  *
- *   GET /api/pricing               → `pricing.rs` -> ServerPricing
  *   GET /api/updater/check         → `updater.rs` -> ServerAvailable
  *
  * These tests pin the exact JSON field names + shapes that the Rust
  * client's serde structs expect. Renaming or dropping a field here would
- * silently downgrade every installed copy of Utterbar's in-app modal to
- * its offline fallback.
+ * silently downgrade every installed copy of Utterbar's in-app update
+ * check to its offline fallback.
  */
 class ApiContractTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_pricing_returns_expected_shape_and_gbp_price(): void
-    {
-        config([
-            'services.stripe.pro_amount'   => 3999,
-            'services.stripe.pro_currency' => 'gbp',
-        ]);
-
-        $resp = $this->getJson('/api/pricing');
-        $resp->assertOk();
-        $resp->assertJsonStructure([
-            'amount_usd',   // legacy client field name (amount in `currency`)
-            'currency',
-            'period',
-            'display',
-        ]);
-        $resp->assertJsonPath('amount_usd', 39.99);
-        $resp->assertJsonPath('currency', 'GBP');
-        $resp->assertJsonPath('period', 'one_time');
-        $resp->assertJsonPath('display', '£39.99');
-    }
-
-    public function test_pricing_formats_whole_unit_price_without_decimals(): void
-    {
-        config([
-            'services.stripe.pro_amount'   => 4000,
-            'services.stripe.pro_currency' => 'gbp',
-        ]);
-        $resp = $this->getJson('/api/pricing');
-        $resp->assertOk();
-        $resp->assertJsonPath('display', '£40');
-    }
-
-    public function test_pricing_handles_usd_currency(): void
-    {
-        config([
-            'services.stripe.pro_amount'   => 2900,
-            'services.stripe.pro_currency' => 'usd',
-        ]);
-        $resp = $this->getJson('/api/pricing');
-        $resp->assertOk();
-        $resp->assertJsonPath('display', '$29');
-    }
 
     public function test_updater_returns_no_update_when_no_releases_published(): void
     {

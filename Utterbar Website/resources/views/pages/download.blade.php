@@ -9,7 +9,7 @@
     $recommended = [
         '8 GB RAM or more',
         'DirectX 12-capable GPU (any vendor) for GPU acceleration',
-        'Additional 1 GB disk space for the larger Whisper model (Pro)',
+        'Additional 1 GB disk space for the larger Whisper models',
     ];
 
     $otherPlatforms = [
@@ -28,8 +28,8 @@
 
 @php
     $downloadDesc = $latest
-        ? "Download Utterbar v{$latest->version} for Windows 10 and 11. Small installer, local-only dictation, free forever. Pro unlocks advanced features, £39.99 lifetime."
-        : 'Download Utterbar for Windows 10 and 11. Small installer, local-only dictation, free forever. Pro unlocks advanced features, £39.99 lifetime.';
+        ? "Download Utterbar v{$latest->version} for Windows 10 and 11. Small installer, local-only dictation, free and open source, every feature included."
+        : 'Download Utterbar for Windows 10 and 11. Small installer, local-only dictation, free and open source, every feature included.';
 @endphp
 
 <x-layouts.app title="Download" :description="$downloadDesc">
@@ -173,16 +173,6 @@
                         </div>
                     @endforeach
                 </div>
-            </div>
-        </div>
-    </section>
-
-    {{-- Tip jar — quiet support surface for free users. Auto-hides if
-         Stripe tipping isn't configured. --}}
-    <section class="pb-20 md:pb-24">
-        <div class="ub-container">
-            <div class="max-w-5xl">
-                <x-tip-jar />
             </div>
         </div>
     </section>

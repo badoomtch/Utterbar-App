@@ -23,7 +23,7 @@
         ],
         [
             'topic'      => 'Pricing model',
-            'utterbar'   => 'Free forever for unlimited dictation. Pro is one-time, &pound;39.99, lifetime, in GBP, direct.',
+            'utterbar'   => 'Free and open source. Every feature included, no account.',
             'competitor' => 'Free tier (does not expire) + Pro from $8.49/month, plus yearly and lifetime tiers. USD only on the public site. 30-day refund.',
             'edge'       => 'tie',
         ],
@@ -47,7 +47,7 @@
         ],
         [
             'topic'      => 'File transcription',
-            'utterbar'   => 'Yes, Pro tier. Drop a recording, get a plain-text transcript next to the source file.',
+            'utterbar'   => 'Yes, included. Drop a recording, get a plain-text transcript next to the source file.',
             'competitor' => 'Yes. Audio and video upload supported.',
             'edge'       => 'tie',
         ],
@@ -76,8 +76,8 @@
             'edge'       => 'competitor',
         ],
         [
-            'topic'      => 'Devices per licence',
-            'utterbar'   => 'Three devices per Pro licence.',
+            'topic'      => 'Devices',
+            'utterbar'   => 'Install on as many devices as you like. No licence, no seat cap.',
             'competitor' => 'Per-user, no stated device cap. &ldquo;Activate on as many of your devices as you like.&rdquo;',
             'edge'       => 'competitor',
         ],
@@ -112,9 +112,8 @@
         'applicationCategory' => 'BusinessApplication',
         'offers' => [
             '@type'         => 'Offer',
-            'price'         => '39.99',
+            'price'         => '0',
             'priceCurrency' => 'GBP',
-            'category'      => 'OneTimePurchase',
             'url'           => route('pricing'),
         ],
         'url' => url('/'),
@@ -128,7 +127,7 @@
 
 <x-layouts.app
     title="Utterbar vs Superwhisper"
-    description="Two local-first dictation apps. Superwhisper is cross-platform (Mac, Windows, iOS) with optional cloud-LLM rewrites and subscription pricing from $8.49/month. Utterbar is Windows-only, £39.99 one-time, with strict on-device processing.">
+    description="Two local-first dictation apps. Superwhisper is cross-platform (Mac, Windows, iOS) with optional cloud-LLM rewrites and subscription pricing from $8.49/month. Utterbar is Windows-only, free and open source, with strict on-device processing.">
 
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">
@@ -153,14 +152,14 @@
                          style="background: radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%); border-left: 2px solid var(--accent);">
                         <div class="flex items-baseline justify-between mb-2">
                             <h2 class="text-2xl"><x-wordmark /></h2>
-                            <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · one-time · GBP</span>
+                            <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · free · open source</span>
                         </div>
                         <p class="mt-4" style="color: var(--fg); line-height: 1.55;">
-                            Windows-native, &pound;39.99 one-time, three devices. Strict on-device processing. The app has nowhere to send your audio. Direct GBP purchase.
+                            Windows-native, free and open source. Strict on-device processing. The app has nowhere to send your audio.
                         </p>
                         <ul class="mt-6 space-y-2.5 text-sm">
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Whisper / Parakeet on-device, no cloud option</span></li>
-                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Buy-once GBP pricing, three-device cap</span></li>
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Free and open source, no account, no device cap</span></li>
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">No LLM rewrites of your speech</span></li>
                         </ul>
                     </div>
@@ -225,7 +224,7 @@
                     <h3 class="text-xl mb-4" style="color: var(--fg-hi); letter-spacing: -0.015em;">Pick Utterbar if&hellip;</h3>
                     <ul class="space-y-3 text-base" style="color: var(--fg);">
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re on Windows and you want a Windows-native app, not a cross-platform tool that happens to run there. The floating bar, the WASAPI loopback, the DirectML acceleration, the signed NSIS installer: those are built on Windows primitives.</span></li>
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You want one-time GBP pricing. &pound;39.99 once is &pound;39.99 forever. Even if Superwhisper&rsquo;s lifetime tier is the same total spend, our cap is in your currency, paid once, with no card on file.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;d rather not pay at all. Utterbar is free and open source, with no card, no account, and every feature included.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You want strict on-device processing as a property of the architecture, not a default that can be flipped. Utterbar has no cloud option. The app cannot send your audio anywhere because the code does not exist.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want LLM rewrites. Some users find them magical; others find them subtly wrong. Our default is honest transcription only.</span></li>
                     </ul>
@@ -243,6 +242,6 @@
 
     <x-prompt-cta
         :heading="'See for yourself.'"
-        :sub="'Free forever for unlimited dictation, no account needed. If Pro isn&rsquo;t for you, the licence is refundable for 14 days. No questions.'"
+        :sub="'Free and open source, no account needed. Every feature is included.'"
     />
 </x-layouts.app>

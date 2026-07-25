@@ -3,12 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Release;
-use App\Models\User;
 use App\Services\Releases\UpdateMetadataSigner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -19,14 +16,12 @@ use Tests\TestCase;
  * verification because that requires a live Ed25519 keypair. This
  * file generates a real keypair, configures
  * `services.updater.public_key_b64`, signs the canonical metadata
- * blob, and asserts the validator's signature gating across both
- * publish entry points.
+ * blob, and asserts the validator's signature gating on the publish
+ * API.
  *
  * Coverage:
  *   - API rejects missing signature when key configured
- *   - browser rejects missing signature when key configured
  *   - API rejects invalid signature
- *   - browser rejects invalid signature
  *   - valid signature succeeds and the row's `updater_signature`
  *     column carries the operator's b64 string
  *   - signature is verified against the SERVER-COMPUTED SHA, not the
@@ -38,7 +33,6 @@ class ReleaseUpdaterSignatureTest extends TestCase
     use RefreshDatabase;
 
     private const ADMIN_TOKEN = 'test-updater-sig-admin-token';
-    private const ADMIN_EMAIL = 'admin-updater-sig@example.com';
 
     /** Raw 32-byte Ed25519 secret key (operator-local). */
     private string $secretKey;
@@ -50,8 +44,6 @@ class ReleaseUpdaterSignatureTest extends TestCase
         parent::setUp();
         putenv('ADMIN_API_TOKEN=' . self::ADMIN_TOKEN);
         $_ENV['ADMIN_API_TOKEN'] = self::ADMIN_TOKEN;
-        putenv('ADMIN_EMAILS=' . self::ADMIN_EMAIL);
-        $_ENV['ADMIN_EMAILS'] = self::ADMIN_EMAIL;
         Storage::fake('r2');
 
         // Generate a real Ed25519 keypair for this test. libsodium
@@ -64,18 +56,6 @@ class ReleaseUpdaterSignatureTest extends TestCase
         config()->set(
             'services.updater.public_key_b64',
             base64_encode($this->publicKey),
-        );
-    }
-
-    private function adminUser(): User
-    {
-        return User::firstOrCreate(
-            ['email' => self::ADMIN_EMAIL],
-            [
-                'name'              => 'Admin',
-                'password'          => Hash::make(Str::random(64)),
-                'email_verified_at' => now(),
-            ],
         );
     }
 
@@ -145,17 +125,7 @@ class ReleaseUpdaterSignatureTest extends TestCase
         ]);
     }
 
-    private function postBrowser(array $body)
-    {
-        $form = $body;
-        if (array_key_exists('notes_markdown', $form)) {
-            $form['notes'] = $form['notes_markdown'];
-            unset($form['notes_markdown']);
-        }
-        return $this->actingAs($this->adminUser())->post('/admin/releases', $form);
-    }
-
-    /* ----- Missing signature is refused on both paths when keyed ----- */
+    /* ----- Missing signature is refused when keyed ----- */
 
     public function test_api_rejects_publish_with_missing_signature_when_keyed(): void
     {
@@ -167,15 +137,7 @@ class ReleaseUpdaterSignatureTest extends TestCase
         $this->assertSame(0, Release::count());
     }
 
-    public function test_browser_rejects_publish_with_missing_signature_when_keyed(): void
-    {
-        ['body' => $body] = $this->seedAndBaseBody();
-        $resp = $this->postBrowser($body);
-        $resp->assertSessionHasErrors(['updater_signature']);
-        $this->assertSame(0, Release::count());
-    }
-
-    /* ----- Invalid signature is refused on both paths ----- */
+    /* ----- Invalid signature is refused ----- */
 
     public function test_api_rejects_publish_with_invalid_signature(): void
     {
@@ -189,15 +151,6 @@ class ReleaseUpdaterSignatureTest extends TestCase
         $this->assertSame(0, Release::count());
     }
 
-    public function test_browser_rejects_publish_with_invalid_signature(): void
-    {
-        ['body' => $body] = $this->seedAndBaseBody();
-        $body['updater_signature'] = base64_encode(str_repeat("\x00", SODIUM_CRYPTO_SIGN_BYTES));
-        $resp = $this->postBrowser($body);
-        $resp->assertSessionHasErrors(['updater_signature']);
-        $this->assertSame(0, Release::count());
-    }
-
     /* ----- Valid signature succeeds and persists ----- */
 
     public function test_api_accepts_publish_with_valid_signature(): void
@@ -206,18 +159,6 @@ class ReleaseUpdaterSignatureTest extends TestCase
         $body['updater_signature'] = $this->signFor($body, $sha);
         $resp = $this->postApi($body);
         $resp->assertStatus(201);
-
-        $row = Release::first();
-        $this->assertNotNull($row);
-        $this->assertSame($body['updater_signature'], $row->updater_signature);
-    }
-
-    public function test_browser_accepts_publish_with_valid_signature(): void
-    {
-        ['body' => $body, 'sha' => $sha] = $this->seedAndBaseBody();
-        $body['updater_signature'] = $this->signFor($body, $sha);
-        $resp = $this->postBrowser($body);
-        $resp->assertRedirect(route('admin.releases.index'));
 
         $row = Release::first();
         $this->assertNotNull($row);

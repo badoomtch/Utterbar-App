@@ -14,9 +14,9 @@ use Tests\TestCase;
  * route (web, api, /up health) should carry the headers. We sample
  * three different surface types:
  *
- *   - GET /              : marketing Blade page
- *   - GET /sign-in       : auth Blade page
- *   - GET /api/pricing   : JSON API endpoint consumed by the Tauri app
+ *   - GET /                    : marketing Blade page
+ *   - GET /download            : Blade page with a DB read
+ *   - GET /api/updater/check   : JSON API endpoint consumed by the Tauri app
  *
  * If any of these stops carrying the expected headers, browsers lose
  * the click-jacking / sniffing / referrer / permission protections we
@@ -35,20 +35,14 @@ class SecurityHeadersTest extends TestCase
     {
         return [
             'home page'      => ['/'],
-            'sign-in page'   => ['/sign-in'],
-            'pricing api'    => ['/api/pricing'],
+            'download page'  => ['/download'],
+            'updater api'    => ['/api/updater/check'],
         ];
     }
 
     #[DataProvider('sampledRoutes')]
     public function test_baseline_security_headers_are_present(string $path): void
     {
-        // /api/pricing reads Stripe config; pin it so the route doesn't 500.
-        config([
-            'services.stripe.pro_amount'   => 3999,
-            'services.stripe.pro_currency' => 'gbp',
-        ]);
-
         $response = $this->get($path);
         $response->assertStatus(200);
 
@@ -61,11 +55,6 @@ class SecurityHeadersTest extends TestCase
     #[DataProvider('sampledRoutes')]
     public function test_csp_is_report_only_not_enforced(string $path): void
     {
-        config([
-            'services.stripe.pro_amount'   => 3999,
-            'services.stripe.pro_currency' => 'gbp',
-        ]);
-
         $response = $this->get($path);
         $response->assertStatus(200);
 
@@ -82,8 +71,7 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringContainsString("base-uri 'self'", $csp);
         $this->assertStringContainsString("object-src 'none'", $csp);
         $this->assertStringContainsString("frame-ancestors 'none'", $csp);
-        $this->assertStringContainsString("form-action 'self' https://checkout.stripe.com", $csp);
-        $this->assertStringContainsString('frame-src https://checkout.stripe.com', $csp);
+        $this->assertStringContainsString("form-action 'self'", $csp);
         $this->assertStringContainsString("script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://instant.page", $csp);
         $this->assertStringContainsString("style-src 'self' 'unsafe-inline'", $csp);
         $this->assertStringContainsString('img-src \'self\' data: blob: https:', $csp);
@@ -102,11 +90,6 @@ class SecurityHeadersTest extends TestCase
     #[DataProvider('sampledRoutes')]
     public function test_hsts_one_year_max_age_present(string $path): void
     {
-        config([
-            'services.stripe.pro_amount'   => 3999,
-            'services.stripe.pro_currency' => 'gbp',
-        ]);
-
         $response = $this->get($path);
         $response->assertStatus(200);
 

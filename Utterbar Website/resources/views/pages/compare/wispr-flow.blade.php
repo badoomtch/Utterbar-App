@@ -14,7 +14,7 @@
         ],
         [
             'topic'      => 'Pricing model',
-            'utterbar'   => 'Free forever for unlimited dictation. Pro is one-time, &pound;39.99, lifetime.',
+            'utterbar'   => 'Free and open source. Every feature included, no account.',
             'competitor' => 'Subscription. Free Basic capped at 2,000 words/week. Pro is $15/mo or $144/year.',
             'edge'       => 'utterbar',
         ],
@@ -26,7 +26,7 @@
         ],
         [
             'topic'      => 'Account required',
-            'utterbar'   => 'No account for the app. The licence key arrives by email and that&rsquo;s it.',
+            'utterbar'   => 'No account, no licence key. Download and go.',
             'competitor' => 'Sign-up required to use it.',
             'edge'       => 'utterbar',
         ],
@@ -62,7 +62,7 @@
         ],
         [
             'topic'      => 'File transcription',
-            'utterbar'   => 'Yes, Pro tier. Drop a recording, get a plain-text transcript next to the source file.',
+            'utterbar'   => 'Yes, included. Drop a recording, get a plain-text transcript next to the source file.',
             'competitor' => 'Not advertised on the consumer plans.',
             'edge'       => 'utterbar',
         ],
@@ -80,7 +80,7 @@
         ],
         [
             'topic'      => '5-year cost',
-            'utterbar'   => '&pound;39.99, one-time, on three devices.',
+            'utterbar'   => '&pound;0. Free and open source, on as many devices as you like.',
             'competitor' => '~$720 USD on the annual plan, ~$900 on monthly.',
             'edge'       => 'utterbar',
         ],
@@ -89,7 +89,7 @@
     // Page-specific schema. BreadcrumbList for the rich-result eligibility
     // and a Product entry for the compared subject (Utterbar) so the
     // comparison page itself carries a SoftwareApplication / Offers
-    // payload — anchors the £39.99 GBP value to the page where it's
+    // payload — anchors the free (£0) offer to the page where it's
     // most likely to be referenced in queries.
     $compareCrumbs = [
         '@context'        => 'https://schema.org',
@@ -108,9 +108,8 @@
         'applicationCategory' => 'BusinessApplication',
         'offers' => [
             '@type'         => 'Offer',
-            'price'         => '39.99',
+            'price'         => '0',
             'priceCurrency' => 'GBP',
-            'category'      => 'OneTimePurchase',
             'url'           => route('pricing'),
         ],
         'url' => url('/'),
@@ -124,7 +123,7 @@
 
 <x-layouts.app
     title="Utterbar vs Wispr Flow"
-    description="Comparing Utterbar (local-only, Windows-native, £39.99 one-time) with Wispr Flow (cloud-based, cross-platform, $15/mo subscription). Honest table, no spin.">
+    description="Comparing Utterbar (local-only, Windows-native, free and open source) with Wispr Flow (cloud-based, cross-platform, $15/mo subscription). Honest table, no spin.">
 
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">
@@ -149,10 +148,10 @@
                          style="background: radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%); border-left: 2px solid var(--accent);">
                         <div class="flex items-baseline justify-between mb-2">
                             <h2 class="text-2xl"><x-wordmark /></h2>
-                            <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · one-time</span>
+                            <span class="font-mono text-xs uppercase tracking-wider" style="color: var(--accent);">Local · free · open source</span>
                         </div>
                         <p class="mt-4" style="color: var(--fg); line-height: 1.55;">
-                            Windows-native. Speech recognition runs on-device with NVIDIA Parakeet. Free forever for unlimited dictation; Pro adds the power-user features for a one-time &pound;39.99.
+                            Windows-native. Speech recognition runs on-device with NVIDIA Parakeet. Free and open source, with every feature included.
                         </p>
                         <ul class="mt-6 space-y-2.5 text-sm">
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Audio never leaves your PC</span></li>
@@ -222,7 +221,7 @@
                     <ul class="space-y-3 text-base" style="color: var(--fg);">
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re on Windows and you want a Windows-native app, not an Electron shell or a web app pretending to be one.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want your voice leaving your machine. Privacy isn&rsquo;t a feature toggle here, it&rsquo;s the architecture. The app literally has nowhere to send your audio.</span></li>
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want to rent your dictation tool. &pound;39.99 one-time on three devices is what Wispr Pro costs in three months.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want to rent your dictation tool. Utterbar is free and open source, on as many devices as you like.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You dictate enough that weekly word caps would frustrate you, even on a free tier.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You need to transcribe meetings (system audio) or files (recordings, podcasts), not just speak into a chat box.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You work in legal, healthcare, government, or security, where corporate or compliance policy makes a cloud audio service a non-starter, and you need a tool that can prove it stays local.</span></li>
@@ -272,6 +271,6 @@
 
     <x-prompt-cta
         :heading="'See for yourself.'"
-        :sub="'Free forever, no account, downloads in under a minute. If it&rsquo;s not for you, the licence is refundable for 14 days. No questions.'"
+        :sub="'Free and open source, no account, downloads in under a minute. Every feature is included.'"
     />
 </x-layouts.app>

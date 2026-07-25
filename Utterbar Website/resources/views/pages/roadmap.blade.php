@@ -31,7 +31,7 @@
         ['title' => 'Retain-audio with day slider',      'desc' => '1&ndash;90 day retention. Off by default. Pruning runs on every new dictation.'],
         ['title' => 'Reduce-motion + high-contrast accessibility', 'desc' => 'Honours Windows reduce-motion + offers in-app overrides for high contrast and larger focus rings.'],
         ['title' => 'Synthesised sound cues + toasts',   'desc' => 'Start / stop / error beeps generated in-app via WebAudio; no sample files. Windows toast notifications for non-blocking feedback.'],
-        ['title' => 'Themes + accents, bar visibility, size, outline', 'desc' => 'Three themes &times; six accents (plus custom Pro). Bar hides / appears on record / stays. Compact or Standard, with or without outline.'],
+        ['title' => 'Themes + accents, bar visibility, size, outline', 'desc' => 'Three themes &times; six accents (plus a custom accent). Bar hides / appears on record / stays. Compact or Standard, with or without outline.'],
     ];
 
     $parked = [

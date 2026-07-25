@@ -3,28 +3,25 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Mail\UpdateAnnouncement;
 use App\Models\Release;
-use App\Models\UpdateSubscriber;
 use App\Services\Releases\ReleaseValidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Headless release publishing for automated builders (the Tauri app's release
- * script). Equivalent to the admin form at /admin/releases/create but callable
- * without a browser session. Auth is a bearer token (admin.api middleware).
+ * Headless release publishing for the Tauri app's release script. Auth is
+ * a bearer token (admin.api middleware). This is the only privileged
+ * publish surface: the app is free and open source, but only releases
+ * signed with the operator's updater key are served.
  *
  * Workflow from the builder side:
  *   1. Upload Utterbar-Setup.exe to R2 at releases/{version}/Utterbar-Setup.exe
  *   2. Compute SHA-256 locally
  *   3. POST /api/admin/releases with a JSON body (schema below)
- *   4. Optionally announce by setting announce=true in the body
  *
- * See LICENCE_APP_HANDOFF.md and Orliq/RELEASE.md for the builder-side guide.
+ * See RELEASE.md for the builder-side guide.
  */
 class AdminReleaseApiController extends Controller
 {
@@ -50,15 +47,6 @@ class AdminReleaseApiController extends Controller
             'tag'                => ['nullable', 'string', 'max:64'],
             'sha256'             => ['required', 'string', 'regex:/^[A-Fa-f0-9]{64}$/'],
             'notes_markdown'     => ['required', 'string'],
-            'announce'           => ['nullable', 'boolean'],
-            'announce_subject'   => ['nullable', 'string', 'max:200'],
-            // Stable + announce is the destructive variant (sends email
-            // to every active subscriber). Require a separate explicit
-            // confirmation so a typo in `channel` or `announce` can't
-            // accidentally blast a beta. The browser form requires the
-            // same field; both controllers share the rule via this
-            // validator.
-            'confirm_stable_announce' => ['nullable', 'boolean'],
             // Base64-encoded Ed25519 signature (64 raw bytes = 88 chars b64) over
             // the canonical metadata blob. Required when an updater public key
             // is configured — the publish script signs locally and sends the
@@ -85,20 +73,6 @@ class AdminReleaseApiController extends Controller
                 'error'   => 'version_exists',
                 'message' => "A {$channel} release with version {$data['version']} already exists.",
             ], 409);
-        }
-
-        // Stable + announce destructive-flag confirmation. Refused
-        // here BEFORE the SHA recompute spends time on R2 — a
-        // missing confirm flag is the single most-likely operator
-        // mistake on a stable cut.
-        if ($channel === 'stable' && $request->boolean('announce')
-            && !$request->boolean('confirm_stable_announce')
-        ) {
-            return response()->json([
-                'error'   => 'stable_announce_unconfirmed',
-                'message' => 'Stable + announce sends email to every active subscriber. '
-                    . 'Set confirm_stable_announce=true to acknowledge before publishing.',
-            ], 422);
         }
 
         $result = ReleaseValidator::validate([
@@ -133,19 +107,8 @@ class AdminReleaseApiController extends Controller
             'notes_markdown'    => $data['notes_markdown'],
             'published_at'      => now(),
         ]);
-        $size = $result->fileSize;
-
-        $announced = 0;
-        if ($request->boolean('announce') && $channel === 'stable') {
-            $subject = trim((string) ($data['announce_subject'] ?? '')) ?: "Utterbar {$release->version} is out";
-            $announced = $this->blastAnnouncement($release, $subject);
-            $release->announced_at = now();
-            $release->save();
-        }
-
         Log::info('release published via API', [
             'id' => $release->id, 'version' => $release->version, 'channel' => $release->channel,
-            'announced_to' => $announced,
         ]);
 
         return response()->json([
@@ -155,8 +118,6 @@ class AdminReleaseApiController extends Controller
             'channel'        => $release->channel,
             'download_url'   => $release->downloadUrl(),
             'size_bytes'     => $release->file_size_bytes,
-            'announced_to'   => $announced,
-            'admin_url'      => url('/admin/releases'),
         ], 201);
     }
 
@@ -186,33 +147,5 @@ class AdminReleaseApiController extends Controller
             'deleted_file' => $deleteFile,
             'version' => $release->version,
         ]);
-    }
-
-    private function blastAnnouncement(Release $release, string $subject): int
-    {
-        $subs = UpdateSubscriber::active()->get();
-        $sent = 0;
-        foreach ($subs as $sub) {
-            // Staged rotation: DB hash only advances on a successful send,
-            // so a mid-blast SMTP failure never orphans a subscriber with
-            // a dead unsubscribe link. See UpdateSubscriber::prepareRotation().
-            $sub->prepareRotation();
-            try {
-                Mail::to($sub->email)->send(new UpdateAnnouncement(
-                    subscriber:      $sub,
-                    release:         $release->version,
-                    announceSubject: $subject,
-                    notesMd:         $release->notes_markdown,
-                ));
-                $sub->commitRotation();
-                $sent++;
-            } catch (\Throwable $e) {
-                $sub->discardRotation();
-                Log::warning('Release announcement email failed', [
-                    'email' => $sub->email, 'err' => $e->getMessage(),
-                ]);
-            }
-        }
-        return $sent;
     }
 }

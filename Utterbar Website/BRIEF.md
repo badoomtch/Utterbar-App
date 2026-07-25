@@ -8,9 +8,8 @@
 > - Visual language and tokens → [./DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md)
 > - Repo-wide working rules → [../CLAUDE.md](../CLAUDE.md)
 > - Release ritual → [../RELEASE_RUNBOOK.md](../RELEASE_RUNBOOK.md)
-> - Licence contracts → [./LICENCE_APP_HANDOFF.md](./LICENCE_APP_HANDOFF.md), [./LICENCE_SYSTEM_SPEC.md](./LICENCE_SYSTEM_SPEC.md)
 >
-> The domain is `utterbar.com`, not `utterbar.app`. Pro is **£39.99 GBP one-time** — there is no monthly tier, no yearly tier, no Team tier. The waitlist is being removed; the public CTA is "Download Utterbar". If anything below contradicts those facts, those facts win and this file should be edited.
+> The domain is `utterbar.com`, not `utterbar.app`. **As of 2026-07-25 Utterbar is free and open source (MIT), with every feature included — there is no price, no Pro tier, no licence, no account.** The paid/licensing machinery was removed in the open-sourcing pass. The public CTA is "Download Utterbar". The `LICENCE_*` docs describe a system that no longer exists; treat them as history. If anything below contradicts these facts, these facts win and this file should be edited.
 
 ---
 
@@ -91,7 +90,7 @@ Reusable across home + docs/FAQ. Edit in lockstep when the underlying behaviour 
    Windows 10 22H2 and Windows 11. We require WebView2 (pre-installed on 11, auto-bootstrapped on 10).
 
 3. **Do I need a GPU?**
-   No. The default model is a Parakeet TDT 0.6B int8 build that runs on CPU comfortably. If you have a GPU, a larger fp16 model is available on Pro — DirectML lights up any DX12 card (NVIDIA / AMD / Intel), CUDA is there for NVIDIA-only setups. On a laptop with an RTX 4060 transcription is effectively instant. On a 4-core CPU from 2019, expect ~0.5× real-time.
+   No. The default model is a Parakeet TDT 0.6B int8 build that runs on CPU comfortably. If you have a GPU, larger and more accurate models are available to everyone — DirectML lights up any DX12 card (NVIDIA / AMD / Intel). On a laptop with an RTX 4060 transcription is effectively instant. On a 4-core CPU from 2019, expect ~0.5× real-time.
 
 4. **How does it compare to Superwhisper on Mac?**
    Same category, same conviction about local-only ASR, but Windows-native from the ground up. We don't shim through Python, we use sherpa-onnx (ONNX Runtime) directly, and the installer is smaller.
@@ -125,9 +124,9 @@ Reusable across home + docs/FAQ. Edit in lockstep when the underlying behaviour 
 
 - Do not copy any Superwhisper marketing copy. Reference them by name only where listed here.
 - Do not add a chatbot widget.
-- Do not add a newsletter widget. Update emails go through the existing `update_subscribers` system tied to release announcements.
+- Do not add a newsletter widget.
 - Do not use stock photos of people wearing headsets. Illustrations or product shots only.
-- Do not introduce monthly subscriptions or any consumer/Pro price other than the one-time Pro figure that's live in [../MONOREPO.md](../MONOREPO.md). Consumer pricing changes start in code (`STRIPE_PRO_*` env, `pricing.rs`, `useProPrice.ts`) and the website's `/api/pricing` endpoint, not in copy. Volume tiers (Team / Business / Enterprise) are listed on `/pricing` and `/business` and routed through `/business/contact`; Jay hand-mints those licences. Self-serve checkout stays single-seat.
+- Do not introduce any price, paid tier, subscription, "Pro" upsell, licence, or account. Utterbar is free and open source; the whole billing/licensing stack was removed. The positioning is "free and open source, every feature included".
 - Do not reference `utterbar.app` anywhere — `.app` is not owned. The domain is `utterbar.com`.
 
 ---
@@ -140,6 +139,7 @@ When in doubt: **less copy, more white space, more cyan, more British English, m
 
 ## 6. Change log
 
+- **2026-07-25** — Free + open-source pivot. Utterbar is now free, MIT-licensed, every feature on for everyone. Removed the entire paid/licensing stack (Stripe, licence signing + device caps, accounts/magic-link, the subscriber list, volume/Team/Business tiers, tips, the admin web panel). The self-hosted signed auto-updater and the marketing site stay. All "£39.99 / Pro / one-time / volume" copy is rewritten to "free and open source". The prior B2B/pricing entries below are historical.
 - **2026-04-27** — B2B pass: dropped the no-Team-tier rule. Volume pricing is live on `/pricing` (Team £29 / Business £19 / Enterprise contact, all one-time, no subscription) and the dedicated `/business` page now positions Utterbar for call centres, legal, healthcare and internal IT. Self-serve checkout still single-seat by design. The local-only / no-cloud / no-account ethos is unchanged and remains the spine of the business pitch.
 - **2026-04-26** — Stripped concrete pricing, route inventory, page-by-page copy specs, deployment claims, contact email addresses, accessibility/perf budgets, and the v0.3-era status section. BRIEF.md is now positioning / tone / brand / FAQ only. Anything implementation-level was either already covered elsewhere (MONOREPO, TODO, DESIGN_SYSTEM, RELEASE_RUNBOOK) or had drifted faster than anyone updated this file.
 - **2026-04-22** — Earlier rewrite to remove fictional model names and align feature lists with v0.3.5. Superseded by the 2026-04-26 trim.

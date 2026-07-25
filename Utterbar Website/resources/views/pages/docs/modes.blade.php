@@ -92,9 +92,9 @@ We want them fixed before marketing announces.</pre>
     </ul>
 
     {{-- ───────────── Custom modes ───────────── --}}
-    <h2 class="mt-14 ub-docs-h2">Custom modes (Pro)</h2>
+    <h2 class="mt-14 ub-docs-h2">Custom modes</h2>
     <p class="mt-4 text-base leading-relaxed" style="color: var(--fg);">
-        Pro unlocks unlimited custom modes. Clone a built-in, edit the post-processing rules, and bind it to its own hotkey. The most common reasons people make custom modes:
+        Utterbar includes unlimited custom modes. Clone a built-in, edit the post-processing rules, and bind it to its own hotkey. The most common reasons people make custom modes:
     </p>
     <ul class="mt-4 space-y-3 text-base leading-relaxed" style="color: var(--fg);">
         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span><strong style="color: var(--fg-hi);">A &ldquo;quick reply&rdquo; mode</strong> for chat apps, tighter than Message, no sentence cap, optional sign-off.</span></li>
