@@ -84,7 +84,7 @@ Preferred register: British English spelling (`colour`, `organise`, `customise`,
 Reusable across home + docs/FAQ. Edit in lockstep when the underlying behaviour changes.
 
 1. **Does Utterbar send my voice to the cloud?**
-   No. Audio is captured, transcribed, and discarded on your PC. The only network calls Utterbar makes are to download ASR models from Hugging Face on first run. That's visible in the app's logs.
+   No. Audio is captured, transcribed, and discarded on your PC. The only network calls Utterbar makes are downloading ASR models on first run and a once-per-launch update check. Neither carries any of your speech, and both are visible in the app's logs.
 
 2. **Which Windows versions are supported?**
    Windows 10 22H2 and Windows 11. We require WebView2 (pre-installed on 11, auto-bootstrapped on 10).

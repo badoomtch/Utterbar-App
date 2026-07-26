@@ -9,7 +9,7 @@
     ];
 
     $faqs = [
-        ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run, and those are logged so you can read them.'],
+        ['q' => 'Does Utterbar send my voice to the cloud?', 'a' => 'No. Audio is captured, transcribed, and binned on your machine. The only network calls it ever makes are model downloads on first run and a once-per-launch update check, and those are logged so you can read them.'],
         ['q' => 'Which Windows versions work?', 'a' => 'Windows 10 22H2 and Windows 11, x86_64. WebView2 is required (already on Windows 11; auto-bootstrapped on Windows 10).'],
         ['q' => 'Do I need a GPU?', 'a' => 'No. The default Parakeet build runs comfortably on any modern CPU. If you have a DirectX 12 graphics card (NVIDIA, AMD, or Intel), Utterbar uses it via DirectML for Whisper Medium, Whisper Large, and Parakeet. CUDA is not bundled.'],
         ['q' => 'What languages does it support?', 'a' => 'Over 30 out of the box: English, French, German, Spanish, Italian, Portuguese, Dutch, Polish, Turkish, Russian, Arabic, Hindi, Japanese, Korean, Mandarin, and more. English uses Parakeet by default for speed; everything else uses Whisper. Pick a default in Settings > Models, or leave it on auto-detect.'],
@@ -541,7 +541,7 @@
                     Watch it <x-hl>not</x-hl> phone home.
                 </h2>
                 <p class="ub-lead mt-6 max-w-2xl">
-                    Open your network monitor. Start dictating. Dictate for hours. The only network calls Utterbar ever makes are model downloads on first run, and those are logged so you can read them.
+                    Open your network monitor. Start dictating. Dictate for hours. The only network calls Utterbar ever makes are model downloads on first run and a once-per-launch update check, and those are logged so you can read them.
                 </p>
                 <p class="mt-4 max-w-2xl text-sm" style="color: var(--muted);">
                     Pull your ethernet cable mid-sentence. Nothing changes. The app does not authenticate against anything.

@@ -7,17 +7,17 @@
  * pills — Audio, Transcripts, Vocabulary, History — connected by a
  * thick cyan loop that stays inside the panel. A thin grey outbound
  * line goes to a small "utterbar.com" panel on the right and lights
- * up only for the four genuine network calls (licence, updates,
- * models, pricing). This makes the precise privacy claim visible:
- * voice / output / personal data stay local; tiny housekeeping
- * traffic doesn't.
+ * up only for the two genuine network calls (model download, update
+ * check). This makes the precise privacy claim visible: voice /
+ * output / personal data stay local; tiny housekeeping traffic
+ * doesn't.
  *
  * Timeline:
  *   0.0 – 1.5   "Your PC" panel fades in with the four data pills.
  *   1.5 – 4.5   The local loop animates around the pills (cyan trace).
- *   4.5 – 7.0   The outbound line lights up briefly, four times, each
- *               time labelled with what's being sent (licence check,
- *               update check, model download, pricing).
+ *   4.5 – 7.0   The outbound line lights up briefly, twice, each time
+ *               labelled with what's being sent (update check, model
+ *               download).
  *   7.0 – 8.0   Both elements settle; bottom caption "Audio, transcripts,
  *               vocab, history — never leave your PC." holds.
  */
@@ -34,14 +34,12 @@ type OutboundEvent = {
   label: string;
 };
 
-// Four genuine outbound calls the app actually makes. Each one fires
+// The two genuine outbound calls the app actually makes. Each one fires
 // once during the 4.5–7.0 window so the viewer reads "small list, fully
 // enumerated" rather than "trust us, it's fine".
 const OUTBOUND_EVENTS: OutboundEvent[] = [
-  { startSeconds: 4.6, durationSeconds: 0.55, label: 'Update check' },
-  { startSeconds: 5.2, durationSeconds: 0.55, label: 'Licence check' },
-  { startSeconds: 5.8, durationSeconds: 0.55, label: 'Pricing' },
-  { startSeconds: 6.4, durationSeconds: 0.55, label: 'Model download' },
+  { startSeconds: 4.9, durationSeconds: 0.7, label: 'Update check' },
+  { startSeconds: 6.0, durationSeconds: 0.7, label: 'Model download' },
 ];
 
 export function FeatureLocalPrivacy() {
@@ -121,8 +119,8 @@ export function FeatureLocalPrivacy() {
         <RemotePanel highlight={outboundIntensity} />
       </div>
 
-      {/* Closing caption. Lands once all four outbound events have
-          fired — frames the four small calls as the ENTIRE outbound
+      {/* Closing caption. Lands once both outbound events have
+          fired — frames the two small calls as the ENTIRE outbound
           surface. */}
       <div
         style={{
@@ -153,7 +151,7 @@ export function FeatureLocalPrivacy() {
             letterSpacing: '-0.005em',
           }}
         >
-          The only outbound traffic is the four small checks above.
+          The only outbound traffic is the two small checks above.
         </div>
       </div>
     </AbsoluteFill>
@@ -407,9 +405,9 @@ function RemotePanel({ highlight }: { highlight: number }) {
           lineHeight: 1.5,
         }}
       >
-        Update / licence checks,
+        Update checks,
         <br />
-        catalogue + pricing.
+        model downloads.
       </div>
     </div>
   );
