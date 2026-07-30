@@ -1,6 +1,6 @@
 [package]
 name = "utterbar"
-version = "0.25.1"
+version = "0.26.0"
 edition = "2021"
 description = "Utterbar — local-only dictation for Windows"
 authors = ["Utterbar"]
