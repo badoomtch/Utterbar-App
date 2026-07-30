@@ -1,164 +1,20 @@
-# TODO.md, Utterbar work tracker
+# Utterbar Work Tracker
 
-Active working list. Keep short. When something ships, move it out of Next actions and into a one-line entry in Product backlog or remove it entirely. History lives in commits, release notes, and MONOREPO.md.
+## Current priorities
 
-**Last updated: 2026-07-25** (open-source pivot)
+1. Complete the public-repository scrub: verify rewritten history contains no
+   secrets, replace the remote only after an explicit final approval, and make
+   the repository public afterwards.
+2. Verify GitHub Release delivery on both channels with a test release:
+   ordinary release for stable and prerelease for beta.
+3. Continue the app-language review beta. Native-speaker review is required
+   before a language reaches a stable release.
+4. Investigate and resolve reported audio-capture tail loss using reproducible
+   recordings and logs.
 
----
+## Product invariants
 
-> **⚠️ Open-source pivot (2026-07-25, branch `feature/open-source-phase1`).**
-> Utterbar is going **free and open source (MIT)**. The entire paid/licensing
-> stack was removed from both sides — Stripe, licence signing + device caps,
-> accounts (magic-link), the release-email subscriber list, volume/Team/Business
-> tiers, tips, and the admin web panel. The free desktop app, marketing site,
-> download endpoint, contact form, and Ed25519-signed auto-updater stay. **Every
-> backlog/history entry below about pricing, volume/B2B checkout, licence.bin,
-> air-gapped activation, the admin dashboard, or subscribers is now superseded —
-> those systems no longer exist.** Remaining to go public: Jay rotates the live
-> `ADMIN_API_TOKEN` + Stripe test key (Phase 0), then flip the repo public. Added
-> at root: `LICENSE` (MIT), `THIRD_PARTY_NOTICES.md`, `README.md`. Not yet
-> committed.
-
----
-
-## Current status
-
-### Canonical release state
-
-- **Stable channel:** `v0.25.0` (admin row 104), published 2026-07-23. Media playback now pauses before microphone capture begins and resumes only if Utterbar successfully paused it. Local logs record Windows media-session discovery and pause or resume outcomes, making a remaining compatibility issue diagnosable without telemetry. SHA-256 `daa293e1428ebb0efdb3ecdb5e46317fd3034425139fbc84e808a5f7774a8006`; installer `https://dl.utterbar.com/releases/0.25.0/Utterbar-Setup-0.25.0.exe`, 20,579,697 bytes. Published with the normal stable `latest` tag and release announcement; the subscriber list was empty, so no emails were sent. Supersedes v0.24.0 (row 103).
-- **Beta channel:** `v0.25.1` (admin row 105), published 2026-07-23. Improves intermittent media pausing by making Windows media-session discovery reliable on its worker and falling back to the active session when the session list is empty. SHA-256 `13e29730c5aa3da74618aa54816129718ac6b1291f859d0945a47ba7d62830b0`; installer `https://dl.utterbar.com/releases/0.25.1/Utterbar-Setup-0.25.1.exe`, 20,585,076 bytes. Beta only, no announcement and no `latest` tag. Verify repeated YouTube, Spotify, and background-browser start/stop cycles before promoting any follow-up.
-- **Previous beta rows:** `v0.21.4` adds the separate 250-1,500 ms end-of-speech capture delay; `v0.21.3` adds the configurable clipboard-restoration delay; `v0.21.2` restores copied images after dictation; `v0.21.1` is the text-delivery and final-audio reliability beta; `v0.20.11` remains the completed Meeting Mode beta-line record.
-- **In-tree app version:** `v0.25.1` across `package.json`, `Cargo.toml`, `Cargo.lock`, and `tauri.conf.json`.
-
-The bullets below preserve the historical release trail. They are not the current release state.
-
-- **Stable channel:** v0.20.0 (admin row 85). Stable promotion of the soaked v0.19.1 → v0.19.6 beta line on top of v0.19.0. Bundles language-aware onboarding (new dictation-language step, Auto-detect default, multilingual recommendation for non-English; UI itself remains English only); Settings → Models language compatibility warning beside the Whisper picker with a switch button when a multilingual model is installed; English text catalogue groundwork across Settings panes / onboarding / floating bar chrome / update prompts / main-window shell (foundation for future language packs, NOT a non-English UI); five Tier-1 performance merges (runtime capabilities cache, capture-stop mem::take, default-model launch prewarm, dead vocabulary-hints removal, frontend route code-splitting) so first dictation after launch is usually warm and the floating bar boots against a smaller initial chunk; auto-update Install & restart applies on the first click for updates AFTER reaching v0.20.0 (the v0.19.0 → v0.20.0 upgrade itself may still need the old workaround for users with Close to tray on); experimental Teams + Discord mic mute kept working through the cut (off by default, opt-in, Teams + Discord only, banner asks user to confirm; same caveats as v0.19.0). Built via `pnpm tauri:build:release` which always passes `--features experimental_mic_mute`; the pre-publish hard-check returned `send_hotkey_globally` count 1 against the bare `utterbar.exe`. Source-grep contract test `release_build_includes_experimental_mic_mute_feature` in `commands/dictation.rs` pins the flag in `package.json`, `RELEASE_RUNBOOK.md`, `Utterbar Windows App/RELEASE.md`, and the dual `cfg` arms in `services/mic_mute.rs` so the regression that silently dropped the feature from v0.19.1 → v0.19.5 betas cannot recur. Manual smoke on v0.19.6 before promotion (carrying through to v0.20.0 since the runtime code is byte-identical): basic dictation PASS, Teams mic-mute PASS, Discord mic-mute PASS, Settings → Models language-warning placement PASS. Tagged `v0.20.0`. SHA-256 `ffe2f1a0844def4ccb7d8301c76f313b7f2772cd2634f751f33d9dccfb77623e`. Installer at `https://dl.utterbar.com/releases/0.20.0/Utterbar-Setup-0.20.0.exe`, 20,111,661 bytes. cargo test 463/463, vitest 224/224. Supersedes v0.19.0 (row 78). v0.19.1 (row 79), v0.19.2 (row 80), v0.19.3 (row 81), v0.19.4 (row 82), v0.19.5 (row 83), v0.19.6 (row 84) remain historical beta soak records.
-- **Beta channel:** v0.20.5 (admin row 90), published 2026-07-16. Bundles this session's work on top of the live v0.20.4: long-audio Whisper chunking (single-shot Whisper dictations over ~30s were silently truncated to the first 30s; now chunked at 29s/2s-overlap like Meeting Mode), grammar-aware number parsing ("twenty thirty" stays "20 30", not "50"), history-DB self-heal on boot (corrupt `orliq.db` is set aside and restored from the newest valid backup instead of panicking bootstrap), post-stop grace tail 220->500ms, faster prior-clipboard restore (600ms poll ceiling), the Settings HTML-entity render fix (`&lsquo;`/`&rarr;` were showing literally), and an em-dash/British-English copy sweep across the app UI and website. Verified DB-recovery + Whisper chunking absent from the live 0.20.4 binary before writing notes. SHA-256 `cd0afad637c8acc8e16ec23af28a492b50fcbf90646491eb6ddcc72b9a0074ef`. Installer at `https://dl.utterbar.com/releases/0.20.5/Utterbar-Setup-0.20.5.exe`, 20,163,736 bytes. cargo test 471/471, clippy clean. Signed with the recovered original updater key (no rotation) so 0.20.4 betas auto-update normally. **Smoke test pending on Jay's machine** (Whisper long-audio path not yet run end-to-end).
-- **History debt from the beta line:** v0.20.1 (row, 09 May 07:50), v0.20.2 (row 87, 09 May 08:06), v0.20.3 (09 May 19:52), v0.20.4 (row 89, 13 May 04:47) all shipped as betas but were built from an uncommitted working tree and never committed to git or tagged (HEAD sat at the 0.20.2 reconcile). This session committed the accumulated source as discrete fix commits and renumbered to v0.20.5. During a mislabeled first publish attempt the v0.20.3 R2 object (`releases/0.20.3/...exe`) was overwritten with a newer build; left dormant (superseded, never offered by the updater) — original bytes unrecoverable. The `~/.utterbar-deploy/.env` (incl. the updater signing key) had vanished from the new machine and was recovered from an old-PC backup.
-- **In-tree app version:** v0.20.5 across `package.json`, `Cargo.toml`, `tauri.conf.json` (and `Cargo.lock`).
-- **Volume self-serve checkout shipped to the website** (merged into main from `feature/b2b-volume-checkout`). `/api/checkout/create-volume-session` accepts quantity 5-100, mints a licence with `max_devices = quantity`, SKU `utterbar-pro-volume`. Two-tier rate (£29 / £19 at the 25-seat boundary) lives in `App\Services\Pricing\VolumePricing`. Website-only; no desktop app change required.
-- **Compare pages live** at `/compare` plus four competitor deep dives — `/compare/wispr-flow`, `/compare/dragon`, `/compare/voice-access`, `/compare/superwhisper`. Index rebuilt without the "Coming soon" placeholder. Shared `<x-compare-table>` component + per-page JSON-LD breadcrumbs and SoftwareApplication schema. Sitemap updated. Honest copy with explicit reseller pricing for Dragon (no false GBP-from-Nuance claim), soft phrasing on Voice Access vocabulary (Microsoft hasn't documented either way), and Superwhisper described as cross-platform sibling rather than Mac-only foil.
-- **Homepage hero + Remotion bar parity** with the current desktop floating bar. Hero pill mock now shows three mode chips (Voice / Message / Meeting), tightened geometry closer to the real 64 px height, and demo cycle uses the real product phase strings ("● Recording" / "Inserted"). Remotion BarDriver + StatePillStatic learned `transcribing_background` so the next composition can render Meeting Mode chunk progress; the marketing pack was re-rendered from current source (12 file deltas, mostly the press stills picking up the new BarModeSwitch chip cluster). The "Comparison pages expansion" and "Website/remotion Utterbar visual refresh" backlog items are closed by this batch.
-- **Website docs** updated to match v0.15.6 stable. Public copy on home, pricing, modes, troubleshooting, faq, getting-started, privacy, etc. now reflects DirectML and the 5-minute single-shot dictation cap.
-- **Security headers** live: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, plus a Report-Only CSP.
-- **Cloudflare Always Use HTTPS** enabled. Plain HTTP redirects to HTTPS for apex, www, and dl. subdomains.
-- **TLS minimum** at the Cloudflare edge is TLS 1.2.
-- **HSTS** live: `max-age=31536000; includeSubDomains` (one year). No `preload`.
-- **CSP remains Report-Only.** Not enforced.
-- **No active security emergency.**
-
----
-
-## Next actions
-
-In rough order. Adjust as evidence comes in.
-
-1. **Watch for hardware-specific DirectML crashes** in the wild before building any sentinel/post-mortem detection. Step 2 cells produced zero crashes on Jay's machine; the audit-style sentinel + quarantine work is only justified if real soak data shows a crash on someone else's GPU. Until then, defence-in-depth here is overengineering.
-2. **Watch v0.25.1 beta media pausing.** With Pause media while recording enabled, repeat start and stop dictation while YouTube, Spotify, and another media player are active. Cover a visible player and a background browser tab. Playback should pause before capture and resume only when Utterbar paused it. If it fails, retain the corresponding `%APPDATA%\\Utterbar\\logs\\` file and record the player, foreground state, and whether the failure was intermittent. Stable remains v0.25.0 until this has soaked.
-2. **Watch v0.20.0 stable soak.** Mainline cut bundling the soaked v0.19.1 → v0.19.6 beta line on top of v0.19.0. Watchpoints, in rough order of user-visibility: (a) **Language-aware onboarding (v0.19.1).** Onboarding's dictation-language step renders normally with Auto-detect default; non-English dictation language routes to a multilingual Whisper recommendation; English/Auto-detect users see no behaviour change. App UI remains English only. (b) **Settings → Models warning placement (v0.19.2 + v0.19.3).** The rose warning appears directly below the Whisper-language card when dictation language is non-English and default model is English-only; not duplicated lower down; switch button works when a multilingual Whisper model is installed; install hint card otherwise; Auto-detect and English show no warning. (c) **Update first-click from v0.19.0 to v0.20.0 (v0.19.4).** The fix only takes effect AFTER the user reaches v0.20.0; the v0.19.0 → v0.20.0 upgrade itself may still need the old workaround for users with Close to tray on (release notes v0.20.0 say so directly). From v0.20.0 onwards, Install & restart applies on the first click. (d) **First dictation after launch is warm (v0.19.5).** With a non-zero `models.warm_duration_secs` (default 120 s), launching Utterbar pre-loads the default model in the background; first hotkey press transcribes with normal latency rather than the cold-load 0.3-4 s. Opt-out (`warm_duration_secs = 0` / "Never") is honoured. (e) **Floating bar boots faster (v0.19.5).** The bar window appears with less delay than v0.19.0; first open of Settings/History/Files/Meetings/Modes/Vocabulary may take an imperceptible extra moment for the lazy chunk fetch, then every subsequent open is instant. (f) **Long-recording capture-stop (v0.19.5).** Recordings near 5 min / 30 min / 1 hour stop cleanly with no allocation spike and no missing tail audio; tail-coverage budget is 220 ms grace + 120 ms drop-drain + 30 ms late-callback grace, byte-identical to v0.19.0. (g) **Teams / Discord mic mute (v0.19.6 build restore).** With the toggle enabled in Settings → Advanced → Experimental and a mute hotkey configured, starting a dictation sends the mute hotkey to the call app; stopping sends the hotkey again to unmute; the banner under the floating bar still asks the user to glance at the call app's own mute indicator and confirm. Off by default, Teams + Discord only, no Zoom/Webex claim. (h) **Basic dictation.** Speech recognition on identical audio/model/language is byte-identical to v0.19.0; auto-paste lands in the original target window; no crash, no hang. (i) **App UI remains English only.** No non-English UI language pack ships; the dictation-language step controls only what Utterbar listens for. Hotfix to v0.20.1 beta if anything load-bearing surfaces; the next mainline minor will be v0.21.0 once a beta line has soaked.
-3. **Watch v0.20.2 beta soak.** App-language picker layout hotfix on top of v0.20.1 (admin row 87). v0.20.1 introduced the first non-English app UI locale review batch (es, fr, de, it, pt, nl alongside English) but the seven-chip picker squeezed the label and description into a narrow left column; v0.20.2 stacks them above the chips so the chips can wrap across the full Card width. Watchpoints: (a) App-language label and description are no longer squeezed in Settings, General; they sit above the chip cluster at full Card width with the same typography as before. (b) All seven language chips remain visible and wrap cleanly at typical Settings widths; resizing the window narrower or wider keeps the layout readable. (c) Switching languages still re-renders routed surfaces (sidebar nav, floating bar, update toast, onboarding, most Settings panes); switching back to English fully restores. (d) Dictation language in Settings, Models, Whisper language is unchanged when app language flips — picker writes only `general.app_language`, never `models.whisper_language`. (e) **No translation changes from v0.20.1.** The six locales still need a native review pass before the next stable cut. Translation quality issues across the six locales are still collected with: locale, screen, current string, suggested replacement. (f) Untranslated surfaces (Licence, History, Files, Meetings, Modes, Vocabulary, model display names, backend errors) remain English by design. (g) No ASR / model / runtime regression — speech recognition is byte-identical for the same audio / model / dictation-language settings. (h) No updater / mic-mute / licence regression. Hotfix to v0.20.3 beta if anything load-bearing surfaces; next stable cut v0.21.0 only when the locale review pass has completed and v0.20.2's layout fix has soaked cleanly.
-4. **Pick the next product work item** from the backlog below.
-
----
-
-## Product backlog
-
-One or two lines each. Expand only if the item moves to Next actions.
-
-### Approved for build (experimental)
-
-- ~~**True per-app microphone mute, Teams + Discord experimental beta.**~~ Beta published 2026-05-04 as v0.18.2 (admin row 75) → v0.18.3 diagnostic (row 76) → v0.18.4 hotfix (row 77) → bundled into **v0.19.0 stable** 2026-05-06 (admin row 78). All four sub-branches landed in the v0.18.2 cut: spec-pin (2149e8d, amended for Discord at 95855e2), prototype (62aeb10), Rust foundation (a4cdd81), Settings UI (87e3014), lifecycle/banner (22a027e), beta release (9677311 + admin row 75). v0.18.4 fixed three things on the mic-mute path: tray-minimised Discord (v0.18.2 missed it because the visible-window scan returned nothing), auto-paste after a mic-mute dictation (the previous focus-dance path raced Utterbar's own foreground capture), and the floating-bar layout (banner is now absolutely positioned below the pill instead of squeezing it as a flex sibling). Stable v0.19.0 build produced with `npx tauri build --features experimental_mic_mute`; default builds remain stock no-mic-mute. Source-grep guard `no_foreground_focus_dance` pins the production source against re-introducing focus-changing API calls in the lifecycle. Toggles stay off by default in stable; Zoom and Webex remain on the staged-iteration path (v2/v3, each with its own spec amendment + beta soak when ready). v0.19.1 → v0.19.5 betas silently dropped the feature because the build path was missing `--features experimental_mic_mute`; v0.19.6 restored it with a durable `tauri:build:release` script + source-grep contract test, and v0.20.0 stable carries that build path forward.
-
-### Permanently rejected (do not propose again)
-
-These are pinned in [CLAUDE.md §5.1](CLAUDE.md). Decision docs preserve the investigation history but are marked REJECTED at the top.
-
-- **Opt-in product analytics.** Decided 2026-05-03 by Jay. The "no telemetry" framing across 15+ public-copy surfaces is brand equity worth keeping; trading it for product-usage insight is a net loss. If usage data is ever genuinely needed, the path is a quarterly survey email through the existing update-subscriber consent, not an in-app analytics channel. See [docs/decisions/opt-in-product-analytics.md](docs/decisions/opt-in-product-analytics.md).
-- **Smart rewrite local LLM.** Decided 2026-05-03 by Jay. Deterministic Smart rewrite v1 is the right ceiling for the rewrite feature. Local LLM weakens the "honest transcription, no AI ghost-writing" position without beating Wispr Flow / Superwhisper at LLM rewriting; the latency cost (P50 ~500 ms vs sub-millisecond v1) is a real UX regression on short dictations; the hallucination / wrong-meaning edit risk is asymmetric trust loss. The `LlamaCppProvider` stub stays in tree as inert plumbing. See [docs/decisions/smart-rewrite-local-llm.md](docs/decisions/smart-rewrite-local-llm.md).
-
-### Other backlog
-
-- **Whisper Small DML policy re-test.** Auto-Small currently routes to CPU per real-meeting evidence on Jay's machine (CPU RTF 0.190 vs DML 0.222). Re-test only if future evidence on different hardware reverses it; the policy is a one-line change in `services/inference/mod.rs::resolve_provider`.
-
-### Product / UX ideas from Jay
-
-- **Per-app meeting mute controls — partially shipped.** v0.16.5 beta shipped the **output-audio** half: the existing "Mute conferencing app output while recording" toggle silences what you HEAR from Teams / Slack / Discord / Zoom / Webex while dictating, and Settings → Privacy → Media now exposes an editable list of EXE basenames with built-in defaults, validation (rejects paths / command lines / quotes / wildcards / duplicates; auto-appends `.exe`; caps at 64 chars), and reset-to-defaults. Restored cleanly when dictation ends; only un-mutes sessions Utterbar itself flipped, so a pre-existing manual mute is preserved. **Not shipped: microphone mute inside the call apps.** True per-app mic mute would require simulating each app's in-call mute shortcut (Teams Ctrl+Shift+M, Discord configurable, Zoom Alt+A, Webex Ctrl+M) or driving UI Automation app-by-app — both brittle and silently fail-prone, with the "left someone muted after a crash" failure mode that the original ask explicitly wanted to avoid. Future work, only if a real user asks for it: an experimental opt-in mic-mute toggle that surfaces an unmissable banner saying "Utterbar may have left you muted in &lt;app&gt; — click to confirm restore" because the failure mode IS silent. Not scheduled.
-- ~~**Smart rewrite toggle (deterministic v1).**~~ Shipped 2026-05-02 in v0.16.4 beta (`feature/smart-rewrite-deterministic`). Off-by-default `text_output.smart_rewrite` toggle in Settings → Text Output → Formatting. When enabled, runs the existing rule-based deterministic provider (filler removal, whitespace normalisation, sentence-case, terminal full stop) on regular dictation regardless of the active mode's `post_processing` setting. Local-only, no model, no remote call. Meeting Mode is gated out by a source-grep guard test. Edge-input contract pinned by `smart_rewrite_edge_input_contract` so a future tweak to the building-block helpers can't silently change what the toggle produces. UI copy is honest about the v1 limitations (best for chat / email; turn off for code).
-- ~~**Meeting transcription progress bar.**~~ Shipped 2026-05-01 in v0.16.3 beta (`feat(meetings): show transcription progress`). Chunk-based: `dictation:chunk-progress` event emits `{ chunk_index, total_chunks }` once per chunk boundary; StatePill renders "Transcribing meeting · N/M" with a thin progress track that fills as chunks complete. Word-level progress is out of scope (offline recogniser doesn't expose mid-chunk callbacks).
-- ~~**Settings search.**~~ Shipped 2026-05-01 in v0.16.3 beta (`feat(settings): add settings search`). Section-level search with curated keyword aliases per section ("GPU" → Advanced, "hotkey" → Shortcuts, "system audio" → Audio); Esc / X clears; empty search restores the full list. Pure helper at `src/routes/settings_search.ts`. Per-control search inside each section is a separate item if it ever surfaces.
-- ~~**Comparison pages expansion.**~~ Shipped 2026-05-01 (`feature/website-compare-hero-remotion-polish`). Three new competitor pages — Dragon, Windows Voice Access, Superwhisper — alongside the existing Wispr Flow page; index rebuilt to drop the "Coming soon" framing; shared `<x-compare-table>` component + JSON-LD; sitemap updated. Talon and MacWhisper deliberately deferred — both are mentioned in alternatives lists but full pages are not justified by current traffic.
-- ~~**Audio-reactive waveform.**~~ Shipped 2026-05-01 in v0.16.3 beta (`feat(bar): make waveform react to audio level`). Floating bar's seven bars are now driven by the existing `dictation:meter` event (RMS + peak) via a single rAF loop in the new `MeterBars` component; asymmetric attack/release smoother + per-bar phase offsets give a natural ribbon silhouette; reduced-motion freezes the bars at a static 12 px row. No raw audio is stored or logged.
-- ~~**Website/remotion Utterbar visual refresh.**~~ Shipped 2026-05-01 (`feature/website-compare-hero-remotion-polish`). Homepage hero pill now shows three mode chips with real product phase language; Remotion BarDriver + StatePillStatic learned `transcribing_background` and the marketing pack was re-rendered from current source (12 byte-changed outputs synced to `Utterbar Website/public/`). Out of scope, deliberately: redesigning the Remotion compositions themselves, adding a new `feature-meeting-progress` composition (the source can render it; no asset is registered yet).
-
-### B2B follow-throughs (post first-pass)
-
-The 2026-04-27 B2B pass shipped the front door (`/business`, enquiry form, `/docs/it-deployment`, volume pricing, the original five group-policy registry keys). The 2026-05-01 v0.15.11 beta added managed fleet licence delivery via `licence.bin` and three more policy keys (`BlockHistory`, `BlockHistoryExport`, `BlockTelemetry`). The 2026-05-03 v0.15.12 beta added air-gapped activation (export request, admin upload, import licence.bin). Still open:
-
-- **Code-signed installer at order time.** EV cert procurement, sign during `publish-release.sh`, ship to one customer without leaking into the public R2 bucket. Not a blocker for the first enquiry; only when the first one says yes.
-- **Manual-mint invoice / VAT receipt.** First volume customer needs an invoice with VAT broken out. One-off Stripe Invoice for the first 1-3 deals.
-- **Machine-bound licence.bin (v3 payload).** The 0.15.12 air-gapped flow records audit / `max_devices` intent, but the resulting `licence.bin` is the same bytes for every device on the licence; a user can technically copy it to a second offline machine. The 14 reserved bytes in the v2 signed payload were left there for a fingerprint hash, but the v2 verifier silently ignores them, so binding can't be load-bearing until a v3-aware desktop saturates the install base. Build only when a buyer needs hard binding and is willing to soak through the version-skew window. Spec'd on the v0.15.12 docs page; not built.
-- ~~**Admin dashboard revenue counters under-report volume revenue.**~~ Shipped 2026-05-02 (`feature/admin-volume-revenue-accounting`). Migration adds nullable `amount_pence` + `currency` to `licences`; the Stripe webhook (single-user and volume) populates them at mint time, manual admin mints stay null. The Gross / Net tiles now SUM the column, and a new "Untracked rows" tile flags how many rows lack an amount (admin manual mints + any pre-2026-05-02 Stripe row, which we deliberately do not backfill).
-
-### Pre-existing open issues
-
-- ~~**Launch-at-startup reliability.**~~ Resolved by the v0.16.1 repair-on-launch path; Jay confirmed 2026-05-03 the app now opens on Windows restart/startup. The repair-on-launch hook in `main.rs` re-asserts the HKCU Run entry against the current exe path on every launch, healing stale entries from prior installs without the user having to toggle the setting.
-- **Ed25519 sandbox key sunset.** Live key is v2; v1 sandbox key still accepted transitionally. Sunset planned ~6 weeks after v0.9.0 saturates.
-- ~~**Legal pages refresh.**~~ Shipped 2026-05-03 (`feature/legal-pages-refresh-may2026`). Privacy and Terms now match the v0.16.x B2B reality: managed `licence.bin` and air-gapped activation add no outbound calls, volume / multi-seat licences create one record per order with `max_devices = quantity`, Business enquiry form retention mirrors the Contact form, and the volume licence-grant shape is clarified. EULA placeholder untouched. Both pages stamped "Last updated: 3 May 2026".
-- ~~**Admin dashboard cohesion.**~~ Resolved 2026-05-03 (already shipped, item was stale). The `<x-admin-nav>` component at `Utterbar Website/resources/views/components/admin-nav.blade.php` provides the shared tabbed navigation across all eight staged admin sections (dashboard, licences, releases, subscribers, contacts, business, analytics, tips) and every admin Blade page renders it. No code changed in this cleanup; only the TODO entry was reconciled to reflect the live state.
-- ~~**Remotion video quality pass.**~~ Shipped 2026-05-03. Three sub-items, all live: (1) the `feature-local-privacy` poster was rendering at frame 0 (before the panel fade-in) and showing a near-empty 22 KB frame on `/features` and `/privacy`; `render.mjs` now overrides that composition's poster frame to 180 (= 6.0 s, full diagram visible) (`feature/remotion-video-quality-pass`). Investigation also confirmed the Remotion BarDriver waveform silhouette is already within ~2-10% of the v0.18.0 logo-shape ratio, so no full re-render of the pill-bearing assets was needed against `FloatingBar.tsx`. (2) The marketing R2 sync script `Utterbar Website/scripts/sync-marketing-assets.mjs` had hardcoded production R2 credentials and a stale pre-monorepo source path; refactored to read from env vars matching `config/filesystems.php`, default to dry-run, validate env without echoing values, and resolve the source path relative to the script (`fix/marketing-r2-sync-env`). (3) **R2-backed CDN delivery now live.** All 29 marketing assets uploaded to `https://dl.utterbar.com/marketing/{videos,posters,stills}/*`; production Cloudways `.env` set `MARKETING_CDN_BASE=https://dl.utterbar.com/marketing`; live HTML on `/`, `/features`, `/press`, `/privacy` confirmed referencing R2 URLs. Cache-bust via `?v=mtime` query string preserved through the components. Updater feed unchanged (stable v0.18.0, beta v0.17.2). **Credential rotation resolved:** Jay confirmed the second R2 credential rotation on 2026-05-03 after the accidental chat paste. Local dry-run of the env-backed sync script still works; no upload was needed.
-- ~~**4.9 GB idle RAM.**~~ Resolved / stale item. Jay confirmed 2026-05-03 that there is no longer a RAM issue. No code change was needed. Reopen only if a fresh reproducible idle-RAM regression appears on a current build.
-- **Microsoft Store cert path.** v0.12.0 submission tests whether the existing build passes Store cert as-is. If cert rejects, build a Store-specific variant that compiles the in-app updater out via a feature flag.
-
-### Diarisation (still deferred)
-
-Speaker labels remain off in shipping builds. The architectural rework (transcribe whole buffer once, diarise separately, assign speaker labels by interval-overlap on word/segment timestamps) is on the parking lot. **Do not start diarisation work on top of unstable ASR / runtime work.** v0.15.6 just promoted to stable; let the DirectML soak settle and the open verification questions about `sherpa_rs::whisper` timestamps + per-call language override get answered first.
-
----
-
-## Security audit status
-
-External audit ran late April 2026. Findings sorted into three buckets.
-
-### Shipped
-
-- Browser-hardening headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`).
-- Content-Security-Policy in **Report-Only** mode.
-- Cloudflare "Always Use HTTPS" enabled.
-- TLS minimum at the edge: TLS 1.2.
-- HSTS live: `Strict-Transport-Security: max-age=31536000; includeSubDomains` (one year). No `preload`.
-
-### Deferred
-
-- **Origin lockdown for `<SERVER_IP>`.** Parked hardening, not active work, not urgent. Stripe webhook HMAC, licence Ed25519, admin bearer token, and per-route Laravel throttles all hold on the direct path; nothing's currently exploitable. If we ever pick this up, it's operational work (not a repo change): Cloudways firewall allow-listing Cloudflare IPs, Cloudflare Authenticated Origin Pulls + nginx mTLS, and SSH (port 22) restriction tracked separately. Trigger to revisit: a real bypass attempt in logs, an IP-leak incident, or a quiet maintenance window.
-- **CSP enforcement / inline-script nonce refactor.** Current Report-Only with `'unsafe-inline'` is hygiene-level CSP. Real win comes from refactoring 9 inline `<script>` blocks to use a per-request nonce, then dropping `'unsafe-inline'`. Moderate refactor across ~14 view files plus middleware nonce plumbing. **Do not flip CSP to enforcement until the nonce refactor is in.**
-- **SSH IP restriction (port 22).**
-- **CAA records.** Pin the CAs Cloudflare actually uses to prevent mis-issuance.
-- **DMARC reporting address (`rua=`).** Current record is `v=DMARC1; p=quarantine` with no inbox receiving alignment-failure reports.
-
-### Accepted / false positive
-
-- **`XSRF-TOKEN` not HttpOnly** is intentional Laravel behaviour. The session cookie (`utterbar-session`) is `secure; httponly; samesite=lax`; flipping HttpOnly on `XSRF-TOKEN` would break every form on the site.
-- **Cloudflare edge port 8080** is documented Cloudflare global behaviour (alternate-HTTPS proxy port set), not site config. Origin port 8080 is closed.
-- **DKIM** exists at `resend._domainkey.utterbar.com`. Scanner only checked default selectors.
-- **"No rate limiting"** is misleading: every sensitive Laravel route is throttled (`/api/contact`, `/sign-in`, `/api/licence/*`, `/api/admin/*`, `/api/checkout/*`, `/api/updater/check`, `/tip/*`, `/download/*`, etc.). See `routes/web.php`.
-- **Public support email** is intentional.
-
----
-
-## Cross-side contract status
-
-Verified clean as of 2026-04-30. No outstanding drift. `publish-release.sh` uploads to the versioned R2 key, server recomputes SHA-256 and verifies updater signature, beta and stable rows live in `(version, channel)` uniqueness namespaces. Full notes in `RELEASE_RUNBOOK.md` and `MONOREPO.md §10`.
-
----
-
-## Session caveats to carry forward
-
-- **Monorepo:** `c:\Users\jaypa\Documents\GitHub\Utterbar\` is one repo. `Utterbar Windows App/` and `Utterbar Website/` sit inside. Remote: `badoomtch/Utterbar-App` private.
-- **App version vs website version.** Website deploys continuously; only the desktop installer has a semver. `config('site.version')` is informational.
-- **Jay tests every app build before we ship.** No installer goes to R2 without explicit approval.
-- **PHP tests are not in CI.** Re-run on the dev machine before deploying the website.
-- **Versioning convention** (per `CLAUDE.md §5.7`): minor (`0.x.0`) = mainline / stable, patch (`0.x.y`, y > 0) = beta channel only. Ship features through beta soak; do not skip straight to mainline.
-
----
-
-*End of TODO. Edit freely. Move shipped work out, don't let it accumulate.*
+- Free, open-source, local-first desktop dictation.
+- No payments, accounts, licences, telemetry, or cloud transcription.
+- GitHub Releases provides desktop installers and update metadata.
+- Stable and beta remain separate update channels.

@@ -1,8 +1,6 @@
 <?php
 
-use App\Http\Controllers\Api\UpdaterApiController;
 use App\Http\Controllers\ContactController;
-use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\OgImageController;
 use App\Http\Controllers\PageController;
 use Illuminate\Support\Facades\Route;
@@ -63,37 +61,4 @@ Route::prefix('legal')->name('legal.')->group(function () {
     Route::get('/privacy', [PageController::class, 'legalPrivacy'])->name('privacy');
     Route::get('/terms', [PageController::class, 'legalTerms'])->name('terms');
     Route::get('/eula', [PageController::class, 'legalEula'])->name('eula');
-});
-
-// Auto-updater feed — called by the desktop app's update checker
-// (updater.rs). Public, unauthenticated, rate-limited. The feed is
-// Ed25519-signed; the client verifies before downloading.
-Route::get('/api/updater/check',  [UpdaterApiController::class, 'check'])
-    ->middleware('throttle:60,1')
-    ->name('api.updater.check');
-
-// Public download endpoint. Logs a unique-per-day-per-IP-per-UA event
-// then 302s the user to the R2 download URL. Both /download/latest and
-// /download/<version> are served by DownloadController.
-Route::get('/download/latest',           [DownloadController::class, 'latest'])
-    ->middleware('throttle:30,1')
-    ->name('download.latest');
-Route::get('/download/version/{version}', [DownloadController::class, 'version'])
-    ->where('version', '\d+\.\d+\.\d+')
-    ->middleware('throttle:30,1')
-    ->name('download.version');
-
-// Headless admin API — bearer-token-authed (ADMIN_API_TOKEN env var).
-// Used by the app-repo release script so the publish flow can run
-// end-to-end without touching an admin form. This is the only
-// privileged surface that survives: the app is free and open source,
-// but only releases signed with the operator's updater key are served.
-//
-// Throttle tightened to 6/min: real publish traffic is at most one
-// request every few weeks. The middleware logs every request for an
-// audit trail (see App\Http\Middleware\AdminApiToken).
-Route::middleware(['admin.api', 'throttle:6,1'])->prefix('api/admin')->group(function () {
-    Route::post('releases',            [\App\Http\Controllers\Api\AdminReleaseApiController::class, 'store']);
-    Route::delete('releases/{id}',     [\App\Http\Controllers\Api\AdminReleaseApiController::class, 'destroy'])
-        ->whereNumber('id');
 });

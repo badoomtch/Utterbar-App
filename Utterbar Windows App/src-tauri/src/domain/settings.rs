@@ -556,10 +556,8 @@ pub struct AdvancedSettings {
     #[serde(default)]
     pub thread_count: Option<u32>,
     /// Update channel for the auto-updater. `stable` is the default and
-    /// what the public sees. `beta` opts into pre-release builds —
-    /// passed as `?channel=beta` to `/api/updater/check`. Useful for
-    /// the developer dogfooding fixes before publishing them stable.
-    /// Anything other than `beta` is treated as `stable` server-side.
+    /// what the public sees. `beta` opts into GitHub prerelease builds.
+    /// Anything other than `beta` is treated as `stable` locally.
     #[serde(default = "default_update_channel")]
     pub update_channel: String,
 }

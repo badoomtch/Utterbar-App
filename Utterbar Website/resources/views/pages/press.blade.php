@@ -258,12 +258,11 @@
                         Jay Parry is a British software engineer building Utterbar from the conviction that dictation tools have no business in the cloud. He writes Rust in the morning and TypeScript after lunch.
                     </p>
                 </div>
-                @php $latest = \App\Models\Release::stable()->orderByDesc('published_at')->first(); @endphp
                 <div class="ub-card">
                     <h3 class="text-xl" style="letter-spacing: -0.02em;">Stage</h3>
                     <p class="mt-3" style="color: var(--muted);">
-                        Shipping. Current public build: v{{ $latest?->version ?? config('site.version') }}. Download at
-                        <a href="{{ route('download') }}" style="color: var(--accent);">{{ config('site.domain') }}/download</a>.
+                        Shipping. Current public builds and release notes are on
+                        <a href="{{ config('site.github_releases_url') }}" style="color: var(--accent);">GitHub Releases</a>.
                     </p>
                 </div>
                 <div class="ub-card">

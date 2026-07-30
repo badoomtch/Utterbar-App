@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Release;
 use App\Support\BlogPost;
 use Illuminate\Http\Response;
 
@@ -28,13 +27,6 @@ class SitemapController extends Controller
     {
         $now = now()->toIso8601String();
 
-        // /download lastmod = the latest stable release's published_at.
-        // That's what a crawler should re-fetch when a new version ships.
-        $latest = Release::stable()->orderByDesc('published_at')->first();
-        $downloadLastmod = $latest
-            ? ($latest->published_at ?? $latest->created_at)->toIso8601String()
-            : $now;
-
         $entries = [
             ['path' => '/',                       'priority' => '1.0', 'changefreq' => 'weekly',  'lastmod' => $now],
             ['path' => '/features',               'priority' => '0.9', 'changefreq' => 'monthly', 'lastmod' => $now],
@@ -42,10 +34,10 @@ class SitemapController extends Controller
             ['path' => '/pricing',                'priority' => '0.9', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/business',               'priority' => '0.9', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/business/contact',       'priority' => '0.6', 'changefreq' => 'yearly',  'lastmod' => $now],
-            ['path' => '/download',               'priority' => '1.0', 'changefreq' => 'weekly',  'lastmod' => $downloadLastmod],
+            ['path' => '/download',               'priority' => '1.0', 'changefreq' => 'weekly',  'lastmod' => $now],
             ['path' => '/privacy',                'priority' => '0.8', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/roadmap',                'priority' => '0.6', 'changefreq' => 'monthly', 'lastmod' => $now],
-            ['path' => '/changelog',              'priority' => '0.7', 'changefreq' => 'weekly',  'lastmod' => $downloadLastmod],
+            ['path' => '/changelog',              'priority' => '0.7', 'changefreq' => 'weekly',  'lastmod' => $now],
             ['path' => '/contact',                'priority' => '0.5', 'changefreq' => 'yearly',  'lastmod' => $now],
             ['path' => '/press',                  'priority' => '0.5', 'changefreq' => 'monthly', 'lastmod' => $now],
             ['path' => '/compare',                'priority' => '0.7', 'changefreq' => 'monthly', 'lastmod' => $now],

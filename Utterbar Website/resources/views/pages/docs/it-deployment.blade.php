@@ -103,17 +103,17 @@
         <tbody>
             <tr style="border-bottom: 1px solid var(--border);">
                 <td class="py-3 pr-4" style="color: var(--fg-hi);">Update check</td>
-                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">utterbar.com</td>
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">api.github.com</td>
                 <td class="py-3" style="color: var(--muted);">App launch, if auto-update is on.</td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border);">
                 <td class="py-3 pr-4" style="color: var(--fg-hi);">Model download</td>
-                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">github.com / dl.utterbar.com</td>
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">github.com</td>
                 <td class="py-3" style="color: var(--muted);">First run, and any time the user installs an additional model.</td>
             </tr>
             <tr>
                 <td class="py-3 pr-4" style="color: var(--fg-hi);">Update binary</td>
-                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">dl.utterbar.com</td>
+                <td class="py-3 pr-4" style="font-family: var(--font-mono); font-size: 0.85rem;">github.com</td>
                 <td class="py-3" style="color: var(--muted);">When the user clicks Install on the update toast.</td>
             </tr>
         </tbody>

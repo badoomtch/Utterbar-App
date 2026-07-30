@@ -11,9 +11,8 @@
 //! fallback. A binary that compiled has notes for its own version,
 //! end of story.
 //!
-//! Older versions' notes still live on disk under `releases/` for the
-//! release pipeline (`publish-release.sh` reads them when posting to
-//! the admin API) and as a historical record. They are not bundled
+//! Older versions' notes still live on disk under `releases/` as a
+//! historical record. They are not bundled
 //! into older or newer binaries; each binary only carries the notes
 //! for its own `CARGO_PKG_VERSION`.
 

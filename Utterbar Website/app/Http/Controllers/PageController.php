@@ -4,25 +4,13 @@ namespace App\Http\Controllers;
 
 class PageController extends Controller
 {
-    public function home() {
-        $latest = \App\Models\Release::stable()->orderByDesc('published_at')->first();
-        return view('pages.home', ['latestRelease' => $latest]);
-    }
+    public function home() { return view('pages.home'); }
     public function features() { return view('pages.features'); }
     public function howItWorks() { return view('pages.how-it-works'); }
     public function privacy() { return view('pages.privacy'); }
     public function pricing() { return view('pages.pricing'); }
-    public function changelog() {
-        $releases = \App\Models\Release::stable()->orderByDesc('published_at')->get();
-        return view('pages.changelog', ['releases' => $releases]);
-    }
-    public function download() {
-        $releases = \App\Models\Release::stable()->orderByDesc('published_at')->get();
-        return view('pages.download', [
-            'releasesList' => $releases,
-            'latest'       => $releases->first(),
-        ]);
-    }
+    public function changelog() { return redirect()->away(config('site.github_releases_url')); }
+    public function download() { return redirect()->away(config('site.github_latest_release_url')); }
     public function contact() { return view('pages.contact'); }
     public function roadmap() { return view('pages.roadmap'); }
     public function press() { return view('pages.press'); }

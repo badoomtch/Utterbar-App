@@ -91,7 +91,6 @@ The full dependency tree is recorded in src-tauri/Cargo.lock. Major direct depen
 - serde + serde_json (Apache-2.0 / MIT dual)
 - anyhow + thiserror (Apache-2.0 / MIT dual)
 - windows + winreg (MIT) — Win32 bindings
-- ed25519-dalek (BSD-3-Clause) — licence + updater signature verification
 - keyring (Apache-2.0 / MIT dual) — DPAPI-backed credential storage
 - tracing + tracing-subscriber (MIT)
 - bzip2 (MIT) + tar (MIT) — model archive extraction

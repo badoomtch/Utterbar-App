@@ -19,14 +19,6 @@ download_url: string | null,
  */
 sha256: string | null, 
 /**
- * File size in bytes, used both for a future progress UI and as part
- * of the signed metadata blob (any size mismatch voids the signature).
+ * File size in bytes reported by GitHub for the release asset.
  */
-size_bytes: bigint | null, 
-/**
- * Base64-encoded Ed25519 signature over the canonical metadata blob.
- * Verified against `UPDATER_PUBLIC_KEY` before any download starts.
- * Kept on `UpdateInfo` rather than hidden inside `install_update` so
- * the UI can surface "this release is unsigned" diagnostics later.
- */
-signature: string | null, };
+size_bytes: bigint | null, };

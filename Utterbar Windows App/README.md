@@ -29,7 +29,9 @@ Full dev-machine setup: [./docs/DEV_SETUP.md](./docs/DEV_SETUP.md).
 pnpm tauri build
 ```
 
-NSIS installer output under `src-tauri/target/release/bundle/nsis/`. Publishing + R2 upload are handled by `scripts/publish-release.sh` — see [RELEASE.md](./RELEASE.md) for the full flow.
+NSIS installer output is under `src-tauri/target/release/bundle/nsis/`. Publish
+the installer through GitHub Releases; see [RELEASE.md](./RELEASE.md) for the
+full flow.
 
 ## Stack
 

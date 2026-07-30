@@ -2,61 +2,26 @@
 //!
 //! The user-facing flow is:
 //!   1. On app launch (if `general.check_updates_automatically`), the frontend
-//!      calls `check_update`. We GET `utterbar.com/api/updater/check?current=X.Y.Z`
-//!      and return whatever the server says.
+//!      calls `check_update`. We query GitHub Releases for the selected channel.
 //!   2. If an update is available, the `UpdateToast` offers an Install button
 //!      that calls `install_update`. We download the new installer (.exe) to
-//!      the user's temp folder, verify its SHA-256 against the server's hash,
+//!      the user's temp folder, verify its SHA-256 against GitHub's asset digest,
 //!      spawn it as a detached process with NSIS `/S` (silent install), and
 //!      exit the app so the installer can overwrite the .exe files. The NSIS
 //!      installer's post-install step re-launches Utterbar, which gives the
 //!      user the "close → update → relaunch" UX without any manual steps.
 //!
-//! Why not `tauri-plugin-updater`? We considered it. The plugin mandates a
-//! minisign-signed `latest.json` hosted at a fixed path, plus a matching
-//! public key embedded at build time. That machinery is fine for a mature
-//! app but adds a new signing workflow Jay has to remember on every release
-//! (generate/protect the minisign key, sign each bundle), and the
-//! integration is load-bearing enough that a botched signing break locks
-//! every user out of updates. The current release pipeline signs updater
-//! metadata with its own Ed25519 key. This command verifies that signed
-//! metadata and the installer SHA-256 before invoking NSIS, without adding a
-//! second bundle-signing workflow. If we ever want Apple-style background
-//! auto-apply, we can swap in the plugin later; the command surface here
-//! matches the one the frontend already speaks.
-//!
-//! ## Server endpoint contract (to implement on utterbar.com)
-//!
-//! ```http
-//! GET https://utterbar.com/api/updater/check?current=0.6.0&channel=stable
-//! ```
-//!
-//! - `current` (required): the installed version's `CARGO_PKG_VERSION`.
-//! - `channel` (optional, default `stable`): `stable` or `beta`.
-//!
-//! Response 200 JSON:
-//! ```json
-//! {
-//!   "available": true,
-//!   "version": "0.6.1",
-//!   "download_url": "https://dl.utterbar.com/releases/0.6.1/Utterbar-Setup-0.6.1.exe",
-//!   "sha256": "47bd8249…",
-//!   "notes_markdown": "- First user-facing change\n- Second…",
-//!   "size_bytes": 10962662
-//! }
-//! ```
-//!
-//! When no update is available, `{ "available": false, "current": "0.6.0" }`.
-//! On server error, any non-200 is treated as "no update" by the client so a
-//! broken endpoint never breaks the app's normal operation.
+//! Stable uses GitHub's latest published release endpoint. Beta considers the
+//! highest valid non-draft release, including GitHub prereleases. Each update
+//! requires the expected NSIS asset name and GitHub's SHA-256 asset digest.
+//! Network or parse failures become "no update" so checking for updates never
+//! interrupts normal dictation.
 
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use base64::Engine;
-use ed25519_dalek::{Signature, VerifyingKey};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -65,31 +30,9 @@ use ts_rs::TS;
 
 use crate::util::result::{CmdResult, OrliqError};
 
-const DEFAULT_BASE_URL: &str = "https://utterbar.com";
-
-/// Ed25519 public key used to verify update metadata signatures.
-///
-/// **Operator-local key** — the matching private key never leaves the
-/// release operator's machine. The publish script signs the canonical
-/// metadata blob (see `canonical_metadata_blob`) with the private half;
-/// this constant is what we verify against on every install. Replace
-/// these zero bytes with the output of `php artisan updater:keygen` on
-/// the operator's machine BEFORE shipping a build that depends on
-/// signature verification — a build with all-zeros here will refuse
-/// every update because no valid signature can verify against the
-/// identity public key.
-///
-/// Distinct from the licence keypair (services/licence/verify.rs)
-/// on purpose: a leak of either key does not compromise the other.
-pub const UPDATER_PUBLIC_KEY: [u8; 32] = [
-    0x3e, 0x15, 0xc0, 0x75, 0x7b, 0xcf, 0x7c, 0xec, 0x05, 0x9b, 0xd1, 0x97, 0x81, 0xd8, 0xa3, 0x51,
-    0xeb, 0x6b, 0x51, 0x65, 0x22, 0xe2, 0x64, 0x85, 0x57, 0xb5, 0x52, 0xeb, 0xa0, 0xd6, 0x02, 0x87,
-];
-
-/// Magic line at the top of the canonical metadata blob — bumped if we
-/// ever need to change the format. The server-side and operator-side
-/// signers use the same string. See `canonical_metadata_blob`.
-const UPDATE_METADATA_MAGIC: &str = "utterbar-update-v1";
+const GITHUB_RELEASES_API: &str = "https://api.github.com/repos/badoomtch/Utterbar-App/releases";
+const GITHUB_RELEASE_DOWNLOAD_PREFIX: &str =
+    "https://github.com/badoomtch/Utterbar-App/releases/download/";
 
 /// Payload returned to the frontend. Matches the existing `UpdateInfo` shape
 /// the `UpdateToast` consumes, extended with the fields we need to download
@@ -108,31 +51,27 @@ pub struct UpdateInfo {
     /// Hex-encoded SHA-256 of the installer. We verify this before
     /// launching the downloaded binary — a surprise-mismatch never spawns.
     pub sha256: Option<String>,
-    /// File size in bytes, used both for a future progress UI and as part
-    /// of the signed metadata blob (any size mismatch voids the signature).
+    /// File size in bytes reported by GitHub for the release asset.
     pub size_bytes: Option<u64>,
-    /// Base64-encoded Ed25519 signature over the canonical metadata blob.
-    /// Verified against `UPDATER_PUBLIC_KEY` before any download starts.
-    /// Kept on `UpdateInfo` rather than hidden inside `install_update` so
-    /// the UI can surface "this release is unsigned" diagnostics later.
-    pub signature: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ServerAvailable {
-    available: bool,
+struct GitHubRelease {
+    tag_name: String,
     #[serde(default)]
-    version: Option<String>,
+    body: String,
+    draft: bool,
     #[serde(default)]
-    download_url: Option<String>,
+    assets: Vec<GitHubReleaseAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubReleaseAsset {
+    name: String,
+    browser_download_url: String,
+    size: u64,
     #[serde(default)]
-    sha256: Option<String>,
-    #[serde(default)]
-    notes_markdown: Option<String>,
-    #[serde(default)]
-    size_bytes: Option<u64>,
-    #[serde(default)]
-    signature: Option<String>,
+    digest: Option<String>,
 }
 
 /// Ask the server what the latest version is for this channel.
@@ -153,17 +92,15 @@ pub async fn check_update(
         download_url: None,
         sha256: None,
         size_bytes: None,
-        signature: None,
     };
 
-    // Read the channel preference from settings. Anything other than
-    // "beta" is sent as "stable" server-side. Default is stable.
+    // Stable selects GitHub's latest published non-prerelease. Beta selects
+    // the highest valid release version, including prereleases.
     let snapshot = state.settings.snapshot().await;
     let channel = match snapshot.advanced.update_channel.as_str() {
         "beta" => "beta",
         _ => "stable",
     };
-
     let user_agent = format!("Utterbar/{} (windows; x86_64)", current);
     let client = match Client::builder()
         .user_agent(user_agent)
@@ -175,36 +112,104 @@ pub async fn check_update(
         Err(_) => return Ok(no_update()),
     };
 
-    let base =
-        std::env::var("UTTERBAR_LICENCE_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
-    let url = format!(
-        "{}/api/updater/check?current={}&channel={}",
-        base, current, channel
-    );
-
-    let resp = match client.get(&url).send().await {
-        Ok(r) if r.status().is_success() => r,
-        _ => return Ok(no_update()),
+    let Some(release) = latest_github_release(&client, channel).await else {
+        return Ok(no_update());
     };
-
-    let payload: ServerAvailable = match resp.json().await {
-        Ok(p) => p,
-        Err(_) => return Ok(no_update()),
+    let Some(version) = version_from_tag(&release.tag_name) else {
+        return Ok(no_update());
     };
-
-    if !payload.available || payload.version.is_none() || payload.download_url.is_none() {
+    if !semver_strictly_greater(&version, &current) {
         return Ok(no_update());
     }
+    let Some(asset) = installer_asset(&release, &version) else {
+        return Ok(no_update());
+    };
+    let Some(sha256) = sha256_from_github_digest(asset.digest.as_deref()) else {
+        return Ok(no_update());
+    };
+    if !is_expected_github_release_url(&asset.browser_download_url) {
+        return Ok(no_update());
+    }
+    let download_url = asset.browser_download_url.clone();
+    let size_bytes = asset.size;
 
     Ok(UpdateInfo {
         current,
-        available: payload.version,
-        notes: payload.notes_markdown,
-        download_url: payload.download_url,
-        sha256: payload.sha256,
-        size_bytes: payload.size_bytes,
-        signature: payload.signature,
+        available: Some(version),
+        notes: (!release.body.trim().is_empty()).then_some(release.body),
+        download_url: Some(download_url),
+        sha256: Some(sha256),
+        size_bytes: Some(size_bytes),
     })
+}
+
+async fn latest_github_release(client: &Client, channel: &str) -> Option<GitHubRelease> {
+    let request = |url: &str| {
+        client
+            .get(url)
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+    };
+
+    if channel == "stable" {
+        return request(&format!("{GITHUB_RELEASES_API}/latest"))
+            .send()
+            .await
+            .ok()?
+            .error_for_status()
+            .ok()?
+            .json()
+            .await
+            .ok();
+    }
+
+    let releases: Vec<GitHubRelease> = request(GITHUB_RELEASES_API)
+        .query(&[("per_page", "100")])
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+
+    releases
+        .into_iter()
+        .filter_map(|release| {
+            let version = version_from_tag(&release.tag_name)?;
+            (!release.draft).then_some((parse_semver(&version)?, release))
+        })
+        .max_by_key(|(version, _)| *version)
+        .map(|(_, release)| release)
+}
+
+fn version_from_tag(tag: &str) -> Option<String> {
+    let version = tag.strip_prefix('v').unwrap_or(tag);
+    parse_semver(version).map(|_| version.to_string())
+}
+
+fn installer_asset<'a>(
+    release: &'a GitHubRelease,
+    version: &str,
+) -> Option<&'a GitHubReleaseAsset> {
+    let expected_name = format!("Utterbar_{version}_x64-setup.exe");
+    release
+        .assets
+        .iter()
+        .find(|asset| asset.name == expected_name)
+}
+
+fn sha256_from_github_digest(digest: Option<&str>) -> Option<String> {
+    let digest = digest?.strip_prefix("sha256:")?;
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(digest.to_ascii_lowercase())
+}
+
+fn is_expected_github_release_url(url: &str) -> bool {
+    url.starts_with(GITHUB_RELEASE_DOWNLOAD_PREFIX)
 }
 
 /// Download the new installer, verify its hash, spawn the silent installer,
@@ -242,52 +247,25 @@ pub async fn install_update(
     handle: AppHandle,
     state: tauri::State<'_, std::sync::Arc<crate::app_state::AppState>>,
 ) -> CmdResult<()> {
-    // Re-read the channel preference here so the signature check uses
-    // exactly the channel string the operator signed. We don't echo
-    // channel back on the wire — instead, the client requested it via
-    // ?channel=, so the server's response IS for that channel. Asking
-    // settings again is cheap and keeps the verification single-shot.
-    let snapshot = state.settings.snapshot().await;
-    let channel = match snapshot.advanced.update_channel.as_str() {
-        "beta" => "beta",
-        _ => "stable",
-    };
-
     // Clone the inner Arc<AppState> before we hand `state` off to
     // `check_update` (which consumes it). The clone is what we use
     // for the `updater_install_in_progress` flag operations later.
     let state_for_flag = std::sync::Arc::clone(&state);
 
     let info = check_update(state).await?;
-    let (version, download_url, sha256, size_bytes, signature) = match (
+    let (version, download_url, sha256, size_bytes) = match (
         info.available,
         info.download_url,
         info.sha256,
         info.size_bytes,
-        info.signature,
     ) {
-        (Some(v), Some(url), Some(sha), Some(size), Some(sig)) => (v, url, sha, size, sig),
+        (Some(v), Some(url), Some(sha), Some(size)) => (v, url, sha, size),
         _ => {
             return Err(OrliqError::Internal {
-                message: "No installable update available (missing metadata or signature).".into(),
+                message: "No installable GitHub release asset is available.".into(),
             });
         }
     };
-
-    let sig_ok = verify_update_signature(
-        &signature,
-        &version,
-        channel,
-        size_bytes,
-        &sha256,
-        &download_url,
-    );
-    if !sig_ok {
-        return Err(OrliqError::Internal {
-            message: "Update metadata failed Ed25519 signature verification — refusing to install."
-                .into(),
-        });
-    }
 
     // Downgrade prevention. The server-side comparator already refuses
     // to advertise a non-newer version, but that's enforced server-side
@@ -299,19 +277,16 @@ pub async fn install_update(
     if !semver_strictly_greater(&version, current_version) {
         return Err(OrliqError::Internal {
             message: format!(
-                "Update server offered v{} which is not newer than v{}; refusing to install.",
+                "GitHub offered v{} which is not newer than v{}; refusing to install.",
                 version, current_version
             ),
         });
     }
 
-    // Pin the download host. The signature already commits to the URL,
-    // but a defence-in-depth check here means even a botched signing
-    // workflow (e.g. operator accidentally signing an attacker URL)
-    // can never reach our spawn step.
-    if !download_url.starts_with("https://dl.utterbar.com/") {
+    // Pin the download host before reaching the installer spawn step.
+    if !is_expected_github_release_url(&download_url) {
         return Err(OrliqError::Internal {
-            message: "Update download URL is not on dl.utterbar.com; refusing to install."
+            message: "Update download URL is not a GitHub release asset; refusing to install."
                 .to_string(),
         });
     }
@@ -338,6 +313,12 @@ pub async fn install_update(
         .map_err(|e| OrliqError::Internal {
             message: format!("download stream failed: {e}"),
         })?;
+
+    if bytes.len() as u64 != size_bytes {
+        return Err(OrliqError::Internal {
+            message: "Downloaded installer size did not match the GitHub release asset.".into(),
+        });
+    }
 
     // Hash-check before we spawn. A tampered-in-transit binary would be
     // catastrophic (the user launches whatever lands at this URL as elevated
@@ -383,8 +364,8 @@ pub async fn install_update(
     // app to the tray and the install never applied. See AppState
     // field doc for the full chain.
     //
-    // Set this AFTER all the can-fail prep (download, hash, sig
-    // verify, downgrade-prevention, write to %TEMP%, write
+    // Set this AFTER all the can-fail prep (download, hash,
+    // downgrade-prevention, write to %TEMP%, write
     // pending_relaunch.json) so a `?` early-return never leaves the
     // flag stuck `true`. If `spawn_installer` itself fails below, the
     // explicit clear on the error branch resets the flag so the
@@ -565,10 +546,7 @@ fn spawn_installer(_path: &std::path::Path) -> Result<(), OrliqError> {
 
 /// Strict three-segment semver comparator: returns true when `candidate`
 /// is strictly greater than `baseline`. Anything that fails to parse as
-/// `X.Y.Z` (digits only, no pre-release suffix) returns false — better
-/// to refuse than to install a malformed version. Matches the server-
-/// side parser in `UpdaterApiController::parseSemver` so client + server
-/// agree on what counts as "newer".
+/// `X.Y.Z` (digits only, no pre-release suffix) returns false.
 fn semver_strictly_greater(candidate: &str, baseline: &str) -> bool {
     let c = parse_semver(candidate);
     let b = parse_semver(baseline);
@@ -576,76 +554,6 @@ fn semver_strictly_greater(candidate: &str, baseline: &str) -> bool {
         (Some(c), Some(b)) => c > b,
         _ => false,
     }
-}
-
-/// Build the canonical metadata blob whose bytes the operator signed.
-/// The format is fixed and MUST match the server-side reconstruction in
-/// `App\Services\Releases\UpdateMetadataSigner::canonicalBlob()` and the
-/// operator-side signer in `scripts/sign-update-metadata.py`. Any drift
-/// in line ordering, separator, or field encoding voids every signature
-/// the operator has already issued.
-///
-/// Format (UTF-8, LF-separated, NO trailing newline):
-///
-/// ```text
-/// utterbar-update-v1
-/// version=<X.Y.Z>
-/// channel=<stable|beta>
-/// size_bytes=<integer>
-/// sha256=<lowercase 64-hex>
-/// download_url=<https://dl.utterbar.com/...>
-/// ```
-fn canonical_metadata_blob(
-    version: &str,
-    channel: &str,
-    size_bytes: u64,
-    sha256: &str,
-    download_url: &str,
-) -> Vec<u8> {
-    format!(
-        "{magic}\nversion={version}\nchannel={channel}\nsize_bytes={size_bytes}\nsha256={sha}\ndownload_url={url}",
-        magic = UPDATE_METADATA_MAGIC,
-        version = version,
-        channel = channel,
-        size_bytes = size_bytes,
-        sha = sha256.to_ascii_lowercase(),
-        url = download_url,
-    )
-    .into_bytes()
-}
-
-/// Verify a base64-encoded Ed25519 signature against the canonical metadata
-/// blob built from the supplied fields. Returns false on any failure mode
-/// (bad base64, wrong length, unparseable key, signature mismatch) — the
-/// caller treats false as "do not install" and bails loudly.
-fn verify_update_signature(
-    signature_b64: &str,
-    version: &str,
-    channel: &str,
-    size_bytes: u64,
-    sha256: &str,
-    download_url: &str,
-) -> bool {
-    let sig_bytes = match base64::engine::general_purpose::STANDARD.decode(signature_b64) {
-        Ok(b) => b,
-        Err(_) => return false,
-    };
-    if sig_bytes.len() != 64 {
-        return false;
-    }
-    let sig_arr: [u8; 64] = match sig_bytes.try_into() {
-        Ok(a) => a,
-        Err(_) => return false,
-    };
-    let signature = Signature::from_bytes(&sig_arr);
-
-    let vk = match VerifyingKey::from_bytes(&UPDATER_PUBLIC_KEY) {
-        Ok(k) => k,
-        Err(_) => return false,
-    };
-
-    let blob = canonical_metadata_blob(version, channel, size_bytes, sha256, download_url);
-    vk.verify_strict(&blob, &signature).is_ok()
 }
 
 fn parse_semver(s: &str) -> Option<(u32, u32, u32)> {
@@ -681,53 +589,36 @@ mod tests {
     }
 
     #[test]
-    fn canonical_blob_matches_spec() {
-        // The exact byte layout the operator-side signer + server-side
-        // verifier both reconstruct. If this test ever needs editing, the
-        // format has drifted and every previously-signed release is
-        // invalidated — bump UPDATE_METADATA_MAGIC to v2 first.
-        let blob = canonical_metadata_blob(
-            "0.9.0",
-            "stable",
-            12345678,
-            "ABCDEF0123456789aBcDeF0123456789ABCDEF0123456789ABCDEF0123456789",
-            "https://dl.utterbar.com/releases/0.9.0/Utterbar-Setup-0.9.0.exe",
-        );
-        let expected = b"utterbar-update-v1\nversion=0.9.0\nchannel=stable\nsize_bytes=12345678\nsha256=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\ndownload_url=https://dl.utterbar.com/releases/0.9.0/Utterbar-Setup-0.9.0.exe";
-        assert_eq!(blob.as_slice(), expected.as_slice());
+    fn github_release_tags_must_be_plain_semver() {
+        assert_eq!(version_from_tag("v0.25.1").as_deref(), Some("0.25.1"));
+        assert_eq!(version_from_tag("0.25.1").as_deref(), Some("0.25.1"));
+        assert_eq!(version_from_tag("v0.25.1-beta"), None);
+        assert_eq!(version_from_tag("release-0.25.1"), None);
     }
 
     #[test]
-    fn verify_rejects_obviously_bad_signature() {
-        // base64-decoded but wrong length
-        assert!(!verify_update_signature(
-            "AAAA",
-            "0.9.0",
-            "stable",
-            1,
-            "00",
-            "https://dl.utterbar.com/x"
+    fn github_asset_digest_must_be_a_sha256() {
+        let expected = "a".repeat(64);
+        let digest = format!("sha256:{expected}");
+        assert_eq!(
+            sha256_from_github_digest(Some(&digest)).as_deref(),
+            Some(expected.as_str())
+        );
+        assert_eq!(sha256_from_github_digest(Some("sha512:abc")), None);
+        assert_eq!(sha256_from_github_digest(Some("sha256:abc")), None);
+        assert_eq!(sha256_from_github_digest(None), None);
+    }
+
+    #[test]
+    fn installer_url_must_be_a_github_release_asset() {
+        assert!(is_expected_github_release_url(
+            "https://github.com/badoomtch/Utterbar-App/releases/download/v0.25.1/Utterbar_0.25.1_x64-setup.exe"
         ));
-        // not base64 at all
-        assert!(!verify_update_signature(
-            "not-base-64-!!!",
-            "0.9.0",
-            "stable",
-            1,
-            "00",
-            "https://dl.utterbar.com/x"
+        assert!(!is_expected_github_release_url(
+            "https://example.invalid/releases/0.25.1/Utterbar-Setup-0.25.1.exe"
         ));
-        // valid 64-byte zero signature against zero pubkey: ed25519
-        // identity-key checks SHOULD reject — `verify_strict` treats
-        // small-order keys as unsafe.
-        let zeroes = base64::engine::general_purpose::STANDARD.encode([0u8; 64]);
-        assert!(!verify_update_signature(
-            &zeroes,
-            "0.9.0",
-            "stable",
-            1,
-            "00",
-            "https://dl.utterbar.com/x"
+        assert!(!is_expected_github_release_url(
+            "https://github.com/other/repo/releases/download/v0.25.1/app.exe"
         ));
     }
 

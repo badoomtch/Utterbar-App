@@ -4,9 +4,7 @@ import type { GpuAcceleration } from "./GpuAcceleration";
 export type AdvancedSettings = { log_level: string, gpu_acceleration: GpuAcceleration, thread_count: number | null, 
 /**
  * Update channel for the auto-updater. `stable` is the default and
- * what the public sees. `beta` opts into pre-release builds —
- * passed as `?channel=beta` to `/api/updater/check`. Useful for
- * the developer dogfooding fixes before publishing them stable.
- * Anything other than `beta` is treated as `stable` server-side.
+ * what the public sees. `beta` opts into GitHub prerelease builds.
+ * Anything other than `beta` is treated as `stable` locally.
  */
 update_channel: string, };

@@ -18,7 +18,7 @@
     $shipped = [
         ['title' => 'Multi-engine ASR',                  'desc' => 'Parakeet-TDT (default English) and Whisper (multilingual; Base, Small, Medium, Large v3). Pick per-mode or globally.'],
         ['title' => 'DirectML GPU acceleration',         'desc' => 'Embedded ONNX Runtime DirectML build runs Whisper Medium, Whisper Large, and Parakeet on any DirectX 12 graphics card. Auto picks the right path per model. CUDA is not bundled.'],
-        ['title' => 'Auto-update with signed metadata',  'desc' => 'Updater verifies an Ed25519 signature over release metadata before downloading; SHA-256-checks the binary; refuses anything older than what\'s installed; only pulls from dl.utterbar.com.'],
+        ['title' => 'GitHub Release updates',            'desc' => 'Updater checks GitHub Releases, verifies the published SHA-256 digest and downloaded byte count, and refuses anything older than what\'s installed.'],
         ['title' => 'Stable + Beta channels',            'desc' => 'Two tracks: Stable for everyone, Beta for early adopters. Toggle in Settings > Updates.'],
         ['title' => 'File transcription',                'desc' => 'Drop an audio or video file in, get a transcript. Queues, history, retranscribe.'],
         ['title' => 'First-run onboarding + model picker', 'desc' => 'Three-engine picker on first launch with download progress. No more cold-boot README moment.'],

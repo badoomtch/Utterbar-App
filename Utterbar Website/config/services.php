@@ -42,19 +42,4 @@ return [
         'notify_email' => env('ADMIN_NOTIFY_EMAIL'),
     ],
 
-    'updater' => [
-        // Ed25519 keypair used to sign release-update metadata returned by
-        // /api/updater/check. Distinct from the licence keypair on purpose:
-        // a compromised licence key still can't push updates, and a
-        // compromised updater key still can't mint licences. The private
-        // key is operator-local — the publish script signs the canonical
-        // metadata blob and POSTs the signature to the admin API. Only
-        // the public key needs to live on the server (for verification at
-        // publish time + sanity-check tooling). The desktop client embeds
-        // the public key at compile time.
-        //
-        // Generated once via `php artisan updater:keygen`.
-        'public_key_b64' => env('UPDATER_PUBLIC_KEY_B64'),
-    ],
-
 ];

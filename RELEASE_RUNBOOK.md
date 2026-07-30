@@ -1,374 +1,52 @@
-# RELEASE_RUNBOOK.md — the Utterbar release ritual
-
-> Single ritual for shipping a new Utterbar version. Claude follows this top
-> to bottom **every time** — no steps skipped, no order swapped, no ad-hoc
-> "let's just do this one differently." If something in the runbook is wrong
-> or out of date, FIX THE RUNBOOK in the same PR as the release so the next
-> version inherits the fix.
-
-**Pair file:** [CLAUDE.md](CLAUDE.md) (rules) + [MONOREPO.md](MONOREPO.md)
-(reference). This runbook wins over both for release workflow.
-
-**Authoritative release docs** linked from here:
-- [Utterbar Windows App/RELEASE.md](Utterbar%20Windows%20App/RELEASE.md) — the existing canonical release flow. This runbook enforces it; it doesn't replace it.
-- [Utterbar Windows App/scripts/publish-release.sh](Utterbar%20Windows%20App/scripts/publish-release.sh) — the script that actually ships the bits.
-
----
-
-## 0. Preconditions (check before starting)
-
-- [ ] `git status` in `Utterbar Windows App/` is clean (no uncommitted work) OR all uncommitted work is deliberately part of this release.
-- [ ] Current branch is `main` or an explicit release branch. Not `dev`, not a WIP branch.
-- [ ] Latest `main` is pulled from `origin`.
-- [ ] `~/.utterbar-deploy/.env` exists with `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, `R2_BUCKET`, `UTTERBAR_ADMIN_API_TOKEN`, `UTTERBAR_API_BASE`. If missing: stop, see [RELEASE.md](Utterbar%20Windows%20App/RELEASE.md) setup section.
-- [ ] `aws`, `jq`, `curl`, `sha256sum`, `pnpm` all on PATH. Windows fresh machine: `winget install Amazon.AWSCLI jqlang.jq`.
-- [ ] `aws s3 ls s3://utterbar/releases/ --profile utterbar-r2` returns the current set of releases (= R2 credentials are valid).
-- [ ] `curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $UTTERBAR_ADMIN_API_TOKEN" "$UTTERBAR_API_BASE/api/admin/releases" -X GET` returns `405` or `200` (= admin token is valid; `401` means bad token).
-
-If any precondition fails: stop and resolve before touching anything else. Partial releases are harder to recover than delayed ones.
-
----
-
-## 1. Pick the version number
-
-Semver, pre-1.0, with channel-encoded-in-version convention (effective from v0.12.0; see [CLAUDE.md §5.7](CLAUDE.md)):
-
-- **MINOR** (`0.x.0`) — mainline / stable channel. Bundles whatever betas have soaked since the previous mainline. This is what `/download`, the "latest" pill, and the Microsoft Store listing point at. **Always ship with `--tag "latest"`.**
-- **PATCH** (`0.x.y` where `y > 0`) — beta channel. Used for soak releases between mainline minors. **Always ship with `--beta`, never `--tag "latest"`.**
-
-> The old `--announce` flag (release-email blast) is a **no-op** now — the
-> subscriber list was removed with the paid stack. It's harmless to pass but
-> does nothing; the examples below drop it.
-- **MAJOR** (`0.x → 1.0`) — reserved for the "we ship this to the public" launch.
-
-So the typical rhythm is: feature work lands on a series of `0.x.1`, `0.x.2`, `0.x.3` betas; once the line has soaked, cut `0.(x+1).0` mainline that promotes the lot to stable. Don't ship features straight to mainline without a beta soak — even when "obviously safe", because that's the same intuition that shipped v0.6.1.
-
-Decision must be made BEFORE any file is edited. Write it down in the PR description or release notes header.
-
----
-
-## 2. Bump the version in exactly three files
-
-All three must match. The only tool we use for this is [scripts/bump-version.mjs](Utterbar%20Windows%20App/scripts/bump-version.mjs).
-
-```bash
-cd "Utterbar Windows App"
-pnpm version:bump <new-version>     # or:  node scripts/bump-version.mjs <new-version>
-```
-
-The script updates:
-1. [package.json](Utterbar%20Windows%20App/package.json) — `version` field
-2. [src-tauri/Cargo.toml](Utterbar%20Windows%20App/src-tauri/Cargo.toml) — `[package] version`
-3. [src-tauri/tauri.conf.json](Utterbar%20Windows%20App/src-tauri/tauri.conf.json) — `version` field
-
-**Verify** (don't skip this — the script has silently failed before):
-```bash
-grep -n 'version' package.json                           # line 3
-grep -n '^version' src-tauri/Cargo.toml                  # line 3
-grep -n '"version"' src-tauri/tauri.conf.json            # line 4
-```
-All three must show the new version. If they don't match, STOP and fix manually.
-
----
-
-## 3. Write the release notes FIRST
-
-Before building, create `Utterbar Windows App/releases/<version>.md`. This file is POSTed verbatim to the admin API and rendered on the website's download + changelog pages — **it is the user-facing changelog**.
-
-### Format
-
-```markdown
-# Utterbar <version>
-
-<one-sentence tagline — "What's new in one breath">
-
-## New
-- First user-facing addition
-- Second user-facing addition
-
-## Improved
-- First refinement
-- Second refinement
-
-## Fixed
-- First bug fix
-- Second bug fix
-```
-
-### Voice rules (same as [CLAUDE.md §5.1](CLAUDE.md))
-
-- **British English.** *colour*, *customise*, *licence* (noun).
-- **Second person.** "You can now…" not "Users can…".
-- **Concrete.** "Custom accent colours (Pro)" not "Expanded theming options".
-- **No marketing fluff.** Don't ship "Completely reimagined audio experience" when the change is "lowpass filter on the start cue".
-- **No invented features.** If it's not in the build you're about to ship, it's not in the notes.
-- **Don't mention internals.** Users don't care that we refactored the zustand store. They care that the pill stops drifting.
-
-### Claim-check before saving
-
-Read each bullet and ask: *is this literally true of the binary I'm about to build?* v0.6.1 shipped with "History page detail pane no longer eats a second viewport" when the page was still a broken 2-column layout below 1100 px — that's the exact kind of bullet to catch here. If the bullet is aspirational, either cut it or downgrade it to what was actually done.
-
-Commit the `.md` with the version bump from §2 as a single commit:
-```bash
-git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json releases/<version>.md
-git commit -m "Release v<version>"
-```
-
----
-
-## 4. Build
-
-```bash
-cd "Utterbar Windows App"
-pnpm install                 # idempotent; safety
-pnpm tauri:build:release
-```
-
-`tauri:build:release` is the canonical release-build script. It runs `tauri build --features experimental_mic_mute` so the experimental Teams + Discord per-app microphone mute path is compiled in. The Cargo feature stays off in `default = []` so dev builds (`pnpm tauri:dev`, plain `pnpm tauri:build`, `cargo test`) skip the Win32 `SendInput` path entirely; release builds opt in by name. v0.19.0 stable was built with this feature; v0.19.1 → v0.19.5 betas were not, which is the regression v0.19.6 fixes. **Do not** use plain `pnpm tauri build` for a release — the mic-mute toggle in Settings → Advanced → Experimental will appear enabled but silently no-op.
-
-Expected output:
-```
-Finished `release` profile [optimized] target(s) in Xm Ys
-Built application at: …\utterbar.exe
-Finished 2 bundles at:
-    …\bundle\msi\Utterbar_<version>_x64_en-US.msi
-    …\bundle\nsis\Utterbar_<version>_x64-setup.exe
-```
-
-**Hard checks before moving on:**
-- [ ] NSIS installer filename is `Utterbar_<version>_x64-setup.exe` (contains the version — if it doesn't, `bump-version.mjs` didn't update `tauri.conf.json`).
-- [ ] SHA-256 of the `.exe` stored locally for comparison later:
-  ```bash
-  sha256sum "src-tauri/target/release/bundle/nsis/Utterbar_<version>_x64-setup.exe"
-  ```
-- [ ] Mic-mute feature compiled in. Run:
-  ```bash
-  grep -ac "send_hotkey_globally" "src-tauri/target/release/utterbar.exe"
-  ```
-  A count of `1` or more means the feature-on mic-mute path is present. A count of `0` means you ran plain `pnpm tauri build` — STOP, re-run with `pnpm tauri:build:release`, and re-bundle. Do not use `strings utterbar.exe | grep …` for this check on Windows / Git Bash; `strings` is not part of the default Git Bash install and silently produces zero output, which gave a false negative during the v0.19.6 publish. `grep -a` reads the binary directly and works without extra tooling.
-- [ ] Smoke-test the installer on Jay's machine: install, launch, dictate one sentence, confirm text appears in Notepad.
-- [ ] Check `%APPDATA%\Utterbar\logs\crash.log` after 5 minutes of use — if any new entries appear, **STOP**. Do not ship. Investigate the crash before publishing. (v0.6.1 was shipped with an active illegal-instruction crash — don't repeat that.)
-
-If smoke test passes, proceed. If it fails, fix the bug, re-build, re-smoke. Do NOT bump the version again — the version you picked in §1 is the version that ships.
-
----
-
-## 5. Publish via `publish-release.sh`
-
-```bash
-cd "Utterbar Windows App"
-./scripts/publish-release.sh <version> \
-    "src-tauri/target/release/bundle/nsis/Utterbar_<version>_x64-setup.exe" \
-    releases/<version>.md \
-    --tag "latest"
-```
-
-Flags:
-- `--tag "latest"` — displays the cyan "latest" pill next to the version on `/download`. **Mainline only.** Never on a beta — `latest` is supposed to mean "the version everyone should be on".
-- `--beta` — channel=beta instead of stable. **Required for any `0.x.y` patch release** (per [CLAUDE.md §5.7](CLAUDE.md) versioning convention). Mainline minors omit it.
-- `--announce` — **no-op** (the subscriber email list was removed with the paid stack). Passing it does nothing; there's no reason to.
-
-So the two canonical invocations are:
-
-```bash
-# Mainline (0.x.0) — what users on stable see
-./scripts/publish-release.sh 0.12.0 ... --tag "latest"
-
-# Beta soak (0.x.y, y > 0) — only beta-channel users see it
-./scripts/publish-release.sh 0.12.1 ... --beta
-```
-
-### What the script does (for debugging)
-
-1. Computes SHA-256 of the `.exe` locally. The server **also** recomputes
-   this from the R2 object after upload and refuses the publish if the
-   two don't match — see "Server-side SHA recompute" below.
-2. Uploads to `s3://utterbar/releases/<version>/Utterbar-Setup-<version>.exe`.
-3. HEAD-verifies `https://dl.utterbar.com/releases/<version>/Utterbar-Setup-<version>.exe` returns HTTP 200.
-4. Signs the canonical metadata blob locally with the operator's
-   Ed25519 key (loaded from `~/.utterbar-deploy/.env`).
-5. POSTs metadata (`version`, `channel`, `r2_key`, `sha256`,
-   `notes_markdown`, `tag`, `updater_signature`) to
-   `$UTTERBAR_API_BASE/api/admin/releases` with bearer-token auth.
-6. Expects `201 Created` with `id`, `download_url`, `size_bytes`.
-
-### Server-side validation rules (effective from the v0.14.13 hardening)
-
-The publish endpoint runs these checks before a row is created:
-
-- **SHA-256 recompute (canonical hash).** The server stream-reads the
-  uploaded R2 object, hashes it, and compares to the SHA the script
-  pasted. If they differ the publish is refused (`error: sha_mismatch`).
-  The persisted `sha256` column is the value the **server computed**, not
-  the value the script pasted — the pasted value functions as a
-  guard against "uploaded the wrong file" rather than the source of
-  truth. Updating the SHA column on a release row through any other
-  path is unsafe: the desktop updater verifies the downloaded
-  installer against this value, and a mismatch breaks every install.
-- **Updater signature verification (over the computed SHA).** When
-  `UPDATER_PUBLIC_KEY_B64` is configured server-side, the publish path
-  requires `updater_signature` in the body. The signature is verified
-  against a canonical metadata blob built with the **computed** SHA,
-  not the pasted one — so a wrong pasted SHA can't drag the signature
-  along with it and produce a row that signs-and-verifies but doesn't
-  match the bucket. The headless API (`POST /api/admin/releases`) is the
-  only publish path (the browser admin form was removed with the admin
-  web panel).
-- **Channel separation.** Beta and stable rows live in the same table
-  but separate uniqueness namespaces (`(version, channel)`), so the
-  same version string can exist on both — this is intentional, used
-  to promote a beta to stable by re-publishing the same version on
-  the other channel. The desktop updater filters by channel server-side.
-
-### Known drifts and workarounds (as of 2026-04-26)
-
-See [MONOREPO.md §10](MONOREPO.md) for the full list. When fixing drift, **fix it for real** — don't work around it every release.
-
-- **R2 key — RESOLVED.** The committed `publish-release.sh` uploads to the versioned key `releases/<v>/Utterbar-Setup-<v>.exe` only and POSTs `r2_key` explicitly. The admin API's `file_not_in_bucket` fallback now defaults to the same versioned path. No second-key upload, no legacy `Utterbar-Setup.exe`. Old R2 objects from the dual-upload era are orphans — safe to delete from the bucket.
-- **`curl -d "$PAYLOAD"` quoting bug — RESOLVED.** The committed `publish-release.sh` uses `--data-binary "@$TMP_PAYLOAD"` with a temp file and explicitly sends `r2_key` in the payload. If you hit a 422 about missing fields, it's not this bug — read the actual server response body before re-running.
-
-### If publish fails
-
-| Response | What it means | What to do |
-| --- | --- | --- |
-| `201 Created` | Everything worked. | Proceed to §6. |
-| `401 Unauthorized` | `UTTERBAR_ADMIN_API_TOKEN` is wrong. | Check `~/.utterbar-deploy/.env`. Fix and re-run (script is idempotent as long as the DB row wasn't created). |
-| `409 version_exists` | A previous attempt partially succeeded. | See "409 recovery" in [RELEASE.md §5](Utterbar%20Windows%20App/RELEASE.md). `DELETE /api/admin/releases/<id>?delete_file=1` then re-run. |
-| `422 file_not_in_bucket` | R2 upload succeeded but admin API can't find it at the key the script claimed. | Check `releases/<v>/Utterbar-Setup-<v>.exe` exists in R2. The script and the admin API now both use the versioned key — if they've drifted, fix the drift before re-running. |
-| `422 sha_mismatch` | Server recomputed the SHA from R2 and it doesn't match the SHA the script pasted. | Either the wrong file uploaded or the pasted hash is stale. Read the body — it includes both values. Re-run after fixing whichever is wrong. |
-| `422 r2_hash_failed` | Server couldn't read the R2 object back to hash it. Rare; usually transient. | Retry. If it persists, check R2 credentials on the server. |
-| `422 updater_signature_required` | `UPDATER_PUBLIC_KEY_B64` is configured server-side but the script didn't send a signature. | Re-run after confirming `~/.utterbar-deploy/.env` has the operator private key and the script's signing step succeeded. |
-| `422 updater_signature_invalid` | Signature parsed but doesn't verify against the canonical metadata blob built from the **computed** SHA. | Most often: the file was modified between local SHA + the upload. Re-build, re-sign, re-publish. |
-| `422 version required` (or similar per-field) | curl quoting bug (§5 drifts). | Re-run with payload written to a temp file and `--data-binary "@$TMPFILE"`. |
-| `503` | Admin API is not configured server-side. | Stop. Server ops issue — contact Jay. |
-
----
-
-## 6. Verify end-to-end
-
-These are non-negotiable. Skipping them is how v0.6.1 shipped with a broken updater route.
-
-- [ ] `curl -sI https://dl.utterbar.com/releases/<version>/Utterbar-Setup-<version>.exe` → HTTP 200 with matching content-length.
-- [ ] Open `https://utterbar.com/download` in a fresh incognito browser — the new version is displayed with the `latest` pill, SHA-256 matches what `publish-release.sh` computed, "Download" button points at the versioned URL.
-- [ ] Open `https://utterbar.com/changelog` (or `/releases` depending on what's wired up) — the new version's notes render correctly with the same markdown you wrote in §3.
-- [ ] `curl "$UTTERBAR_API_BASE/api/updater/check?current=<previous-version>&channel=stable"` should return the new version's metadata. The route IS implemented in `UpdaterApiController.php`; if it returns 404 on the live site it means the website hasn't been deployed yet — run `Utterbar Website/scripts/deploy-website.ps1` first, then retry. If it returns a 200 with `available: false` unexpectedly, check the `sha256` + `r2_key` on the admin release row; the read-time filter rejects rows with malformed either field.
-- [ ] Run the OLD version (e.g. from the previous installer) on a clean machine, let it idle for ~60 s → the `UpdateToast` should appear. If not, same reason as above.
-
----
-
-## 7. Tag + push
-
-Only after §6 is green:
-
-```bash
-cd "Utterbar Windows App"
-git tag v<version>
-git push origin main v<version>
-```
-
-If you had to make fix-up commits during §4 or §5, push those too. Tag points at the exact commit that was built.
-
----
-
-## 8. Post-release housekeeping
-
-- [ ] Update [MONOREPO.md §12](MONOREPO.md) "Current state" section: bump "Latest shipped version" and update "Latest app-repo commits" hashes.
-- [ ] If the release fixed any known drift from [MONOREPO.md §10](MONOREPO.md), delete the drift entry. Don't let stale drift pile up.
-- [ ] If this release pulled a previous version (see v0.6.1), update the relevant `memory/project_v061_pulled.md`-style memory file with "superseded by v<new>".
-- [ ] Close any tracker items (GitHub issues, Linear cards, checklist items) that this release resolved.
-
----
-
-## 9. If the release is bad
-
-You find out a shipped build crashes / has a regression / breaks activation. Response:
-
-1. **Pull it from the download page first, investigate second.** Users installing right now are hitting the bug.
-   ```bash
-   curl -X DELETE "$UTTERBAR_API_BASE/api/admin/releases/<id>?delete_file=0" \
-     -H "Authorization: Bearer $UTTERBAR_ADMIN_API_TOKEN"
+# Release Runbook
+
+Utterbar publishes installers through GitHub Releases. GitHub is the only
+release metadata and download source; the website does not host updater files.
+
+## Before release
+
+1. Confirm the working tree and intended branch are clean.
+2. Bump the version with `node scripts/bump-version.mjs <version>` from
+   `Utterbar Windows App`, then run `cargo update -p utterbar --precise <version>`
+   from `src-tauri`.
+3. Add user-facing notes at `Utterbar Windows App/releases/<version>.md`.
+4. Run the desktop test suite and frontend checks.
+5. Build with `pnpm tauri:build:release` from `Utterbar Windows App`.
+6. Confirm both checks pass:
+   ```sh
+   grep -ac "send_hotkey_globally" "src-tauri/target/release/utterbar.exe"
+   Test-Path "src-tauri/target/release/silero_vad.onnx"
    ```
-   `delete_file=0` keeps the R2 object (so users mid-download don't 404) but removes the DB row (so `/download` falls back to the previous stable release).
-2. **Tell users.** Anyone on the affected channel will get the pulled version withdrawn from their update feed once the row is gone, but users who already downloaded it have the broken installer. There's no release-email list any more; if a broad heads-up is warranted, post it on the changelog / wherever you announce.
-3. **Record the failure.** Add a memory file under `memory/project_v<ver>_pulled.md` with: what broke, when you found out, what evidence you have (crash.log, user report), and what the re-release needs to change. This is the pattern established by [project_v061_pulled.md](../.claude/projects/c--Users-jaypa-Documents-GitHub-Utterbar/memory/project_v061_pulled.md).
-4. **Fix the root cause, not the symptom.** If the binary crashed, diagnose why — don't just rebuild. See [MONOREPO.md §10.6](MONOREPO.md) + [project_v061_investigation.md](../.claude/projects/c--Users-jaypa-Documents-GitHub-Utterbar/memory/project_v061_investigation.md) for the template.
-5. **Re-release at the next patch.** Never re-upload under the same version — the SHA-256 would change and anyone who cached the old one gets stuck. Bump to `<version>+1` and follow this runbook from §1.
 
----
+The first command must return at least `1`. The installer asset must be named
+`Utterbar_<version>_x64-setup.exe` because the in-app updater requires that
+exact name.
 
-## 9b. Bundle rebuild (sherpa-onnx + ORT + DirectML)
+## Publish on GitHub
 
-This is a **dev-maintenance procedure**, not part of normal releases.
-Run it only when:
-- sherpa-rs / sherpa-rs-sys version bumps
-- An ORT security patch lands in a new sherpa-onnx release
-- DirectML version refresh
+Create a GitHub Release from the tag `v<version>` and upload the NSIS installer
+from `src-tauri/target/release/bundle/nsis/`.
 
-Production cargo builds DO NOT compile sherpa-onnx from source — they
-link against the prebuilt bundle vendored at `Utterbar Windows App/src-tauri/vendor/sherpa-onnx/`
-through `SHERPA_LIB_PATH` (see `.cargo/config.toml`). The bundle gets
-rebuilt manually by following these steps.
+- A **stable** release is an ordinary published GitHub Release.
+- A **beta** release is a published GitHub Release marked **Set as a
+  pre-release**.
+- Do not use drafts for updates: the desktop client deliberately ignores them.
+- Include the markdown from `releases/<version>.md` as the release body.
 
-### 9b.1 Prerequisites
-- CMake 4.x on PATH (4.3 used to produce the v0.15.6 bundle)
-- Visual Studio 2022 Build Tools with VC.Tools.x86.x64 + Win10 SDK
-- Rust toolchain stable-x86_64-pc-windows-msvc
-- `C:\ut-target` writable (avoids MSBuild FileTracker MAX_PATH=260)
+The desktop app checks GitHub directly. Stable-channel users receive the latest
+ordinary release. Beta-channel users receive the highest published version,
+including prereleases. The client refuses assets without a GitHub SHA-256 digest
+or with a different byte size after download.
 
-### 9b.2 Procedure
-1. Branch from main: `git checkout -b chore/v<ver>-rebuild-dml-bundle`
-2. Edit `Utterbar Windows App/src-tauri/Cargo.toml`:
-   - `sherpa-rs = { version = "X", default-features = false, features = ["directml"] }`
-3. Edit `Utterbar Windows App/src-tauri/.cargo/config.toml`:
-   - Comment out the `[env] SHERPA_LIB_PATH = ...` stanza
-4. `pwsh -File "Utterbar Windows App/scripts/build-directml-bundle.ps1"`. Two-pass build: pass 1 fails at `show-info.cmake` (expected — wmic missing on Win11 24H2+), patch overlay applies, pass 2 builds successfully (~5 min).
-5. Copy DLLs + `.lib` import libraries from `C:\ut-target\release\build\sherpa-rs-sys-*\out\lib\` to `Utterbar Windows App/src-tauri/vendor/sherpa-onnx/lib/`.
-6. Mirror DLLs (no `.lib`) to `Utterbar Windows App/src-tauri/runtime/`.
-7. Update `Utterbar Windows App/src-tauri/vendor/sherpa-onnx/BUNDLE_MANIFEST.txt` with new SHAs + ORT/DirectML versions + build date.
-8. Revert Cargo.toml + `.cargo/config.toml` to production state (default-features = false, SHERPA_LIB_PATH restored).
-9. Run the regression suite to confirm the new bundle still passes:
-   ```
-   $env:UTTERBAR_STEP2_WAV="<path-to-real-wav>"
-   cd "Utterbar Windows App/src-tauri"
-   cargo test --release -- --ignored --nocapture --test-threads=1 step2_
-   ```
-   Should run 8 cells, all pass, no crashes.
-10. Commit on the chore branch. Merge to main as a normal feature.
-11. The next regular release picks up the new bundle automatically — no per-release work needed.
+## Verify
 
-### 9b.3 Notes
-- The patched `cmake/show-info.cmake` lives in `Utterbar Windows App/src-tauri/vendor/sherpa-onnx-patches/`. Don't lose it — without the patch the build dies on Win11 24H2+ because `wmic` was removed from default Windows installs.
-- `CARGO_TARGET_DIR=C:\ut-target` is mandatory. The `Utterbar Windows App\src-tauri\target\` path is too long for MSBuild FileTracker (`MAX_PATH=260`).
-- The bundle rebuild takes 3-6 minutes plus ~600 MB of cached downloads in `C:\ut-target\`. Disk space ~5 GB recommended.
-- See `memory/v0156_directml_step0_results.md` and `memory/v0156_directml_step2_results.md` for the original v0.15.6 evidence and per-model speedup numbers.
+Before telling users the release is available:
 
----
+1. Confirm the GitHub Release is published with the correct tag, prerelease
+   status, notes, and installer asset.
+2. Confirm the asset shows a SHA-256 digest in the GitHub API response.
+3. Install the build on Windows and smoke-test the affected workflow.
+4. Confirm the app offers the release on the intended update channel.
 
-## 10. What this runbook does NOT cover
-
-- **Updater key rotation** — the release/update pipeline signs with an
-  operator-local Ed25519 key (`UPDATER_PRIVATE_KEY_B64` in
-  `~/.utterbar-deploy/.env`); only the matching public key is baked into the
-  desktop app. To rotate it you'd generate a new pair (`php artisan updater:keygen`),
-  bake the new public key into the app, and ship a build before publishing
-  anything signed with the new private key. (The old licence signing keypair is
-  gone — nothing verifies licences any more.)
-- **Code signing** — we ship unsigned EXEs today. SmartScreen warnings are expected.
-- **Website-only changes** — there's no parallel runbook yet; deploy via `pscp`/`plink` per [MONOREPO.md §2 build commands](MONOREPO.md).
-
----
-
-## 11. Diff from "how it happened last time"
-
-What the v0.6.1 release got wrong that this runbook prevents:
-
-| v0.6.1 mistake | Runbook step that prevents it |
-| --- | --- |
-| Shipped with active crashes — no smoke-test on `crash.log` | §4 hard check: read `crash.log` after 5 min use |
-| Release notes claimed a History fix that wasn't done | §3 claim-check: read each bullet against the actual binary |
-| Double-uploaded to two R2 keys because legacy check wasn't fixed | §5 drift list — forces explicit acknowledgement each time |
-| curl quoting bug blocked publish mid-flight | §5 drift list + error table — first-line troubleshooting |
-| Updater endpoint missing — users on v0.6.0 couldn't auto-update | §6 verify step: actually hit `/api/updater/check` |
-| No record of "what broke and why" when v0.6.1 was pulled | §9.3 memory file requirement |
-
-If a new class of mistake hits on the next release, **add a row to this table** as part of closing out §8.
+Creating a public release, pushing tags, or publishing installers is
+outward-facing. Obtain Jay's explicit approval immediately before doing it.

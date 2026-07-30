@@ -37,13 +37,12 @@
 #   5.  Clear the view / config / route caches.
 #   6.  Rebuild the Vite manifest remotely (`npm run build`) so the
 #       updated CSS/JS ship with the new Blade views.
-#   7.  Smoke-test: curl /api/pricing and /api/updater/check on the
-#       live host to make sure the new endpoints respond 200.
+#   7.  Smoke-test the public pages on the live host.
 #
 # What it does NOT do:
 #   - Touch the Tauri app or the Remotion bundle.
 #   - Push marketing videos to R2 (that's a separate pass).
-#   - Publish a new app release — that's `scripts/publish-release.sh`
+#   - Publish a new app release — use GitHub Releases, not this deployment script.
 #     in `Utterbar Windows App/`.
 # ----------------------------------------------------------------------
 
@@ -325,8 +324,7 @@ if (-not $DryRun) {
 Write-Output ""
 Write-Output "=== Smoke-testing live endpoints ==="
 $endpoints = @(
-    'https://utterbar.com/api/pricing',
-    'https://utterbar.com/api/updater/check?current=0.6.0&channel=stable',
+    'https://utterbar.com/',
     'https://utterbar.com/download',
     'https://utterbar.com/pricing'
 )

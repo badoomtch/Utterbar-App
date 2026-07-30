@@ -60,9 +60,8 @@ return [
             'report' => false,
         ],
 
-        // Cloudflare R2 — S3-compatible. We keep the bucket writes on the
-        // server side and serve public downloads via the dl.utterbar.com
-        // custom domain (CLOUDFLARE_R2_PUBLIC_URL).
+        // Cloudflare R2 — S3-compatible storage for website assets only.
+        // Desktop installers are published through GitHub Releases.
         'r2' => [
             'driver'   => 's3',
             'key'      => env('CLOUDFLARE_R2_ACCESS_KEY_ID'),

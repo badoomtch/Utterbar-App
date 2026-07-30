@@ -34,9 +34,9 @@ If this file disagrees with CLAUDE.md / MONOREPO.md / TODO.md, they win.
 | Directory | What | Stack |
 | --- | --- | --- |
 | `Utterbar Windows App/` | The desktop dictation app | Tauri v2 + React + Rust |
-| `Utterbar Website/` | Marketing site + Ed25519-signed updater/admin release APIs | Laravel 12 + Blade + Alpine + Tailwind v4 |
+| `Utterbar Website/` | Marketing site; download and changelog routes redirect to GitHub Releases | Laravel 12 + Blade + Alpine + Tailwind v4 |
 
-Single git repo, root here. Remote `badoomtch/Utterbar-App` (private). Website
+Single git repo, root here. Remote `badoomtch/Utterbar-App` (public). Website
 deploy is out-of-band over SSH (Cloudways has no git deploy).
 
 ## 2. Toolchain / prerequisites
@@ -57,20 +57,9 @@ One-time setup on the machine Codex runs on.
   to the exe via `tauri.conf.json → bundle.resources`. Don't delete it.
 
 **Publishing a release additionally needs:**
-- **AWS CLI** — `winget install Amazon.AWSCLI`. In Git Bash it's usually **not on
-  PATH**; it lives at `C:/Program Files/Amazon/AWSCLIV2/aws.exe`, so prepend
-  `export PATH="/c/Program Files/Amazon/AWSCLIV2:$PATH"`. An AWS profile
-  **`utterbar-r2`** (in `~/.aws/`) must hold the Cloudflare R2 key/secret/endpoint;
-  the script uploads with `--profile utterbar-r2`.
-- **jq** — `winget install jqlang.jq`.
-- **Python + `cryptography`** — for updater signing. **Gotcha:** on Windows
-  `python3` is the Microsoft Store stub; the real interpreter is `python`. Shim
-  it before publishing:
-  ```sh
-  mkdir -p /tmp/pybin && printf '#!/bin/sh\nexec python "$@"\n' > /tmp/pybin/python3 \
-    && chmod +x /tmp/pybin/python3 && export PATH="/tmp/pybin:$PATH"
-  python3 -c "import cryptography"   # must succeed
-  ```
+- GitHub CLI (`gh`) authenticated as a repository maintainer.
+- The installer is uploaded directly to a GitHub Release. There is no updater
+  signing key, R2 profile, release-admin token, or release database.
 
 **Website deploy additionally needs:** PuTTY (`winget install PuTTY.PuTTY` →
 `pscp` + `plink`), plus `composer`/`npm` locally.
@@ -122,31 +111,16 @@ by cutting the next minor.
    - `src-tauri/target/release/silero_vad.onnx` must exist (VAD model bundled).
 5. **Smoke-test** — Jay installs and confirms. Capture/meeting behaviour can't be
    validated from code; a human runs it.
-6. **Publish** (needs §2 tools + `~/.utterbar-deploy/.env`):
-   ```sh
-   export PATH="/tmp/pybin:/c/Program Files/Amazon/AWSCLIV2:$PATH"
-   ./scripts/publish-release.sh <version> \
-       "src-tauri/target/release/bundle/nsis/Utterbar_<version>_x64-setup.exe" \
-       releases/<version>.md \
-       [--beta]            # beta channel; omit for stable
-       [--tag "latest"]    # stable "latest" pill; stable only
-       # (--announce is a no-op now — the subscriber list was removed)
-   ```
-   Uploads to R2 (`releases/<v>/Utterbar-Setup-<v>.exe`), verifies CDN 200, signs
-   the metadata with `UPDATER_PRIVATE_KEY_B64`, POSTs to `/api/admin/releases`.
-   **Ships to real users — confirm with Jay first; every step deliberate** (CLAUDE.md §5.6).
-7. **Verify** the feed:
-   ```sh
-   curl -s "https://utterbar.com/api/updater/check?current=0.0.0&channel=beta"    | jq .
-   curl -s "https://utterbar.com/api/updater/check?current=0.20.0&channel=stable" | jq .
-   ```
-   Expect `available:true`, the right `version`, and a signature present.
+6. **Publish** by creating a GitHub Release for tag `v<version>` and uploading
+   the NSIS installer. Mark a beta as a GitHub prerelease; publish stable as an
+   ordinary release. Include the release-notes markdown as its body.
+7. **Verify** the GitHub Release is published, has the exact installer asset,
+   and exposes a SHA-256 asset digest through the GitHub API.
 8. **Tag** `v<version>` after committing the bump + notes. Push only when Jay asks.
 
-**Microsoft Store SKU:** ship direct first, then point the Partner Center
-submission at the exact R2 key
-`https://dl.utterbar.com/releases/<version>/Utterbar-Setup-<version>.exe`. Don't
-conflate the two SKUs in commits/notes (CLAUDE.md §5.7).
+**Microsoft Store SKU:** point the Partner Center submission at the GitHub
+Release asset for the matching version. Don't conflate the two SKUs in
+commits or notes.
 
 ## 5. Deploy the website (Cloudways, over SSH)
 
@@ -173,28 +147,17 @@ are gitignored and off-repo. **Jay places these on Codex's machine himself** —
 the agent must never read, echo, or generate them. Values omitted here on
 purpose.
 
-`~/.utterbar-deploy/.env` (per-user, off-repo) — read by `publish-release.sh`
-and `deploy-website.ps1`:
+`~/.utterbar-deploy/.env` (per-user, off-repo) is only needed for website
+deployment:
 
 | Name | Purpose | Kind |
 | --- | --- | --- |
-| `UPDATER_PRIVATE_KEY_B64` | Ed25519 key that signs updater metadata. **Critical** — without it, releases publish unsigned and clients ≥0.9.0 refuse them. | secret |
-| `UTTERBAR_ADMIN_API_TOKEN` | Bearer for `POST /api/admin/releases`; must match the server's `ADMIN_API_TOKEN`. | secret |
-| `UTTERBAR_API_BASE` | e.g. `https://utterbar.com`. | config |
-| `R2_BUCKET` | Cloudflare R2 bucket name. | config |
 | `CLOUDWAYS_HOST` + `CLOUDWAYS_PASSWORD` | App-user SSH for website deploy (or the master set `CLOUDWAYS_MASTER_USER`/`_MASTER_PASS`/`_IP`/`_APP_FOLDER`). | secret |
 
-Also required outside the `.env`:
-- **AWS profile `utterbar-r2`** in `~/.aws/credentials` + `~/.aws/config` — the R2
-  access key, secret, endpoint.
-- **`LIBCLANG_PATH`** env var (§2).
+Also required outside the `.env`: **`LIBCLANG_PATH`** env var (§2).
 
-The **live website `.env`** (on the server, not local) holds
-`UPDATER_PUBLIC_KEY_B64`, `ADMIN_API_TOKEN`, `ADMIN_NOTIFY_EMAIL`, mail config.
-(The Stripe keys and licence keypair are gone — that stack was removed.) Codex
-only touches those by editing on the server during a deploy, never by
-committing. `.env.example` (tracked) shows the shape with blank values. **Verify
-production `APP_DEBUG=false`.**
+The live website `.env` holds ordinary website configuration and mail settings.
+Never read, print, or commit it. Verify production `APP_DEBUG=false`.
 
 The **desktop build needs no signing secret** — Utterbar is deliberately not
 code-signed (SmartScreen warnings on first install are expected).
@@ -213,28 +176,19 @@ code-signed (SmartScreen warnings on first install are expected).
 - **One word: `Utterbar`.**
 - **Don't commit unless asked.** New commits over amends; no `--amend`/`--force`/
   `--no-verify`/`reset --hard` without explicit permission. On `main`, branch first.
-- **Cross-side changes** (updater/admin release API, or a Remotion-imported
-  component) touch BOTH sides in one pass (CLAUDE.md §5.5).
+- **Cross-side changes** (desktop updater and website release links, or a
+  Remotion-imported component) touch BOTH sides in one pass (CLAUDE.md §5.5).
 
 ## 8. Where to look when something breaks
 
-See CLAUDE.md §7 for the full table. Highlights: updater not appearing → hit
-`/api/updater/check`; publish 422 `file_not_in_bucket` → the script's upload key
-and the admin controller's expectation drifted.
+See CLAUDE.md §7 for the full table. For updater issues, verify the published
+GitHub Release status, tag, exact installer asset name, and asset digest.
 
-## 9. Where things stand (2026-07-18 — drifts; verify against TODO.md)
+## 9. Where things stand (drifts; verify against TODO.md)
 
-- **Stable: 0.21.0** (admin row 96, live). **Beta: 0.20.11** (row 95). In-tree: `0.21.0`.
-- Recent work is on branch **`release/0.20.10`** with tags `v0.20.9/10/11` and
-  `v0.21.0` — **local, not pushed.** Push only on Jay's say-so.
-- Latest feature: **live Meeting Mode transcription** (two separate channels,
-  Silero-VAD-gated, live transcript panel) — replaces the old batch-mixed path.
-- **Open thread:** a user reported dictation dropping its final sentence.
-  Diagnosis from logs: not truncation (Parakeet doesn't truncate) — the recording
-  ends ~500 ms after the manual stop (`TAIL_PAD_MS` in
-  `src-tauri/src/services/audio/capture.rs`), so speech past that window isn't
-  captured. Candidate fix: lengthen the grace tail. Awaiting Jay's confirm on
-  hold-vs-toggle first.
-- **Security:** a full desktop + website audit found no exploitable issues; only
-  low-severity hardening ideas (deep-link confirm prompt, `shell:allow-open`
-  scope, CSP report-only → enforcing, HSTS header, confirm prod `APP_DEBUG=false`).
+- The repository is public and licensed under MIT.
+- GitHub Releases is the only desktop release and update source.
+- Stable is the latest ordinary GitHub Release. Beta is the highest-version
+  published GitHub Release, including prereleases.
+- Existing installs from before this migration require one manual installation
+  from GitHub because they only know the retired website updater protocol.

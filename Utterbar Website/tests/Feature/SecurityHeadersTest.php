@@ -12,11 +12,11 @@ use Tests\TestCase;
  *
  * The middleware is registered globally in bootstrap/app.php, so every
  * route (web, api, /up health) should carry the headers. We sample
- * three different surface types:
+ * three different public pages:
  *
  *   - GET /                    : marketing Blade page
- *   - GET /download            : Blade page with a DB read
- *   - GET /api/updater/check   : JSON API endpoint consumed by the Tauri app
+ *   - GET /features            : marketing Blade page
+ *   - GET /contact             : form page
  *
  * If any of these stops carrying the expected headers, browsers lose
  * the click-jacking / sniffing / referrer / permission protections we
@@ -35,8 +35,8 @@ class SecurityHeadersTest extends TestCase
     {
         return [
             'home page'      => ['/'],
-            'download page'  => ['/download'],
-            'updater api'    => ['/api/updater/check'],
+            'features page'  => ['/features'],
+            'contact page'   => ['/contact'],
         ];
     }
 

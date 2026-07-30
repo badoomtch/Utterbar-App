@@ -18,13 +18,13 @@
             <ul class="list-disc pl-5 space-y-1.5" style="color: var(--muted);">
                 <li><strong>Speech-model download.</strong> When you install a speech model, the app fetches the model file from a content delivery network. No identifiers are sent.</li>
                 <li><strong>Update check.</strong> If the &ldquo;Check for updates automatically&rdquo; setting is on (you choose during onboarding), the app sends one HTTP request per launch containing only your current version number, asking whether a newer build is available. You can turn it off any time in Settings &gt; Updates.</li>
-                <li><strong>Update download.</strong> If you accept an update, the new installer is fetched from <code class="font-mono px-1.5 py-0.5 rounded text-sm" style="background: var(--bg-2); color: var(--accent);">dl.utterbar.com</code>; this download is logged on our side as described in &sect;4.</li>
+                <li><strong>Update download.</strong> If you accept an update, the new installer is fetched from GitHub Releases.</li>
             </ul>
 
             <h3>4. What we collect via the website</h3>
             <ul class="list-disc pl-5 space-y-1.5" style="color: var(--muted);">
                 <li><strong>Contact form.</strong> If you message us via the contact form, we store the name, email and message you sent. We may also retain the IP address and User-Agent for abuse prevention.</li>
-                <li><strong>Download analytics.</strong> When you click a download link, we log a single event recording: the release version, a SHA-256 hash of <em>(your IP address || a server-side secret)</em>, a SHA-256 hash of <em>(your User-Agent || a server-side secret)</em>, the two-letter country code provided by Cloudflare (where available), and the date. Reinstalls within the same day collapse to one event. The hashes cannot be reversed without the server-side secret, which never leaves the server. We use this only to count unique downloads per release and per country in aggregate.</li>
+                <li><strong>Downloads.</strong> Installer downloads are served by GitHub Releases. GitHub handles any request logging for those downloads under its own privacy policy.</li>
                 <li><strong>Cookies.</strong> See &sect;6.</li>
                 <li><strong>Server logs.</strong> Our hosting provider keeps standard request logs (timestamp, URL, IP, User-Agent) for a short period as a security and abuse measure. We don&rsquo;t use these for marketing or analytics.</li>
             </ul>
