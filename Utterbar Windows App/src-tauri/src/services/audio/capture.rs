@@ -582,7 +582,7 @@ impl CaptureHandle {
         // extend in short steps while the recent PCM tail still contains
         // speech. The hard cap keeps stop responsive on a noisy microphone.
         const TAIL_CHECK_MS: u64 = 100;
-        const ACTIVE_WINDOW_MS: u64 = 250;
+        const ACTIVE_WINDOW_MS: u64 = 300;
 
         tokio::time::sleep(std::time::Duration::from_millis(self.tail_pad_ms)).await;
         let mut tail_pad_ms = self.tail_pad_ms;
@@ -590,7 +590,11 @@ impl CaptureHandle {
             tokio::time::sleep(std::time::Duration::from_millis(TAIL_CHECK_MS)).await;
             tail_pad_ms += TAIL_CHECK_MS;
         }
-        tracing::debug!(tail_pad_ms, "capture stop grace tail complete");
+        tracing::info!(
+            configured_tail_pad_ms = self.tail_pad_ms,
+            actual_tail_pad_ms = tail_pad_ms,
+            "capture stop grace tail complete"
+        );
 
         // Flip stop, then give the capture thread time to drop the cpal stream and
         // flush any last-callback frames. 120 ms is empirically enough on WASAPI;
@@ -618,7 +622,10 @@ impl CaptureHandle {
     /// plausibly be speech. This deliberately inspects the shared buffer in
     /// place rather than cloning it: `stop` can run after a long recording.
     fn recent_tail_has_speech(&self, window_ms: u64) -> bool {
-        const SPEECH_RMS_THRESHOLD: f64 = 0.006;
+        // Keep this below the previous 0.006 threshold so softly-spoken
+        // final syllables can extend the grace window. It remains above the
+        // trim-silence threshold and ordinary low-level device noise.
+        const SPEECH_RMS_THRESHOLD: f64 = 0.004;
 
         let Ok(buffer) = self.buffer.lock() else {
             return false;

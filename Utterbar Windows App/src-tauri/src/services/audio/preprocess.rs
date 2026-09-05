@@ -21,14 +21,25 @@ pub fn normalise(pcm: &mut [i16]) {
 }
 
 pub fn trim_silence(pcm: Vec<i16>, threshold: i16) -> Vec<i16> {
-    let start = pcm
+    const EDGE_PADDING_SAMPLES: usize = 3_200; // 200 ms at the 16 kHz ASR rate.
+
+    let threshold = threshold.unsigned_abs();
+    let speech_start = pcm
         .iter()
-        .position(|s| s.abs() > threshold)
+        .position(|sample| sample.unsigned_abs() > threshold)
         .unwrap_or(pcm.len());
-    let end = pcm.iter().rposition(|s| s.abs() > threshold).unwrap_or(0);
-    if start >= end {
+    if speech_start == pcm.len() {
         return Vec::new();
     }
+
+    let speech_end = pcm
+        .iter()
+        .rposition(|sample| sample.unsigned_abs() > threshold)
+        .unwrap_or(speech_start);
+    let start = speech_start.saturating_sub(EDGE_PADDING_SAMPLES);
+    let end = speech_end
+        .saturating_add(EDGE_PADDING_SAMPLES)
+        .min(pcm.len() - 1);
     pcm[start..=end].to_vec()
 }
 
@@ -141,12 +152,10 @@ pub fn suppress_noise(pcm: &mut [i16], level: NoiseSuppression) {
     }
 }
 
-/// Standalone inter-word noise gate. Zeros frames whose RMS falls short
-/// of a conservative per-recording threshold and whose *surrounding*
-/// frames are also quiet — so a single loud consonant between two quiet
-/// ones isn't clipped. Complements `suppress_noise` rather than
-/// replacing it: useful when the user wants keyboard clicks / mouth
-/// noises gone but doesn't want the full broadband filter.
+/// Standalone inter-word noise gate. Sustained quiet runs are attenuated,
+/// never erased. Short quiet regions are left intact because unvoiced
+/// consonants and softly-spoken words can sit below a frame-level RMS gate.
+/// This reduces steady room noise without discarding information before ASR.
 pub fn noise_gate(pcm: &mut [i16]) {
     if pcm.len() < 32 {
         return;
@@ -172,25 +181,41 @@ pub fn noise_gate(pcm: &mut [i16]) {
     let floor = sorted[(sorted.len() * 15) / 100]; // 15th-percentile
     let threshold = (floor * 1.7).max(150.0);
 
-    // Mark which frames are "quiet". A frame is gated only if it and at least one of
-    // its neighbours are also quiet — keeps speech transients intact.
+    // Only reduce the centre of a sustained quiet run. The untouched edges
+    // preserve transitions into and out of soft speech.
+    const MIN_QUIET_RUN_FRAMES: usize = 8; // 160 ms
+    const EDGE_GUARD_FRAMES: usize = 3; // 60 ms per side
+    const QUIET_GAIN: f32 = 0.35;
     let is_quiet: Vec<bool> = frames.iter().map(|r| *r < threshold).collect();
-    for (fi, _) in frames.iter().enumerate() {
-        let prev_quiet = fi == 0 || is_quiet[fi - 1];
-        let next_quiet = fi + 1 >= is_quiet.len() || is_quiet[fi + 1];
-        if is_quiet[fi] && (prev_quiet || next_quiet) {
-            let start = fi * FRAME;
-            let end = (start + FRAME).min(pcm.len());
-            let len = end - start;
-            // Fade in/out over 4 ms (64 samples) so we don't click.
-            const FADE: usize = 64;
-            for (offset, slot) in pcm[start..end].iter_mut().enumerate() {
-                let distance_from_edge = offset.min(len.saturating_sub(offset + 1));
-                let ramp = (distance_from_edge as f32 / FADE as f32).min(1.0);
-                let v = *slot as f32 * (1.0 - ramp);
-                *slot = v.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+    let mut run_start = 0usize;
+    while run_start < is_quiet.len() {
+        if !is_quiet[run_start] {
+            run_start += 1;
+            continue;
+        }
+
+        let mut run_end = run_start + 1;
+        while run_end < is_quiet.len() && is_quiet[run_end] {
+            run_end += 1;
+        }
+
+        if run_end - run_start >= MIN_QUIET_RUN_FRAMES {
+            let core_start_frame = run_start + EDGE_GUARD_FRAMES;
+            let core_end_frame = run_end.saturating_sub(EDGE_GUARD_FRAMES);
+            if core_start_frame < core_end_frame {
+                let start = core_start_frame * FRAME;
+                let end = (core_end_frame * FRAME).min(pcm.len());
+                let fade_samples = FRAME.min((end - start) / 2).max(1);
+                for (offset, slot) in pcm[start..end].iter_mut().enumerate() {
+                    let edge_distance = offset.min(end - start - offset - 1);
+                    let fade = (edge_distance as f32 / fade_samples as f32).min(1.0);
+                    let gain = 1.0 - (1.0 - QUIET_GAIN) * fade;
+                    *slot = (*slot as f32 * gain).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+                }
             }
         }
+
+        run_start = run_end;
     }
 }
 
@@ -262,9 +287,7 @@ mod tests {
         );
     }
 
-    /// `noise_gate` must not silence a continuously-loud signal — the
-    /// gate is supposed to zero blips between words, not the words
-    /// themselves.
+    /// `noise_gate` must not silence a continuously-loud signal.
     #[test]
     fn noise_gate_does_not_kill_continuous_signal() {
         let mut pcm = speechy_signal(1.0);
@@ -275,6 +298,51 @@ mod tests {
             after_rms > before_rms * 0.7,
             "continuous tone RMS collapsed from {before_rms} to {after_rms} under noise gate"
         );
+    }
+
+    #[test]
+    fn trim_silence_keeps_context_around_quiet_word_boundaries() {
+        let mut pcm = vec![0_i16; 8_000];
+        pcm[4_000..4_800].fill(500);
+
+        let trimmed = trim_silence(pcm, 100);
+
+        // 800 speech samples plus 3,200 samples (200 ms) on each side.
+        assert_eq!(trimmed.len(), 7_200);
+        assert_eq!(trimmed[3_200], 500);
+        assert_eq!(trimmed[3_999], 500);
+    }
+
+    #[test]
+    fn trim_silence_handles_full_scale_negative_samples() {
+        let pcm = vec![0, i16::MIN, 0];
+
+        let trimmed = trim_silence(pcm, 100);
+
+        assert_eq!(trimmed, vec![0, i16::MIN, 0]);
+    }
+
+    #[test]
+    fn noise_gate_attenuates_sustained_quiet_audio_without_erasing_it() {
+        let mut pcm = vec![120_i16; 16_000];
+        let before_nonzero = pcm.iter().filter(|sample| **sample != 0).count();
+
+        noise_gate(&mut pcm);
+
+        let after_nonzero = pcm.iter().filter(|sample| **sample != 0).count();
+        assert_eq!(after_nonzero, before_nonzero);
+        assert!(pcm.iter().any(|sample| sample.abs() < 120));
+        assert!(pcm.iter().all(|sample| sample.abs() >= 40));
+    }
+
+    #[test]
+    fn noise_gate_leaves_short_quiet_words_untouched() {
+        let mut pcm = vec![120_i16; 7 * 320]; // 140 ms, below the sustained-run gate.
+        let before = pcm.clone();
+
+        noise_gate(&mut pcm);
+
+        assert_eq!(pcm, before);
     }
 
     /// `normalise` must not introduce silence either: a non-silent

@@ -15,8 +15,9 @@
 //!   • A standalone number IS converted when it's clearly numeric
 //!     from immediate context: followed by a unit ("five pounds",
 //!     "ten percent", "three o'clock"), preceded by a numeric anchor
-//!     ("page seven", "chapter three", "step one"), or surrounding a
-//!     digit-attachable suffix ("third" → "3rd").
+//!     ("page seven", "chapter three", "step one"), followed by a
+//!     common alphanumeric suffix ("three D" → "3D"), or surrounding
+//!     a digit-attachable suffix ("third" → "3rd").
 //!
 //! Out of scope (deliberate v1):
 //!   • Decimals via "point" ("three point one four" → "3.14"). We
@@ -96,6 +97,15 @@ impl Converter {
                         out.push_str(slice);
                         i += 1;
                         continue;
+                    }
+                    if suffix.is_empty() {
+                        if let Some((suffix_end, compact_suffix)) =
+                            compact_suffix_after(&tokens, run_end)
+                        {
+                            out.push_str(&format!("{value}{compact_suffix}"));
+                            i = suffix_end;
+                            continue;
+                        }
                     }
                     if should_convert(&tokens, i, run_end, run_len) {
                         out.push_str(&format!("{}{}", value, suffix));
@@ -533,6 +543,32 @@ fn next_word_lower(tokens: &[(Tok, &str)], idx: usize) -> Option<String> {
     None
 }
 
+/// Recognise spoken alphanumeric forms emitted as two tokens by ASR,
+/// such as "three D", "four K", "five G" and "two X". Only whitespace
+/// may separate the number and suffix; punctuation deliberately breaks
+/// the composition. The returned index is immediately after the suffix.
+fn compact_suffix_after(tokens: &[(Tok, &str)], idx: usize) -> Option<(usize, &'static str)> {
+    let mut i = idx;
+    while i < tokens.len()
+        && matches!(tokens[i].0, Tok::Other)
+        && tokens[i].1.chars().all(|c| c.is_ascii_whitespace())
+    {
+        i += 1;
+    }
+
+    let (Tok::Word, suffix) = tokens.get(i).copied()? else {
+        return None;
+    };
+    let canonical = match suffix.to_ascii_lowercase().as_str() {
+        "d" => "D",
+        "g" => "G",
+        "k" => "K",
+        "x" => "x",
+        _ => return None,
+    };
+    Some((i + 1, canonical))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,6 +606,24 @@ mod tests {
         assert_eq!(t("page seven"), "page 7");
         assert_eq!(t("chapter three"), "chapter 3");
         assert_eq!(t("step one"), "step 1");
+    }
+
+    #[test]
+    fn spoken_alphanumeric_terms_join_number_and_suffix() {
+        assert_eq!(t("three D printing"), "3D printing");
+        assert_eq!(t("two d image"), "2D image");
+        assert_eq!(t("four K video"), "4K video");
+        assert_eq!(t("five G network"), "5G network");
+        assert_eq!(t("two X faster"), "2x faster");
+        assert_eq!(t("twenty four K gold"), "24K gold");
+    }
+
+    #[test]
+    fn alphanumeric_join_stays_narrow() {
+        assert_eq!(t("one of these days"), "one of these days");
+        assert_eq!(t("three A options"), "three A options");
+        assert_eq!(t("three, D printers"), "three, D printers");
+        assert_eq!(t("the third D printer"), "the 3rd D printer");
     }
 
     #[test]

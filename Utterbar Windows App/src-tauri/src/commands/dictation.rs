@@ -3106,6 +3106,7 @@ pub(crate) async fn stop_recording_inner(
     // (noise-suppressed silence is easier to detect), then normalise at the end.
     {
         let audio_settings = &state.settings.snapshot().await.audio;
+        let captured_samples = final_.pcm.len();
         // Diagnostic-only: when enabled, snapshot the raw post-capture
         // PCM before any preprocess pass touches it. Paired with the
         // post-preprocess dump below so a user can compare exactly
@@ -3140,6 +3141,16 @@ pub(crate) async fn stop_recording_inner(
         if audio_settings.dynamic_normalisation {
             crate::services::audio::preprocess::normalise(&mut final_.pcm);
         }
+        tracing::info!(
+            captured_samples,
+            asr_samples = final_.pcm.len(),
+            removed_samples = captured_samples.saturating_sub(final_.pcm.len()),
+            silence_removal = audio_settings.silence_removal,
+            noise_gate = audio_settings.noise_gate,
+            noise_suppression = ?audio_settings.noise_suppression,
+            dynamic_normalisation = audio_settings.dynamic_normalisation,
+            "audio preprocessing complete"
+        );
         if let Some(raw) = raw_pcm_for_dump {
             // Best-effort. Diagnostic dumps must never fail a real recording.
             if let Err(e) = write_diagnostic_audio_pair(&raw, &final_.pcm, final_.sample_rate) {

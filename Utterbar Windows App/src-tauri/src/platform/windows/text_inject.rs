@@ -8,7 +8,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
-use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND};
+use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, WPARAM};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData,
     GetClipboardFormatNameW, GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard,
@@ -22,7 +22,10 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
     KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY, VK_CONTROL, VK_RETURN, VK_SHIFT, VK_V,
 };
-use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId,
+    SendMessageTimeoutW, GUITHREADINFO, SMTO_ABORTIFHUNG, SMTO_BLOCK, WM_PASTE,
+};
 
 use crate::services::text_inject::Strategy;
 
@@ -59,8 +62,9 @@ pub fn deliver(text: &str, strategy: Strategy) -> Result<()> {
     // listener. Also covers the general case of "stop recording whilst focused in
     // Utterbar" — the user explicitly switched away if they wanted paste.
     if foreground_is_self() {
-        tracing::info!("text_inject: skipping delivery — Utterbar itself is foreground");
-        return Ok(());
+        return Err(anyhow!(
+            "Utterbar itself is foreground; no external paste target is active"
+        ));
     }
     match strategy {
         Strategy::Paste {
@@ -112,7 +116,13 @@ fn foreground_is_self() -> bool {
 
 fn paste_via_clipboard(text: &str, restore: bool, restore_delay_ms: u32) -> Result<()> {
     let prior = if restore {
-        snapshot_clipboard_with_retry().ok()
+        // If preservation was requested, never silently overwrite a clipboard
+        // that we could not snapshot. The caller can fall back to Unicode
+        // keystrokes, which leaves images, files and rich formats untouched.
+        Some(
+            snapshot_clipboard_with_retry()
+                .map_err(|error| anyhow!("could not preserve the existing clipboard: {error}"))?,
+        )
     } else {
         None
     };
@@ -131,7 +141,48 @@ fn paste_via_clipboard(text: &str, restore: bool, restore_delay_ms: u32) -> Resu
     // injection path and sometimes succeeds where Ctrl+V did not. We deliberately do NOT
     // try to detect silent failure (clipboard still intact) — most apps leave the
     // clipboard alone on paste, so that check false-positives everywhere.
-    send_ctrl_v()?;
+    // Native editors expose a focused child control which accepts WM_PASTE.
+    // Sending it synchronously confirms the control consumed the clipboard
+    // before restoration can run. Notepad++ uses a Scintilla child control;
+    // queued Ctrl+V input can otherwise be handled after a short restore delay.
+    // Browser and Electron surfaces retain the existing Ctrl+V path.
+    let delivery = if let Some((target, class_name)) = focused_direct_paste_target() {
+        match send_wm_paste(target) {
+            Ok(()) => {
+                tracing::info!(
+                    target_class = %class_name,
+                    "text_inject: paste acknowledged by focused editor control"
+                );
+                Ok(())
+            }
+            Err(error) => {
+                tracing::warn!(
+                    ?error,
+                    target_class = %class_name,
+                    "text_inject: focused-control paste failed; retrying with Ctrl+V"
+                );
+                send_ctrl_v()
+            }
+        }
+    } else {
+        let result = send_ctrl_v();
+        if result.is_ok() {
+            tracing::info!("text_inject: Ctrl+V events accepted by Windows");
+        }
+        result
+    };
+
+    if let Err(error) = delivery {
+        if let Some(previous) = prior.as_ref() {
+            if let Err(restore_error) = restore_clipboard_snapshot(previous) {
+                tracing::warn!(
+                    ?restore_error,
+                    "text_inject: immediate clipboard rollback failed after paste error"
+                );
+            }
+        }
+        return Err(error);
+    }
 
     if let Some(prev) = prior {
         // A paste does not normally mutate the clipboard, so comparing its
@@ -158,6 +209,66 @@ fn paste_via_clipboard(text: &str, restore: bool, restore_delay_ms: u32) -> Resu
         });
     }
     Ok(())
+}
+
+/// Return the focused native editor control when it supports synchronous
+/// `WM_PASTE`. Top-level browser and Electron windows deliberately return
+/// `None` and keep using synthetic Ctrl+V.
+fn focused_direct_paste_target() -> Option<(HWND, String)> {
+    unsafe {
+        let foreground = GetForegroundWindow();
+        if foreground.0.is_null() {
+            return None;
+        }
+
+        let thread_id = GetWindowThreadProcessId(foreground, None);
+        if thread_id == 0 {
+            return None;
+        }
+
+        let mut info = GUITHREADINFO {
+            cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+            ..Default::default()
+        };
+        if GetGUIThreadInfo(thread_id, &mut info).is_err() || info.hwndFocus.0.is_null() {
+            return None;
+        }
+
+        let mut class_name = [0u16; 128];
+        let length = GetClassNameW(info.hwndFocus, &mut class_name);
+        if length <= 0 {
+            return None;
+        }
+        let class_name = String::from_utf16_lossy(&class_name[..length as usize]);
+        supports_direct_paste(&class_name).then_some((info.hwndFocus, class_name))
+    }
+}
+
+fn supports_direct_paste(class_name: &str) -> bool {
+    let normalised = class_name.to_ascii_lowercase();
+    normalised == "edit"
+        || normalised == "scintilla"
+        || normalised.starts_with("richedit")
+        || normalised.starts_with("windowsforms10.edit")
+}
+
+fn send_wm_paste(target: HWND) -> Result<()> {
+    let result = unsafe {
+        SendMessageTimeoutW(
+            target,
+            WM_PASTE,
+            WPARAM(0),
+            LPARAM(0),
+            SMTO_ABORTIFHUNG | SMTO_BLOCK,
+            750,
+            None,
+        )
+    };
+    if result.0 == 0 {
+        Err(anyhow!("WM_PASTE timed out or was rejected"))
+    } else {
+        Ok(())
+    }
 }
 
 fn clamp_restore_delay_ms(delay_ms: u32) -> u64 {
@@ -344,21 +455,13 @@ fn snapshot_clipboard() -> Result<ClipboardSnapshot> {
             continue;
         }
 
-        let handle = match unsafe { GetClipboardData(format) } {
-            Ok(handle) => handle,
-            Err(error) => {
-                tracing::debug!(
-                    format,
-                    ?error,
-                    "clipboard format unavailable during snapshot"
-                );
-                continue;
-            }
-        };
+        let handle = unsafe { GetClipboardData(format) }
+            .map_err(|error| anyhow!("clipboard format {format} unavailable: {error}"))?;
         let size = unsafe { GlobalSize(HGLOBAL(handle.0)) };
         if size == 0 {
-            // Zero-sized or currently unavailable payloads cannot be copied.
-            continue;
+            return Err(anyhow!(
+                "clipboard format {format} has no restorable global-memory payload"
+            ));
         }
         total_bytes = total_bytes.saturating_add(size);
         if total_bytes > MAX_CLIPBOARD_BYTES {
@@ -371,7 +474,7 @@ fn snapshot_clipboard() -> Result<ClipboardSnapshot> {
         let source = unsafe { GlobalLock(HGLOBAL(handle.0)) } as *const u8;
         if source.is_null() {
             return Err(anyhow!(
-                "GlobalLock returned null for clipboard format {format}"
+                "clipboard format {format} could not be locked during snapshot"
             ));
         }
         let bytes = unsafe { std::slice::from_raw_parts(source, size) }.to_vec();
@@ -546,5 +649,18 @@ mod tests {
             guard < global_size,
             "clipboard format must be approved before GlobalSize receives its handle"
         );
+    }
+
+    #[test]
+    fn direct_paste_is_limited_to_native_editor_controls() {
+        assert!(supports_direct_paste("Scintilla"));
+        assert!(supports_direct_paste("Edit"));
+        assert!(supports_direct_paste("RichEditD2DPT"));
+        assert!(supports_direct_paste(
+            "WindowsForms10.EDIT.app.0.141b42a_r8_ad1"
+        ));
+        assert!(!supports_direct_paste("Chrome_RenderWidgetHostHWND"));
+        assert!(!supports_direct_paste("MozillaWindowClass"));
+        assert!(!supports_direct_paste("ApplicationFrameWindow"));
     }
 }
