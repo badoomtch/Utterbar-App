@@ -227,6 +227,20 @@ async fn step2_whisper_large_dml() {
     .await;
 }
 
+// ── Whisper Turbo ─────────────────────────────────────────────────
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore]
+async fn step2_whisper_turbo_cpu() {
+    smoke_whisper("sherpa-whisper-turbo", "sherpa-whisper-turbo", "cpu").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore]
+async fn step2_whisper_turbo_dml() {
+    smoke_whisper("sherpa-whisper-turbo", "sherpa-whisper-turbo", "directml").await;
+}
+
 // ── Parakeet TDT v3 int8 ──────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

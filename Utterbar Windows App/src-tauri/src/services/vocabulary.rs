@@ -102,37 +102,144 @@ impl VocabularyService {
     }
 
     /// Apply enabled literal replacements (regex deferred to v1.1).
+    ///
+    /// Word/phrase boundaries are honoured when a pattern starts and ends
+    /// with word characters. This prevents a correction such as `blu -> blue`
+    /// from changing the `blu` prefix inside `blurry`.
     pub fn apply_replacements(&self, text: &str) -> Result<String> {
         let list = self.list_replacements()?;
         let mut out = text.to_string();
         for r in list.into_iter().filter(|r| r.enabled && !r.is_regex) {
-            out = if r.case_sens {
-                out.replace(&r.pattern, &r.replacement)
-            } else {
-                replace_case_insensitive(&out, &r.pattern, &r.replacement)
-            };
+            out = replace_literal(&out, &r.pattern, &r.replacement, r.case_sens);
         }
         Ok(out)
     }
 }
 
-fn replace_case_insensitive(haystack: &str, needle: &str, with: &str) -> String {
+fn replace_literal(haystack: &str, needle: &str, with: &str, case_sensitive: bool) -> String {
     if needle.is_empty() {
         return haystack.to_string();
     }
-    let lower_h = haystack.to_lowercase();
-    let lower_n = needle.to_lowercase();
+
+    // Lowercase one source character at a time. Lowercasing the whole
+    // haystack and indexing it with offsets from the original string is
+    // invalid for Unicode case mappings whose byte length changes.
+    let matches = if case_sensitive {
+        find_literal_matches(haystack, needle)
+    } else {
+        find_case_insensitive_matches(haystack, needle)
+    };
+    if matches.is_empty() {
+        return haystack.to_string();
+    }
+
     let mut out = String::with_capacity(haystack.len());
-    let mut idx = 0usize;
-    while idx < haystack.len() {
-        if lower_h[idx..].starts_with(&lower_n) {
-            out.push_str(with);
-            idx += needle.len();
+    let mut copy_from = 0usize;
+    for (start, end) in matches {
+        out.push_str(&haystack[copy_from..start]);
+        out.push_str(with);
+        copy_from = end;
+    }
+    out.push_str(&haystack[copy_from..]);
+    out
+}
+
+fn find_literal_matches(haystack: &str, needle: &str) -> Vec<(usize, usize)> {
+    let mut matches = Vec::new();
+    let mut scan_from = 0usize;
+    while let Some(relative_start) = haystack[scan_from..].find(needle) {
+        let start = scan_from + relative_start;
+        let end = start + needle.len();
+        if replacement_has_word_boundaries(haystack, needle, start, end) {
+            matches.push((start, end));
+            scan_from = end;
         } else {
-            let c = haystack[idx..].chars().next().unwrap();
-            out.push(c);
-            idx += c.len_utf8();
+            scan_from = start + haystack[start..].chars().next().unwrap().len_utf8();
         }
     }
-    out
+    matches
+}
+
+fn find_case_insensitive_matches(haystack: &str, needle: &str) -> Vec<(usize, usize)> {
+    let lower_needle = needle.to_lowercase();
+    let segments: Vec<(usize, usize, String)> = haystack
+        .char_indices()
+        .map(|(start, ch)| {
+            let end = start + ch.len_utf8();
+            (start, end, ch.to_lowercase().collect())
+        })
+        .collect();
+
+    let mut matches = Vec::new();
+    let mut segment_index = 0usize;
+    while segment_index < segments.len() {
+        let mut lowered = String::new();
+        let mut end_index = segment_index;
+        while end_index < segments.len() && lowered.len() < lower_needle.len() {
+            lowered.push_str(&segments[end_index].2);
+            end_index += 1;
+        }
+        if lowered == lower_needle {
+            let start = segments[segment_index].0;
+            let end = segments[end_index - 1].1;
+            if replacement_has_word_boundaries(haystack, needle, start, end) {
+                matches.push((start, end));
+                segment_index = end_index;
+                continue;
+            }
+        }
+        segment_index += 1;
+    }
+    matches
+}
+
+fn replacement_has_word_boundaries(haystack: &str, needle: &str, start: usize, end: usize) -> bool {
+    let starts_word = needle.chars().next().is_some_and(is_word_character);
+    let ends_word = needle.chars().next_back().is_some_and(is_word_character);
+    let previous_is_word = haystack[..start]
+        .chars()
+        .next_back()
+        .is_some_and(is_word_character);
+    let next_is_word = haystack[end..]
+        .chars()
+        .next()
+        .is_some_and(is_word_character);
+    (!starts_word || !previous_is_word) && (!ends_word || !next_is_word)
+}
+
+fn is_word_character(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn literal_prefix_correction_does_not_corrupt_longer_words() {
+        assert_eq!(
+            replace_literal("blurry blue blu", "blu", "blue", false),
+            "blurry blue blue"
+        );
+    }
+
+    #[test]
+    fn literal_corrections_match_phrases_and_ignore_case() {
+        assert_eq!(
+            replace_literal("cubit TORRENT", "Cubit Torrent", "Qbittorrent", false),
+            "Qbittorrent"
+        );
+        assert_eq!(
+            replace_literal("bluee BlueE", "bluee", "blue", false),
+            "blue blue"
+        );
+    }
+
+    #[test]
+    fn literal_matching_is_utf8_safe() {
+        assert_eq!(
+            replace_literal("İstanbul blu", "blu", "blue", false),
+            "İstanbul blue"
+        );
+    }
 }

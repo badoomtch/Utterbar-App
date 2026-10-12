@@ -728,6 +728,39 @@ fn built_in_catalogue() -> Vec<ModelInfo> {
             accuracy_score: 10,
             speed_score: 2,
         },
+        // Whisper large-v3 turbo is a pruned Large v3 checkpoint that
+        // keeps the same multilingual Whisper runtime while reducing
+        // decode time substantially. It is an explicit alternative for
+        // everyday dictation when a compact Parakeet model is fast but
+        // misses natural phrasing. It is not the default because its
+        // initial load and per-dictation latency are still higher than
+        // Parakeet on typical hardware.
+        //
+        // Pinned 2026-07-16 against the k2-fsa release asset. The archive
+        // ships turbo-encoder.int8.onnx, turbo-decoder.int8.onnx and
+        // turbo-tokens.txt. Re-verified on Jay's retained dictation audio
+        // on 2026-09-09 through the production DirectML provider path.
+        ModelInfo {
+            id: "sherpa-whisper-turbo".into(),
+            kind: ModelKind::Asr,
+            display_name: "Whisper Turbo (multilingual, accurate)".into(),
+            description: "Fast multilingual Whisper model. A strong everyday choice when you want better handling of natural phrasing than the compact models without waiting as long as Large v3.".into(),
+            version: "turbo".into(),
+            size_bytes: 563_790_207,
+            backend: ModelBackend::Onnx,
+            engine: ModelEngine::Whisper,
+            languages: vec!["multi".into()],
+            installed: false,
+            path: None,
+            sha256: "b11acbbcd660b44a8e0df33724feb5aaa709cf65668f2823d59f656312544f22".into(),
+            download_url: Some(
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-turbo.tar.bz2"
+                    .into(),
+            ),
+            recommended: false,
+            accuracy_score: 9,
+            speed_score: 7,
+        },
         // Offline Zipformer was retired in v0.14.2: Parakeet covers the
         // English fast-path comprehensively, and shipping two
         // English-only fast models was creating decision fatigue in the
@@ -842,6 +875,16 @@ mod catalogue_tests {
         assert!(!find("sherpa-whisper-large-v3").recommended);
     }
 
+    #[test]
+    fn whisper_turbo_is_available_but_not_the_default() {
+        let turbo = find("sherpa-whisper-turbo");
+        assert!(!turbo.recommended);
+        assert_eq!(turbo.engine, crate::domain::ModelEngine::Whisper);
+        assert_eq!(turbo.languages, vec!["multi"]);
+        assert!(!turbo.sha256.is_empty());
+        assert!(turbo.download_url.is_some());
+    }
+
     /// Catalogue copy must not bake numeric performance claims into
     /// user-facing description strings. Step 0 numbers go in release
     /// notes; the catalogue surfaces relative speed/quality only.
@@ -854,6 +897,7 @@ mod catalogue_tests {
             "sherpa-whisper-small",
             "sherpa-whisper-medium",
             "sherpa-whisper-large-v3",
+            "sherpa-whisper-turbo",
         ] {
             let desc = find(id).description;
             for needle in ["RTF", "real-time", "realtime", "× faster", "x faster"] {

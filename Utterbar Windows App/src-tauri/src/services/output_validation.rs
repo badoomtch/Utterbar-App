@@ -105,6 +105,9 @@ pub enum DropReason {
     /// Almost always a Whisper auto-detect mis-classification or a
     /// hallucination.
     UnexpectedForeignScript,
+    /// A short caption-style placeholder such as "silence", "crickets",
+    /// "background noise", or "no speech" rather than spoken content.
+    KnownHallucination,
 }
 
 impl DropReason {
@@ -117,6 +120,7 @@ impl DropReason {
             DropReason::RepeatedToken => "repeated_token",
             DropReason::RepeatedPunctuation => "repeated_punctuation",
             DropReason::UnexpectedForeignScript => "unexpected_foreign_script",
+            DropReason::KnownHallucination => "known_hallucination",
         }
     }
 }
@@ -147,6 +151,13 @@ pub fn validate(text: &str, ctx: &ValidationContext) -> ValidationVerdict {
         if !c.is_alphanumeric() {
             return drop_quiet(DropReason::SinglePunctuation);
         }
+    }
+
+    // Do not deliver caption-style placeholders as dictated text. These are
+    // exact short outputs only, so a real sentence such as "silence is useful"
+    // is unaffected.
+    if is_known_hallucination(trimmed) {
+        return drop_quiet(DropReason::KnownHallucination);
     }
 
     // Repeated alphabetic token (Whisper decoder loop). Tokens are
@@ -185,6 +196,82 @@ pub fn validate(text: &str, ctx: &ValidationContext) -> ValidationVerdict {
     let _ = ctx.audio_duration_ms;
 
     ValidationVerdict::Accept
+}
+
+/// Remove ellipsis markers emitted for pauses. Utterbar should deliver the
+/// words around a pause, not invent punctuation that the user did not speak.
+pub fn strip_ellipsis_markers(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    let mut just_removed_ellipsis = false;
+    while let Some(ch) = chars.next() {
+        if ch == '…' {
+            append_ellipsis_separator(&mut out);
+            just_removed_ellipsis = true;
+            continue;
+        }
+        if ch == '.' {
+            let mut dots = 1usize;
+            while chars.peek() == Some(&'.') {
+                chars.next();
+                dots += 1;
+            }
+            if dots >= 3 {
+                append_ellipsis_separator(&mut out);
+                just_removed_ellipsis = true;
+            } else {
+                for _ in 0..dots {
+                    out.push('.');
+                }
+            }
+            continue;
+        }
+        if ch.is_whitespace() && just_removed_ellipsis {
+            continue;
+        }
+        just_removed_ellipsis = false;
+        out.push(ch);
+    }
+    if just_removed_ellipsis && out.ends_with(' ') {
+        out.pop();
+    }
+    out
+}
+
+fn append_ellipsis_separator(out: &mut String) {
+    let needs_space = out
+        .chars()
+        .last()
+        .map(|last| !last.is_whitespace())
+        .unwrap_or(false);
+    if needs_space {
+        out.push(' ');
+    }
+}
+
+fn is_known_hallucination(text: &str) -> bool {
+    let trimmed = text.trim();
+    let wrapped = (trimmed.starts_with('[') && trimmed.ends_with(']'))
+        || (trimmed.starts_with('(') && trimmed.ends_with(')'));
+    let normalised = trimmed
+        .trim_matches(|c: char| matches!(c, '[' | ']' | '(' | ')' | '.' | ',' | '!' | '?' | '…'))
+        .to_ascii_lowercase();
+    matches!(
+        normalised.as_str(),
+        "silence"
+            | "cricket"
+            | "crickets"
+            | "cricket chirping"
+            | "crickets chirping"
+            | "no audio"
+            | "no speech"
+            | "background noise"
+            | "background music"
+            | "inaudible"
+            | "unintelligible"
+            | "thanks for watching"
+            | "thank you for watching"
+    ) || (wrapped && matches!(normalised.as_str(), "music" | "applause" | "laughter"))
 }
 
 fn drop_quiet(reason: DropReason) -> ValidationVerdict {
@@ -635,6 +722,40 @@ mod tests {
     }
 
     #[test]
+    fn caption_style_silence_outputs_drop_quietly() {
+        for text in [
+            "silence",
+            "Crickets.",
+            "[background noise]",
+            "(no speech)",
+            "Thank you for watching",
+            "[music]",
+        ] {
+            assert_drop(
+                validate(text, &ctx_english_parakeet()),
+                DropReason::KnownHallucination,
+                false,
+            );
+        }
+        assert_eq!(
+            validate("silence is useful", &ctx_english_parakeet()),
+            ValidationVerdict::Accept
+        );
+        assert_eq!(
+            validate("music", &ctx_english_parakeet()),
+            ValidationVerdict::Accept
+        );
+    }
+
+    #[test]
+    fn pause_ellipses_are_removed_without_touching_full_stops() {
+        assert_eq!(strip_ellipsis_markers("wait... what"), "wait what");
+        assert_eq!(strip_ellipsis_markers("wait…what"), "wait what");
+        assert_eq!(strip_ellipsis_markers("Version 1.2."), "Version 1.2.");
+        assert_eq!(strip_ellipsis_markers("..."), "");
+    }
+
+    #[test]
     fn cjk_dropped_on_english_only() {
         assert_drop(
             validate("你好世界", &ctx_english_parakeet()),
@@ -779,6 +900,10 @@ mod tests {
         assert_eq!(
             DropReason::UnexpectedForeignScript.as_str(),
             "unexpected_foreign_script"
+        );
+        assert_eq!(
+            DropReason::KnownHallucination.as_str(),
+            "known_hallucination"
         );
     }
 

@@ -446,6 +446,7 @@ impl AsrProvider for SherpaWhisper {
 ///   "[Music]"          "[Applause]"          "[Laughter]"
 ///   "[Background noise]"  "[Crowd cheering]"  "[Inaudible]"
 ///   "(music playing)"  "(silence)"           "♪ ♪"
+///   "crickets"         "silence"             "background noise"
 ///   "Thanks for watching!"   "Thank you."   "you"
 ///
 /// Heuristic: if the trimmed output is a single short tag in brackets/
@@ -483,6 +484,20 @@ fn is_whisper_hallucination(text: &str) -> bool {
         "thank you",
         "thank you for watching.",
         "thank you for watching",
+        "silence",
+        "cricket",
+        "crickets",
+        "cricket chirping",
+        "crickets chirping",
+        "no audio",
+        "no speech",
+        "background noise",
+        "background music",
+        "music",
+        "applause",
+        "laughter",
+        "inaudible",
+        "unintelligible",
         "you",
         ".",
     ];

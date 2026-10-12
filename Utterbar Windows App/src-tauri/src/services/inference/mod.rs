@@ -15,7 +15,7 @@ pub mod vad;
 // `#[ignore]` and gated on `UTTERBAR_STEP2_WAV` env var pointing at
 // a 16 kHz mono 16-bit WAV. Run manually after rebuilding the
 // vendored sherpa-onnx + ORT + DirectML bundle to confirm Whisper
-// Small/Medium/Large + Parakeet TDT v3 int8 still load and
+// Small/Medium/Large/Turbo + Parakeet TDT v3 int8 still load and
 // transcribe under both CPU and DirectML. Harness mirrors the
 // production engine code paths (no shortcuts).
 #[cfg(test)]

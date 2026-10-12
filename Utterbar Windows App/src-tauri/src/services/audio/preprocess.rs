@@ -3,9 +3,8 @@
 //!   * `trim_silence` — drop leading/trailing silence
 //!   * `suppress_noise` — DC blocker + high-pass + adaptive noise-floor
 //!     gate, tuned per `NoiseSuppression` level.
-//!   * `noise_gate` — standalone inter-word gate that zeros short
-//!     sub-threshold blips (keyboard clicks, lip smacks, breath) without
-//!     affecting broadband content.
+//!   * `noise_gate` — standalone gate that attenuates sustained
+//!     sub-threshold regions without erasing quiet speech.
 
 use crate::domain::NoiseSuppression;
 

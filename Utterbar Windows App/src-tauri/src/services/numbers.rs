@@ -164,11 +164,14 @@ fn tokenise(input: &str) -> Vec<(Tok, &str)> {
             out.push((Tok::Other, &input[start..i]));
             continue;
         }
-        // Single byte (punctuation, digit, non-ASCII byte).
+        // Preserve one complete Unicode scalar. ASCII punctuation and digits
+        // still advance by one byte, while non-ASCII text advances to the next
+        // valid UTF-8 boundary instead of slicing through a multi-byte scalar.
         let start = i;
-        i += 1;
-        // Greedy run of identical-class non-alpha non-space bytes is
-        // overkill; one byte per Other is fine.
+        let Some(ch) = input[start..].chars().next() else {
+            break;
+        };
+        i += ch.len_utf8();
         out.push((Tok::Other, &input[start..i]));
     }
     out
@@ -647,6 +650,21 @@ mod tests {
     fn empty_passthrough() {
         assert_eq!(t(""), "");
         assert_eq!(t("hello world"), "hello world");
+    }
+
+    #[test]
+    fn non_ascii_text_is_preserved_without_panicking() {
+        assert_eq!(t("Yağlı ışık"), "Yağlı ışık");
+        assert_eq!(t("Français déjà vu"), "Français déjà vu");
+        assert_eq!(t("日本語の文章"), "日本語の文章");
+        assert_eq!(t("ready 👍🏽"), "ready 👍🏽");
+    }
+
+    #[test]
+    fn number_conversion_remains_safe_beside_non_ascii_text() {
+        assert_eq!(t("Yağlı three D baskı"), "Yağlı 3D baskı");
+        assert_eq!(t("café twenty three fois"), "café 23 fois");
+        assert_eq!(t("日本語 page seven"), "日本語 page 7");
     }
 
     /// Regression: two separate numbers spoken back to back must NOT be

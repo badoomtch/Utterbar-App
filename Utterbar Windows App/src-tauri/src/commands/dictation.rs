@@ -1478,6 +1478,7 @@ pub(crate) fn display_name_short(model_id: &str) -> String {
         "sherpa-whisper-small" => "Whisper Small".into(),
         "sherpa-whisper-medium" => "Whisper Medium".into(),
         "sherpa-whisper-large-v3" => "Whisper Large v3".into(),
+        "sherpa-whisper-turbo" => "Whisper Turbo".into(),
         "sherpa-whisper-base" => "Whisper Base".into(),
         other => other.to_string(),
     }
@@ -3575,6 +3576,12 @@ pub(crate) async fn stop_recording_inner(
         }
         p
     };
+
+    // Whisper sometimes represents a pause as `...` or `…`. That is not
+    // spoken text and should never be pasted as punctuation. Apply this after
+    // every post-processing path so the setting is enforced even when Smart
+    // rewrite is disabled or a mode uses an LLM provider.
+    processed = crate::services::output_validation::strip_ellipsis_markers(&processed);
 
     // Auto-space on paste: if the previous dictation in this same app didn't end with
     // whitespace and the new one starts with a letter/digit, prepend a space. Keeps
@@ -6050,6 +6057,7 @@ mod diarised_helpers_tests {
             display_name_short("sherpa-whisper-large-v3"),
             "Whisper Large v3"
         );
+        assert_eq!(display_name_short("sherpa-whisper-turbo"), "Whisper Turbo");
         assert_eq!(display_name_short("sherpa-whisper-base"), "Whisper Base");
     }
 
