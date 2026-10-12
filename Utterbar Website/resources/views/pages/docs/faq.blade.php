@@ -12,14 +12,14 @@
         ['q' => 'What happens to my data when I uninstall?', 'a' => '<code>%APPDATA%\\Utterbar\\</code> is left in place so you can re-install without losing history. Delete the folder yourself for a clean wipe.'],
         ['q' => 'Will there be a macOS version?', 'a' => 'After Windows 1.0 ships. Mac already has decent local-only options; I\'d rather make Windows properly good first.'],
         ['q' => 'Will there be a Linux version?', 'a' => 'On the roadmap under "Later". No ETA.'],
-        ['q' => 'Can I audit the code?', 'a' => 'Utterbar isn\'t open source (the paid features stay paid that way), but security researchers and enterprise buyers can request a source review under NDA. Email <a href="mailto:' . config('site.email.contact') . '" style="color: var(--accent);">' . config('site.email.contact') . '</a>.'],
+        ['q' => 'Can I audit the code?', 'a' => 'Yes. Utterbar is open source under the MIT licence. The complete source is public on <a href="' . config('site.github_repository_url') . '" target="_blank" rel="noopener" style="color: var(--accent);">GitHub</a>, including the Windows app and website.'],
         ['q' => 'How do I export my transcription history?', 'a' => 'Settings &gt; History &gt; Export. Produces a zip of every transcription (and audio, if you retained it).'],
         ['q' => 'Why does dictation refuse past 5 minutes?', 'a' => 'Single-shot dictation is capped at 5 minutes. The offline recogniser allocates memory proportional to audio length, so the cap protects you from a long-input crash. For longer recordings, switch to Meeting Mode (Settings &gt; Modes &gt; Meeting): it chunks audio internally and handles up to about an hour. The cap will go away when the streaming-recogniser rebuild lands in a future release.'],
         ['q' => 'Can I use it commercially?', 'a' => 'Yes. Utterbar is free and open source for personal and commercial use alike.'],
     ];
 @endphp
 
-<x-layouts.docs title="FAQ" description="Frequently asked questions about Utterbar. Windows support, GPU requirements, offline behaviour, languages, exports, and licensing.">
+<x-layouts.docs title="FAQ" description="Frequently asked questions about Utterbar. Windows support, GPU requirements, offline behaviour, languages, exports, and open-source access.">
     @php
         // FAQPage schema. Strip the inline HTML from answers so the schema
         // text is plain — Google ignores any `<a>` / `<code>` we leave in.

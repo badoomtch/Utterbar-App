@@ -46,6 +46,14 @@
         </nav>
 
         <div class="hidden md:flex items-center gap-3">
+            <a href="{{ config('site.github_repository_url') }}"
+               target="_blank"
+               rel="noopener"
+               class="ub-btn ub-btn-ghost !h-11 !w-11 !p-0"
+               aria-label="View Utterbar source code on GitHub"
+               title="View source on GitHub">
+                <x-icon name="github" size="18" stroke="1.8" />
+            </a>
             <a href="{{ route('download') }}" class="ub-btn ub-btn-cta">Download</a>
         </div>
 
@@ -60,6 +68,10 @@
             @foreach ($links as $link)
                 <a href="{{ $link['href'] }}" class="py-2 text-base font-medium" style="color: var(--fg);">{{ $link['label'] }}</a>
             @endforeach
+            <a href="{{ config('site.github_repository_url') }}" target="_blank" rel="noopener" class="py-2 text-base font-medium inline-flex items-center gap-2" style="color: var(--fg);">
+                <x-icon name="github" size="18" stroke="1.8" />
+                Source code
+            </a>
             <a href="{{ route('download') }}" class="ub-btn ub-btn-cta mt-2">Download</a>
         </nav>
     </div>

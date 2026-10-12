@@ -3,9 +3,9 @@
         ['utterbar' => 'Runs on your PC',             'others' => 'Runs on someone else\'s server'],
         ['utterbar' => 'No account, ever',            'others' => 'Sign up to dictate'],
         ['utterbar' => 'Offline forever',             'others' => 'Needs internet every time'],
-        ['utterbar' => 'Pay once, own it',            'others' => 'Rent it every month'],
+        ['utterbar' => 'Free and open source',        'others' => 'Closed subscription service'],
         ['utterbar' => 'Captures your PC\'s audio',    'others' => 'Microphone only'],
-        ['utterbar' => 'No length limits',            'others' => 'Word caps and rate limits'],
+        ['utterbar' => 'No usage quotas',             'others' => 'Word caps and rate limits'],
         ['utterbar' => 'Audio discarded on the spot', 'others' => 'Audio uploaded and stored'],
         ['utterbar' => 'No telemetry, not even opt-in','others' => 'Telemetry on by default'],
         ['utterbar' => 'Visible network log',         'others' => 'Opaque background calls'],
@@ -121,13 +121,15 @@
     <x-section>
         <div class="flex flex-wrap gap-3">
             <a href="{{ route('legal.privacy') }}" class="ub-btn ub-btn-ghost">Read the legal privacy policy</a>
-            <a href="mailto:{{ config('site.email.contact') }}?subject=Utterbar%20source%20review" class="ub-btn ub-btn-ghost">Request a source review</a>
+            <a href="{{ config('site.github_repository_url') }}" target="_blank" rel="noopener" class="ub-btn ub-btn-ghost">
+                <x-icon name="github" size="17" stroke="1.8" />
+                View source on GitHub
+            </a>
         </div>
         <p class="mt-4 text-sm max-w-2xl" style="color: var(--muted);">
-            Security researchers and enterprise buyers can request access to the Rust core under NDA.
-            The app itself is distributed as a Windows installer, not open source, so the paid features stay paid.
+            Utterbar is free and open source under the MIT licence. You can inspect the same source used to build the public app, report security issues, or build it yourself.
             The current public installer is unsigned, so Windows SmartScreen will warn on first install. Click &ldquo;More info&rdquo;
-            and then &ldquo;Run anyway&rdquo;. Only download Utterbar from <a href="{{ route('download') }}" style="color: var(--accent);">utterbar.com/download</a>.
+            and then &ldquo;Run anyway&rdquo;. Download Utterbar through <a href="{{ route('download') }}" style="color: var(--accent);">the latest GitHub Release</a>.
         </p>
     </x-section>
 </x-layouts.app>

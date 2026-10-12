@@ -23,7 +23,7 @@ This isn't an ideological choice. It's a practical one with real trade-offs. Wor
 
 **Privacy that's verifiable, not promised.** Pull your ethernet cable. Open Process Hacker and look at Utterbar's network connections — there are none after the model finishes downloading. You don't have to trust a TOS that says "we don't store audio". The architecture means the question doesn't apply.
 
-**No subscription tax on speaking.** Cloud ASR has a per-request cost — bandwidth, GPU minutes, model licensing. That cost gets passed on as a monthly fee, sometimes with word caps, often with a "fair use" clause that bites the heaviest users. A local model has no per-use cost. Utterbar charges £39.99 once, lifetime; the free tier is genuinely unlimited.
+**No subscription tax on speaking.** Cloud ASR has a per-request cost — bandwidth, GPU minutes, model licensing. That cost gets passed on as a monthly fee, sometimes with word caps, often with a "fair use" clause that bites the heaviest users. A local model has no per-use cost. Utterbar is free and open source, with every feature included and no usage quota.
 
 **Works with no internet.** On a train, on a plane, in a building with bad wifi, in a country with patchy infrastructure. The model is on the disk; the dictation works.
 

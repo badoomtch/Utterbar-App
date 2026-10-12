@@ -8,6 +8,7 @@
             ['Compare', route('compare.index')],
             ['Changelog', route('changelog')],
             ['Roadmap', route('roadmap')],
+            ['Source code', config('site.github_repository_url'), ['target' => '_blank', 'rel' => 'noopener']],
         ],
         'Docs' => [
             ['Getting started', route('docs.getting-started')],

@@ -155,9 +155,9 @@
                             Windows-native, free and open source. On-device speech recognition with Whisper and NVIDIA Parakeet. Dictation, modes, vocabulary, file transcription, meetings.
                         </p>
                         <ul class="mt-6 space-y-2.5 text-sm">
-                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Direct GBP purchase, no reseller dance</span></li>
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Free download, no account or reseller</span></li>
                             <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Modern installer; first run pulls models on demand</span></li>
-                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Active beta channel; signed updates every few weeks</span></li>
+                            <li class="flex items-start gap-2.5"><span class="mt-0.5" style="color: var(--accent);"><x-icon name="check" size="16" stroke="2.2" /></span><span style="color: var(--fg);">Stable and beta releases published on GitHub</span></li>
                         </ul>
                     </div>
                     <div class="p-8 md:p-10" style="border-left: 1px solid var(--border);">
@@ -203,7 +203,7 @@
 
                 <div class="space-y-6 text-lg leading-relaxed" style="color: var(--fg);">
                     <p>
-                        Dragon and Utterbar live in the same corner of the market: serious Windows dictation, on-device, no subscription rent for the core flow. The honest split is what you&rsquo;re paying for and how often you need it.
+                        Dragon and Utterbar live in the same corner of the market: serious Windows dictation, on-device, no subscription rent for the core flow. The honest split is the depth of workflow you need and whether a specialised commercial suite is worth its cost.
                     </p>
                 </div>
 
@@ -220,7 +220,7 @@
                     <h3 class="text-xl mb-4" style="color: var(--fg-hi); letter-spacing: -0.015em;">Pick Utterbar if&hellip;</h3>
                     <ul class="space-y-3 text-base" style="color: var(--fg);">
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You want to dictate quickly across every app on your PC, not run the OS by voice. The hotkey-and-paste flow is what you actually do all day; the rest of Dragon&rsquo;s feature surface is overhead you&rsquo;ll never use.</span></li>
-                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re in the UK and want to pay in GBP without going through a reseller and a quote. We sell direct from a single page, and the licence arrives by email immediately.</span></li>
+                        <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You want a free, open-source app you can download immediately, inspect, build yourself, and use on as many Windows PCs as you like.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You&rsquo;re used to modern apps that ship updates in weeks, not years, and you don&rsquo;t want a tool that has gone quiet since 2023.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You need to transcribe meetings (system audio) or files (recordings, podcasts) in addition to dictation. That&rsquo;s a different surface from Dragon&rsquo;s.</span></li>
                         <li class="flex gap-3"><span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style="background: var(--accent);"></span><span>You don&rsquo;t want to pay several hundred pounds up front for a tool you&rsquo;d use a few times a day. Free is a different commitment level.</span></li>

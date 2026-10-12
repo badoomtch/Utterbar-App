@@ -125,7 +125,7 @@
                 </p>
 
                 <p class="mt-4 max-w-xl" style="font-size: clamp(1rem, 1.5vw, 1.125rem); line-height: 1.5; color: var(--muted);">
-                    Speaks 30+ languages. None of them ever leaves your PC.
+                    Free and open source. Speaks 30+ languages. None of them ever leaves your PC.
                 </p>
 
                 <div class="mt-12 flex flex-wrap gap-3">
@@ -133,15 +133,18 @@
                         Download for Windows
                         <x-icon name="arrow-right" size="16" stroke="2" />
                     </a>
-                    <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">
-                        See pricing
+                    <a href="{{ config('site.github_repository_url') }}" target="_blank" rel="noopener" class="ub-btn ub-btn-ghost">
+                        <x-icon name="github" size="17" stroke="1.8" />
+                        View source
                     </a>
                 </div>
-                @if ($latestRelease ?? null)
-                    <p class="mt-5 font-mono text-xs" style="color: var(--muted); letter-spacing: 0.04em;">
-                        Currently: v{{ $latestRelease->version }} &middot; {{ $latestRelease->sizeLabel() }} &middot; Windows 10/11
-                    </p>
-                @endif
+                <p class="mt-5 font-mono text-xs" style="color: var(--muted); letter-spacing: 0.04em;">
+                    Currently: v{{ $latestRelease->version }}
+                    @if ($latestRelease->sizeLabel)
+                        &middot; {{ $latestRelease->sizeLabel }}
+                    @endif
+                    &middot; Windows 10/11
+                </p>
             </div>
 
             {{-- Interactive pill widget: hover/tap to expand, drag to move,
@@ -728,7 +731,7 @@
                         I&rsquo;ve used dictation software for years. The cloud ones are fast but creepy. The local ones are fiddly, and almost all of them are on Mac. Utterbar is the Windows app I wanted to exist: opinionated, native, local, not renting me my own voice back.
                     </p>
                     <p class="mt-6" style="font-size: 1.25rem; line-height: 1.55; color: var(--muted); font-weight: 300;">
-                        Free stays free because the core loop isn&rsquo;t a feature, it&rsquo;s the whole product. Pro exists so I can keep building. If you&rsquo;ve read this far, thank you.
+                        Utterbar is free and open source because the core loop isn&rsquo;t a feature, it&rsquo;s the whole product. You can read the code, build it yourself, and help improve it. If you&rsquo;ve read this far, thank you.
                     </p>
                     <p class="mt-10 flex items-center gap-3 text-sm" style="color: var(--muted);">
                         <span style="color: var(--fg-hi); font-weight: 500;">Jay</span>
@@ -762,15 +765,18 @@
                             Download for Windows
                             <x-icon name="arrow-right" size="16" stroke="2" />
                         </a>
-                        <a href="{{ route('pricing') }}" class="ub-btn ub-btn-ghost">
-                            See pricing
+                        <a href="{{ config('site.github_repository_url') }}" target="_blank" rel="noopener" class="ub-btn ub-btn-ghost">
+                            <x-icon name="github" size="17" stroke="1.8" />
+                            View source
                         </a>
                     </div>
-                    @if ($latestRelease ?? null)
-                        <p class="ub-final-cta-meta">
-                            v{{ $latestRelease->version }} &middot; {{ $latestRelease->sizeLabel() }} &middot; WIN10/11 &middot; SHA-256 verified
-                        </p>
-                    @endif
+                    <p class="ub-final-cta-meta">
+                        v{{ $latestRelease->version }}
+                        @if ($latestRelease->sizeLabel)
+                            &middot; {{ $latestRelease->sizeLabel }}
+                        @endif
+                        &middot; WIN10/11 &middot; SHA-256 verified
+                    </p>
                 </div>
             </div>
 

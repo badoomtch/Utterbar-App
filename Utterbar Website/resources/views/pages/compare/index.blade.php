@@ -1,7 +1,7 @@
 @php
     // Per-competitor teasers. Order chosen for the way buyers
     // typically arrive: Wispr Flow (most-searched modern competitor),
-    // Voice Access (the "why pay anything" question), Dragon (the
+    // Voice Access (the "why install another app" question), Dragon (the
     // legacy enterprise incumbent), Superwhisper (the cross-platform
     // sibling product). Each teaser leads with the angle of
     // difference, not "we win".
@@ -10,19 +10,19 @@
             'href'     => route('compare.wispr-flow'),
             'eyebrow'  => 'Cloud subscription vs local and free',
             'title'    => 'Utterbar vs Wispr Flow',
-            'body'     => 'Wispr Flow is the most-marketed modern dictation app. They send your voice to their servers and bill you monthly; we run it on your PC and charge once. Full table, honest essay.',
+            'body'     => 'Wispr Flow is the most-marketed modern dictation app. They send your voice to their servers and bill you monthly; we run it on your PC and publish the source under the MIT licence. Full table, honest essay.',
         ],
         [
             'href'     => route('compare.voice-access'),
-            'eyebrow'  => 'Free Windows feature vs paid app',
+            'eyebrow'  => 'Built-in voice control vs local dictation',
             'title'    => 'Utterbar vs Windows Voice Access',
-            'body'     => 'Voice Access is free and built into Windows 11. It is genuinely good at OS voice control and basic dictation. So why pay anything? Honest answer: only if Voice Access does not do what you actually need.',
+            'body'     => 'Voice Access is free and built into Windows 11. It is genuinely good at OS voice control and basic dictation. Why install another app? Only if Voice Access does not do what you actually need.',
         ],
         [
             'href'     => route('compare.dragon'),
             'eyebrow'  => 'Legacy enterprise vs modern Windows',
             'title'    => 'Utterbar vs Dragon',
-            'body'     => 'Dragon (Microsoft-owned since 2022) has run Windows dictation for thirty years. It still wins on legal/medical vocabularies and OS-wide voice control. We win on direct GBP pricing, modern installer, and active updates.',
+            'body'     => 'Dragon (Microsoft-owned since 2022) has run Windows dictation for thirty years. It still wins on legal/medical vocabularies and OS-wide voice control. Utterbar is free and open source, with a modern installer and active updates.',
         ],
         [
             'href'     => route('compare.superwhisper'),

@@ -122,7 +122,7 @@
 
 <x-layouts.app
     title="Utterbar vs Windows Voice Access"
-    description="Voice Access is free and built into Windows 11. Utterbar is paid and dictation-focused. They overlap less than you might think; here is the honest split.">
+    description="Voice Access is free and built into Windows 11. Utterbar is free, open source, and dictation-focused. They overlap less than you might think; here is the honest split.">
 
     <section class="pt-20 md:pt-28 pb-12">
         <div class="ub-container">
@@ -132,7 +132,7 @@
                     Utterbar vs <x-hl>Windows Voice Access</x-hl>.
                 </h1>
                 <p class="ub-lead mt-8 max-w-2xl">
-                    Voice Access is free, built into Windows 11, and pretty good at what it&rsquo;s built for. So why pay anything? Honest answer: only if Voice Access doesn&rsquo;t do what you actually need.
+                    Voice Access is free, built into Windows 11, and pretty good at what it&rsquo;s built for. Utterbar is also free, but focused on fast local dictation rather than controlling Windows by voice.
                 </p>
             </div>
         </div>

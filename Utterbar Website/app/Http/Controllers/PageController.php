@@ -2,9 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\LatestGitHubRelease;
+
 class PageController extends Controller
 {
-    public function home() { return view('pages.home'); }
+    public function home(LatestGitHubRelease $latestGitHubRelease)
+    {
+        return view('pages.home', [
+            'latestRelease' => (object) $latestGitHubRelease->get(),
+        ]);
+    }
+
     public function features() { return view('pages.features'); }
     public function howItWorks() { return view('pages.how-it-works'); }
     public function privacy() { return view('pages.privacy'); }
@@ -30,15 +38,14 @@ class PageController extends Controller
         return view('pages.blog.show', ['post' => $post]);
     }
 
-    // Comparison / "alternative to" pages — high-intent commercial searches.
+    // Comparison / "alternative to" pages - high-intent commercial searches.
     public function compareIndex() { return view('pages.compare.index'); }
     public function compareWisprFlow() { return view('pages.compare.wispr-flow'); }
     public function compareDragon() { return view('pages.compare.dragon'); }
     public function compareVoiceAccess() { return view('pages.compare.voice-access'); }
     public function compareSuperwhisper() { return view('pages.compare.superwhisper'); }
 
-    // Educational deep-dive — "what is local dictation" — link-bait quality
-    // page that explains on-device speech recognition without selling.
+    // Educational deep-dive: explains on-device speech recognition without selling.
     public function whatIsLocalDictation() { return view('pages.what-is-local-dictation'); }
 
     public function docsIndex() { return view('pages.docs.index'); }

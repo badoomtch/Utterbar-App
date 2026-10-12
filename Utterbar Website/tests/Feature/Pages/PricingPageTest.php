@@ -21,6 +21,7 @@ class PricingPageTest extends TestCase
         $response = $this->get(route('pricing'));
         $response->assertStatus(200);
         $response->assertSee('Free and open source', false);
+        $response->assertSee(config('site.github_repository_url'), false);
     }
 
     public function test_pricing_page_has_no_price_or_buy_cta(): void
@@ -31,6 +32,7 @@ class PricingPageTest extends TestCase
         $response->assertDontSee('£39.99', false);
         $response->assertDontSee('per seat', false);
         $response->assertDontSee('Buy Pro', false);
+        $response->assertDontSee('our servers do are host the installer', false);
     }
 
     public function test_pricing_page_offers_a_download(): void

@@ -19,8 +19,8 @@
         ['q' => 'Is it really free?', 'a' => 'Yes. Utterbar is free and open source, with every feature included. No trial, no paid tier, no upsell, no card. Download, install, talk.'],
         ['q' => 'What is the catch?', 'a' => 'There is not one. The app runs entirely on your PC and the source is open, so you can read exactly what it does. There is nothing to buy and nothing to subscribe to.'],
         ['q' => 'Do I need an account?', 'a' => 'No account, no sign-in, no email. Nothing to create, nothing to log in to.'],
-        ['q' => 'What if your servers go down?', 'a' => 'Utterbar keeps working. Everything happens on your machine; the only things our servers do are host the installer and the update feed. Offline, the app runs exactly the same.'],
-        ['q' => 'Can I self-host or build from source?', 'a' => 'It already runs entirely on your PC. And because it is open source, you can build it yourself and see precisely what it does.'],
+        ['q' => 'What if the website goes down?', 'a' => 'Utterbar keeps working. Everything happens on your machine, while installers and updates are published through GitHub Releases. Offline, the app runs exactly the same.'],
+        ['q' => 'Can I build from source?', 'a' => 'Yes. The complete source is public on <a href="' . config('site.github_repository_url') . '" target="_blank" rel="noopener" style="color: var(--accent);">GitHub</a> under the MIT licence, so you can inspect it, build it yourself, and contribute changes.'],
         ['q' => 'How can I support it?', 'a' => 'Use it, tell people, and open issues or pull requests. If you have a question, email <a href="mailto:' . config('site.email.contact') . '" style="color: var(--accent);">' . config('site.email.contact') . '</a>.'],
     ];
 
@@ -69,7 +69,10 @@
                         Download for Windows
                         <x-icon name="arrow-right" size="16" stroke="2" />
                     </a>
-                    <a href="{{ route('features') }}" class="ub-btn ub-btn-ghost">See the features</a>
+                    <a href="{{ config('site.github_repository_url') }}" target="_blank" rel="noopener" class="ub-btn ub-btn-ghost">
+                        <x-icon name="github" size="17" stroke="1.8" />
+                        View source
+                    </a>
                 </div>
                 <p class="mt-4 font-mono text-[11px]" style="color: var(--fg-dim); letter-spacing: 0.08em;">
                     LOCAL-ONLY &middot; NO ACCOUNT &middot; NO TELEMETRY
