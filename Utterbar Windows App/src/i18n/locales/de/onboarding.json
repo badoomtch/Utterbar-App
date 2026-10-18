@@ -32,7 +32,7 @@
   "updates": {
     "title": "Update-Prüfung",
     "body_prefix": "Utterbar kann gelegentlich bei",
-    "body_domain": "utterbar.com",
+    "body_domain": "GitHub",
     "body_suffix": "anfragen, ob eine neuere Version verfügbar ist. Das ist die einzige ausgehende Anfrage, die die App standardmäßig macht. Sie sendet nur deine aktuelle Version, keine Nutzungsdaten, keine Telemetrie, keine Identifikatoren.",
     "options": {
       "on_label": "Ja, nach Updates suchen",

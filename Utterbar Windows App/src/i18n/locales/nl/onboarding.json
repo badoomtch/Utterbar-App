@@ -32,7 +32,7 @@
   "updates": {
     "title": "Updates controleren",
     "body_prefix": "Utterbar kan af en toe vragen aan",
-    "body_domain": "utterbar.com",
+    "body_domain": "GitHub",
     "body_suffix": "of er een nieuwere versie is. Dit is het enige uitgaande verzoek dat de app standaard doet. Het stuurt alleen je huidige versie, geen gebruik, geen telemetrie, geen identificatoren.",
     "options": {
       "on_label": "Ja, controleer op updates",

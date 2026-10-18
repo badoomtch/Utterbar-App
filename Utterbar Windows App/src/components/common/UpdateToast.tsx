@@ -214,10 +214,8 @@ function extractErrorMessage(
  * Self-dismisses after 12 seconds (long enough to read the version + click
  * the link, short enough not to linger). User can dismiss manually too.
  *
- * "See what's new" opens the live changelog at utterbar.com/changelog
- * rather than trying to render the local release-notes file — the
- * website page is the single source of truth and matches what users see
- * on the marketing site.
+ * "See what's new" opens the matching GitHub Release, independently of
+ * the retired marketing website.
  */
 export function PostUpdateToast() {
   const { t } = useTranslation('common');
@@ -261,9 +259,9 @@ export function PostUpdateToast() {
             <div className="mt-2 flex items-center gap-2">
               <button
                 onClick={() =>
-                  void openShell('https://utterbar.com/changelog').catch(
-                    () => undefined,
-                  )
+                  void openShell(
+                    `https://github.com/badoomtch/Utterbar-App/releases/tag/v${justUpdatedTo}`,
+                  ).catch(() => undefined)
                 }
                 className="text-[12px] font-medium text-accent transition-opacity hover:opacity-80"
               >

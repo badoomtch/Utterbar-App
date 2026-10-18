@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Private support
+    url: https://github.com/badoomtch/Utterbar-App/blob/main/docs/TROUBLESHOOTING.md
+    about: Email Jay. Do not post private recordings, personal information or secrets publicly.
+  - name: Security report
+    url: https://github.com/badoomtch/Utterbar-App/blob/main/SECURITY.md
+    about: Report vulnerabilities privately using the security policy.

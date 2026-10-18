@@ -5,7 +5,7 @@
 | Directory | Purpose | Stack |
 | --- | --- | --- |
 | `Utterbar Windows App/` | Windows desktop dictation application | Tauri v2, React, Rust |
-| `Utterbar Website/` | Public product website and contact form | Laravel, Blade, Alpine, Tailwind |
+| `Utterbar Website/` | Legacy product website and contact form, pending retirement | Laravel, Blade, Alpine, Tailwind |
 
 ## Desktop architecture
 
@@ -32,9 +32,18 @@ Build and release instructions are in `RELEASE_RUNBOOK.md`.
 
 ## Website architecture
 
-The Laravel site is a marketing and documentation surface. It has no updater
+GitHub is now the public product home: the root README, `docs/`, Issues and
+Releases provide product information, support and downloads. Support email is
+`jay@jayparry.me`. The separate website and Ddraig Dev links are being retired.
+This decision does not itself delete hosting, DNS or historical records.
+
+The legacy Laravel site is a marketing and documentation surface. It has no updater
 API, release admin API, payment flow, account system, licence system, or
-subscriber database. Website deployment is separate from desktop releases.
+subscriber workflow. Website deployment is separate from desktop releases.
+
+The live database still contains historical tables from older commercial
+versions despite their removal from current routes. Keep them backed up when
+retiring hosting; see `docs/HOSTING_RETIREMENT.md`.
 
 ## Security boundaries
 

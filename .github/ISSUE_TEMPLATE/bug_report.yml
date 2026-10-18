@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a reproducible app problem without private recordings or secrets.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Private support: jay@jayparry.me. Report vulnerabilities privately, not here.
+        Check existing issues first. Public issues are visible to everyone.
+  - type: input
+    id: version
+    attributes:
+      label: Utterbar version
+      placeholder: Version from Settings → About; stable or beta
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and affected application
+      placeholder: Windows version; target editor/browser if paste fails
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include frequency and whether it repeats after restarting.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Relevant settings
+      description: Model, dictation language, input source, mode, GPU/provider and timing settings, where relevant.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Non-sensitive examples or diagnostics
+      description: For missing words, include the phrase and output only if safe. Inspect and redact logs. Do not attach private audio.

@@ -32,7 +32,7 @@
   "updates": {
     "title": "Controllo aggiornamenti",
     "body_prefix": "Utterbar può occasionalmente chiedere a",
-    "body_domain": "utterbar.com",
+    "body_domain": "GitHub",
     "body_suffix": "se è disponibile una versione più recente. È l'unica richiesta uscente che l'app fa di default. Invia solo la tua versione attuale, nessun uso, nessuna telemetria, nessun identificatore.",
     "options": {
       "on_label": "Sì, controlla gli aggiornamenti",

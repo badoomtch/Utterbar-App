@@ -31,10 +31,15 @@ If this file disagrees with CLAUDE.md / MONOREPO.md / TODO.md, they win.
 
 ## 1. The two sub-projects
 
+**Current public home:** GitHub README, `docs/`, Issues and Releases. Support:
+`jay@jayparry.me`. The separate website and Ddraig Dev are being retired;
+do not start or resume the cancelled Cloudflare website migration. Legacy
+source remains for reference. Hosting, databases and DNS have not been deleted.
+
 | Directory | What | Stack |
 | --- | --- | --- |
 | `Utterbar Windows App/` | The desktop dictation app | Tauri v2 + React + Rust |
-| `Utterbar Website/` | Marketing site; download and changelog routes redirect to GitHub Releases | Laravel 12 + Blade + Alpine + Tailwind v4 |
+| `Utterbar Website/` | Legacy marketing site, pending retirement; not needed by the updater | Laravel 12 + Blade + Alpine + Tailwind v4 |
 
 Single git repo, root here. Remote `badoomtch/Utterbar-App` (public). Website
 deploy is out-of-band over SSH (Cloudways has no git deploy).

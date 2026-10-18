@@ -32,7 +32,7 @@
   "updates": {
     "title": "Update checks",
     "body_prefix": "Utterbar can occasionally ask",
-    "body_domain": "utterbar.com",
+    "body_domain": "GitHub",
     "body_suffix": "if a newer version is out. This is the only outbound request the app makes by default. It sends just your current version, no usage, no telemetry, no identifiers.",
     "options": {
       "on_label": "Yes, check for updates",

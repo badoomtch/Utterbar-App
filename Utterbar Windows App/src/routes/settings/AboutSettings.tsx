@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Mail } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { getVersion } from '@tauri-apps/api/app';
 import { useTranslation } from 'react-i18next';
@@ -36,18 +36,11 @@ export function AboutSettings() {
           {t('about.tagline')}
         </div>
 
-        <div className="mt-6 flex items-center justify-between border-t border-border-soft/50 pt-4">
-          {/* Footer attribution mirrors the website footer's wording exactly:
-              "© {year} Utterbar · Built by Ddraig Dev · Built in Wales".
-              Single source of truth so the app and the marketing site
-              never drift apart on attribution. The line is split into a
-              prefix (with year interpolation), the link's button label,
-              and a suffix so the inline button keeps the same surrounding
-              text without resorting to a Trans component. */}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft/50 pt-4">
           <div className="text-[13px] text-muted">
             {t('about.footer.copyright_prefix', { year: new Date().getFullYear() })}{' '}
             <button
-              onClick={() => void openShell('https://ddraig.dev').catch(() => undefined)}
+              onClick={() => void openShell('mailto:jay@jayparry.me').catch(() => undefined)}
               className="group inline-flex items-center gap-1 text-fg-hi hover:text-accent"
             >
               {t('about.footer.attribution_link')}
@@ -56,10 +49,19 @@ export function AboutSettings() {
             {t('about.footer.location_suffix')}
           </div>
           <button
-            onClick={() => void openShell('https://utterbar.com').catch(() => undefined)}
+            onClick={() =>
+              void openShell('https://github.com/badoomtch/Utterbar-App').catch(() => undefined)
+            }
             className="font-mono text-[11px] text-fg-dim transition-colors hover:text-accent"
           >
             {t('about.footer.website_link')}
+          </button>
+          <button
+            onClick={() => void openShell('mailto:jay@jayparry.me').catch(() => undefined)}
+            className="inline-flex items-center gap-1 text-[12px] text-muted hover:text-accent"
+          >
+            <Mail className="h-3 w-3" aria-hidden="true" />
+            jay@jayparry.me
           </button>
         </div>
       </Card>

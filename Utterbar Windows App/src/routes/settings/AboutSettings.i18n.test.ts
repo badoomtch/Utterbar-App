@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -66,21 +66,30 @@ describe('AboutSettings i18n source-grep guard', () => {
     expect(SOURCE).toMatch(/about\.third_party\.description/);
   });
 
-  it('preserves dynamic version, third-party body, and outbound URLs', () => {
-    // The localisation only swaps display labels. The structural
-    // identifiers below are load-bearing — `getVersion()` feeds the
-    // dynamic version readout, `THIRD_PARTY_LICENCES_MD` is the
-    // bundled licence body the `<pre>` block renders verbatim, and the
-    // two outbound URLs are the footer's only behaviour. Pin every one
-    // so a future regression that drops one fails immediately.
+  it('preserves version and licences while linking to GitHub and current support', () => {
+    // Product-home changes must not drop the version or required notices.
     expect(SOURCE).toMatch(/getVersion\(\)/);
     expect(SOURCE).toContain('THIRD_PARTY_LICENCES_MD');
-    expect(SOURCE).toContain('https://ddraig.dev');
-    expect(SOURCE).toContain('https://utterbar.com');
-    // `openShell` is the fire-and-forget mechanism for both URLs and
-    // must not silently get swapped for a Rust-IPC `invoke()`.
-    expect(SOURCE).toMatch(/openShell\(['"]https:\/\/ddraig\.dev['"]\)/);
-    expect(SOURCE).toMatch(/openShell\(['"]https:\/\/utterbar\.com['"]\)/);
+    expect(SOURCE).toContain('mailto:jay@jayparry.me');
+    expect(SOURCE).toContain('https://github.com/badoomtch/Utterbar-App');
+    expect(SOURCE).not.toContain('https://ddraig.dev');
+    expect(SOURCE).not.toContain('https://utterbar.com');
+    expect(SOURCE).toMatch(/openShell\(['"]mailto:jay@jayparry\.me['"]\)/);
+    expect(SOURCE).toMatch(/openShell\(['"]https:\/\/github\.com\/badoomtch\/Utterbar-App['"]\)/);
+  });
+
+  it('uses current project names and update host in every locale', () => {
+    const root = resolve(HERE, '../../i18n/locales');
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const settings = JSON.parse(readFileSync(resolve(root, entry.name, 'settings.json'), 'utf8'));
+      const onboarding = JSON.parse(
+        readFileSync(resolve(root, entry.name, 'onboarding.json'), 'utf8'),
+      );
+      expect(settings.about.footer.attribution_link, entry.name).toBe('Jay Parry');
+      expect(settings.about.footer.website_link, entry.name).toBe('GitHub');
+      expect(onboarding.updates.body_domain, entry.name).toBe('GitHub');
+    }
   });
 
   it('passes the year through the copyright_prefix interpolation', () => {

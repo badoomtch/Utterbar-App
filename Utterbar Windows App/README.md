@@ -2,7 +2,10 @@
 
 Local-only dictation for Windows 10 / 11. Press a hotkey, speak, text lands in whatever app has focus. ASR runs on-device via NVIDIA Parakeet (sherpa-onnx). No audio ever leaves the machine.
 
-This directory holds the desktop client. The marketing website and licence backend live at [../Utterbar Website/](../Utterbar%20Website/). Both are part of a single monorepo rooted at the parent directory.
+This directory holds the desktop client. The [project homepage](../README.md),
+[user guide](../docs/GETTING_STARTED.md), downloads and support now live on
+GitHub. The legacy website source is retained in the monorepo; it is not a
+licence backend or a dependency of the desktop updater.
 
 ## Getting started
 
@@ -26,12 +29,16 @@ Full dev-machine setup: [./docs/DEV_SETUP.md](./docs/DEV_SETUP.md).
 ## Build + packaging
 
 ```powershell
-pnpm tauri build
+pnpm tauri:build:release
 ```
 
 NSIS installer output is under `src-tauri/target/release/bundle/nsis/`. Publish
 the installer through GitHub Releases; see [RELEASE.md](./RELEASE.md) for the
 full flow.
+
+Use the feature-safe release command above, not plain `tauri build`, which
+omits experimental mic-mute support. For private support, email
+[jay@jayparry.me](mailto:jay@jayparry.me).
 
 ## Stack
 

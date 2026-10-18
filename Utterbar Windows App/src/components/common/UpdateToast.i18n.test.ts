@@ -31,7 +31,7 @@ describe('UpdateToast i18n source-grep guard', () => {
       '>Update available<',
       "'Install & restart'",
       "'Installing…'",
-      ">Later<",
+      '>Later<',
       "'Update failed. Try again in a moment.'",
       ">You're on the latest version.<",
       ">See what's new →<",
@@ -70,6 +70,13 @@ describe('UpdateToast i18n source-grep guard', () => {
     // `anyE.message` (or drops the OrliqError shape detection) fails.
     expect(SOURCE).toMatch(/return anyE\.message;/);
     expect(SOURCE).toMatch(/chrome\.update_toast\.error_generic/);
+  });
+
+  it('opens the matching GitHub release without depending on the retired website', () => {
+    expect(SOURCE).toContain(
+      'https://github.com/badoomtch/Utterbar-App/releases/tag/v${justUpdatedTo}',
+    );
+    expect(SOURCE).not.toContain('https://utterbar.com');
   });
 
   it('synchronously guards Install & restart against double-click via a ref', () => {
